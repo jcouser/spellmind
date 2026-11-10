@@ -14,6 +14,9 @@
 --   nonces       the last few session nonces, so a new one never repeats them
 --   chat         the one chat's id: c + 6 lowercase hex
 --   lines        the window's last lines, so a /reload doesn't empty it
+--   stateSeq     seq of the newest state build; only ever increases (State.lua)
+--   chars        per character (a hash of its GUID): sid and the parts last sent (State.lua)
+--   share        { state = true, identity = false }: what game data goes to the app
 
 local ADDON_NAME, ns = ...
 
@@ -232,5 +235,17 @@ function ns.InitDB()
 	end
 	while #lines > ns.MAX_LINES do table.remove(lines, 1) end
 	db.lines = lines
+
+	-- The character's state (State.lua): one seq per install, an entry per character (keyed by a
+	-- hash of its GUID, never its name), and what is shared (identity: name, realm and guild,
+	-- off unless the player turns it on; nothing reads them yet).
+	db.stateSeq = Count(db.stateSeq)
+	local chars = {}
+	for k, c in pairs(type(db.chars) == "table" and db.chars or {}) do
+		if type(k) == "string" and type(c) == "table" then chars[k] = c end
+	end
+	db.chars = chars
+	local share = type(db.share) == "table" and db.share or {}
+	db.share = { state = share.state ~= false, identity = share.identity == true }
 	return db
 end

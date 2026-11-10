@@ -4,8 +4,9 @@
 --
 --   Out: records (§2.2) drawn as a pixel strip (§2.1), newest first within 3,200 bytes. Keyed
 --        records stay in SpellmindDB.outbox until the app acks them and are drawn again
---        verbatim after /reload.
---   In:  doorbells (§3): files that exist at every UI load, which the app rings by deleting
+--        verbatim after /reload. After them, the character's state parts the app hasn't
+--        confirmed (State.lua, docs/milestone-4.md); one that doesn't fit waits, the rest go.
+--   In: doorbells (§3): files that exist at every UI load, which the app rings by deleting
 --        them for a moment: push (read a slot) and alive (its beat), plus the self-test; slot
 --        addons Spellmind_S001..S200 loaded under the rules of §4.2; records applied with the
 --        seq cursor (§4.3); and SpellmindInbox (Spellmind/Inbox.lua) at every login.
@@ -354,22 +355,33 @@ function L.StripEntries()
 		list[#list + 1] = { wire = s.wire, order = s.order, untilT = s.untilT }
 	end
 	table.sort(list, function(a, b) return a.order > b.order end)
+	-- Then the character's state parts the app hasn't confirmed (State.lua), in part order.
+	if ns.State then
+		for _, e in ipairs(ns.State.Entries()) do list[#list + 1] = e end
+	end
 	return list
 end
 
 -- Records are drawn newest first until the payload would pass 3,200 bytes; older ones wait
--- for a later frame (§2.2). The frame counter changes whenever the content does.
+-- for a later frame (§2.2). A state part that doesn't fit is skipped, not a stop, so smaller
+-- ones fill the space (docs/milestone-4.md). The frame counter changes whenever the content does.
 function L.RefreshStrip()
 	if not ns.db or not R.nonce then return end
 	local parts, size, waits = {}, 0, false
 	local now, untilT = GetTime(), nil
+	local full = false -- a record didn't fit: the older ones wait too
 	for _, e in ipairs(L.StripEntries()) do
-		local add = #e.wire + (#parts > 0 and 1 or 0)
-		if size + add > ns.MAX_PAYLOAD then break end
-		parts[#parts + 1] = e.wire
-		size = size + add
-		waits = waits or e.waits == true
-		if e.untilT and e.untilT > now and (not untilT or e.untilT < untilT) then untilT = e.untilT end
+		if e.state or not full then
+			local add = #e.wire + (#parts > 0 and 1 or 0)
+			if size + add <= ns.MAX_PAYLOAD then
+				parts[#parts + 1] = e.wire
+				size = size + add
+				waits = waits or e.waits == true
+				if e.untilT and e.untilT > now and (not untilT or e.untilT < untilT) then untilT = e.untilT end
+			elseif not e.state then
+				full = true
+			end
+		end
 	end
 	R.stripUntil = untilT
 	R.stripWaits = waits
@@ -517,6 +529,9 @@ function L.SayHello()
 	-- seen says it again after every load) and the way records go out (always the strip here).
 	args[#args + 1] = { "slot", R.slots.nextIndex }
 	args[#args + 1] = { "mode", "pixel" }
+	-- The character's session id (State.lua): the app keeps one stored state per sid.
+	local sid = ns.State and ns.State.Sid()
+	if sid then args[#args + 1] = { "sid", sid } end
 	R.slots.reported = R.slots.nextIndex
 	local wire = L.Record(R.nonce, "hello", "", args, "")
 	R.hello = { wire = wire, cur = db.cursor, p = R.push.known, order = db.sendCounter + 0.5, createdAt = GetTime() }
@@ -819,6 +834,8 @@ function L.HandleSlotData(data, source)
 			L.HelloConfirmed()
 			L.HelloAnswered(R.loadReason)
 		end
+		-- The app's caps and what it has of the character's state (bridge.state).
+		if ns.State then ns.State.OnBridge(bridge) end
 		L.ApplyRecords(data.records)
 	end
 	ns.Chat.Refresh()

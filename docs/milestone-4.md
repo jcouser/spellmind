@@ -40,7 +40,7 @@ Spellmind sends **eight parts instead**: `char stats talents gear bags skills qu
 ```
 char    {"v":1,"class":"Hunter","classFile":"HUNTER","race":"Night Elf","raceFile":"NightElf","faction":"Alliance","level":15,"xp":1234,"xpMax":5000,"rested":2400,"resting":true,"money":12345,"loc":{"map":1431,"zone":"Duskwood","sub":"Darkshire","x":45.2,"y":67.8}}
 stats   {"v":1,"hp":812,"mana":540,"str":40,"agi":75,"sta":60,"int":30,"spi":35,"armor":620,"ap":120,"rap":180,"crit":6.1,"rcrit":7.2,"scrit":2,"dodge":8.3,"parry":0,"block":0,"res":{"fire":0,"nature":10,"frost":0,"shadow":0,"arcane":0}}
-talents {"v":1,"unspent":0,"tabs":[{"name":"Beast Mastery","points":21,"t":[{"i":3,"name":"Improved Aspect of the Hawk","r":5,"max":5}]}]}
+talents {"v":1,"spec":"Rogue","role":"DAMAGER","spent":14,"unspent":0,"nodes":[{"id":105708,"name":"Malice","r":1,"max":3}]}
 gear    {"v":1,"items":[{"slot":1,"id":10504,"name":"Green Lens","q":3,"ilvl":56,"sub":"Cloth","ench":0,"st":{"int":13,"sta":8},"dur":[45,50]}],"empty":[4,19]}
 bags    {"v":1,"slots":64,"free":12,"items":[{"id":2589,"name":"Linen Cloth","q":1,"n":34,"ilvl":5,"equip":"INVTYPE_CHEST","bound":true}],"junk":{"n":7,"copper":1234},"more":3}
 skills  {"v":1,"prof":[{"name":"Mining","rank":120,"max":150}],"weapon":[{"name":"Bows","rank":72,"max":75}]}
@@ -51,7 +51,7 @@ rep     {"v":1,"list":[{"id":72,"name":"Stormwind","r":5,"v":1200,"max":6000,"wa
 Field notes:
 - `q` is the item quality, 0–5.
 - `r` is the standing, 1 (Hated) to 8 (Exalted).
-- `talents.tabs[].t` lists only talents with ranks above 0.
+- `talents.nodes` lists only nodes with a rank above 0 (a choice node: the chosen entry's name), at most 60.
 - In `bags`, items are merged by id and capped at 40. Order: equippable items of quality 2 and up, then quest items, then other quality 2 and up, then by count. Junk is only summed.
 
 **Other records and the slot:**
@@ -102,15 +102,23 @@ Field notes:
   - Numbers from memory are marked as such.
   - It has a frame for gear decisions.
 
-## Research: which functions this client has
+## Research: which functions this client has (probed in game, 1.60.1.70888, 2026-11-10)
 
-`/sm probe` (Probe.lua) calls each candidate function safely and saves what it returns. The results are read from SavedVariables after a `/reload` and recorded here before the collectors depend on them. The uncertain ones:
-- the return shape of `GetTalentTabInfo` (vanilla or modern)
-- `C_SkillInfo` vs `GetSkillLineInfo`
-- `C_Reputation` vs `GetFactionInfo`
-- `C_Item.GetItemStats`'s keys
-- `C_Container.GetContainerItemInfo`'s fields
-- whether `C_EncodingUtil` is there
+`/sm probe` (Probe.lua) called each candidate function safely on a level-15 Dwarf rogue, and the results were read from SavedVariables. **Use these. The classic forms marked "missing" don't exist on Forever:**
+
+| Part | Works | Missing |
+|---|---|---|
+| char | `UnitClass` (`Rogue, ROGUE, 4`), `UnitRace` (`Dwarf, Dwarf, 3`), `UnitFactionGroup`, `UnitLevel`, `UnitXP`/`UnitXPMax`, `GetXPExhaustion` (rested), `IsResting`, `GetMoney`, `C_Map.GetBestMapForUnit`, `GetRealZoneText`, `GetSubZoneText` | none |
+| stats | `UnitStat(p,i)` (base, effective, plus, minus: take the 2nd), `UnitArmor` (2nd = effective), `UnitHealthMax`, `UnitPowerMax(p,0)` (0 for a rogue: send mana only when > 0), `UnitAttackPower`, `UnitRangedAttackPower`, `GetCritChance`, `GetRangedCritChance`, `GetSpellCritChance(2)`, `GetDodgeChance`, `GetParryChance`, `GetBlockChance`, `UnitResistance(p,i)` (2nd) | none |
+| talents | **The modern tree:** `C_ClassTalents.GetActiveConfigID()` → config; `C_Traits.GetConfigInfo(config).treeIDs[1]` → tree; `C_Traits.GetTreeNodes(tree)` (54 nodes); `C_Traits.GetNodeInfo(config, node)` → `activeRank`, `maxRanks`, `activeEntry.entryID`, `isVisible`, `type`; the name via `C_Traits.GetEntryInfo(config, entryID).definitionID` → `C_Traits.GetDefinitionInfo(def)` (`overrideName`, else `spellID` → `C_Spell.GetSpellName`, to verify live); unspent via `C_Traits.GetTreeCurrencyInfo(config, tree, false)` or `GetNumUnspentTalents`; spec via `C_SpecializationInfo.GetSpecialization()` (1) and `GetSpecializationInfo(1)` (`1488, "Rogue", "", icon, "DAMAGER"`): one tree per class | `GetNumTalentTabs`, `GetTalentTabInfo`, `GetNumTalents`, `GetTalentInfo`, `UnitCharacterPoints`, the global `GetSpecialization`/`GetSpecializationInfo` |
+| gear | `GetInventoryItemID`, `GetInventoryItemLink` (links look like `|cnIQ2:|Hitem:9748:…|h[Name]|h|r`), `C_Item.GetItemInfo` (name, link, quality, ilvl, reqLevel, type, subType, stack, equipLoc, icon, sellPrice, classID, subclassID …), `C_Item.GetDetailedItemLevelInfo`, **`C_Item.GetItemStats(link)`** (keys like `ITEM_MOD_AGILITY_SHORT`, `ITEM_MOD_STAMINA_SHORT`, `RESISTANCE0_NAME` = armor), `GetInventoryItemDurability(slot)` | `GetItemStats` |
+| bags | `C_Container.GetContainerNumSlots`, `GetContainerNumFreeSlots` (free, family), `GetContainerItemInfo` → a table: `itemID`, `itemName`, `quality`, `stackCount`, `isBound`, `hasNoValue`, `hyperlink`, `isLocked`, `iconFileID`; `NUM_BAG_SLOTS` = 4 | none |
+| skills | `C_SkillInfo.GetNumSkillLines` (24), `C_SkillInfo.GetSkillLineInfo(i)` → a table: `name`, `skillID`, `rank`, `maxRank`, `isHeader`, `isCollapsed`, `modifier` | `GetNumSkillLines`, `GetSkillLineInfo` |
+| quests | `C_QuestLog.GetNumQuestLogEntries` (entries, quests), `C_QuestLog.GetInfo(i)` (`title`, `questID`, `level`, `isHeader`, `isCollapsed`, `isHidden`, …) | none |
+| rep | `C_Reputation.GetNumFactions`, `C_Reputation.GetFactionDataByIndex(i)` → a table: `factionID`, `name`, `reaction` (1–8), `currentStanding`, `currentReactionThreshold`, `nextReactionThreshold`, `isHeader`, `isCollapsed`, `isWatched`, `isHeaderWithRep`, `isChild`; `C_Reputation.GetWatchedFactionData` | `GetNumFactions`, `GetFactionInfo`, `GetWatchedFactionInfo` |
+| compress | **`C_EncodingUtil.CompressString`** and **`EncodeBase64`** exist, so the `z` path works (check which compression method matches Node's `inflateRaw`) | none |
+
+For later: **Pawn is installed** (the probe found `PawnGetSpecializationInfoForClassID`). Pawn's functions for other addons (`PawnGetItemValue` and others) may meet the rule for another addon's scores. Research it when the gear features are built.
 
 ## Two tracks
 

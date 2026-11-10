@@ -72,7 +72,8 @@ export function readBundleId(file = BUNDLE_ID_FILE) {
   if (!BUNDLE_RE.test(id)) throw new Error(`${file}: not a bundle id`);
   return id;
 }
-export const CAPTURE_BUNDLE_ID = readBundleId();
+// Spellmind: no macOS helper yet (Windows first), so its bundle id is a default until mac/BUNDLE_ID exists.
+export const CAPTURE_BUNDLE_ID = (() => { try { return readBundleId(); } catch { return 'gg.spellmind.capture'; } })();
 
 /** The local self-signed identity: a code-signing certificate with exactly this name (build-app.sh says how). */
 export const IDENTITY_NAME = 'Spellmind Local Code Signing';
@@ -691,7 +692,8 @@ export function createCapture({ app, socketPath, magic = '534D', intervalMs = 25
  */
 export function createWindowsCapture({ exe = WINDOWS_EXE, magic = '534D', intervalMs = 250, statsSec = STATS_SEC,
   processNames = ['Wow*'], flavorDirs = [], notGame = [], exeDir = null,
-  region = { width: 900, height: 300 }, logFile = null, launch = true, relaunchMs = 3000, retryMs = RETRY_MS,
+  // Spellmind: a taller crop and a deeper search, for its strip below NeverQuestAlone's corner one (y 272).
+  region = { width: 900, height: 640 }, searchRows = 600, logFile = null, launch = true, relaunchMs = 3000, retryMs = RETRY_MS,
   onPayload = () => {}, onStatus = () => {}, onGame = () => {}, onError = () => {}, log = () => {},
   spawnImpl = spawn } = {}) {
   let child = null;
@@ -710,7 +712,7 @@ export function createWindowsCapture({ exe = WINDOWS_EXE, magic = '534D', interv
 
   const words = list => (Array.isArray(list) ? list : []).filter(w => typeof w === 'string' && w !== '');
   function helperArgs() {
-    return ['--process-name', processNames.join(','), '--width', String(region.width), '--height', String(region.height),
+    return ['--process-name', processNames.join(','), '--width', String(region.width), '--height', String(region.height), '--search-rows', String(searchRows),
       '--interval-ms', String(intervalMs), '--magic', magic, '--stats-sec', String(statsSec), ...(logFile ? ['--log', logFile] : []),
       ...words(flavorDirs).flatMap(f => ['--flavor-dir', f]), ...words(notGame).flatMap(n => ['--not-game', n]),
       ...(typeof exeDir === 'string' && exeDir ? ['--exe-dir', exeDir] : [])];

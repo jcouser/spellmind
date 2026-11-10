@@ -78,6 +78,9 @@ From [tommygeoco/neverquestalone](https://github.com/tommygeoco/neverquestalone)
 - `tests/fixtures/protocol-v2.json` ← `tests/fixtures/protocol-v2.json`
 - `core/capture/windows/` ← `bridge/capture/windows/` (the capture helper's C sources, renamed spellmind-capture; Spellmind's magic, a 600-row search and `--search-rows`)
 - `core/capture/build.mjs` ← `bridge/capture/build.mjs`
+- `core/link/store.mjs` ← `bridge/app/store.mjs`
+- `core/link/install.mjs` ← parts of `bridge/byok/wow.mjs` (the flavor folders, the process check, the addon copy)
+- `core/link/service.mjs` and `core/link/render.mjs`: Spellmind's own, modeled on `bridge/service.mjs` and `bridge/app/render.mjs` (the same protocol, its rules and constants)
 - `tests/fixtures/ai/providers/` ← `tests/fixtures/byok/providers/` (the providers' recorded answers)
 
 NeverQuestAlone is itself built on [chelinho139/wow-ai](https://github.com/chelinho139/wow-ai) (MIT), which worked out how an addon talks to a program outside the game: a strip of colored pixels the addon draws (an idea wow-ai credits to wow-forever-codex), and addon files the program writes for the game to load.

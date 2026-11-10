@@ -34,6 +34,36 @@ Every feature is built from these, so the addon stays coherent and small.
 
 Style (with Codex for art): Spellmind's own frame and icon, a small persona portrait in the chat header, and quality colors for items. Text sizes follow the game's UI scale.
 
+### 2.1 In the game's own windows
+
+Spellmind meets the player where they already are, as well as in its chat and panel. One pattern everywhere:
+
+- **The Spellmind mark:** a small icon button in a corner of a game window or a row. It sits unobtrusively beside what's there and never covers the game's own controls.
+- **Hover:** instant local facts in a tooltip, with no AI call and no cost.
+- **Click:** **Explain**. The AI answers about *that exact thing*, its context attached: the quest's full text and objectives, the item's stats, the talent's description. Shift-click puts it in the chat box to edit first.
+- **Where the answer goes:** an **answer card** anchored beside the window it came from, for quick reads that stay with the window. It holds the reply, **Ask more** (which opens the chat with the thread), and close. Every answer is also kept in the chat window's history.
+
+| Game window | Spellmind adds | Hover: local, instant | Click: AI |
+|---|---|---|---|
+| **Quest details** (quest log and map, and the NPC's quest window) | the mark in the details header | quest level against yours (difficulty color), group or elite, what's left, rewards you can use | **"Break it down"**: what to do in steps, where, what you'll need, whether it's worth it now, which reward to take |
+| **Quest reward choice** (turning in) | a "Spellmind picks" badge on one choice | why (stat delta over your worn item; usable or not) | the reasoning, or "compare all three" |
+| **Item tooltips** (anywhere: bags, character, loot, merchant, chat links, AH) | one quiet line at the bottom | can't use (skill, armor, level); upgrade or downgrade over worn, with the delta; vendor value | **"Should I…?"** keep, equip, vendor, auction, disenchant |
+| **Character frame** (gear slots) | a tiny dot on a slot that has a better item in your bags; the mark in the frame's corner | which bag item and why | "review my gear": weakest slots, what to look for next |
+| **Bags** | nothing on the slots by default (bag addons already mark upgrades; avoid clutter); the mark on the bag frame | free slots, junk value | "clean up my bags": vendor, keep, bank lists |
+| **Talent tree** | the mark on the frame; a small "next in plan" glow on one node | a node's role in your plan, its ranks | "what should I take next and why", "make me a build" |
+| **Spellbook** | the mark on the frame; a line in spell tooltips | the next rank and the level it comes at | "what's my rotation now", "what is this spell for" |
+| **Class trainer** | a "Spellmind suggests" tag on rows | what's new since your last visit | "what's worth buying first with my gold" |
+| **Merchant** | the mark on the window | your junk and worse-than-worn items, and their total value (no auto-sell) | "anything here worth buying?" |
+| **Loot roll** | a small Need/Greed hint beside the item | upgrade or not, usable or not | why |
+| **Profession window** | the mark; a "skill-up" tag on recipes worth crafting | colour and skill-ups left per recipe, materials you have | "plan my skill-ups to the next cap" |
+| **World map** *(optional, with routing)* | nothing by default | none | "where do I find this?", answered with a waypoint |
+
+**Rules for these:**
+- **Off switches per window** in Settings. Every addition is small and labelled as Spellmind's.
+- **Other addons come first.** Where another addon (Questie, Pawn, a bag addon, Forever Leveling BiS) already marks something, Spellmind's mark moves aside, or it stays off until the player turns it on.
+- **Secure frames:** hooks only (`hooksecurefunc`, `TooltipDataProcessor.AddTooltipPostCall`, frames parented, never Blizzard functions replaced), so nothing taints the game's own UI. Nothing new is built or shown on a secure frame in combat; it waits for combat to end.
+- **Game text is data.** The quest's text, the item's name and so on go in the game data block, under the prompt's rule. Text another addon or player could set is never followed as instructions.
+
 ## 3. Features
 
 Each feature lists: **what the player gets**, **triggers**, **UI**, **data** (✓ already sent, ◐ partly, ✗ new), **local vs AI**, and **open questions**.
@@ -263,7 +293,7 @@ Always available: anything the player asks, with the character attached. Chips u
 | `bags` | `sell` per item | 3.2, 3.6 |
 | `recipes` (new, cached on open) | known recipes per profession | 3.5 |
 | `fight` (new, opt-in) | the last fight's aggregates | 3.8 |
-| message context | a linked item's or quest's full details | 3.2, 3.9 |
+| message context | a linked item's or quest's full details; for an Explain click, that exact thing (the quest's text and objectives, the item, the talent node) | 2.1, 3.2, 3.9 |
 
 ## 5. Research to do (probe first, as before)
 
@@ -276,10 +306,13 @@ Always available: anything the player asks, with the character attached. Chips u
 - Combat log access and Midnight's restrictions on Forever.
 - Pawn's API and license.
 - Hooking item links into our input box (`ChatEdit_InsertLink`) and tooltips (`TooltipDataProcessor`).
+- The game windows of §2.1 on Forever: the names of the frames and their details panes (`QuestFrame`, `QuestMapFrame` and its details, `CharacterFrame`, `PlayerSpellsFrame` or `ClassTalentFrame`, the spellbook, `ClassTrainerFrame`, `MerchantFrame`, `GroupLootFrame`, the professions frame), and which of them are secure. Also the quest text: `GetQuestText`, `C_QuestLog.GetQuestDescription` or how the details pane gets it.
+- How Questie, Pawn and the installed bag addons decorate the same frames, so Spellmind's marks don't collide.
 
 ## 6. Build order (proposed)
 
 1. **Surfaces first:**
+   - the Spellmind mark, the hover tooltip and the answer card (§2.1), with the first two integrations: **quest details: Break it down**, and the **item tooltip line**;
    - the Advisor panel shell with its tabs;
    - nudges;
    - the minimap button;

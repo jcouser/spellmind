@@ -1,0 +1,20 @@
+{
+  "name": "spellmind",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Spellmind: AI Companion for World of Warcraft: Forever",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*_test.mjs\""
+  },
+  "optionalDependencies": {
+    "@napi-rs/keyring": "2.1.0"
+  },
+  "devDependencies": {
+    "fengari": "0.1.5"
+  }
+}

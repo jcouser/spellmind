@@ -82,6 +82,14 @@ From [tommygeoco/neverquestalone](https://github.com/tommygeoco/neverquestalone)
 - `core/link/install.mjs` ← parts of `bridge/byok/wow.mjs` (the flavor folders, the process check, the addon copy)
 - `core/link/service.mjs` and `core/link/render.mjs`: Spellmind's own, modeled on `bridge/service.mjs` and `bridge/app/render.mjs` (the same protocol, its rules and constants)
 - `tests/fixtures/ai/providers/` ← `tests/fixtures/byok/providers/` (the providers' recorded answers)
+- `addon/Spellmind/Core.lua` ← `addon/NeverQuestAlone/Store.lua` (its helpers, ids, event frame and saved data, trimmed)
+- `addon/Spellmind/Link.lua` ← `addon/NeverQuestAlone/Transport.lua` (rewritten smaller: records and outbox, strip, self-heal, doorbells, hello and seen, slots, slot-only mode)
+- `addon/Spellmind/Chat.lua` ← `addon/NeverQuestAlone/Chats.lua` (its send checks, the key check and the record handling; the window is Spellmind's own)
+- `addon/Spellmind/Inbox.lua` ← `addon/NeverQuestAlone/Inbox.lua`
+- `tests/helpers/wow_stub.lua` ← `tests/wow_stub.lua`
+- `tests/helpers/addon-vm.mjs` ← `tests/helpers/nqa-vm.js`
+- `tests/addon/link_test.mjs` ← `tests/nqa_addon_test.js` (its ring, slot and reload patterns)
+- `tests/addon/toc_test.mjs` ← `tests/order_check.js`
 
 NeverQuestAlone is itself built on [chelinho139/wow-ai](https://github.com/chelinho139/wow-ai) (MIT), which worked out how an addon talks to a program outside the game: a strip of colored pixels the addon draws (an idea wow-ai credits to wow-forever-codex), and addon files the program writes for the game to load.
 

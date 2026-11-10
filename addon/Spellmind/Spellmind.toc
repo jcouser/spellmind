@@ -1,0 +1,12 @@
+## Interface: 16001
+## Title: Spellmind
+## Notes: Spellmind: AI Companion. Ask anything in game; needs the Spellmind app.
+## Author: The Spellmind authors
+## Version: 0.1.0
+## SavedVariables: SpellmindDB
+
+Codec.lua
+Inbox.lua
+Core.lua
+Link.lua
+Chat.lua

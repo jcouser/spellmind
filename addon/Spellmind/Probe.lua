@@ -72,6 +72,41 @@ function ns.Probe()
 		out[name .. (c[2] ~= nil and ("(" .. tostring(c[2]) .. (c[3] ~= nil and ("," .. tostring(c[3])) or "") .. ")") or "()")] = try(g(name), select(2, unpack(c)))
 	end
 	out.NUM_BAG_SLOTS = describe(NUM_BAG_SLOTS)
+	-- Talents (round 2): the classic talent functions are gone on Forever, so list what the client has.
+	-- Every global function, and every C_ namespace's functions, whose name says talent, spec or trait.
+	local found, n = {}, 0
+	for name, v in pairs(_G) do
+		if type(name) == "string" then
+			local lower = name:lower()
+			if type(v) == "function" and (lower:find("talent") or lower:find("speciali") or lower:find("trait")) then
+				n = n + 1
+				if n <= 80 then found[name] = "function" end
+			elseif type(v) == "table" and name:sub(1, 2) == "C_" and (lower:find("talent") or lower:find("spec") or lower:find("trait")) then
+				local fns = {}
+				for k, f in pairs(v) do if type(f) == "function" then fns[#fns + 1] = k end end
+				table.sort(fns)
+				found[name] = table.concat(fns, ",")
+			end
+		end
+	end
+	out.talentApi = found
+	-- And the likely ones, called: the spec's info, the active talent config, and its tree's nodes.
+	local spec = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization and C_SpecializationInfo.GetSpecialization()
+	out["C_SpecializationInfo.GetSpecializationInfo(spec)"] = try(g("C_SpecializationInfo.GetSpecializationInfo"), spec or 1)
+	out["GetSpecializationInfo(spec)"] = try(g("GetSpecializationInfo"), spec or 1)
+	local config = C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_ClassTalents.GetActiveConfigID()
+	out["C_ClassTalents.GetActiveConfigID()"] = describe(config)
+	if config and C_Traits then
+		out["C_Traits.GetConfigInfo(config)"] = try(C_Traits.GetConfigInfo, config)
+		local info = C_Traits.GetConfigInfo and C_Traits.GetConfigInfo(config)
+		local tree = info and info.treeIDs and info.treeIDs[1]
+		if tree and C_Traits.GetTreeNodes then
+			local nodes = C_Traits.GetTreeNodes(tree) or {}
+			out["C_Traits.GetTreeNodes(tree)#"] = #nodes
+			if nodes[1] then out["C_Traits.GetNodeInfo(config,node1)"] = try(C_Traits.GetNodeInfo, config, nodes[1]) end
+		end
+	end
+	out["C_Talent?"] = describe(rawget(_G, "C_Talent") ~= nil)
 	ns.db.probe = out
 	local n = 0
 	for _ in pairs(out) do n = n + 1 end

@@ -102,7 +102,9 @@ test('a slot written by slotTable(\'SpellmindSlotData\') and loaded on a push ri
   assert.deepEqual(vm.outbox(), [], 'acked');
   assert.equal(vm.num('SpellmindDB.cursor'), 2);
   assert.equal(vm.num('NS.R.orphans'), 1, 'another chat\'s record makes nothing');
-  assert.ok(vm.chatLines().includes('Spellmind: Take Skinning.'), JSON.stringify(vm.chatLines()));
+  // A short reply shows whole in the chat frame, line by line, its escapes kept inert.
+  assert.ok(vm.chatLines().includes('Spellmind: Take **Skinning** ||cff00ff00 always||r.'), JSON.stringify(vm.chatLines()));
+  assert.ok(vm.chatLines().includes('   A ||Hitem:2140||h link stays text.'), JSON.stringify(vm.chatLines()));
   const lines = vm.savedLines();
   assert.ok(lines.includes('|cff9d7dffSpellmind:|r Take **Skinning** ||cff00ff00 always||r.'), JSON.stringify(lines));
   assert.ok(lines.includes('A ||Hitem:2140||h link stays text.'), 'a single | is doubled: no live link');
@@ -278,7 +280,7 @@ test('a whole turn through the real service: the strip read into handlePayload, 
   ring(vm);
   assert.deepEqual(vm.outbox(), [], 'acked');
   assert.equal(vm.bool('NS.R.helloAnswered'), true, 'hello answered');
-  assert.ok(vm.chatLines().includes('Spellmind: Echo: Where do I train?'), `the summary in the chat frame: ${JSON.stringify(vm.chatLines())}`);
+  assert.ok(vm.chatLines().includes('Spellmind: Echo: Where do I train? || with a pipe.'), `the short reply whole in the chat frame: ${JSON.stringify(vm.chatLines())}`);
   assert.ok(vm.savedLines().includes('|cff9d7dffSpellmind:|r Echo: Where do I train? || with a pipe.'));
   // The seen that follows moves the service's cursor.
   svc.handlePayload(findAndDecode(vm.screen()).text);
@@ -312,4 +314,28 @@ test('/sm probe: every client function tried safely, the results saved in Spellm
   assert.equal(vm.evaluate('type(SpellmindDB.probe)'), 'table');
   assert.equal(vm.evaluate('type(SpellmindDB.probe["UnitClass(player)"])'), 'table');
   assert.equal(stripRecords(vm).length, before, 'nothing sent');
+});
+
+test('the chat frame: a short reply (4 lines at most) whole, so a list after "…three talents:" shows; a longer one its summary and where the rest is', () => {
+  const vm = session();
+  const key = vm.slash('what talents?');
+  const chat = vm.evaluate('SpellmindDB.chat');
+  vm.slotText(slotFor(vm, { push: 1, acked: [`${vm.evaluate('NS.R.nonce')}_1`], records: [
+    { seq: 1, t: 'reply', chat, agent: 'main', text: 'You have 5 points across three talents:\n• Coup de Grace 1/3\n• Malice 2/5\n• Efficient Strikes 2/2', summary: 'You have 5 points across three talents:', more: 0 },
+  ] }));
+  ring(vm);
+  const lines = vm.chatLines();
+  assert.ok(lines.includes('Spellmind: You have 5 points across three talents:'), JSON.stringify(lines));
+  for (const l of ['   • Coup de Grace 1/3', '   • Malice 2/5', '   • Efficient Strikes 2/2']) assert.ok(lines.includes(l), l);
+  const long = Array.from({ length: 7 }, (_, i) => `Line ${i + 1} of a long answer.`).join('\n');
+  vm.advance(5); // the addon loads a slot at most so often
+  vm.slash('tell me more');
+  vm.slotText(slotFor(vm, { push: 2, acked: [`${vm.evaluate('NS.R.nonce')}_2`], records: [
+    { seq: 2, t: 'reply', chat, agent: 'main', text: long, summary: 'Line 1 of a long answer.', more: 0 },
+  ] }));
+  ring(vm);
+  const after = vm.chatLines();
+  assert.ok(after.includes('Spellmind: Line 1 of a long answer. |cff888888(more: /sm)|r'), JSON.stringify(after));
+  assert.ok(!after.some(l => l.includes('Line 2 of')), 'the rest only in the window');
+  void key;
 });

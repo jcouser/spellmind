@@ -15,6 +15,8 @@ ns.Chat = C
 local R = ns.R
 
 local SHORT_MAX = 240 -- bytes of an answer shown in the chat frame
+local CHAT_LINES_MAX = 4 -- a reply this short (lines and bytes) shows whole in the chat frame
+local CHAT_BYTES_MAX = 600
 local WHO = "|cff9d7dffSpellmind:|r "
 local YOU = "|cffffd100You:|r "
 local ERR = "|cffff6060Spellmind:|r "
@@ -298,8 +300,19 @@ function C.OnRecord(r, replay)
 		local more = math.max(0, math.floor(tonumber(r.more) or 0))
 		AddText(WHO, text .. (more > 0 and " |cff888888(the rest is in the Spellmind app)|r" or ""))
 		if not replay then
-			local summary = type(r.summary) == "string" and r.summary ~= "" and ns.SafeText(r.summary) or nil
-			ChatFrame("Spellmind: " .. (summary or Short(r.text)))
+			-- A short reply goes to the chat frame whole, line by line: its first line alone can be
+			-- "…across three talents:" with the list below it (a player's, 2026-11-10). A longer one
+			-- shows its summary and says the rest is in the window.
+			local lines = {}
+			for line in tostring(text):gmatch("[^\n]+") do
+				if line:match("%S") then lines[#lines + 1] = line end
+			end
+			if #lines > 0 and #lines <= CHAT_LINES_MAX and #text <= CHAT_BYTES_MAX then
+				for i, line in ipairs(lines) do ChatFrame((i == 1 and "Spellmind: " or "   ") .. line) end
+			else
+				local summary = type(r.summary) == "string" and r.summary ~= "" and ns.SafeText(r.summary) or nil
+				ChatFrame("Spellmind: " .. (summary or Short(r.text)) .. " |cff888888(more: /sm)|r")
+			end
 		end
 	elseif kind == "error" then
 		text = ns.SafeText(r.text)

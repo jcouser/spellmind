@@ -9,4 +9,5 @@ Codec.lua
 Inbox.lua
 Core.lua
 Link.lua
+Probe.lua
 Chat.lua

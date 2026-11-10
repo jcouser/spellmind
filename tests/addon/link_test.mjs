@@ -300,3 +300,13 @@ test('the window\'s box: Enter sends and leaves the box (so the movement keys mo
   assert.equal(vm.evaluate('tostring(SpellmindWindow.input:HasFocus())'), 'false', 'an empty Enter leaves it too');
   assert.equal(stripRecords(vm).filter(r => r.type === 'msg').length, 1, 'and sends nothing');
 });
+
+test('/sm probe: every client function tried safely, the results saved in SpellmindDB.probe, nothing on the strip', () => {
+  const vm = session();
+  const before = stripRecords(vm).length;
+  vm.slash('probe');
+  assert.ok(vm.chatLines().some(l => /probed \d+ client functions/.test(l)));
+  assert.equal(vm.evaluate('type(SpellmindDB.probe)'), 'table');
+  assert.equal(vm.evaluate('type(SpellmindDB.probe["UnitClass(player)"])'), 'table');
+  assert.equal(stripRecords(vm).length, before, 'nothing sent');
+});

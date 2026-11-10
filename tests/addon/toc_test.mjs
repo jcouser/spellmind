@@ -25,7 +25,7 @@ test('the TOC: interface 16001, the title, the notes, SpellmindDB, and every fil
   assert.equal(field('Title'), 'Spellmind');
   assert.equal(field('Notes'), 'Spellmind: AI Companion. Ask anything in game; needs the Spellmind app.');
   assert.equal(field('SavedVariables'), 'SpellmindDB');
-  assert.deepEqual(tocFiles(), ['Codec.lua', 'Inbox.lua', 'Core.lua', 'Link.lua', 'Chat.lua']);
+  assert.deepEqual(tocFiles(), ['Codec.lua', 'Inbox.lua', 'Core.lua', 'Link.lua', 'Probe.lua', 'Chat.lua']);
   const onDisk = fs.readdirSync(ADDON).filter(f => f.endsWith('.lua')).sort();
   assert.deepEqual([...tocFiles()].sort(), onDisk, 'every Lua file is listed, and every listed one exists');
   const version = read('Core.lua').match(/^ns\.VERSION = "([^"]+)"/m)[1];

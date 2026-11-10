@@ -320,6 +320,12 @@ SlashCmdList.SPELLMIND = function(msg)
 		C.Toggle()
 		return
 	end
+	-- /sm probe: the API probe (Probe.lua), saved for the next /reload. Never sent anywhere.
+	if msg:lower() == "probe" and ns.Probe then
+		local n = ns.Probe()
+		ChatFrame(("Spellmind: probed %d client functions. Type /reload to save the results."):format(n))
+		return
+	end
 	C.Send(msg)
 end
 

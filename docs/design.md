@@ -130,6 +130,7 @@ Rule: each feature's data is researched when that feature is built (what the cli
   - Name check (2026-11-10): no WoW addon, and only one empty GitHub repo (the `spellmind` handle is free). Two unrelated match-3 puzzle games use it (Dekovir on iOS and Android, DPGames in the browser).
   - Always use the full title, "Spellmind: AI Companion". Search the USPTO and EUIPO trademark databases before any public release.
 - Persona and voice: open.
+- Art and design: done with Codex, which can generate images, on the user's ChatGPT plan. That covers the icon, the persona's portrait, and the addon and app look. All Spellmind's own: none of NeverQuestAlone's art.
 - License: MIT for Spellmind's own code (decided 2026-11-10). Copied parts keep their MIT notice in NOTICE.md. The name and art are kept out of the license.
 - Should talent and gear plans be stored per character in the app (survives SavedVariables wipes)?
 - Which gear scorers do Forever players actually run, and do any have a public API (vs. reading tooltip lines, which breaks when they change their wording)?

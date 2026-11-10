@@ -26,7 +26,7 @@ local S = {}
 ns.State = S
 local R = ns.R
 
-S.PARTS = { "char", "stats", "talents", "gear", "bags", "skills", "quests", "rep" }
+S.PARTS = { "char", "stats", "talents", "spells", "gear", "bags", "skills", "quests", "rep" }
 S.MAX_JSON = 8000 -- bytes of one part's JSON
 S.MAX_BODY = 2900 -- bytes of one part's body on the strip
 S.STR_MAX = 60 -- bytes of one string from the game
@@ -546,6 +546,46 @@ end
 
 -- Factions in the game's order; headers are counted only when collapsed (a header with its own
 -- standing is a faction too). v and max are the standing within the current reaction.
+-- spells: the spellbook's tabs (C_SpellBook, probed 2026-11-10: the classic GetSpellTabInfo and
+-- GetNumSpellTabs are gone). Each known spell with its rank ("Rank 2" → 2) and passives marked; the
+-- spells the book shows as coming later ("future" entries) with the level they're learned at, soonest
+-- first. A player asked for it: talents alone don't say what a character can cast.
+local SPELL_TABS_MAX, SPELLS_MAX, NEXT_MAX = 8, 100, 10
+function Build.spells()
+	local SB = C_SpellBook
+	if type(SB) ~= "table" then return O("v", 1) end
+	local E = type(Enum) == "table" and Enum or {}
+	local bank = (E.SpellBookSpellBank and E.SpellBookSpellBank.Player) or 0
+	local SPELL = (E.SpellBookItemType and E.SpellBookItemType.Spell) or 1
+	local FUTURE = (E.SpellBookItemType and E.SpellBookItemType.FutureSpell) or 2
+	local tabs, coming, total = {}, {}, 0
+	for line = 1, Whole(ns.Try(SB.GetNumSpellBookSkillLines)) or 0 do
+		local info = ns.Try(SB.GetSpellBookSkillLineInfo, line)
+		if type(info) == "table" and not info.shouldHide and not info.isGuild and #tabs < SPELL_TABS_MAX then
+			local list = {}
+			local off, n = Whole(info.itemIndexOffset) or 0, Whole(info.numSpellBookItems) or 0
+			for i = off + 1, off + n do
+				local it = ns.Try(SB.GetSpellBookItemInfo, i, bank)
+				if type(it) == "table" and type(it.name) == "string" and it.name ~= "" then
+					local rank = type(it.subName) == "string" and Whole(it.subName:match("(%d+)")) or nil
+					if it.itemType == FUTURE then
+						local lvl = Whole(ns.Try(SB.GetSpellBookItemLevelLearned, i, bank))
+						coming[#coming + 1] = { lvl or 999, #coming, O("name", Text(it.name), "rank", rank, "level", lvl) }
+					elseif it.itemType == SPELL and total < SPELLS_MAX then
+						total = total + 1
+						list[#list + 1] = O("name", Text(it.name), "rank", rank, "passive", it.isPassive and true or nil)
+					end
+				end
+			end
+			if #list > 0 then tabs[#tabs + 1] = O("name", Text(info.name), "list", list) end
+		end
+	end
+	table.sort(coming, function(a, b) if a[1] ~= b[1] then return a[1] < b[1] end return a[2] < b[2] end)
+	local nextList = {}
+	for i = 1, math.min(#coming, NEXT_MAX) do nextList[i] = coming[i][3] end
+	return O("v", 1, "tabs", tabs, "next", #nextList > 0 and nextList or nil)
+end
+
 function Build.rep()
 	local RP = C_Reputation
 	if type(RP) ~= "table" then return O("v", 1) end
@@ -636,6 +676,16 @@ local TRIMS = {
 	gear = {
 		{ "st", function(obj)
 			for _, it in ipairs(Get(obj, "items") or {}) do Set(it, "st", nil) end
+		end },
+	},
+	spells = {
+		{ "next", function(obj) Set(obj, "next", nil) end },
+		{ "passive", function(obj)
+			for _, tab in ipairs(Get(obj, "tabs") or {}) do
+				local list, keep = Get(tab, "list") or {}, {}
+				for _, s in ipairs(list) do if not Get(s, "passive") then keep[#keep + 1] = s end end
+				Set(tab, "list", keep)
+			end
 		end },
 	},
 }
@@ -991,7 +1041,7 @@ ns.On("UNIT_INVENTORY_CHANGED", function(_, unit)
 end)
 for _, ev in ipairs({ "PLAYER_EQUIPMENT_CHANGED", "BAG_UPDATE_DELAYED", "QUEST_LOG_UPDATE", "SKILL_LINES_CHANGED",
 	"UPDATE_FACTION", "TRAIT_CONFIG_UPDATED", "PLAYER_XP_UPDATE", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA",
-	"ZONE_CHANGED_INDOORS", "PLAYER_MONEY", "PLAYER_UPDATE_RESTING" }) do
+	"ZONE_CHANGED_INDOORS", "PLAYER_MONEY", "PLAYER_UPDATE_RESTING", "SPELLS_CHANGED", "LEARNED_SPELL_IN_SKILL_LINE" }) do
 	ns.On(ev, function() S.Dirty() end)
 end
 ns.On("PLAYER_REGEN_ENABLED", S.OnCombatEnd)

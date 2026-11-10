@@ -71,7 +71,7 @@ const FIT_STEPS = [
   }],
   ['stats', g => 'stats' in g && (delete g.stats, true)],
   // Past the contract's order, for a state no real addon makes: whole parts, char last of all.
-  ...['bags', 'rep', 'skills', 'talents', 'gear', 'quests'].map(p => [p, g => p in g && (delete g[p], true)]),
+  ...['bags', 'rep', 'skills', 'spells', 'talents', 'gear', 'quests'].map(p => [p, g => p in g && (delete g[p], true)]),
 ];
 
 /**

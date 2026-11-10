@@ -52,7 +52,7 @@ export function sanitizeGameString(s, max = GAME_STRING_MAX) {
 
 // List limits: the addon's own (docs/milestone-4.md), so a forged state can't be longer than a real
 // one. A list's limit is looked up by "<part>.<key>" first, then by its key; else 25.
-export const LIST_MAX = Object.freeze({ 'gear.items': 19, 'gear.empty': 19, 'bags.items': 40, 'quests.list': 100, obj: 5, 'rep.list': 40, nodes: 60, omitted: 16 });
+export const LIST_MAX = Object.freeze({ 'gear.items': 19, 'gear.empty': 19, 'bags.items': 40, 'quests.list': 100, obj: 5, 'rep.list': 40, nodes: 60, 'spells.tabs': 8, list: 100, 'spells.next': 10, omitted: 16 });
 const KEY_RE = /^[A-Za-z_][A-Za-z0-9_]{0,23}$/;
 // Keys that an object literal treats specially: `out.__proto__ = x` sets the prototype instead of
 // adding a key, so attacker data would be reachable by property access and hidden from JSON.

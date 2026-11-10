@@ -20,7 +20,7 @@ Spellmind sends **eight parts instead**: `char stats talents gear bags skills qu
 2 US token US nonce US state US "" US cur=<c>;sid=<16hex>;part=<name>;seq=<n>[;z=1] US <part JSON | base64(raw deflate(JSON))>
 ```
 
-- `part` is one of `char stats talents gear bags skills quests rep`, drawn in that order.
+- `part` is one of `char stats talents spells gear bags skills quests rep`, drawn in that order. (`spells` was added on 2026-11-10 at the player's ask; nine parts.)
 - `seq` is `SpellmindDB.stateSeq`: one per install, and it only goes up. All the parts changed in one build share a new seq.
 - `sid` is 16 hex characters, drawn at `PLAYER_ENTERING_WORLD` with `isInitialLogin` and kept per character. A `/reload` keeps it; a relog or a crash gets a new one.
 - Forget everything: `part=all;off=1` with an empty body.
@@ -40,6 +40,7 @@ Spellmind sends **eight parts instead**: `char stats talents gear bags skills qu
 ```
 char    {"v":1,"class":"Hunter","classFile":"HUNTER","race":"Night Elf","raceFile":"NightElf","faction":"Alliance","level":15,"xp":1234,"xpMax":5000,"rested":2400,"resting":true,"money":12345,"loc":{"map":1431,"zone":"Duskwood","sub":"Darkshire","x":45.2,"y":67.8}}
 stats   {"v":1,"hp":812,"mana":540,"str":40,"agi":75,"sta":60,"int":30,"spi":35,"armor":620,"ap":120,"rap":180,"crit":6.1,"rcrit":7.2,"scrit":2,"dodge":8.3,"parry":0,"block":0,"res":{"fire":0,"nature":10,"frost":0,"shadow":0,"arcane":0}}
+spells  {"v":1,"tabs":[{"name":"Combat","list":[{"name":"Sinister Strike","rank":2},{"name":"Dodge","passive":true}]}],"next":[{"name":"Kick","rank":2,"level":16}]}
 talents {"v":1,"spec":"Rogue","role":"DAMAGER","spent":14,"unspent":0,"nodes":[{"id":105708,"name":"Malice","r":1,"max":3}]}
 gear    {"v":1,"items":[{"slot":1,"id":10504,"name":"Green Lens","q":3,"ilvl":56,"sub":"Cloth","ench":0,"st":{"int":13,"sta":8},"dur":[45,50]}],"empty":[4,19]}
 bags    {"v":1,"slots":64,"free":12,"items":[{"id":2903,"name":"Daryl's Hunting Bow","q":2,"n":1,"ilvl":15,"sub":"Bows","equip":"INVTYPE_RANGED","bound":true}],"junk":{"n":7,"copper":1234},"more":3}

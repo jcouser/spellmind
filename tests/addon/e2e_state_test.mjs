@@ -58,6 +58,8 @@ test('the character reaches the AI: hello, the parts, then a message whose turn 
   assert.ok(g.state.gear.items.some(i => i.name === 'Simple Robe of the Monkey'));
   assert.ok(g.state.talents.nodes.length > 0);
   assert.equal(g.state.quests.count, 7);
+  assert.ok(g.state.spells.tabs.some(t => t.list.some(s => s.name === 'Sinister Strike' && s.rank === 2)), 'the spellbook, ranks and all');
+  assert.equal(g.state.spells.next[0].name, 'Sprint');
   for (let i = 0; i < 4; i++) await round();
   assert.ok(vm.chatLines().includes('Spellmind: You are a Dwarf rogue.'), JSON.stringify(vm.chatLines()));
   // What the model is sent: the fenced block with the race in it, then the typed question; no name.

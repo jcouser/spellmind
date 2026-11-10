@@ -15,7 +15,7 @@ import { slotTable } from '../../core/link/luaenc.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'fixtures', 'state-parts.json'), 'utf8'));
-const PARTS = ['char', 'stats', 'talents', 'gear', 'bags', 'skills', 'quests', 'rep'];
+const PARTS = ['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep'];
 const LIMITS = { maxBody: 2900, maxText: 8000 };
 
 // Saved data as an install that has sent six builds before (the fixture's parts are seq 7).
@@ -130,7 +130,7 @@ test('a part leaves the strip only when bridge.state has its seq, or a later one
   const vm = session();
   answer(vm);
   const all = seqs(vm);
-  assert.equal(Object.keys(all).length, 8);
+  assert.equal(Object.keys(all).length, PARTS.length);
   answer(vm, { state: { sid: '0123456789abcdef', parts: all } });
   assert.equal(stateRecords(vm).length > 0, true, 'another sid confirms nothing');
   answer(vm, { state: { sid: sid(vm), parts: { char: all.char - 1 } } });

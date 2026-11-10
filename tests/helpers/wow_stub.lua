@@ -325,6 +325,52 @@ C_Traits = {
 	GetTreeCurrencyInfo = function(config, tree, excludeStaged) return T.currency end,
 }
 C_Spell = { GetSpellName = function(id) return STUB.spells[id] end }
+
+-- The spellbook as C_SpellBook gives it (probed 2026-11-10): skill lines (tabs) with an offset and a
+-- count into one list of items; itemType 1 a known spell, 2 one to come (with the level it's learned at).
+STUB.spellbook = {
+	tabs = {
+		{ name = "General", items = {
+			{ name = "Attack", subName = "", itemType = 1 },
+			{ name = "Throw", subName = "", itemType = 1 },
+			{ name = "Dodge", subName = "", itemType = 1, isPassive = true },
+		} },
+		{ name = "Combat", items = {
+			{ name = "Backstab", subName = "Rank 1", itemType = 1 },
+			{ name = "Evasion", subName = "", itemType = 1 },
+			{ name = "Sinister Strike", subName = "Rank 2", itemType = 1 },
+			{ name = "Sprint", subName = "Rank 1", itemType = 2, level = 10 },
+			{ name = "Kick", subName = "Rank 2", itemType = 2, level = 16 },
+		} },
+		{ name = "Guild", isGuild = true, items = { { name = "Guild Perk", subName = "", itemType = 1 } } },
+	},
+}
+local function SpellbookItem(i)
+	local at = 0
+	for _, tab in ipairs(STUB.spellbook.tabs) do
+		if i <= at + #tab.items then return tab.items[i - at], tab end
+		at = at + #tab.items
+	end
+end
+C_SpellBook = {
+	GetNumSpellBookSkillLines = function() return #STUB.spellbook.tabs end,
+	GetSpellBookSkillLineInfo = function(line)
+		local tab = STUB.spellbook.tabs[line]
+		if not tab then return nil end
+		local off = 0
+		for k = 1, line - 1 do off = off + #STUB.spellbook.tabs[k].items end
+		return { name = tab.name, itemIndexOffset = off, numSpellBookItems = #tab.items, shouldHide = false, isGuild = tab.isGuild or false }
+	end,
+	GetSpellBookItemInfo = function(i, bank)
+		local it = SpellbookItem(i)
+		if not it then return nil end
+		return { name = it.name, subName = it.subName, itemType = it.itemType, isPassive = it.isPassive or false, spellID = 1000 + i }
+	end,
+	GetSpellBookItemLevelLearned = function(i, bank) local it = SpellbookItem(i); return it and it.level or 0 end,
+}
+Enum = Enum or {}
+Enum.SpellBookSpellBank = { Player = 0, Pet = 1 }
+Enum.SpellBookItemType = { None = 0, Spell = 1, FutureSpell = 2, PetAction = 3, Flyout = 4 }
 function GetNumUnspentTalents() return 0 end
 
 -- Items: C_Item.GetItemInfo's returns by id; stats as C_Item.GetItemStats gives them.

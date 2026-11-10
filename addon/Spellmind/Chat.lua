@@ -3,6 +3,7 @@
 --
 --   /sm            show or hide the window
 --   /sm <words>    ask Spellmind (the window's box does the same)
+--   /sm data       what the app gets of your character; /sm data off and /sm data on
 --
 -- Answers arrive through Link.lua (slot records reply, error and aborted) and show in the window
 -- and, shortened, in the chat frame. The app's text comes with every | doubled already; what the
@@ -259,6 +260,10 @@ function C.Send(text)
 		return nil, "Other messages are still on their way."
 	end
 	local args = { { "cur", db.cursor }, { "agent", ns.DEFAULT_AGENT }, { "ctx", 0 } }
+	-- The character's state built first, so the message and its parts come out in one draw; st
+	-- names the parts the app hasn't confirmed ("" when it has them all, none: no game data).
+	local st = ns.State and ns.State.BeforeSend()
+	if st then args[#args + 1] = { "st", st } end
 	local key = ns.Link.NewKeyed("msg", db.chat, args, ns.CleanField(text))
 	if not key then return nil, "Not ready yet: try again in a moment." end
 	table.insert(Pending(), { key = key, t = time() })
@@ -324,6 +329,23 @@ SlashCmdList.SPELLMIND = function(msg)
 	if msg:lower() == "probe" and ns.Probe then
 		local n = ns.Probe()
 		ChatFrame(("Spellmind: probed %d client functions. Type /reload to save the results."):format(n))
+		return
+	end
+	-- /sm data: what the app gets of the character; /sm data off and /sm data on.
+	local lower = msg:lower()
+	local data = (lower == "data" and "") or lower:match("^data%s+(%a+)$")
+	if data and ns.State and ns.db then
+		if data == "off" then
+			ns.State.Off()
+			ChatFrame("Spellmind: game data is off. The app forgets your character and gets none of it. Type /sm data on to send it again.")
+		elseif data == "on" then
+			ns.State.On()
+			ChatFrame("Spellmind: game data is on. The app gets your character again (never your name, realm or guild).")
+		elseif data == "" then
+			for _, line in ipairs(ns.State.Report()) do ChatFrame("Spellmind: " .. line) end
+		else
+			ChatFrame("Spellmind: /sm data shows what the app gets; /sm data off and /sm data on stop and start it.")
+		end
 		return
 	end
 	C.Send(msg)

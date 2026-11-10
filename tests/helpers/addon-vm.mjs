@@ -5,11 +5,13 @@
 //     ScrollingMessageFrame's AddMessage), as build 70009 has them;
 //   - a timer queue that honours delays: STUB.Advance(seconds) runs every C_Timer.After callback
 //     and ticker that falls due, in time order;
+//   - C_EncodingUtil on Node's zlib (raw deflate, as the client's Deflate method);
 //   - traps for everything Spellmind must never call (SendChatMessage, RunScript, loadstring, ...).
 // The addon's private table is passed in as NS, so tests can read its state; in the game nothing
 // of it is global.
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
@@ -129,6 +131,53 @@ function STUB.Serialize(v)
 end
 `;
 
+// C_EncodingUtil's deflate and base64 calls as build 70009 documents them
+// (EncodingUtilDocumentation.lua at wow-ui-source bd2470a; NeverQuestAlone's nqa-vm.js), done by
+// Node's zlib: CompressString(source[, method[, level]]) and DecompressString(source[, method])
+// with Enum.CompressionMethod Deflate 0 (raw deflate, what core/link/records.mjs inflateBody
+// reads first), Zlib 1, Gzip 2 and Enum.CompressionLevel Default 0, OptimizeForSpeed 1,
+// OptimizeForSize 2; EncodeBase64/DecodeBase64(source[, variant]), Standard 0 or StandardUrlSafe 1.
+// A bad argument raises; input that doesn't inflate returns nothing. Tests replace or remove them in Lua.
+const DEFLATE = [zlib.deflateRawSync, zlib.deflateSync, zlib.gzipSync];
+const INFLATE = [zlib.inflateRawSync, zlib.inflateSync, zlib.gunzipSync];
+const LEVELS = [{}, { level: 1 }, { level: 9 }];
+function installEncodingUtil(L) {
+  const src = (L1, i) => Buffer.from(lauxlib.luaL_checklstring(L1, i));
+  const opt = (L1, i, n) => {
+    const v = lauxlib.luaL_optinteger(L1, i, 0);
+    if (v < 0 || v >= n) lauxlib.luaL_argerror(L1, i, to_luastring('invalid enum value'));
+    return v;
+  };
+  const push = (L1, buf) => { const u = Uint8Array.from(buf); lua.lua_pushlstring(L1, u, u.length); return 1; };
+  const fns = {
+    CompressString: L1 => push(L1, DEFLATE[opt(L1, 2, 3)](src(L1, 1), LEVELS[opt(L1, 3, 3)])),
+    DecompressString: L1 => {
+      const input = src(L1, 1);
+      const inflate = INFLATE[opt(L1, 2, 3)];
+      let out;
+      try { out = inflate(input); } catch { return 0; }
+      return push(L1, out);
+    },
+    EncodeBase64: L1 => {
+      const b64 = src(L1, 1).toString('base64');
+      return push(L1, Buffer.from(opt(L1, 2, 2) === 1 ? b64.replace(/\+/g, '-').replace(/\//g, '_') : b64));
+    },
+    DecodeBase64: L1 => { const input = src(L1, 1); opt(L1, 2, 2); return push(L1, Buffer.from(input.toString('latin1'), 'base64')); },
+  };
+  lua.lua_createtable(L, 0, 4);
+  for (const [name, fn] of Object.entries(fns)) {
+    lua.lua_pushjsfunction(L, fn);
+    lua.lua_setfield(L, -2, to_luastring(name));
+  }
+  lua.lua_setglobal(L, to_luastring('C_EncodingUtil'));
+}
+const ENUMS = `
+Enum = Enum or {}
+Enum.CompressionMethod = { Deflate = 0, Zlib = 1, Gzip = 2 }
+Enum.CompressionLevel = { Default = 0, OptimizeForSpeed = 1, OptimizeForSize = 2 }
+Enum.Base64Variant = { Standard = 0, StandardUrlSafe = 1 }
+`;
+
 // Installed after the addon's files have loaded: anything that could reach another player or run
 // code records itself and raises.
 const TRAPS = `
@@ -224,6 +273,8 @@ export function newVM(opts = {}) {
 
   run(fs.readFileSync(path.join(HERE, 'wow_stub.lua'), 'utf8') + STUB_METHODS, 'wow_stub');
   run(EXTRA, 'extra');
+  installEncodingUtil(L);
+  run(ENUMS, 'enums');
   run('math.randomseed(' + (opts.seed || 7) + ')');
   if (opts.now) run(`STUB.now = ${opts.now}`);
   // present.wav and the doorbells exist when the UI loads (setup makes them, PROTOCOL §3).
@@ -244,8 +295,13 @@ export function newVM(opts = {}) {
   const vm = {
     L, run, evaluate, json, num, list, bytesOf,
     bool: (expr) => evaluate(`(${expr}) and true or false`) === 'true',
-    login() {
+    /**
+     * ADDON_LOADED, PLAYER_LOGIN, then PLAYER_ENTERING_WORLD: a login (isInitialLogin) for a new
+     * VM, a /reload (isReloadingUi) for one from reloadVM, unless initial says otherwise.
+     */
+    login({ initial = !opts.reloaded } = {}) {
       run('STUB.FireEvent("ADDON_LOADED", "Spellmind"); STUB.FireEvent("PLAYER_LOGIN")');
+      run(`STUB.FireEvent("PLAYER_ENTERING_WORLD", ${initial}, ${!initial})`);
       return vm;
     },
     advance(sec) { run(`STUB.Advance(${sec})`); return vm; },
@@ -302,5 +358,5 @@ export function newVM(opts = {}) {
 
 /** A /reload: SavedVariables and the doorbells carry over, the Lua is read again, every slot is free again. */
 export function reloadVM(vm, opts = {}) {
-  return newVM({ ...opts, now: vm.num('STUB.now'), db: 'SpellmindDB = ' + vm.saved(), sounds: vm.sounds() });
+  return newVM({ ...opts, reloaded: true, now: vm.num('STUB.now'), db: 'SpellmindDB = ' + vm.saved(), sounds: vm.sounds() });
 }

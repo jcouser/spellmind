@@ -25,7 +25,7 @@ test('the TOC: interface 16001, the title, the notes, SpellmindDB, and every fil
   assert.equal(field('Title'), 'Spellmind');
   assert.equal(field('Notes'), 'Spellmind: AI Companion. Ask anything in game; needs the Spellmind app.');
   assert.equal(field('SavedVariables'), 'SpellmindDB');
-  assert.deepEqual(tocFiles(), ['Codec.lua', 'Inbox.lua', 'Core.lua', 'Link.lua', 'Probe.lua', 'Chat.lua']);
+  assert.deepEqual(tocFiles(), ['Codec.lua', 'Inbox.lua', 'Core.lua', 'Link.lua', 'State.lua', 'Probe.lua', 'Chat.lua']);
   const onDisk = fs.readdirSync(ADDON).filter(f => f.endsWith('.lua')).sort();
   assert.deepEqual([...tocFiles()].sort(), onDisk, 'every Lua file is listed, and every listed one exists');
   const version = read('Core.lua').match(/^ns\.VERSION = "([^"]+)"/m)[1];
@@ -89,6 +89,6 @@ test('every file adapted from NeverQuestAlone says so on its first line and has 
       assert.ok(notice.includes(`- \`${rel}\` ← \`${m[1]}`), `NOTICE.md lists ${rel} ← ${m[1]}`);
     }
   }
-  for (const f of ['Core.lua', 'Link.lua', 'Chat.lua', 'Inbox.lua']) assert.match(read(f).split('\n')[0], /adapted from NeverQuestAlone's/, f);
+  for (const f of ['Core.lua', 'Link.lua', 'State.lua', 'Chat.lua', 'Inbox.lua']) assert.match(read(f).split('\n')[0], /adapted from NeverQuestAlone's/, f);
   assert.ok(n >= 9, `${n} adapted files`);
 });

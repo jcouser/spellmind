@@ -57,7 +57,10 @@ test('/sm hello puts a msg record on the strip, 272 px down, with the hello besi
   const before = stripRecords(vm);
   assert.deepEqual(before.map(r => r.type), ['hello']);
   const h = before[0];
-  assert.deepEqual(h.args, { cur: '0', ver: '0.1.0', build: '70009', iface: '16001', n: '0', ctx: '0', sig: 'ok', slots: '200', slot: '1', mode: 'pixel' });
+  const { sid, ...rest } = h.args;
+  assert.deepEqual(rest, { cur: '0', ver: '0.1.0', build: '70009', iface: '16001', n: '0', ctx: '0', sig: 'ok', slots: '200', slot: '1', mode: 'pixel' });
+  assert.match(sid, /^[0-9a-f]{16}$/, 'the character session id (milestone 4)');
+  assert.deepEqual(Object.keys(h.args).slice(-1), ['sid'], 'last');
   assert.equal(h.key, vm.evaluate('NS.R.nonce'));
   vm.slash('hello');
   const recs = stripRecords(vm);

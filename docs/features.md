@@ -38,13 +38,16 @@ Style (with Codex for art): Spellmind's own frame and icon, a small persona port
 
 Each feature lists: **what the player gets**, **triggers**, **UI**, **data** (✓ already sent, ◐ partly, ✗ new), **local vs AI**, and **open questions**.
 
-### 3.1 Quest guide (replaces relying on NeverQuestAlone)
+### 3.1 Quest help
 
-**What the player gets:**
-- the log in a sensible order for *this* character;
+**What the player gets:** quest advice that knows *this* character, kept up to date as the log changes. NeverQuestAlone's routing plans from a snapshot, without the level or the details, and goes stale; these features shouldn't.
+- which quests are worth doing now, which are too high, trivial, or need a group;
 - what's left of each quest;
-- where to go next, kept up to date as they play;
-- advice on which quests to skip, do in a group, or hand in first.
+- which reward to take;
+- where to find what an objective needs;
+- which to hand in first.
+
+**Scope:** the core is the quest *help*. **Routing** (the "Next" line with distance, waypoints, a session plan) is **optional** and decided later, since it overlaps NeverQuestAlone. It's marked *(optional)* below.
 
 **Triggers:** `QUEST_LOG_UPDATE`, `QUEST_WATCH_UPDATE`, `UNIT_QUEST_LOG_CHANGED`, a level-up, a zone change, an objective ticking. The list re-sorts **locally** on each; no AI call.
 
@@ -60,8 +63,8 @@ Each feature lists: **what the player gets**, **triggers**, **UI**, **data** (�
   - the remaining objectives ("0/8 Carved Stone Idol");
   - the distance and direction from you when the game knows the quest's spot;
   - **Go** (set the waypoint), **Ask**.
-- **Top of the tab:** "**Next:** turn in *Stormpike's Order* — 120 yd ahead", which updates as you move.
-- **Plan my session** (AI): "I have an hour; what's the best order?" returns a stop list that the tab then follows live, ticking stops off as objectives complete. If the log changes under it (a new quest, an abandoned one), the plan is marked "out of date — re-plan?", never silently kept.
+- *(optional)* **Top of the tab:** "**Next:** turn in *Stormpike's Order* — 120 yd ahead", which updates as you move.
+- *(optional)* **Plan my session** (AI): "I have an hour; what's the best order?" returns a stop list that the tab then follows live, ticking stops off as objectives complete. If the log changes under it (a new quest, an abandoned one), the plan is marked "out of date — re-plan?", never silently kept.
 
 **Data:**
 - ✓ `quests` (titles, levels, objectives with have and need).
@@ -285,7 +288,7 @@ Always available: anything the player asks, with the character attached. Chips u
    - Codex art.
 
    Everything after plugs into these.
-2. **Quest guide** (3.1): the player's top ask, and the one the NeverQuestAlone gap shows.
+2. **Quest help** (3.1): the core first; routing only if we decide we want it.
 3. **Gear advisor** (3.2), with the tooltip line and quest rewards.
 4. **Talents and spells** (3.3, 3.4): nudges, plan, rotation.
 5. **Bags and gold** (3.6).

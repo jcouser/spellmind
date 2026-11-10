@@ -17,7 +17,7 @@
 
 - Automation of any kind. No movement, casting, targeting, clicking or key presses. Advice and on-screen drawing only (Blizzard add-on policy, protected functions).
 - Real-time combat coaching. Round-trip latency is seconds; advice happens between fights.
-- ~~Being a quest router.~~ Changed 2026-11-10: the player finds NeverQuestAlone's routing ignores their level and quest details and goes stale as quests change, so Spellmind has its own live quest guide (features.md §3.1).
+- ~~Being a quest router.~~ Changed 2026-11-10: the player finds NeverQuestAlone's routing ignores their level and quest details and goes stale as quests change, so Spellmind has quest help of its own: level-aware, detail-aware and live (features.md §3.1). Routing is optional, decided later.
 - Being a gear scorer. Stat-weight and BiS addons (for example, the "Forever Leveling BiS" style tooltip: per-spec upgrade %, "% of best", slot rank) already answer "is this better?" instantly, offline and for free. Read their numbers; don't recompute them.
 
 ## Features

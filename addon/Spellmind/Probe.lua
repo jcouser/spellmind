@@ -107,6 +107,33 @@ function ns.Probe()
 		end
 	end
 	out["C_Talent?"] = describe(rawget(_G, "C_Talent") ~= nil)
+	-- The spellbook (round 3): the C_SpellBook namespace's functions, its skill lines (tabs), and the
+	-- first few spells of the class's tab with their rank text.
+	local sb = rawget(_G, "C_SpellBook")
+	if type(sb) == "table" then
+		local fns = {}
+		for k, f in pairs(sb) do if type(f) == "function" then fns[#fns + 1] = k end end
+		table.sort(fns)
+		out["C_SpellBook"] = table.concat(fns, ",")
+		out["C_SpellBook.GetNumSpellBookSkillLines()"] = try(sb.GetNumSpellBookSkillLines)
+		for line = 1, 3 do out["C_SpellBook.GetSpellBookSkillLineInfo(" .. line .. ")"] = try(sb.GetSpellBookSkillLineInfo, line) end
+		local bank = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
+		out["Enum.SpellBookSpellBank.Player"] = describe(bank)
+		local info2 = sb.GetSpellBookSkillLineInfo and select(2, pcall(sb.GetSpellBookSkillLineInfo, 2))
+		local first = type(info2) == "table" and (info2.itemIndexOffset or 0) + 1 or 1
+		for i = first, first + 3 do
+			out["C_SpellBook.GetSpellBookItemInfo(" .. i .. ")"] = try(sb.GetSpellBookItemInfo, i, bank)
+			out["C_SpellBook.GetSpellBookItemName(" .. i .. ")"] = try(sb.GetSpellBookItemName, i, bank)
+		end
+	else
+		out["C_SpellBook"] = "missing"
+	end
+	out["GetNumSpellTabs()"] = try(g("GetNumSpellTabs"))
+	out["GetSpellTabInfo(2)"] = try(g("GetSpellTabInfo"), 2)
+	out["GetSpellBookItemName(1,spell)"] = try(g("GetSpellBookItemName"), 1, "spell")
+	out["C_Spell.GetSpellSubtext(1752)"] = try(g("C_Spell.GetSpellSubtext"), 1752) -- Sinister Strike (rank 1)
+	out["C_Spell.GetSpellName(1752)"] = try(g("C_Spell.GetSpellName"), 1752)
+	out["IsPlayerSpell(1752)"] = try(g("IsPlayerSpell"), 1752)
 	ns.db.probe = out
 	local n = 0
 	for _ in pairs(out) do n = n + 1 end

@@ -211,6 +211,7 @@ function shippedFiles() {
 
 /** The modules that may import a network module, and why: none of them reaches the internet. */
 const LOCAL_ONLY = Object.freeze({
+  'core/link/capture.mjs': ['node:net', 'the capture helper\'s local socket on macOS (a Unix socket in the app\'s own folder); Windows uses the helper\'s own stdout'],
   'core/ai/signin/chatgpt.mjs': ['node:http', 'Sign in with ChatGPT\'s redirect: a listener on 127.0.0.1 only (ports 1455, 1457), one GET with the state it sent, open only while a sign-in waits; the token requests go through the guarded fetch'],
 });
 

@@ -59,6 +59,23 @@ From [tommygeoco/neverquestalone](https://github.com/tommygeoco/neverquestalone)
 - `tests/ai/usage_meter_test.mjs` ← `tests/byok/usage_meter_test.mjs`
 - `tests/ai/usage_prices_test.mjs` ← `tests/byok/usage_prices_test.mjs`
 - `tests/helpers/luavm.mjs` ← `tests/helpers/luavm.mjs`
+- `core/link/capture.mjs` ← `bridge/transport/capture.mjs`
+- `core/link/fsretry.mjs` ← `bridge/transport/fsretry.mjs`
+- `core/link/luaenc.mjs` ← `bridge/transport/luaenc.mjs`
+- `core/link/publisher.mjs` ← `bridge/transport/publisher.mjs`
+- `core/link/records.mjs` ← `bridge/transport/records.mjs`
+- `core/link/signals.mjs` ← `bridge/transport/signals.mjs`
+- `core/link/slots.mjs` ← `bridge/transport/slots.mjs`
+- `core/link/strip.mjs` ← `bridge/transport/strip.mjs`
+- `addon/Spellmind/Codec.lua` ← `addon/NeverQuestAlone/Codec.lua (itself from wow-ai)`
+- `tests/link/codec_test.cjs` ← `tests/codec_test.js`
+- `tests/link/luaenc_test.mjs` ← `tests/luaenc_test.mjs`
+- `tests/link/records_test.mjs` ← `tests/records_test.mjs`
+- `tests/link/signals_test.mjs` ← `tests/signals_test.mjs`
+- `tests/link/strip_js_test.mjs` ← `tests/strip_js_test.mjs`
+- `tests/helpers/strip-render.cjs` ← `tests/helpers/strip-render.js`
+- `tests/helpers/images.mjs` ← `bridge/transport/images.mjs`
+- `tests/fixtures/protocol-v2.json` ← `tests/fixtures/protocol-v2.json`
 - `tests/fixtures/ai/providers/` ← `tests/fixtures/byok/providers/` (the providers' recorded answers)
 
 NeverQuestAlone is itself built on [chelinho139/wow-ai](https://github.com/chelinho139/wow-ai) (MIT), which worked out how an addon talks to a program outside the game: a strip of colored pixels the addon draws (an idea wow-ai credits to wow-forever-codex), and addon files the program writes for the game to load.

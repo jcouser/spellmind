@@ -1,0 +1,27 @@
+# tooling
+node_modules/
+tests/tmp/
+coverage/
+
+# build output
+dist/
+*.zip
+app/desktop/out/
+bridge/capture/windows/build/
+bridge/capture/mac/.build*/
+bridge/capture/mac/build*/
+
+# machine-specific / runtime state
+*.tmp
+*.log
+.env
+.env.*
+
+# secrets never belong here
+*.p12
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db

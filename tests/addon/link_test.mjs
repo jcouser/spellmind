@@ -285,3 +285,18 @@ test('a whole turn through the real service: the strip read into handlePayload, 
   const inbox = fs.readFileSync(path.join(addonsDir, 'Spellmind', 'Inbox.lua'), 'utf8');
   assert.match(inbox, /^SpellmindInbox = \{/m);
 });
+
+test('the window\'s box: Enter sends and leaves the box (so the movement keys move the character, not type), an empty Enter leaves it too', () => {
+  const vm = session();
+  vm.slash(''); // /sm opens the window, the box focused
+  assert.equal(vm.evaluate('tostring(SpellmindWindow.input:HasFocus())'), 'true');
+  vm.run('SpellmindWindow.input:SetText("which professions suit a rogue?")');
+  vm.run('SpellmindWindow.input:GetScript("OnEnterPressed")(SpellmindWindow.input)');
+  assert.equal(vm.evaluate('tostring(SpellmindWindow.input:HasFocus())'), 'false', 'Enter left the box');
+  assert.equal(vm.evaluate('SpellmindWindow.input:GetText()'), '', 'sent, so emptied');
+  assert.deepEqual(stripRecords(vm).filter(r => r.type === 'msg').map(r => r.text), ['which professions suit a rogue?']);
+  vm.run('SpellmindWindow.input:SetFocus(); SpellmindWindow.input:SetText("   ")');
+  vm.run('SpellmindWindow.input:GetScript("OnEnterPressed")(SpellmindWindow.input)');
+  assert.equal(vm.evaluate('tostring(SpellmindWindow.input:HasFocus())'), 'false', 'an empty Enter leaves it too');
+  assert.equal(stripRecords(vm).filter(r => r.type === 'msg').length, 1, 'and sends nothing');
+});

@@ -144,9 +144,15 @@ local function Build()
 	f.input:SetAutoFocus(false)
 	f.input:SetMaxBytes(ns.MAX_TEXT + 1)
 	f.input:SetScript("OnEnterPressed", function(self)
-		local key, _, why = C.Send(self:GetText())
-		-- Sent, or refused as a key: either way the box keeps nothing.
-		if key or why == "key" then self:SetText("") end
+		local text = self:GetText()
+		if text and text:match("%S") then
+			local key, _, why = C.Send(text)
+			-- Sent, or refused as a key: either way the box keeps nothing.
+			if key or why == "key" then self:SetText("") end
+		end
+		-- Like the game's own chat box: Enter leaves it, so the movement keys move the character
+		-- again instead of typing into the box (a player's "wwawa", 2026-11-10).
+		self:ClearFocus()
 	end)
 	f.input:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 

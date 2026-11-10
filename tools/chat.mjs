@@ -3,7 +3,7 @@
 // with the real key store (Spellmind's own entries), the egress allowlist, the sign-in and the
 // providers. No game, no app.
 //
-//   node tools/chat.mjs signin                       sign in with your ChatGPT plan (opens your browser)
+//   node tools/chat.mjs signin [--wait 15]           sign in with your ChatGPT plan (opens your browser; waits that many minutes)
 //   node tools/chat.mjs key <provider>               save an API key for anthropic, openai, xai or google (read from stdin)
 //   node tools/chat.mjs ask "<question>" [--provider chatgpt] [--model <id>] [--effort low]
 //   node tools/chat.mjs models [--provider chatgpt]  the models your sign-in or key can use
@@ -61,9 +61,10 @@ switch (cmd) {
   case 'signin': {
     if (!session) { console.error(`${m.name} takes an API key: node tools/chat.mjs key ${m.id}`); process.exit(2); }
     console.log('Opening your browser at OpenAI’s sign-in page…');
-    const r = await session.start({ openUrl: async (url) => openInBrowser(url) });
+    const r = await session.start({ openUrl: async (url) => openInBrowser(url), timeoutMs: (Number(a.wait) || 15) * 60_000 });
     if (!r.ok) { console.error(`Not signed in (${r.error}).`); process.exit(1); }
-    console.log(`Signed in with your ChatGPT ${r.plan ?? ''} plan.`.replace('  ', ' '));
+    const plan = r.plan ? r.plan[0].toUpperCase() + r.plan.slice(1) + ' ' : '';
+    console.log(`Signed in with your ChatGPT ${plan}plan.`);
     break;
   }
   case 'key': {

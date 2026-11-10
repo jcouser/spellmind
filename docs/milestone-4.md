@@ -42,7 +42,7 @@ char    {"v":1,"class":"Hunter","classFile":"HUNTER","race":"Night Elf","raceFil
 stats   {"v":1,"hp":812,"mana":540,"str":40,"agi":75,"sta":60,"int":30,"spi":35,"armor":620,"ap":120,"rap":180,"crit":6.1,"rcrit":7.2,"scrit":2,"dodge":8.3,"parry":0,"block":0,"res":{"fire":0,"nature":10,"frost":0,"shadow":0,"arcane":0}}
 talents {"v":1,"spec":"Rogue","role":"DAMAGER","spent":14,"unspent":0,"nodes":[{"id":105708,"name":"Malice","r":1,"max":3}]}
 gear    {"v":1,"items":[{"slot":1,"id":10504,"name":"Green Lens","q":3,"ilvl":56,"sub":"Cloth","ench":0,"st":{"int":13,"sta":8},"dur":[45,50]}],"empty":[4,19]}
-bags    {"v":1,"slots":64,"free":12,"items":[{"id":2589,"name":"Linen Cloth","q":1,"n":34,"ilvl":5,"equip":"INVTYPE_CHEST","bound":true}],"junk":{"n":7,"copper":1234},"more":3}
+bags    {"v":1,"slots":64,"free":12,"items":[{"id":2903,"name":"Daryl's Hunting Bow","q":2,"n":1,"ilvl":15,"sub":"Bows","equip":"INVTYPE_RANGED","bound":true}],"junk":{"n":7,"copper":1234},"more":3}
 skills  {"v":1,"prof":[{"name":"Mining","rank":120,"max":150}],"weapon":[{"name":"Bows","rank":72,"max":75}]}
 quests  {"v":1,"count":12,"max":40,"unread":0,"list":[{"id":748,"title":"Poison Water","level":5,"complete":false,"obj":[{"text":"Prairie Wolf Paw","have":3,"need":6}]}],"omitted":[]}
 rep     {"v":1,"list":[{"id":72,"name":"Stormwind","r":5,"v":1200,"max":6000,"watched":true}],"collapsed":1}

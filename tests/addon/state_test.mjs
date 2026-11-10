@@ -277,7 +277,7 @@ test('bags: merged by id; worn items of quality 2 and up first, then quest items
     STUB.bags[2].items = { { 12002, 3 }, { 12000, 1 }, { 12001, 1 } }`);
   const bags = JSON.parse(vm.evaluate('(NS.State.Part("bags", true))'));
   assert.deepEqual(bags.items.slice(0, 3).map(i => i.name), ['Green Boots', 'A Quest Thing', 'Green Ore']);
-  assert.deepEqual(bags.items[0], { id: 12001, name: 'Green Boots', q: 2, n: 1, ilvl: 18, equip: 'INVTYPE_FEET' });
+  assert.deepEqual(bags.items[0], { id: 12001, name: 'Green Boots', q: 2, n: 1, ilvl: 18, sub: 'Leather', equip: 'INVTYPE_FEET' });
   assert.equal(bags.items.find(i => i.id === 2318).n, 20, 'two stacks of Light Leather, merged');
   assert.deepEqual(bags.junk, { n: 3, copper: 145 });
   assert.ok(!bags.items.some(i => i.q === 0));

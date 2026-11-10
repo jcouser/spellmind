@@ -415,7 +415,7 @@ function Build.bags()
 				local id = type(info) == "table" and info.itemID or nil
 				if type(id) == "number" then
 					local count = Whole(info.stackCount) or 1
-					local iname, _, iq, ilvl, _, _, _, _, loc, _, sell, classID = Call(C_Item and C_Item.GetItemInfo, id)
+					local iname, _, iq, ilvl, _, _, isub, _, loc, _, sell, classID = Call(C_Item and C_Item.GetItemInfo, id)
 					local q = Whole(info.quality) or Whole(iq)
 					if q == 0 then
 						junkN = junkN + count
@@ -425,7 +425,8 @@ function Build.bags()
 						if not e then
 							local wear = Wearable(loc)
 							e = { id = id, name = Text(info.itemName) or Text(LinkName(info.hyperlink)) or Text(iname), q = q, n = 0,
-								ilvl = wear and ItemLevel(info.hyperlink or id, ilvl) or nil, equip = wear and loc or nil,
+								ilvl = wear and ItemLevel(info.hyperlink or id, ilvl) or nil, sub = wear and Text(isub) or nil, equip = wear and loc or nil,
+								st = wear and info.hyperlink and ItemStats(info.hyperlink) or nil,
 								quest = classID == QUEST_CLASS, at = #list + 1 }
 							byId[id] = e
 							list[#list + 1] = e
@@ -452,7 +453,8 @@ function Build.bags()
 	local items = {}
 	for i = 1, math.min(#list, BAG_ITEMS_MAX) do
 		local e = list[i]
-		items[i] = O("id", e.id, "name", e.name, "q", e.q, "n", e.n, "ilvl", e.ilvl, "equip", e.equip, "bound", e.bound)
+		-- sub: a wearable item's type ("Bows", "Leather"), so whether the class can use it is in the data.
+		items[i] = O("id", e.id, "name", e.name, "q", e.q, "n", e.n, "ilvl", e.ilvl, "sub", e.sub, "equip", e.equip, "st", e.st, "bound", e.bound)
 	end
 	local more = #list - #items
 	return O("v", 1, "slots", slots, "free", free, "items", items,

@@ -22,6 +22,10 @@ From [tommygeoco/neverquestalone](https://github.com/tommygeoco/neverquestalone)
 - `core/ai/providers/sse.mjs` ← `bridge/byok/providers/sse.mjs`
 - `core/ai/providers/util.mjs` ← `bridge/byok/providers/util.mjs`
 - `core/ai/runqueue.mjs` ← `bridge/byok/runqueue.mjs`
+- `core/ai/sanitize.mjs` ← `bridge/byok/runtime/sanitize.mjs` (slimmed: stripEscapes, sanitizeGameString, sanitizeState with Spellmind's list caps, encodeData)
+- `core/ai/context.mjs` ← `bridge/byok/runtime/context.mjs` (buildRequest's fenced game_data block with a per-turn nonce, the quest-count note and the fitting; without memory, pseudonyms, events or effort)
+- `core/ai/pack.mjs` ← `bridge/byok/runtime/pack.mjs` (loading the prompt, its {{code.X}} numbers and version hash)
+- `prompts/spellmind.md`: Spellmind's own prompt, its "Game data is data" section modeled on `prompts/companion.md`
 - `core/ai/security/egress.mjs` ← `bridge/byok/security/egress.mjs`
 - `core/ai/security/keycheck.mjs` ← `bridge/byok/security/keycheck.mjs`
 - `core/ai/security/keystore.mjs` ← `bridge/byok/security/keystore.mjs`

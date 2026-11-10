@@ -19,13 +19,8 @@ import { userLine } from '../core/ai/providers/errors.mjs';
 import { createService } from '../core/link/service.mjs';
 import { createWindowsCapture } from '../core/link/capture.mjs';
 import { installAddon, FOREVER_FLAVORS, NOT_GAME, wowRunning } from '../core/link/install.mjs';
-
-export const SYSTEM = [
-  'You are Spellmind, an AI companion inside World of Warcraft: Forever (vanilla content on the modern client).',
-  'Dry humor, warm, practical: the answer first, then what matters. No filler, no lectures.',
-  'Your reply is read in a small chat window mid-game: plain text, short paragraphs, under about 1,000 characters unless asked for more. No tables.',
-  'You give advice only; you can\'t act in the game. When you don\'t know something about the game, say so instead of guessing.',
-].join(' ');
+import { loadPack } from '../core/ai/pack.mjs';
+import { buildRequest } from '../core/ai/context.mjs';
 
 const DATA = process.platform === 'win32' ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Spellmind') : path.join(os.homedir(), '.config', 'spellmind');
 const CONFIG = path.join(DATA, 'config.json');
@@ -76,11 +71,17 @@ switch (a._[0]) {
     fs.mkdirSync(DATA, { recursive: true });
     const log = (k, d) => { try { fs.appendFileSync(logFile, `${new Date().toISOString()} ${k} ${JSON.stringify(d ?? {})}\n`); } catch { /* logging never stops the link */ } };
 
-    // One turn: the chat's history, then the message; the reply's text, or the error's words.
-    const turn = async ({ text, history, signal }) => {
+    // The prompt (prompts/spellmind.md), read once: its version goes in the log.
+    const pack = loadPack();
+    log('pack', { version: pack.version, tokens: pack.tokens });
+
+    // One turn: the prompt, the chat's history, then the game data and the message; the reply's
+    // text, or the error's words.
+    const turn = async ({ text, history, signal, game }) => {
       let out = '';
-      const messages = [...history.map(h => ({ role: h.role, content: h.content })), { role: 'user', content: text }];
-      for await (const ev of provider.stream({ model, effort, system: [{ text: SYSTEM }], messages }, { signal })) {
+      const { system, messages, meta } = buildRequest({ pack, game, history, userText: text });
+      log('request', { pack: pack.version, dataChars: meta.dataChars, omitted: meta.omitted.length ? meta.omitted : undefined, stale: game?.stale || undefined });
+      for await (const ev of provider.stream({ model, effort, system, messages }, { signal })) {
         if (ev.type === 'text') out += ev.delta;
         else if (ev.type === 'error') {
           if (ev.error?.kind === 'interrupted') return { aborted: true };
@@ -99,6 +100,9 @@ switch (a._[0]) {
       else if (k === 'reply') say('Reply out', d.chat, `(${d.chars} characters).`);
       else if (k === 'turn-error') say('Error for', d.chat + ':', d.kind);
       else if (k === 'msg-refused') say('Refused a message:', d.reason);
+      else if (k === 'state') say('Character data in:', d.part, `(${d.bytes} bytes)`);
+      else if (k === 'state-rejected') say('Character data refused:', d.part || '?', d.reason);
+      else if (k === 'state-wait-over') say('Character data late for', d.chat + ': answering with what is there.');
     } });
     svc.start();
     let lastErr = '';
@@ -109,7 +113,7 @@ switch (a._[0]) {
       onStatus: (s) => { if (s.connected === true) say('Screen reading started.'); },
     });
     capture.start();
-    say(`Spellmind is running with ${m.name} (${model}, thinking ${effort}). In game: /sm <question>. Ctrl+C stops it.`);
+    say(`Spellmind is running with ${m.name} (${model}, thinking ${effort}), prompt ${pack.version}. In game: /sm <question>. Ctrl+C stops it.`);
     const stop = () => { say('Stopping…'); try { capture.stop(); } catch { /* stopping */ } svc.stop(); process.exit(0); };
     process.on('SIGINT', stop);
     process.on('SIGTERM', stop);

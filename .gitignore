@@ -7,9 +7,9 @@ coverage/
 dist/
 *.zip
 app/desktop/out/
-bridge/capture/windows/build/
-bridge/capture/mac/.build*/
-bridge/capture/mac/build*/
+core/capture/windows/build/
+core/capture/mac/.build*/
+core/capture/mac/build*/
 
 # machine-specific / runtime state
 *.tmp

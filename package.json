@@ -9,7 +9,8 @@
     "node": ">=22.19"
   },
   "scripts": {
-    "test": "node --test \"tests/**/*_test.mjs\" \"tests/**/*_test.cjs\""
+    "test": "node --test \"tests/**/*_test.mjs\" \"tests/**/*_test.cjs\"",
+    "capture:build": "node core/capture/build.mjs"
   },
   "optionalDependencies": {
     "@napi-rs/keyring": "2.1.0"

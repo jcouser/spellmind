@@ -50,6 +50,8 @@ test('hello: the next slot answers with its nonce, the service\'s version and th
   assert.equal(s.token, TOKEN);
   assert.equal(s.bridge.nonce, NONCE);
   assert.equal(s.bridge.ver, SERVICE_VERSION);
+  assert.deepEqual(toArr(s.bridge.caps), ['state', 'z'], 'the character\'s state, deflated or plain (milestone 4)');
+  assert.equal(s.bridge.state, undefined, 'no parts held yet');
   assert.ok(s.bridge.push >= 1, 'rung');
   assert.equal(toArr(s.agents)[0].name, 'Spellmind');
   assert.ok(r.lines.some(([k]) => k === 'hello'));
@@ -71,6 +73,7 @@ test('a message: in the outbox before its ack, then a reply record (Markdown fla
   await r.settle();
   assert.equal(calls.length, 1, 'one turn for two copies');
   assert.equal(calls[0].text, 'Which profession for a rogue?');
+  assert.deepEqual(calls[0].game, { state: null, stale: false }, 'no st=: no game data');
   const s = r.slot();
   const reply = toArr(s.records).find(x => x.t === 'reply');
   assert.ok(reply, JSON.stringify(s.records));

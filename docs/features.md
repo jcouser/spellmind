@@ -267,7 +267,7 @@ Each feature lists: **what the player gets**, **triggers**, **UI**, **data** (�
 
 **Data:**
 - ✗ `COMBAT_LOG_EVENT_UNFILTERED`, aggregated locally during the fight: ability counts, damage taken by source type, deaths.
-- *To check: Blizzard's 2026 combat-API restrictions (Midnight) and how Forever applies them. They may limit this feature.*
+- *Probe round 4 (2026-11-10): `CombatLogGetCurrentEventInfo` is **missing** on Forever, and `C_CombatLog` has only filter and settings functions plus `IsCombatLogRestricted`. Addons can't read the combat log, so this feature is **parked** unless a later client opens it. Counting your own casts (`UNIT_SPELLCAST_SUCCEEDED` on "player") may still work and stays a possible small version.*
 
 ### 3.9 Free chat
 
@@ -298,6 +298,39 @@ Always available: anything the player asks, with the character attached. Chips u
 | message context | a linked item's or quest's full details; for an Explain click, that exact thing (the quest's text and objectives, the item, the talent node) | 2.1, 3.2, 3.9 |
 
 ## 5. Research to do (probe first, as before)
+
+### 5.0 Probe round 4 results (2026-11-10, client 1.60.1.70888)
+
+**Quests** (tried on a turn-in quest, Stormpike's Order):
+- `C_QuestLog.GetInfo(i)` has `level`, `difficultyLevel`, `suggestedGroup`, `isScaling`, `questClassification` and `isOnMap`; headers come first (`isHeader`).
+- The text: `GetQuestLogQuestText(logIndex)` returns the description and the objectives text. `C_QuestLog.GetQuestObjectives(id)` returns `{text, type, finished, numFulfilled, numRequired}`.
+- Difficulty: `GetQuestDifficultyColor(level)` (with its font name: Trivial, Standard, Difficult, VeryDifficult, Impossible). `UnitQuestTrivialLevelRange("player")` is 5. `C_QuestLog.IsQuestTrivial` and `IsEliteQuest` are there. `GetQuestTagInfo` (the global) is missing; `C_QuestLog.GetQuestTagInfo` returned nothing for a normal quest.
+- Rewards: `GetQuestLogRewardMoney(id)`, `GetQuestLogRewardXP(id)` and `GetNumQuestLogChoices(id)` work. `GetQuestLogItemLink("choice", i)` is still to be checked on a quest that has choices. `C_QuestInfoSystem` has reward spells and currencies.
+- Where: `C_QuestLog.GetQuestsOnMap(mapID)` gives **x, y for each quest of yours on that map** (objective areas), with `numObjectives` and `inProgress`. `C_QuestLog.GetDistanceSqToQuest(id)` works. `GetNextWaypoint` returned nothing (no cross-zone hints for this one).
+- Waypoints: `C_Map.CanSetUserWaypointOnMap` is true; `SetUserWaypoint`, `GetUserWaypointHyperlink` and the full `C_SuperTrack` are there. So the **Go** button can set the game's own pin and arrow.
+- Selection: `C_QuestLog.GetSelectedQuest()` follows the quest log.
+
+**The game's windows:**
+- The quest log is the **world map's quest panel**: `QuestMapFrame`, with its details in `QuestMapDetailsScrollFrame`. The global `QuestMapFrame_ShowQuestDetails` exists to hook. The old `QuestLogFrame` and `QuestLogDetailFrame` are gone. `QuestLogPopupDetailFrame` (the pop-out) is there.
+- The NPC's quest window is `QuestFrame`, with `QuestInfoDescriptionText`, `QuestInfoObjectivesText` and `QuestInfoRewardsFrame`, plus the `GetQuestText`/`GetObjectiveText`/`GetQuestItemLink` family. **DialogueUI is installed and replaces this window**, so the mark goes on the quest log first, and on the NPC window only when it's the game's own.
+- **`PlayerSpellsFrame` is protected.** It holds the talents and the spellbook in one window (`Blizzard_PlayerSpells`). Spellmind marks there are parented to `UIParent` and only anchored to it, never its children, and are never shown or moved in combat.
+- Load on demand, so hook them when their addon loads (`ADDON_LOADED`): the trainer (`Blizzard_TrainerUI`) and professions (`Blizzard_Professions`).
+- The character frame, its slot buttons, the bags, the merchant and the loot roll frames are there as before.
+
+**Tooltips and links:**
+- `TooltipDataProcessor.AddTooltipPostCall` is there, and `Enum.TooltipDataType` has `Item`, `Spell`, `Quest`, `Unit` and others. `OnTooltipSetItem` is **gone**, so the tooltip line uses `TooltipDataProcessor`.
+- `C_TooltipInfo` has `GetTrainerService`, `GetQuestLogItem` and `GetTalent`. `ChatEdit_InsertLink` and `HandleModifiedItemClick` are there for links.
+
+**Other addons loaded** (by name), which shape what Spellmind adds:
+- **Questie** (+ QuestieDB): it draws quest givers and objectives on the map and in tooltips. Spellmind doesn't redraw any of that.
+- **Pawn**: it puts upgrade arrows and scale values in tooltips, and has a large global API (`PawnGetItemValue`, `PawnIsItemAnUpgrade` and similar, still to read). Spellmind's tooltip line stays one line, below Pawn's.
+- **WhatsTraining**: it lists what to train at the trainer. Spellmind's trainer help explains and prioritises instead of listing again.
+- Also: DialogueUI (quest dialogs), Baganator and Syndicator (bags), Auctionator, ForeverLevelingBiS, ForeverMouseTooltip, ForeverRecipeBook, Leatrix Plus and Maps, MoveAny, NeedRoll, GTFO, Spy and Spoken.
+- An open question: Questie's database knows where quest givers and objectives are, even for quests that aren't on the current map. Spellmind may only use another addon's data through a public API or data it deliberately exposes, so check whether Questie offers one before using it.
+
+**Not available:** the combat log (§3.8), and `GetQuestGreenRange`.
+
+### 5.1 Still to research
 
 - Quest POIs and waypoints: `C_QuestLog.GetQuestsOnMap`, `GetNextWaypoint`, `C_Map.SetUserWaypoint`, `C_SuperTrack.*`.
 - Quest difficulty, trivial and tags: `GetQuestDifficultyLevel`, `IsQuestTrivial`, `GetQuestTagInfo`.

@@ -21,7 +21,9 @@ ns.Link = L
 local R = ns.R
 local Codec = SpellmindCodec
 
-local CELL, CELLS_PER_ROW, MAX_ROWS = 4, 200, 48 -- NeverQuestAlone's strip geometry, unchanged
+-- 3 px cells (NeverQuestAlone draws 4): 44% less of the screen; the reader takes pitches from 2.5 px
+-- (core/link/strip.mjs minPitch). One unit is one physical pixel, so the cells stay crisp.
+local CELL, CELLS_PER_ROW, MAX_ROWS = 3, 200, 48
 local STRIP_X, STRIP_Y = 0, 272 -- strip units (physical pixels) from UIParent's top-left
 local FAST_TICK = 0.25 -- poll while a strip is up or a reply is awaited
 local SLOW_EVERY = 8 -- ticks: the 2-second ticker

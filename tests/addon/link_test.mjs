@@ -28,7 +28,7 @@ function stripRecords(vm) {
   if (!img) return null;
   const r = findAndDecode(img);
   assert.equal(r.kind, 'decoded', `strip ${r.kind} ${r.reason || ''}`);
-  assert.deepEqual([r.geometry.x0, r.geometry.y0, r.geometry.pitch], [0, 272, 4], 'Spellmind\'s spot: 272 px down, 4 px cells');
+  assert.deepEqual([r.geometry.x0, r.geometry.y0, r.geometry.pitch], [0, 272, 3], "Spellmind's spot: 272 px down, 3 px cells (NeverQuestAlone's are 4)");
   const { records, rejected } = parsePayload(r.text);
   assert.equal(rejected.length, 0, JSON.stringify(rejected));
   return records;

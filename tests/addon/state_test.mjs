@@ -21,8 +21,14 @@ const LIMITS = { maxBody: 2900, maxText: 8000 };
 // Saved data as an install that has sent six builds before (the fixture's parts are seq 7).
 const DB = 'SpellmindDB = { stateSeq = 6 }';
 
+const eager = (vm) => { vm.run('NS.State.EAGER = true'); return vm; };
+
 function session(opts = {}) {
-  return newVM({ db: DB, ...opts }).login().advance(3.1);
+  // EAGER: every change goes, as before milestone 8 (the default sends the parts only with a
+  // question): these tests are of the parts' own machinery.
+  const vm = newVM({ db: DB, ...opts }).login();
+  vm.run('NS.State.EAGER = true');
+  return vm.advance(3.1);
 }
 
 function stripText(vm) {
@@ -177,7 +183,7 @@ test('a /reload keeps the sid and sends nothing; a new login draws a new sid and
   const before = { sid: sid(vm), seqs: seqs(vm) };
   const state = { sid: before.sid, parts: before.seqs };
 
-  const r1 = reloadVM(vm).login().advance(3.1);
+  const r1 = eager(reloadVM(vm).login()).advance(3.1);
   const hello = stripRecords(r1).find(r => r.type === 'hello');
   assert.equal(hello.args.sid, before.sid, '/reload keeps the sid');
   assert.equal(stateRecords(r1).length, 0);
@@ -186,7 +192,7 @@ test('a /reload keeps the sid and sends nothing; a new login draws a new sid and
   assert.deepEqual(seqs(r1), before.seqs, 'no new seq');
 
   // The same /reload, but the app lost the character (bridge.state without it): the full set, once.
-  const r2 = reloadVM(vm).login().advance(3.1);
+  const r2 = eager(reloadVM(vm).login()).advance(3.1);
   answer(r2, { state: { sid: before.sid, parts: {} } });
   assert.ok(stateRecords(r2).length > 0, 'parts go again');
   const again = drain(r2);
@@ -194,7 +200,7 @@ test('a /reload keeps the sid and sends nothing; a new login draws a new sid and
   assert.ok(Object.values(again).every(r => r.args.seq === String(before.seqs[r.args.part])), 'the same seqs');
 
   // A login (or a relog after a crash): a new sid, everything again under it with a new seq.
-  const l = reloadVM(vm).login({ initial: true }).advance(3.1);
+  const l = eager(reloadVM(vm).login({ initial: true })).advance(3.1);
   const h2 = stripRecords(l).find(r => r.type === 'hello');
   assert.notEqual(h2.args.sid, before.sid);
   answer(l, { state });
@@ -396,4 +402,23 @@ test('/sm data shows each part\'s size and whether the app has it; /sm data off 
   assert.deepEqual(Object.keys(back).sort(), [...PARTS].sort());
   assert.ok(Object.values(back).every(r => Number(r.args.seq) === seqBefore + 1));
   assert.equal(back.char.part.money, 30000);
+});
+
+test('the parts go only with a question: none on the strip after the hello, all with the first question, a later change only with the next one', () => {
+  const vm = newVM({ db: DB }).login().advance(3.1); // the default: not EAGER
+  answer(vm);
+  assert.equal(stateRecords(vm).length, 0, 'answered hello, no question: nothing of the character on screen');
+  vm.slash('what race am I?');
+  const first = stateRecords(vm);
+  assert.ok(first.length > 0, 'the question brings the parts');
+  assert.ok(stripRecords(vm).some(r => r.type === 'msg'), 'beside the question');
+  drain(vm);
+  assert.equal(stateRecords(vm).length, 0, 'the app has them: off the strip');
+  vm.run('STUB.equipped[5] = nil; STUB.FireEvent("PLAYER_EQUIPMENT_CHANGED", 5, true)');
+  vm.advance(3);
+  assert.equal(stateRecords(vm).length, 0, 'a change alone puts nothing on screen');
+  vm.slash('and now?');
+  const parts = stateRecords(vm).map(r => r.args.part);
+  assert.ok(parts.includes('gear'), `the next question brings the change: ${parts}`);
+  assert.ok(!parts.includes('quests'), 'and only that');
 });

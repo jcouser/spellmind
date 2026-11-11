@@ -898,6 +898,8 @@ function S.BeforeSend()
 		local rec = me.parts[p]
 		if type(rec) == "table" and not rec.ok then out[#out + 1] = p .. ":" .. ns.Int(rec.seq) end
 	end
+	-- The parts the app hasn't got go on the strip with this message (S.Entries), until it has them.
+	if #out > 0 then R.stateWanted = true end
 	return table.concat(out, ",")
 end
 
@@ -934,6 +936,11 @@ function S.Entries()
 		end
 	end
 	if not S.Sharing() then return out end
+	-- Only while a question wants them (S.BeforeSend): the app needs the character to answer, not
+	-- on every change, and each change put the strip on screen (a flash after every kill while
+	-- questing; the player found it intrusive, 2026-11-11).
+	-- (S.EAGER: every change goes, as before; the tests of the parts' own machinery set it.)
+	if not R.stateWanted and not S.EAGER then return out end
 	for _, p in ipairs(S.PARTS) do
 		local rec = me.parts[p]
 		if type(rec) == "table" and not rec.ok and type(rec.json) == "string" then
@@ -998,6 +1005,12 @@ function S.OnBridge(bridge)
 					rec.ok = true
 				end
 			end
+		end
+		-- Every part the last question named is the app's now: none goes until the next question.
+		if R.stateWanted then
+			local left = false
+			for _, rec in pairs(me.parts) do if type(rec) == "table" and not rec.ok then left = true end end
+			if not left then R.stateWanted = nil end
 		end
 	end
 	ns.Link.RefreshStrip()

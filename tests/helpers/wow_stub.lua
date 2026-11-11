@@ -688,3 +688,5 @@ function GetChannelName(name)
 	if id then return id, name end
 	return 0
 end
+-- The channels as GetChannelList gives them: number, name, disabled, ...
+function GetChannelList() return 2, "General - Ironforge", false, 3, "Trade - City", false end

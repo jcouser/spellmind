@@ -191,13 +191,43 @@ end
 
 -- The line in the game's chat box, for the player to edit and send (Enter). The LookingForGroup
 -- channel's number goes first when the player is in it, so Enter sends it there.
-function Q.PutInChat(text)
+-- where: a chat target, as the menu gives it: { slash = "/2" } for a channel by its number, or
+-- "/s", "/p", "/g" (say, party, guild). The chat box parses it when the player presses Enter. With
+-- none, the LookingForGroup channel when the player is in it, else no prefix (the box's own).
+function Q.PutInChat(text, where)
 	if type(text) ~= "string" or text == "" then return false end
-	local ch = Try(GetChannelName, "LookingForGroup")
-	local prefix = (type(ch) == "number" and ch > 0) and ("/" .. ch .. " ") or ""
+	local prefix = ""
+	if where == "" then
+		prefix = "" -- the chat box's current (sticky) channel, whatever the player last used
+	elseif type(where) == "string" and where:match("^/%w+$") then
+		prefix = where .. " "
+	else
+		local ch = Try(GetChannelName, "LookingForGroup")
+		if type(ch) == "number" and ch > 0 then prefix = "/" .. ch .. " " end
+	end
 	local open = rawget(_G, "ChatFrame_OpenChat")
 	if type(open) ~= "function" then return false end
 	return pcall(open, prefix .. text, rawget(_G, "DEFAULT_CHAT_FRAME")) and true or false
+end
+
+-- The chat targets for the LFG menu: the channels the player is in now (GetChannelList: number,
+-- name, disabled, …), then Say, Party and Guild. { slash, label }.
+function Q.ChatTargets()
+	-- First: no prefix, so the chat box's own current channel (the last one the player typed in).
+	local out = { { slash = "", label = "Current chat channel" } }
+	local list = { pcall(rawget(_G, "GetChannelList") or function() end) }
+	if list[1] then
+		for i = 2, #list, 3 do
+			local num, name, disabled = list[i], list[i + 1], list[i + 2]
+			if type(num) == "number" and type(name) == "string" and not disabled then
+				out[#out + 1] = { slash = "/" .. num, label = num .. ". " .. S().Text(name, 40) }
+			end
+		end
+	end
+	out[#out + 1] = { slash = "/s", label = "Say" }
+	out[#out + 1] = { slash = "/p", label = "Party" }
+	out[#out + 1] = { slash = "/g", label = "Guild" }
+	return out
 end
 
 -- What's left of a quest, short: its unfinished objectives ("0/8 Carved Stone Idol"), at most two.

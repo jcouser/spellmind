@@ -215,7 +215,8 @@ local function Draw(f, specs)
 					end
 					a.text = a:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 					a.text:SetPoint("CENTER", a, "CENTER", 0, 0)
-					a:SetScript("OnClick", function(self) if self.fn then self.fn() end end)
+					a:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+					a:SetScript("OnClick", function(self, button) if self.fn then self.fn(button, self) end end)
 					r.actions[k] = a
 				end
 				a.text:SetText(spec[1])
@@ -314,7 +315,7 @@ function Tabs.quests()
 				actions = { { "Go", function() P.Go(id) end } } }
 			-- A group, elite or dungeon quest: LFG puts a ready message in the chat box.
 			if not info.complete and (info.elite or info.group or dungeon) then
-				table.insert(row.actions, 1, { "LFG", function() P.LFG(id) end })
+				table.insert(row.actions, 1, { "LFG", function(button, b) P.LFG(id, button, b) end })
 			end
 			if info.complete then groups.ready[#groups.ready + 1] = row
 			elseif info.diff == "Trivial" or info.trivial then groups.grey[#groups.grey + 1] = row
@@ -363,11 +364,73 @@ function Tabs.quests()
 end
 
 -- LFG on a quest row: the message in the game's chat box, to edit and send with Enter.
-function P.LFG(id)
+-- The channel it goes to: the player's pick, kept (SpellmindDB.panel.lfg = "/2"); the first click,
+-- and a right-click any time, opens the menu of channels they're in.
+function P.LFG(id, button, anchor)
+	local pick = Saved().lfg
+	if button == "RightButton" or not pick then
+		P.LFGMenu(id, anchor)
+		return nil
+	end
+	return P.LFGTo(id, pick)
+end
+
+function P.LFGTo(id, slash)
 	local text = ns.Quests.LFGText(id)
-	if text and ns.Quests.PutInChat(text) then return text end
+	if text and ns.Quests.PutInChat(text, slash) then return text end
 	if text then ns.Chat.System("Your LFG line: " .. ns.Escape(text)) end
 	return text
+end
+
+-- The menu: one row per chat target; a pick is kept and used at once.
+function P.LFGMenu(id, anchor)
+	local f = panel or P.Build()
+	local m = f.lfgMenu
+	if not m then
+		m = CreateFrame("Frame", "SpellmindLFGMenu", f, "BackdropTemplate")
+		m:SetFrameStrata("FULLSCREEN_DIALOG")
+		if m.SetBackdrop then
+			m:SetBackdrop(BACKDROP)
+			m:SetBackdropColor(0.05, 0.04, 0.1, 0.98)
+			m:SetBackdropBorderColor(0.58, 0.45, 0.98, 1)
+		end
+		m.title = m:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		m.title:SetPoint("TOPLEFT", m, "TOPLEFT", 10, -8)
+		m.title:SetText("Post your LFG line in:")
+		m.rows = {}
+		f.lfgMenu = m
+	end
+	for _, r in ipairs(m.rows) do r:Hide() end
+	local targets = ns.Quests.ChatTargets()
+	local y = -24
+	for i, t in ipairs(targets) do
+		local r = m.rows[i]
+		if not r then
+			r = CreateFrame("Button", nil, m)
+			r:SetSize(176, 18)
+			r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+			r.text:SetPoint("LEFT", r, "LEFT", 6, 0)
+			r:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+			m.rows[i] = r
+		end
+		local current = Saved().lfg == t.slash
+		r.text:SetText((current and "|cffffd100> " or "") .. ns.Escape(t.label) .. (current and "|r" or ""))
+		r.slash = t.slash
+		r:SetScript("OnClick", function(self)
+			Saved().lfg = self.slash
+			m:Hide()
+			P.LFGTo(id, self.slash)
+		end)
+		r:ClearAllPoints()
+		r:SetPoint("TOPLEFT", m, "TOPLEFT", 6, y)
+		r:Show()
+		y = y - 20
+	end
+	m:SetSize(190, -y + 6)
+	m:ClearAllPoints()
+	if anchor then m:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -2) else m:SetPoint("CENTER", f, "CENTER", 0, 0) end
+	m:Show()
+	return m
 end
 
 -- Go on a quest row: the game's pin and arrow, and a line saying which.

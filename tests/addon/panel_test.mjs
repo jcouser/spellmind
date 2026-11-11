@@ -141,21 +141,28 @@ test('resizable: the grip sizes it, the rows and Ask buttons follow, the size is
   assert.equal(vm.num('SpellmindPanel.asks[1]:GetWidth()'), Math.floor((800 - 150 - 24 - 12) / 2));
 });
 
-test('LFG on a dungeon quest: the dungeon and its quests, who\'s asking, in the chat box on the LookingForGroup channel, to send yourself', () => {
+test('LFG: the first click asks where (the current chat channel, the joined channels, Say, Party, Guild); the pick is kept; right-click changes it', () => {
   const vm = session();
   vm.run('C_QuestLog.GetQuestTagInfo = function(id) if id == 96393 or id == 297 then return { tagID = 81, tagName = "Dungeon" } end end');
   vm.run('NS.Panel.Show("quests")');
-  const row = drawn(vm).find(x => /Old Ironforge Incursion/.test(x.text || ''));
-  assert.ok(row);
-  vm.run('NS.Panel.LFG(96393)');
-  assert.equal(vm.evaluate('STUB.openedChat'), '/4 LFG Ironforge DPS Rogue', 'short: the dungeon, the role, the class');
-  vm.run('NS.Panel.LFG(297)');
-  assert.equal(vm.evaluate('STUB.openedChat'), '/4 LFG Ironforge DPS Rogue', "any of the dungeon's quests: the same line");
+  vm.run('NS.Panel.LFG(96393, "LeftButton")');
+  assert.equal(vm.evaluate('tostring(SpellmindLFGMenu.shown)'), 'true', 'no pick yet: the menu');
+  assert.equal(vm.evaluate('tostring(STUB.openedChat)'), 'nil');
+  const labels = list(vm, '(function() local t = {} for _, r in ipairs(SpellmindLFGMenu.rows) do if r:IsShown() then t[#t + 1] = r.text:GetText() end end return t end)()');
+  assert.deepEqual(labels, ['Current chat channel', '2. General - Ironforge', '3. Trade - City', 'Say', 'Party', 'Guild']);
+  vm.run('SpellmindLFGMenu.rows[3].scripts.OnClick(SpellmindLFGMenu.rows[3])'); // Trade
+  assert.equal(vm.evaluate('STUB.openedChat'), '/3 LFG Ironforge DPS Rogue', 'short: the dungeon, the role, the class');
+  assert.equal(vm.evaluate('SpellmindDB.panel.lfg'), '/3');
   assert.ok(!vm.chatLines().some(l => /^LFG/.test(l)), 'nothing sent');
-  vm.run('STUB.channels = {}; STUB.openedChat = nil; NS.Panel.LFG(96393)');
-  assert.match(vm.evaluate('STUB.openedChat'), /^LFG Ironforge/, 'not in the channel: no channel number');
+  vm.run('STUB.openedChat = nil; NS.Panel.LFG(297, "LeftButton")');
+  assert.equal(vm.evaluate('STUB.openedChat'), '/3 LFG Ironforge DPS Rogue', "the pick kept; any of the dungeon's quests: the same line");
+  vm.run('NS.Panel.LFG(297, "RightButton")');
+  assert.equal(vm.evaluate('tostring(SpellmindLFGMenu.shown)'), 'true', 'right-click: the menu again');
+  assert.match(vm.evaluate('SpellmindLFGMenu.rows[3].text:GetText()'), /^\|cffffd100> 3\. Trade/, 'the current pick marked');
+  vm.run('SpellmindLFGMenu.rows[1].scripts.OnClick(SpellmindLFGMenu.rows[1])'); // the current chat channel
+  assert.equal(vm.evaluate('STUB.openedChat'), 'LFG Ironforge DPS Rogue', 'no prefix: the chat box\'s own channel');
+  assert.equal(vm.evaluate('SpellmindDB.panel.lfg'), '');
 });
-
 test('the LFG button: only on group, elite or dungeon quests that aren\'t done', () => {
   const vm = session();
   vm.run('C_QuestLog.GetQuestTagInfo = function(id) if id == 96393 then return { tagID = 81, tagName = "Dungeon" } end end');
@@ -168,6 +175,6 @@ test('the LFG button: only on group, elite or dungeon quests that aren\'t done',
 test('LFG on a group quest that isn\'t a dungeon: its own title; a leading "The" goes', () => {
   const vm = session();
   vm.run('STUB.quests[11].title = "The Mo\'grosh Problem"; C_QuestLog.IsEliteQuest = function(id) return id == 96393 end');
-  vm.run('NS.Panel.LFG(96393)');
+  vm.run('NS.Panel.LFGTo(96393, "/4")');
   assert.equal(vm.evaluate('STUB.openedChat'), "/4 LFG Mo'grosh Problem DPS Rogue");
 });

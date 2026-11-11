@@ -89,20 +89,30 @@ local function Rewards(id)
 	if out.money == 0 then out.money = nil end
 	if out.xp == 0 then out.xp = nil end
 	local selected = C_QuestLog and Try(C_QuestLog.GetSelectedQuest)
-	local function Items(count, get)
+	-- kind: "choice" or "reward", GetQuestLogItemLink's first argument: with the link, a wearable
+	-- reward also gets its type, where it's worn and its stats, so the AI can weigh the pick.
+	local function Items(count, get, kind)
 		local list = {}
 		for i = 1, math.min(S().Whole(count) or 0, Q.REWARDS_MAX) do
 			local name, _, n, q, usable, itemID = get(i)
 			if type(name) == "string" and name ~= "" then
-				list[#list + 1] = { id = S().Whole(itemID), name = S().Text(name), q = S().Whole(q), n = S().Whole(n), usable = usable and true or false }
+				local it = { id = S().Whole(itemID), name = S().Text(name), q = S().Whole(q), n = S().Whole(n), usable = usable and true or false }
+				local link = Try(GetQuestLogItemLink, kind, i, id)
+				if type(link) ~= "string" and itemID then link = "item:" .. S().Whole(itemID) end
+				local info = type(link) == "string" and { pcall(C_Item.GetItemInfo, link) } or {}
+				if info[1] and type(info[10]) == "string" and info[10]:match("^INVTYPE_") and not info[10]:match("^INVTYPE_NON_EQUIP") then
+					it.sub, it.equip = S().Text(info[8]), S().Text(info[10]:gsub("^INVTYPE_", ""):lower())
+					it.st = S().ItemStatsO(link)
+				end
+				list[#list + 1] = it
 			end
 		end
 		return #list > 0 and list or nil
 	end
 	if selected == id then
-		out.choices = Items(Try(GetNumQuestLogChoices, id), function(i) return All(GetQuestLogChoiceInfo, i) end)
+		out.choices = Items(Try(GetNumQuestLogChoices, id), function(i) return All(GetQuestLogChoiceInfo, i) end, "choice")
 	end
-	out.items = Items(Try(GetNumQuestLogRewards, id), function(i) return All(GetQuestLogRewardInfo, i, id) end)
+	out.items = Items(Try(GetNumQuestLogRewards, id), function(i) return All(GetQuestLogRewardInfo, i, id) end, "reward")
 	return out
 end
 
@@ -183,7 +193,9 @@ function Q.Focus(id)
 	local function List(items)
 		if not items then return nil end
 		local out = {}
-		for _, it in ipairs(items) do out[#out + 1] = O("id", it.id, "name", it.name, "q", it.q, "n", it.n, "usable", it.usable) end
+		for _, it in ipairs(items) do
+			out[#out + 1] = O("id", it.id, "name", it.name, "q", it.q, "n", it.n, "usable", it.usable, "sub", it.sub, "equip", it.equip, "st", it.st)
+		end
 		return out
 	end
 	local where = q.where and O("zone", q.where.zone, "x", q.where.x, "y", q.where.y, "dist", q.dist) or (q.dist and O("dist", q.dist)) or nil

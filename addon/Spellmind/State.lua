@@ -365,6 +365,8 @@ local function ItemStats(link)
 	end
 	return n > 0 and st or nil
 end
+-- An item's stats as the parts have them (an O object, or nil), for focus's reward choices.
+S.ItemStatsO = function(link) return ItemStats(link) end
 -- An item's stats as a plain table ({ agi = 3, armor = 28 }), for the tooltip line.
 function S.ItemStats(link)
 	local st = ItemStats(link)

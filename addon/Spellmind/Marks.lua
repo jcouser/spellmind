@@ -22,6 +22,7 @@ M.PORTRAIT = "Interface\\AddOns\\Spellmind\\Media\\Portrait"
 M.HINT = "|cff888888Click: Explain. Shift-click: ask in the chat window.|r"
 M.NO_DATA = "Explain needs your game data. Type /sm data on, then click again."
 M.THINKING = "|cff888888Thinking…|r"
+M.CARD_W, M.CARD_MIN_H, M.CARD_MAX_H = 360, 120, 420
 
 -- Marks on or off (/sm marks off): the saved switch, on unless set off.
 function M.On(what)
@@ -104,7 +105,7 @@ end
 local function BuildCard()
 	if M.card then return M.card end
 	local f = CreateFrame("Frame", "SpellmindCard", UIParent, "BackdropTemplate")
-	f:SetSize(340, 260)
+	f:SetSize(M.CARD_W, M.CARD_MIN_H)
 	f:SetFrameStrata("DIALOG")
 	f:SetClampedToScreen(true)
 	f:EnableMouse(true)
@@ -128,16 +129,26 @@ local function BuildCard()
 	f.title:SetJustifyH("LEFT")
 	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
 	f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
-	f.body = CreateFrame("ScrollingMessageFrame", nil, f)
-	f.body:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -38)
-	f.body:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 36)
+	-- The answer: one word-wrapped text, top-aligned, in a scroll frame (the wheel scrolls a long one).
+	-- A ScrollingMessageFrame fills from the bottom, which showed only the first line (seen in game).
+	f.scroll = CreateFrame("ScrollFrame", nil, f)
+	f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -38)
+	f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 38)
+	f.content = CreateFrame("Frame", nil, f.scroll)
+	f.content:SetSize(M.CARD_W - 24, 10)
+	f.scroll:SetScrollChild(f.content)
+	f.body = f.content:CreateFontString(nil, "OVERLAY")
 	f.body:SetFontObject(ChatFontNormal)
+	f.body:SetPoint("TOPLEFT", f.content, "TOPLEFT", 0, 0)
+	f.body:SetWidth(M.CARD_W - 24)
 	f.body:SetJustifyH("LEFT")
-	f.body:SetFading(false)
-	f.body:SetMaxLines(200)
-	f.body:EnableMouseWheel(true)
-	f.body:SetScript("OnMouseWheel", function(self, delta)
-		if delta > 0 then self:ScrollUp() else self:ScrollDown() end
+	f.body:SetJustifyV("TOP")
+	if f.body.SetWordWrap then f.body:SetWordWrap(true) end
+	f.scroll:EnableMouseWheel(true)
+	f.scroll:SetScript("OnMouseWheel", function(self, delta)
+		local range = tonumber(self:GetVerticalScrollRange()) or 0
+		local y = (tonumber(self:GetVerticalScroll()) or 0) - delta * 28
+		self:SetVerticalScroll(math.max(0, math.min(range, y)))
 	end)
 	f.more = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
 	f.more:SetSize(96, 22)
@@ -154,15 +165,16 @@ local function BuildCard()
 	return f
 end
 
--- Lines of text into the card's body (top first).
+-- The text into the card, top first; the card grows to fit it (CARD_MIN_H to CARD_MAX_H), and a longer
+-- one scrolls.
 local function Fill(card, text)
-	card.body:Clear()
 	card.lines = {}
-	for line in (tostring(text) .. "\n"):gmatch("(.-)\n") do
-		card.lines[#card.lines + 1] = line
-		card.body:AddMessage(line)
-	end
-	card.body:ScrollToTop() -- the answer's first line, which says the verdict
+	for line in (tostring(text) .. "\n"):gmatch("(.-)\n") do card.lines[#card.lines + 1] = line end
+	card.body:SetText(table.concat(card.lines, "\n"))
+	local h = tonumber(card.body:GetStringHeight()) or 14
+	card.content:SetHeight(math.max(10, h))
+	card:SetHeight(math.max(M.CARD_MIN_H, math.min(M.CARD_MAX_H, h + 38 + 44)))
+	card.scroll:SetVerticalScroll(0)
 end
 
 function M.ShowCard(b, req, key)

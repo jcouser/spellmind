@@ -59,12 +59,17 @@ Every part has `"v":1`. A key is left out when the game had no data for it. Stri
 
 ## Break it down (a quest in `focus`)
 
-The answer shows in a small card beside the player's map, so keep it to about 700 characters:
+The answer shows in a small card beside the quest window, where the player can already read the quest's title, level, objectives, description and rewards, and the hover already told them its difficulty colour and what's left. **Restating any of that is worthless.** Their own words for it: "just stating what's generally obvious". Add only what the window doesn't say, in about 700 characters:
 
-- **First sentence: the verdict.** Worth doing now, later, or skip, and why in a few words (its `diff` and `level` against the character's, `elite` or `group`, `complete`).
-- Then short bullets: what to do, in order; where (use `where` when it's there and say it's from the game's marker; otherwise from memory, hedged); what to bring or watch for at their level and class; and, when `choices` has more than one, which reward to take for this character (`usable`, their class, `gear`), in one line.
-- A quest that's `complete`: say where to turn it in, if the text or your memory says, and skip the steps.
-- Don't repeat the quest's text back; the player just read it.
+- **First sentence: the call, with a reason the window doesn't give.** Not "it's level 19 and elite" (they can see that) but what it means for this character: "Leave it until 18 or a group: the Mo'grosh Enforcers hit hard and come in pairs" or "Do it now on the way to the dig: the troggs there are 15–16 and you have two other quests in the same spot."
+- Then 2–4 short bullets, each something they couldn't read off the window:
+  - **How, for this character**: their class and the spells they actually have (`spells`, `talents`): pulls, which mobs to avoid or single out, an ability that makes it easier, food or bandages if `skills` and `bags` show them.
+  - **What to watch for**: elites, patrols, adds, casters or runners, a named mob with a long respawn; from memory, hedged.
+  - **Overlap**: other quests in their log (`quests`) with objectives in the same area, or turn-ins on the way; name them.
+  - **The reward pick**, when `choices` has more than one: which one and why, from each choice's `sub`, `equip` and `st` against the class, the role and what they wear in that slot (`gear`). Unusable ones (`usable` false): say so only if they'd otherwise pick it, or note it sells. Do the comparison yourself and name the winner; never tell the player to compare.
+  - **After**: where it's turned in if that isn't the quest giver, or a follow-up quest it opens, when you know (from memory, hedged).
+- A quest that's `complete`: only where to turn it in and anything worth doing on the way.
+- When you know nothing useful beyond the window, say so in one line rather than padding.
 
 ## Gear decisions
 

@@ -24,7 +24,17 @@ local Codec = SpellmindCodec
 -- 3 px cells (NeverQuestAlone draws 4): 44% less of the screen; the reader takes pitches from 2.5 px
 -- (core/link/strip.mjs minPitch). One unit is one physical pixel, so the cells stay crisp.
 local CELL, CELLS_PER_ROW, MAX_ROWS = 3, 200, 48
-local STRIP_X, STRIP_Y = 0, 272 -- strip units (physical pixels) from UIParent's top-left
+-- Where the strip sits, in strip units (physical pixels) from UIParent's top-left: the very corner,
+-- the least intrusive spot (a player found it floating a third down the screen, 2026-11-11), unless
+-- NeverQuestAlone is loaded, whose own strip has that corner; then 272 px down, below it. The
+-- readers search the first 600 rows at the left edge, so either is found.
+local STRIP_X = 0
+L.STRIP_Y_ALONE, L.STRIP_Y_BESIDE_NQA = 0, 272
+function L.StripY()
+	local AO = rawget(_G, "C_AddOns")
+	local loaded = AO and type(AO.IsAddOnLoaded) == "function" and ns.Try(AO.IsAddOnLoaded, "NeverQuestAlone")
+	return loaded and L.STRIP_Y_BESIDE_NQA or L.STRIP_Y_ALONE
+end
 local FAST_TICK = 0.25 -- poll while a strip is up or a reply is awaited
 local SLOW_EVERY = 8 -- ticks: the 2-second ticker
 local SELFTEST_EVERY = 60
@@ -287,7 +297,8 @@ function L.EnsureStrip()
 	-- Nor its alpha: a UIParent another addon fades would blend the cells into the world.
 	if strip.SetIgnoreParentAlpha then strip:SetIgnoreParentAlpha(true) end
 	strip:SetScale(StripScale())
-	strip:SetPoint("TOPLEFT", UIParent, "TOPLEFT", STRIP_X, -STRIP_Y)
+	R.stripY = L.StripY()
+	strip:SetPoint("TOPLEFT", UIParent, "TOPLEFT", STRIP_X, -R.stripY)
 	strip:SetSize(CELLS_PER_ROW * CELL, MAX_ROWS * CELL)
 	strip:Hide()
 	return strip

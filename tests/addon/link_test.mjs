@@ -28,7 +28,7 @@ function stripRecords(vm) {
   if (!img) return null;
   const r = findAndDecode(img);
   assert.equal(r.kind, 'decoded', `strip ${r.kind} ${r.reason || ''}`);
-  assert.deepEqual([r.geometry.x0, r.geometry.y0, r.geometry.pitch], [0, 272, 3], "Spellmind's spot: 272 px down, 3 px cells (NeverQuestAlone's are 4)");
+  assert.deepEqual([r.geometry.x0, r.geometry.y0, r.geometry.pitch], [0, 0, 3], "Spellmind's spot: the top-left corner (NeverQuestAlone not loaded), 3 px cells");
   const { records, rejected } = parsePayload(r.text);
   assert.equal(rejected.length, 0, JSON.stringify(rejected));
   return records;
@@ -80,7 +80,7 @@ test('/sm hello puts a msg record on the strip, 272 px down, with the hello besi
 test('the strip ignores its parent\'s scale and takes 768 / the physical height, at the top-left of UIParent; a display change rescales it', () => {
   const vm = session();
   const f = vm.json('{ scale = SpellmindStrip.scale, ignore = SpellmindStrip.ignoreParentScale, x = SpellmindStrip.x, y = SpellmindStrip.y, point = SpellmindStrip.anchor.point, rel = SpellmindStrip.anchor.rel == UIParent, relPoint = SpellmindStrip.anchor.relPoint, strata = SpellmindStrip.strata }');
-  assert.deepEqual(f, { scale: 768 / 1080, ignore: true, x: 0, y: -272, point: 'TOPLEFT', rel: true, relPoint: 'TOPLEFT', strata: 'TOOLTIP' });
+  assert.deepEqual(f, { scale: 768 / 1080, ignore: true, x: 0, y: 0, point: 'TOPLEFT', rel: true, relPoint: 'TOPLEFT', strata: 'TOOLTIP' });
   vm.run('STUB.physH = 1440; STUB.FireEvent("DISPLAY_SIZE_CHANGED")');
   assert.equal(vm.json('SpellmindStrip.scale'), 768 / 1440);
   vm.run('STUB.physH = 2160; STUB.FireEvent("UI_SCALE_CHANGED")');
@@ -364,4 +364,18 @@ test('slot-only mode (no doorbells): the app can\'t be told away, so the strip s
   vm.slash('a question');
   vm.advance(30);
   assert.ok(stripRecords(vm).some(r => r.type === 'msg'));
+});
+
+test('the strip\'s spot: the top-left corner alone; 272 px down when NeverQuestAlone is loaded (its strip has the corner)', () => {
+  const alone = session();
+  alone.slash('hi');
+  assert.equal(alone.num('NS.R.stripY'), 0);
+  const beside = newVM();
+  beside.run('STUB.loaded.NeverQuestAlone = true');
+  beside.login().advance(3.1);
+  beside.slash('hi');
+  assert.equal(beside.num('NS.R.stripY'), 272);
+  const r = findAndDecode(beside.screen());
+  assert.equal(r.kind, 'decoded');
+  assert.equal(r.geometry.y0, 272);
 });

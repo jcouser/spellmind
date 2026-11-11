@@ -364,15 +364,11 @@ function Tabs.quests()
 end
 
 -- LFG on a quest row: the message in the game's chat box, to edit and send with Enter.
--- The channel it goes to: the player's pick, kept (SpellmindDB.panel.lfg = "/2"); the first click,
--- and a right-click any time, opens the menu of channels they're in.
+-- Every click asks where it goes: the menu of the chat box's current channel, the channels the
+-- player is in, Say, Party and Guild (the player preferred choosing each time to a kept pick).
 function P.LFG(id, button, anchor)
-	local pick = Saved().lfg
-	if button == "RightButton" or not pick then
-		P.LFGMenu(id, anchor)
-		return nil
-	end
-	return P.LFGTo(id, pick)
+	P.LFGMenu(id, anchor)
+	return nil
 end
 
 function P.LFGTo(id, slash)
@@ -382,7 +378,7 @@ function P.LFGTo(id, slash)
 	return text
 end
 
--- The menu: one row per chat target; a pick is kept and used at once.
+-- The menu: one row per chat target; a pick puts the line in the chat box at once.
 function P.LFGMenu(id, anchor)
 	local f = panel or P.Build()
 	local m = f.lfgMenu
@@ -413,11 +409,9 @@ function P.LFGMenu(id, anchor)
 			r:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
 			m.rows[i] = r
 		end
-		local current = Saved().lfg == t.slash
-		r.text:SetText((current and "|cffffd100> " or "") .. ns.Escape(t.label) .. (current and "|r" or ""))
+		r.text:SetText(ns.Escape(t.label))
 		r.slash = t.slash
 		r:SetScript("OnClick", function(self)
-			Saved().lfg = self.slash
 			m:Hide()
 			P.LFGTo(id, self.slash)
 		end)

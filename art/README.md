@@ -11,6 +11,8 @@ The style is **flat and minimal**: three or four solid colours (dark indigo `#1a
 | `source/portrait-sage.png`: the hooded sage, tried in game 2026-11-10 | (not in game) | the owl read better at 24–32 px; kept as an alternative |
 | `source/mark.png`: the sigil alone | `Media/Mark.tga`, 32×32, its background made transparent, with a dark outline so it reads on parchment | the Spellmind mark on the game's windows (features.md §2.1) |
 
+The nudge badge (2026-11-11): `source/badge.png` → `Media/Badge.tga` (32×32, a gold disc with a dark rim and a white four-point star), on the minimap button while a nudge waits.
+
 The chat window's kit (2026-11-10, after mockup A): `source/corner.png` → `Media/Corner.tga` (64×64, a top-left gold bracket, flipped in code for the other corners), `source/chevron.png` → `Media/Chevron.tga` (the thinking dropdown's arrow), `source/send.png` → `Media/Send.tga` (the send button). All are flat gold on black, with the black made transparent as for the mark, then trimmed and padded square.
 
 The textures are uncompressed 32-bit TGA with power-of-two sides, which the game loads. Remake them from the sources with ImageMagick, from this folder:

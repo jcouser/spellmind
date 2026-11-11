@@ -101,7 +101,7 @@ test('the art: every texture the addon and its slots name is in Media as a 32-bi
     for (const m of src.matchAll(/Interface\\{1,2}AddOns\\{1,2}Spellmind\\{1,2}Media\\{1,2}(\w+)/g)) named.add(m[1]);
     for (const m of src.matchAll(/MEDIA \.\. "(\w+)"/g)) named.add(m[1]); // Window.lua's W.MEDIA .. "Corner"
   }
-  assert.deepEqual([...named].sort(), ['Chevron', 'Corner', 'Mark', 'Portrait', 'Send', 'Spellmind']);
+  assert.deepEqual([...named].sort(), ['Badge', 'Chevron', 'Corner', 'Mark', 'Portrait', 'Send', 'Spellmind']);
   for (const name of named) {
     const file = path.join(ADDON, 'Media', `${name}.tga`);
     assert.ok(fs.existsSync(file), `${name}.tga is there`);

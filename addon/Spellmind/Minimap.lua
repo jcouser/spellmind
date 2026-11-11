@@ -7,6 +7,7 @@ local MB = {}
 ns.MinimapButton = MB
 
 MB.ICON = "Interface\\AddOns\\Spellmind\\Media\\Spellmind"
+MB.BADGE = "Interface\\AddOns\\Spellmind\\Media\\Badge"
 MB.RADIUS = 105 -- from the minimap's centre (its rim at the default size)
 MB.DEFAULT_ANGLE = 200 -- degrees, about eight o'clock
 
@@ -100,14 +101,24 @@ function MB.Dot(on)
 	if not b then return end
 	if not b.dot then
 		-- A small button of its own: clicked, it brings the waiting nudge back (Nudges.Bring).
+		-- Media\Badge: a round gold disc with the sigil's star (the flat colour square looked crude, seen
+		-- in game), over the icon's corner, gently pulsing.
 		b.dot = CreateFrame("Button", "SpellmindMinimapDot", b)
-		b.dot:SetSize(12, 12)
-		b.dot:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, 0)
+		b.dot:SetSize(15, 15)
+		b.dot:SetPoint("CENTER", b, "TOPRIGHT", -5, -5)
 		local level = b:GetFrameLevel()
 		b.dot:SetFrameLevel((type(level) == "number" and level or 8) + 2)
 		b.dot.tex = b.dot:CreateTexture(nil, "OVERLAY")
 		b.dot.tex:SetAllPoints(b.dot)
-		b.dot.tex:SetColorTexture(1, 0.82, 0, 1)
+		b.dot.tex:SetTexture(MB.BADGE)
+		b.dot.pulse = b.dot:CreateAnimationGroup()
+		b.dot.pulse:SetLooping("BOUNCE")
+		local fade = b.dot.pulse:CreateAnimation("Alpha")
+		fade:SetFromAlpha(1)
+		fade:SetToAlpha(0.55)
+		fade:SetDuration(0.9)
+		b.dot:SetScript("OnShow", function(self) self.pulse:Play() end)
+		b.dot:SetScript("OnHide", function(self) self.pulse:Stop() end)
 		b.dot:SetScript("OnClick", function() if ns.Nudges then ns.Nudges.Bring() end end)
 		b.dot:SetScript("OnEnter", function(self) local s = b:GetScript("OnEnter"); if s then s(b) end end)
 		b.dot:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)

@@ -218,7 +218,9 @@ function M.ShowCard(b, req, key)
 	Fill(card, M.THINKING)
 	card:ClearAllPoints()
 	local anchor = req.anchor or b
-	card:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 6, 0)
+	-- side "left": the card opens to the anchor's left (a nudge by the minimap, at the screen's right edge).
+	if req.side == "left" then card:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 0)
+	else card:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 6, 0) end
 	card:Show()
 end
 
@@ -243,10 +245,12 @@ end
 
 -- A question from a button (the Advisor panel's Ask buttons): sent like a typed one, shown in the
 -- window as label, its answer in the card beside anchor (which also owns it).
-function M.Ask(anchor, label, text)
+function M.Ask(anchor, label, text, opts)
 	local key = ns.Chat.Send(text, { shown = label, card = true })
 	if not key then return nil end
-	M.ShowCard(anchor, { label = label, anchor = anchor, owner = anchor }, key)
+	-- A nudge's toast hides as it's asked, so it can't own the card: the card stays until closed.
+	local owner = opts and opts.side == "left" and UIParent or anchor
+	M.ShowCard(anchor, { label = label, anchor = anchor, owner = owner, side = opts and opts.side }, key)
 	return key
 end
 

@@ -18,4 +18,5 @@ Marks.lua
 Quests.lua
 Tooltip.lua
 Panel.lua
+Nudges.lua
 Minimap.lua

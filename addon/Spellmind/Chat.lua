@@ -518,6 +518,13 @@ SlashCmdList.SPELLMIND = function(msg)
 			or "Spellmind: the marks on the game's windows and the tooltip line are on.")
 		return
 	end
+	-- /sm nudges off and /sm nudges on: the toasts by the minimap.
+	local nd = lower:match("^nudges%s+(%a+)$")
+	if (nd == "off" or nd == "on") and ns.db and ns.Nudges then
+		ns.Nudges.SetOn(nd == "on")
+		ChatFrame(nd == "off" and "Spellmind: nudges are off. Type /sm nudges on to have them again." or "Spellmind: nudges are on.")
+		return
+	end
 	-- /sm panel: the Advisor panel.
 	if lower == "panel" and ns.Panel and ns.db then
 		ns.Panel.Toggle()

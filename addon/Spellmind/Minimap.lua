@@ -1,6 +1,6 @@
 -- Minimap.lua: Spellmind's button on the minimap's rim (docs/features.md §2). Click: the chat window.
 -- Drag: around the rim (its angle saved in SpellmindDB.minimap). /sm minimap off hides it.
--- Right-click: the Advisor panel. Later: a dot shows while a nudge waits.
+-- Right-click: the Advisor panel. A gold dot shows while a nudge waits.
 
 local _, ns = ...
 local MB = {}
@@ -86,6 +86,19 @@ function MB.Create()
 	MB.Place()
 	if Saved().hide then b:Hide() end
 	return b
+end
+
+-- The dot: a nudge waits (Nudges.lua).
+function MB.Dot(on)
+	local b = MB.button
+	if not b then return end
+	if not b.dot then
+		b.dot = b:CreateTexture(nil, "OVERLAY", nil, 7)
+		b.dot:SetSize(10, 10)
+		b.dot:SetPoint("TOPRIGHT", b, "TOPRIGHT", -2, -2)
+		b.dot:SetColorTexture(1, 0.82, 0, 1)
+	end
+	b.dot:SetShown(on and true or false)
 end
 
 function MB.Show(on)

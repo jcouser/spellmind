@@ -3,6 +3,7 @@
 ## Notes: Spellmind: AI Companion. Ask anything in game; needs the Spellmind app.
 ## Author: The Spellmind authors
 ## Version: 0.1.0
+## IconTexture: Interface\AddOns\Spellmind\Media\Spellmind
 ## SavedVariables: SpellmindDB
 
 Codec.lua

@@ -81,6 +81,7 @@ test('every file adapted from NeverQuestAlone says so on its first line and has 
   let n = 0;
   for (const dir of dirs) {
     for (const f of fs.readdirSync(path.join(ROOT, dir))) {
+      if (!fs.statSync(path.join(ROOT, dir, f)).isFile()) continue; // Media/ and the like
       const rel = `${dir}/${f}`;
       const first = fs.readFileSync(path.join(ROOT, dir, f), 'utf8').split('\n')[0];
       const m = first.match(/^(?:--|\/\/) Spellmind: adapted from NeverQuestAlone's (\S+) \(MIT; see NOTICE\.md\)[.,]/);
@@ -91,4 +92,20 @@ test('every file adapted from NeverQuestAlone says so on its first line and has 
   }
   for (const f of ['Core.lua', 'Link.lua', 'State.lua', 'Chat.lua', 'Inbox.lua']) assert.match(read(f).split('\n')[0], /adapted from NeverQuestAlone's/, f);
   assert.ok(n >= 9, `${n} adapted files`);
+});
+
+test('the art: every texture the addon and its slots name is in Media as a 32-bit TGA with power-of-two sides', () => {
+  const named = new Set();
+  const sources = [read('Spellmind.toc'), ...tocFiles().map(read), fs.readFileSync(path.join(ROOT, 'core/link/slots.mjs'), 'utf8')];
+  for (const src of sources) for (const m of src.matchAll(/Interface\\{1,2}AddOns\\{1,2}Spellmind\\{1,2}Media\\{1,2}(\w+)/g)) named.add(m[1]);
+  assert.deepEqual([...named].sort(), ['Portrait', 'Spellmind']);
+  for (const name of [...named, 'Mark']) {
+    const file = path.join(ADDON, 'Media', `${name}.tga`);
+    assert.ok(fs.existsSync(file), `${name}.tga is there`);
+    const b = fs.readFileSync(file);
+    const [w, h, bpp] = [b.readUInt16LE(12), b.readUInt16LE(14), b[16]];
+    assert.equal(b[2], 2, `${name}: uncompressed true-colour`);
+    assert.equal(bpp, 32, `${name}: has alpha`);
+    for (const side of [w, h]) assert.equal(side & (side - 1), 0, `${name}: ${w}x${h} is a power of two`);
+  }
 });

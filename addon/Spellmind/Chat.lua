@@ -115,15 +115,21 @@ local function Build()
 		f:SetBackdropBorderColor(0.62, 0.49, 1, 1)
 	end
 
+	-- The persona's portrait (Media\Portrait.tga, a round wisp) beside the title.
+	f.portrait = f:CreateTexture(nil, "ARTWORK")
+	f.portrait:SetSize(32, 32)
+	f.portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -6)
+	f.portrait:SetTexture("Interface\\AddOns\\Spellmind\\Media\\Portrait")
+
 	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -10)
+	f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 46, -10)
 	f.title:SetText("Spellmind: AI Companion")
 
 	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
 	f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
 
 	f.status = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	f.status:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -28)
+	f.status:SetPoint("TOPLEFT", f, "TOPLEFT", 46, -26)
 	f.status:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -28)
 	f.status:SetJustifyH("LEFT")
 

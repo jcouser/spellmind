@@ -45,8 +45,7 @@ The tabs read the same builders as the state parts (`State.Collect`), so the pan
 
 **Sections**, re-read live on quest log, quest watch, level and zone changes:
 - Ready to turn in (nearest first)
-- Do now: here (at your level, on your map, nearest first)
-- Do now: elsewhere
+- Do now: <zone or dungeon>, by the quest log's own headers (as the log and Questie group them), the zone you're in first, then the nearest group; nearest first inside. A map marker isn't "here": dungeon quests have none outside.
 - Group (elite or a suggested group)
 - Later (orange or red, with "+N levels" when the game has no spot for it)
 - Skip? Little XP left (grey)

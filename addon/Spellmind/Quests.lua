@@ -56,6 +56,27 @@ local function Info(id)
 	return type(info) == "table" and info or nil, i
 end
 
+-- The quest log's header a quest sits under: its zone or dungeon ("Loch Modan", "The Hall of
+-- Thanes"), as the log and Questie group them.
+function Q.Header(id)
+	local QL = C_QuestLog
+	local i = LogIndex(id)
+	if not i or not QL then return nil end
+	for k = i - 1, 1, -1 do
+		local info = Try(QL.GetInfo, k)
+		if type(info) == "table" and info.isHeader then return S().Text(info.title) end
+	end
+	return nil
+end
+
+-- The game's tag for a quest ("Dungeon", "Raid", "Elite", "Group"), or nil.
+local function TagName(id)
+	local QL = C_QuestLog
+	local t = QL and Try(QL.GetQuestTagInfo, id)
+	if type(t) == "table" and type(t.tagName) == "string" and t.tagName ~= "" then return S().Text(t.tagName, 20) end
+	return nil
+end
+
 -- "Difficult", from the font name of the colour the game gives a quest of that level.
 local function Difficulty(level)
 	local c = type(level) == "number" and Try(GetQuestDifficultyColor, level)
@@ -186,7 +207,7 @@ function Q.Read(id)
 		diff = Difficulty(level), trivial = Try(QL.IsQuestTrivial, id) and true or false, elite = Try(QL.IsEliteQuest, id) and true or false,
 		group = (group and group > 1) and group or nil, complete = (Try(QL.IsComplete, id) or Try(QL.ReadyForTurnIn, id)) and true or false,
 		text = S().Text(desc, Q.TEXT_MAX), goal = S().Text(goal, Q.GOAL_MAX), obj = S().Objectives(id),
-		rewards = Rewards(id), where = where, dist = dist,
+		rewards = Rewards(id), where = where, dist = dist, header = Q.Header(id), tagName = TagName(id), logIndex = logIndex,
 	}
 end
 

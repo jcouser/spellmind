@@ -23,22 +23,26 @@ test('opens from the minimap button\'s right-click and /sm panel; the header say
   assert.equal(vm.num('#SpellmindPanel.tabs'), 7, 'six, and Nudges');
 });
 
-test('Quests: ready, do now here (nearest first) and elsewhere, later with its gap; what\'s left on a second line; direction and distance; a mark on each', () => {
+test('Quests: ready; Do now grouped by the log\'s own headers (the zone you\'re in first); later with its gap; what\'s left, direction and distance; a Dungeon tag', () => {
   const vm = session();
-  // Bingles' Missing Supplies on this map too, south-west of the player (at 35.4, 48.2).
+  // Bingles' Missing Supplies on this map, south-west of the player (at 35.4, 48.2); Old Ironforge
+  // Incursion a dungeon quest, with no marker on this map (as the game has them outside).
   vm.run('table.insert(STUB.questsOnMap[1432], { questID = 2038, x = 0.30, y = 0.60 }); STUB.questDist[2038] = 200');
+  vm.run('C_QuestLog.GetQuestTagInfo = function(id) if id == 96393 then return { tagID = 81, tagName = "Dungeon" } end end');
   vm.run('NS.Panel.Show("quests")');
   const d = drawn(vm);
   const heads = d.filter(x => x.kind === 'head').map(x => x.text);
-  assert.deepEqual(heads, ['Ready to turn in', 'Do now: here', 'Do now: elsewhere', 'Later']);
+  assert.deepEqual(heads, ['Ready to turn in', 'Do now: Loch Modan', 'Do now: Ironforge', 'Later'], 'the zone you\'re in (Loch Modan) first');
   const section = h => { const i = d.findIndex(x => x.text === h); const j = d.findIndex((x, k) => k > i && x.kind === 'head'); return d.slice(i + 1, j < 0 ? d.length : j); };
   assert.ok(section('Ready to turn in').every(x => /Ready to turn in/.test(x.sub)));
-  const here = section('Do now: here');
-  assert.equal(here.length, 1);
-  assert.match(here[0].text, /Bingles' Missing Supplies/);
+  const here = section('Do now: Loch Modan');
+  assert.match(here[0].text, /Bingles' Missing Supplies/, 'nearest first');
   assert.equal(here[0].sub, "|cffbbbbbb0/1 Bingles' Wrench, 0/1 Bingles' Screwdriver|r", 'what\'s left');
   assert.equal(here[0].right, 'SW · 200 yd', 'direction and distance');
-  assert.ok(section('Do now: elsewhere').some(x => /Old Ironforge Incursion/.test(x.text)));
+  assert.match(here[1].text, /Snowbound/);
+  const dungeon = section('Do now: Ironforge');
+  assert.match(dungeon[0].text, /Old Ironforge Incursion/, 'with its header\'s group, though no marker is on this map');
+  assert.equal(dungeon[0].tag, 'Dungeon');
   const later = section('Later');
   assert.match(later[0].text, /\[18\]\|r Gathering Idols/);
   assert.equal(later[0].right, 'NE · 560 yd');

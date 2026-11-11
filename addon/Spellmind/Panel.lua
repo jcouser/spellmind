@@ -175,7 +175,6 @@ local function Draw(f, specs)
 				r.left:SetPoint("TOPLEFT", r, "TOPLEFT", lx, -5)
 				r.sub:ClearAllPoints()
 				r.sub:SetPoint("TOPLEFT", r, "TOPLEFT", lx + 2, -21)
-				r.sub:SetPoint("RIGHT", r, "RIGHT", -8, 0)
 				r.sub:SetText(s.sub)
 				r.sub:Show()
 			else
@@ -240,6 +239,8 @@ local function Draw(f, specs)
 				rightEdge = rightEdge - (tonumber(r.tag:GetWidth()) or 60) - 6
 			end
 			r.right:SetPoint("RIGHT", r, "RIGHT", rightEdge, 0)
+			-- The second line stops short of the row's buttons and tags (seen in game: it ran under Go).
+			if s.sub then r.sub:SetWidth(math.max(40, w - lx - 2 + rightEdge - 8)) end
 			r.right:SetText(s.right or "")
 			r.left:SetPoint("RIGHT", r.right, "LEFT", -8, 0)
 			r.left:SetText(s.left or "")
@@ -262,8 +263,10 @@ P.Tabs = Tabs
 
 -- Quests (features.md §3.1), re-read on every quest-log change, level-up and zone change:
 --   Ready to turn in            nearest first
---   Do now: here                at your level, its objectives on your map, nearest first
---   Do now: elsewhere           at your level, not on this map
+--   Do now: <zone or dungeon>   at your level, by the quest log's own headers (as the log and
+--                               Questie group them): the one you're in first, then the nearest;
+--                               nearest first inside (a map marker isn't "here": dungeon quests
+--                               have none outside, seen in game)
 --   Group                       elite or a suggested group
 --   Later                       orange or red for your level, with the gap
 --   Skip?                       grey: little XP left
@@ -274,7 +277,9 @@ P.FAR = 1e9
 function Tabs.quests()
 	local q = Part("quests")
 	local you = ns.State.Whole(ns.Try(UnitLevel, "player")) or 1
-	local groups = { ready = {}, here = {}, away = {}, group = {}, later = {}, grey = {} }
+	local groups = { ready = {}, group = {}, later = {}, grey = {} }
+	local now, byHeader = {}, {} -- the Do now headers in log order, and their rows
+	local zone, sub = ns.Try(GetRealZoneText), ns.Try(GetSubZoneText)
 	for _, it in ipairs(type(q.list) == "table" and q.list or {}) do
 		local info = ns.Quests.Read(it.id)
 		if info then
@@ -289,25 +294,43 @@ function Tabs.quests()
 			if info.complete then sub = "|cff40c040Ready to turn in|r"
 			else sub = ns.Quests.Left(info) and ("|cffbbbbbb" .. ns.Quests.Left(info) .. "|r") or nil end
 			local tag
-			if info.elite then tag = { "Elite", 1, 0.3, 0.3 } elseif info.group then tag = { "Group " .. info.group, 1, 0.6, 0.2 } end
+			if info.elite then tag = { "Elite", 1, 0.3, 0.3 }
+			elseif info.tagName then tag = { info.tagName, 0.45, 0.65, 1 }
+			elseif info.group then tag = { "Group " .. info.group, 1, 0.6, 0.2 } end
+			local dungeon = info.tagName == "Dungeon" or info.tagName == "Raid"
 			local gap = level - you
 			local right = where
 			if not right and gap >= 3 and not info.complete then right = "|cffff8040+" .. gap .. " levels|r" end
 			local id = it.id
 			local row = { kind = "item", left = color .. "[" .. level .. plus .. "]|r " .. ns.Escape(info.title or it.title or "?"),
-				sub = sub, right = right, tag = tag, quest = id, dist = info.dist or P.FAR,
+				sub = sub, right = right, tag = tag, quest = id, dist = info.dist or P.FAR, order = info.logIndex or 999,
 				actions = { { "Go", function() P.Go(id) end } } }
 			if info.complete then groups.ready[#groups.ready + 1] = row
 			elseif info.diff == "Trivial" or info.trivial then groups.grey[#groups.grey + 1] = row
-			elseif info.elite or info.group then groups.group[#groups.group + 1] = row
+			elseif (info.elite or info.group) and not dungeon then groups.group[#groups.group + 1] = row
 			elseif info.diff == "VeryDifficult" or info.diff == "Impossible" then groups.later[#groups.later + 1] = row
-			elseif info.where then groups.here[#groups.here + 1] = row
-			else groups.away[#groups.away + 1] = row end
+			else
+				local h = info.header or "Other"
+				if not byHeader[h] then
+					byHeader[h] = { title = h, rows = {}, near = P.FAR, order = #now + 1,
+						here = (type(zone) == "string" and h == zone) or (type(sub) == "string" and h == sub) }
+					now[#now + 1] = byHeader[h]
+				end
+				local g = byHeader[h]
+				g.rows[#g.rows + 1] = row
+				if row.dist < g.near then g.near = row.dist end
+			end
 		end
 	end
-	local function near(a, b) return a.dist < b.dist end
+	local function near(a, b) if a.dist ~= b.dist then return a.dist < b.dist end return a.order < b.order end
 	table.sort(groups.ready, near)
-	table.sort(groups.here, near)
+	for _, g in ipairs(now) do table.sort(g.rows, near) end
+	-- Where you are first, then the nearest group, then the log's order.
+	table.sort(now, function(a, b)
+		if a.here ~= b.here then return a.here end
+		if a.near ~= b.near then return a.near < b.near end
+		return a.order < b.order
+	end)
 	local out = {}
 	local function Section(title, rows)
 		if #rows == 0 then return end
@@ -315,8 +338,7 @@ function Tabs.quests()
 		for _, r in ipairs(rows) do out[#out + 1] = r end
 	end
 	Section("Ready to turn in", groups.ready)
-	Section("Do now: here", groups.here)
-	Section("Do now: elsewhere", groups.away)
+	for _, g in ipairs(now) do Section("Do now: " .. ns.Escape(g.title), g.rows) end
 	Section("Group", groups.group)
 	Section("Later", groups.later)
 	Section("Skip? Little XP left", groups.grey)

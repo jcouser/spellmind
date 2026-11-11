@@ -48,15 +48,34 @@ local function ShowFacts(b)
 	M.lastFacts = ok and lines or nil
 end
 
-function M.Create(parent, name, spec)
+-- opts.round: a round, gold-rimmed button like the game's and other addons' small header buttons
+-- (Questie's and the like on the quest details, seen in game), instead of the bare sigil.
+function M.Create(parent, name, spec, opts)
 	local b = CreateFrame("Button", name, parent)
-	b:SetSize(20, 20)
+	local round = opts and opts.round
+	b:SetSize(round and 24 or 20, round and 24 or 20)
 	local level = parent and parent.GetFrameLevel and parent:GetFrameLevel()
 	if type(level) == "number" then b:SetFrameLevel(level + 10) end
-	b.icon = b:CreateTexture(nil, "ARTWORK")
-	b.icon:SetAllPoints(b)
+	if round then
+		b.bg = b:CreateTexture(nil, "BACKGROUND")
+		b.bg:SetSize(18, 18)
+		b.bg:SetPoint("CENTER", b, "CENTER", 0, 0)
+		b.bg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+		b.icon = b:CreateTexture(nil, "ARTWORK")
+		b.icon:SetSize(16, 16)
+		b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+		-- The tracking border's ring sits in the top-left of its texture: 41 px for a 24 px button.
+		b.border = b:CreateTexture(nil, "OVERLAY")
+		b.border:SetSize(41, 41)
+		b.border:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+		b.border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+		b:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight", "ADD")
+	else
+		b.icon = b:CreateTexture(nil, "ARTWORK")
+		b.icon:SetAllPoints(b)
+		b:SetHighlightTexture(M.ICON, "ADD")
+	end
 	b.icon:SetTexture(M.ICON)
-	b:SetHighlightTexture(M.ICON, "ADD")
 	b.spec = spec
 	b:SetScript("OnEnter", ShowFacts)
 	b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)

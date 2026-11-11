@@ -622,6 +622,9 @@ end
 WorldMapFrame = CreateFrame("Frame", "WorldMapFrame")
 QuestMapFrame = CreateFrame("Frame", "QuestMapFrame", WorldMapFrame)
 QuestMapFrame.DetailsFrame = CreateFrame("Frame", nil, QuestMapFrame)
+-- Its header: the Back button at the left (retail keeps it in a BackFrame).
+QuestMapFrame.DetailsFrame.BackFrame = CreateFrame("Frame", nil, QuestMapFrame.DetailsFrame)
+QuestMapFrame.DetailsFrame.BackFrame.BackButton = CreateFrame("Button", nil, QuestMapFrame.DetailsFrame.BackFrame)
 function QuestMapFrame_ShowQuestDetails(questID) STUB.selectedQuest = questID end
 
 -- Tooltips: TooltipDataProcessor's post-calls, and STUB.ShowItem(tooltip, link) as the game shows an

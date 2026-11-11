@@ -47,6 +47,10 @@ test('the quest log: the mark shows with a quest\'s details, and hovering it giv
   const vm = newVM().login().advance(3.1);
   assert.equal(vm.evaluate('type(SpellmindQuestMark)'), 'table', 'made at login on the quest panel\'s details');
   assert.equal(vm.evaluate('tostring(SpellmindQuestMark.parent == QuestMapFrame.DetailsFrame)'), 'true');
+  // Beside the Back button, round like the header's other buttons: not over other addons' buttons at the right.
+  assert.equal(vm.evaluate('tostring(SpellmindQuestMark.anchor.rel == QuestMapFrame.DetailsFrame.BackFrame.BackButton)'), 'true');
+  assert.equal(vm.evaluate('SpellmindQuestMark.anchor.point'), 'LEFT');
+  assert.equal(vm.evaluate('type(SpellmindQuestMark.border)'), 'table', 'the round rim');
   assert.equal(vm.evaluate('tostring(SpellmindQuestMark:IsShown())'), 'false', 'hidden until a quest\'s details open');
   vm.run('QuestMapFrame_ShowQuestDetails(297)');
   assert.equal(vm.evaluate('tostring(SpellmindQuestMark:IsShown())'), 'true');

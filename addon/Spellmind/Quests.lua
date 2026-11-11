@@ -225,8 +225,20 @@ function Q.Hook()
 	mark = ns.Marks.Create(details, "SpellmindQuestMark", {
 		facts = function() return Q.Facts(mark.questID) end,
 		explain = function() return Q.Explain(mark.questID, rawget(_G, "WorldMapFrame") or details) end,
-	})
-	mark:SetPoint("TOPRIGHT", details, "TOPRIGHT", -8, -6)
+	}, { round = true })
+	-- Beside the details' Back button, at the left of the header row. The right end of that row is
+	-- where other addons put their round buttons (Questie's, Spoken's), and the mark overlapped them
+	-- there (seen in game); their number varies, so the left end is the reliable spot.
+	local back = rawget(details, "BackButton")
+	if type(back) ~= "table" then
+		local frame = rawget(details, "BackFrame")
+		back = type(frame) == "table" and rawget(frame, "BackButton") or nil
+	end
+	if type(back) == "table" then
+		mark:SetPoint("LEFT", back, "RIGHT", 6, 0)
+	else
+		mark:SetPoint("TOPLEFT", details, "TOPLEFT", 110, -4)
+	end
 	mark:Hide()
 	hooksecurefunc("QuestMapFrame_ShowQuestDetails", function(questID)
 		if not ns.Marks.On("quest") then mark:Hide(); return end

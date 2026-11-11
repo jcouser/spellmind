@@ -43,7 +43,8 @@ W.MEDIA = "Interface\\AddOns\\Spellmind\\Media\\"
 
 -- The gold corner trim (Media\Corner, a top-left piece, flipped for the other three).
 function W.Corners(frame, size, inset)
-	size, inset = size or 22, inset or -3
+	-- inset 2: inside the frame, over its border (at -3 they sat outside the window, seen in game).
+	size, inset = size or 22, inset or 2
 	frame.corners = frame.corners or {}
 	local spots = {
 		{ "TOPLEFT", inset, -inset, 0, 1, 0, 1 }, { "TOPRIGHT", -inset, -inset, 1, 0, 0, 1 },

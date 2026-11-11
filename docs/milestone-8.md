@@ -9,6 +9,7 @@ Nudges are small toasts by the minimap (`addon/Spellmind/Nudges.lua`), built fro
 | Gear about to break | A worn item below 20% durability | Where the nearest repair is |
 | Bags nearly full | 3 or fewer free slots (with the grey junk count) | What to sell, bank or destroy |
 | Ready to turn in | A quest that becomes complete this session (not the ones already complete at login) | Where to turn it in, and what comes after |
+| Turn-in nearby | Within 150 yd of where a ready quest is handed in (the game's distance to a completed quest); once, and again only after going 400 yd away. Checked every 5 s while a quest is ready, since moving fires no event | Who exactly to hand it to, and what comes after |
 | A profession near its cap | Within 5 of its rank's cap | Where to train the next rank, and what it needs |
 
 - **The toast:**

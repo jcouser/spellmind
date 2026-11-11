@@ -34,7 +34,14 @@ test('Quests: ready; Do now grouped by the log\'s own headers (the zone you\'re 
   const heads = d.filter(x => x.kind === 'head').map(x => x.text);
   assert.deepEqual(heads, ['Ready to turn in', 'Do now: Loch Modan', 'Do now: Ironforge', 'Later'], 'the zone you\'re in (Loch Modan) first');
   const section = h => { const i = d.findIndex(x => x.text === h); const j = d.findIndex((x, k) => k > i && x.kind === 'head'); return d.slice(i + 1, j < 0 ? d.length : j); };
-  assert.ok(section('Ready to turn in').every(x => /Ready to turn in/.test(x.sub)));
+  const ready = section('Ready to turn in');
+  assert.ok(ready.filter(x => x.kind === 'item').every(x => /Ready to turn in/.test(x.sub)));
+  // XP: Stormpike's Order gives 975 (the stub's other ready quests none); the rogue has 2,944 of 14,400.
+  assert.match(ready.find(x => /Stormpike's Order/.test(x.text || '')).sub, /975 XP/);
+  assert.equal(ready[0].kind, 'text');
+  assert.match(ready[0].text, /^Turning these in takes you from 20% to \|cff19ff1927%\|r of level 15 \(975 XP\)\.$/);
+  // Gathering Idols' 1,350 XP on its line too.
+  assert.match(section('Later')[0].sub, /1,350 XP/);
   const here = section('Do now: Loch Modan');
   assert.match(here[0].text, /Bingles' Missing Supplies/, 'nearest first');
   assert.equal(here[0].sub, "|cffbbbbbb0/1 Bingles' Wrench, 0/1 Bingles' Screwdriver|r", 'what\'s left');
@@ -132,4 +139,26 @@ test('resizable: the grip sizes it, the rows and Ask buttons follow, the size is
   assert.equal(vm.num('SpellmindPanel.content:GetWidth()'), 800 - 150 - 24, 'the rows take the new width');
   assert.equal(vm.num('SpellmindPanel.rows[2]:GetWidth()'), 800 - 150 - 24);
   assert.equal(vm.num('SpellmindPanel.asks[1]:GetWidth()'), Math.floor((800 - 150 - 24 - 12) / 2));
+});
+
+test('LFG on a dungeon quest: the dungeon and its quests, who\'s asking, in the chat box on the LookingForGroup channel, to send yourself', () => {
+  const vm = session();
+  vm.run('C_QuestLog.GetQuestTagInfo = function(id) if id == 96393 or id == 297 then return { tagID = 81, tagName = "Dungeon" } end end');
+  vm.run('NS.Panel.Show("quests")');
+  const row = drawn(vm).find(x => /Old Ironforge Incursion/.test(x.text || ''));
+  assert.ok(row);
+  vm.run('NS.Panel.LFG(96393)');
+  assert.equal(vm.evaluate('STUB.openedChat'), '/4 LFG Ironforge: Gathering Idols, Old Ironforge Incursion. level 15 Rogue, DPS.');
+  assert.ok(!vm.chatLines().some(l => /^LFG/.test(l)), 'nothing sent');
+  vm.run('STUB.channels = {}; STUB.openedChat = nil; NS.Panel.LFG(96393)');
+  assert.match(vm.evaluate('STUB.openedChat'), /^LFG Ironforge/, 'not in the channel: no channel number');
+});
+
+test('the LFG button: only on group, elite or dungeon quests that aren\'t done', () => {
+  const vm = session();
+  vm.run('C_QuestLog.GetQuestTagInfo = function(id) if id == 96393 then return { tagID = 81, tagName = "Dungeon" } end end');
+  vm.run('NS.Panel.Show("quests")');
+  const labels = vm.json('(function() local out = {} for _, r in ipairs(SpellmindPanel.rows) do if r:IsShown() and r.mark and r.mark.questID then local t = {} for _, a in ipairs(r.actions or {}) do if a:IsShown() then t[#t + 1] = a.text:GetText() end end out[tostring(r.mark.questID)] = table.concat(t, ",") end end return out end)()');
+  assert.equal(labels['96393'], 'LFG,Go');
+  assert.equal(labels['2038'], 'Go');
 });

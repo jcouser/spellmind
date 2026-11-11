@@ -290,9 +290,16 @@ function Tabs.quests()
 			local dir = ns.Quests.Direction(info.where)
 			local where
 			if info.dist then where = (dir and (dir .. " · ") or "") .. info.dist .. " yd" end
+			-- The second line: ready, or what's left, with the quest's XP reward.
+			local xp = info.rewards and info.rewards.xp
+			local xpText = xp and ("|cffb48cff" .. ns.Quests.Num(xp) .. " XP|r") or nil
 			local sub
-			if info.complete then sub = "|cff40c040Ready to turn in|r"
-			else sub = ns.Quests.Left(info) and ("|cffbbbbbb" .. ns.Quests.Left(info) .. "|r") or nil end
+			if info.complete then sub = "|cff40c040Ready to turn in|r" .. (xpText and ("  " .. xpText) or "")
+			else
+				local left = ns.Quests.Left(info)
+				sub = (xpText and (xpText .. (left and "  " or "")) or "") .. (left and ("|cffbbbbbb" .. left .. "|r") or "")
+				if sub == "" then sub = nil end
+			end
 			local tag
 			if info.elite then tag = { "Elite", 1, 0.3, 0.3 }
 			elseif info.tagName then tag = { info.tagName, 0.45, 0.65, 1 }
@@ -303,8 +310,12 @@ function Tabs.quests()
 			if not right and gap >= 3 and not info.complete then right = "|cffff8040+" .. gap .. " levels|r" end
 			local id = it.id
 			local row = { kind = "item", left = color .. "[" .. level .. plus .. "]|r " .. ns.Escape(info.title or it.title or "?"),
-				sub = sub, right = right, tag = tag, quest = id, dist = info.dist or P.FAR, order = info.logIndex or 999,
+				sub = sub, right = right, tag = tag, quest = id, dist = info.dist or P.FAR, order = info.logIndex or 999, xp = xp or 0,
 				actions = { { "Go", function() P.Go(id) end } } }
+			-- A group, elite or dungeon quest: LFG puts a ready message in the chat box.
+			if not info.complete and (info.elite or info.group or dungeon) then
+				table.insert(row.actions, 1, { "LFG", function() P.LFG(id) end })
+			end
 			if info.complete then groups.ready[#groups.ready + 1] = row
 			elseif info.diff == "Trivial" or info.trivial then groups.grey[#groups.grey + 1] = row
 			elseif (info.elite or info.group) and not dungeon then groups.group[#groups.group + 1] = row
@@ -338,12 +349,25 @@ function Tabs.quests()
 		for _, r in ipairs(rows) do out[#out + 1] = r end
 	end
 	Section("Ready to turn in", groups.ready)
+	-- What turning them all in does for the level.
+	local total = 0
+	for _, r in ipairs(groups.ready) do total = total + (r.xp or 0) end
+	local line = #groups.ready > 0 and ns.Quests.XpLine(total) or nil
+	if line then table.insert(out, 2, { kind = "text", text = line }) end
 	for _, g in ipairs(now) do Section("Do now: " .. ns.Escape(g.title), g.rows) end
 	Section("Group", groups.group)
 	Section("Later", groups.later)
 	Section("Skip? Little XP left", groups.grey)
 	if #out == 0 then out[1] = { kind = "text", text = "Your quest log is empty. Ask what's worth picking up nearby." } end
 	return out
+end
+
+-- LFG on a quest row: the message in the game's chat box, to edit and send with Enter.
+function P.LFG(id)
+	local text = ns.Quests.LFGText(id)
+	if text and ns.Quests.PutInChat(text) then return text end
+	if text then ns.Chat.System("Your LFG line: " .. ns.Escape(text)) end
+	return text
 end
 
 -- Go on a quest row: the game's pin and arrow, and a line saying which.

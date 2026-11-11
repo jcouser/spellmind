@@ -223,3 +223,20 @@ test('asking the same thing again while it waits reuses that question: one copy 
   assert.equal(vm.outbox().filter(o => /I can train/.test(o.wire)).length, 1, 'one copy queued');
   assert.equal(vm.savedLines().filter(l => /Nudge: A spell to train/.test(l)).length, 1, 'one question in the chat');
 });
+
+test('a turn-in nearby: a nudge within 150 yd of a ready quest\'s hand-in; again only after going 400 yd away', () => {
+  const vm = session();
+  vm.run('SpellmindNudge.dismiss.scripts.OnClick(SpellmindNudge.dismiss)');
+  vm.advance(4);
+  vm.run('STUB.questDist[1338] = 90'); // Stormpike's Order (ready) is handed in 90 yd away
+  vm.advance(6); // the 5 s look
+  assert.ok(shown(vm));
+  assert.equal(title(vm), 'Turn-in nearby');
+  assert.equal(vm.evaluate('SpellmindNudge.text:GetText()'), "Stormpike's Order: about 90 yd");
+  vm.run('SpellmindNudge.dismiss.scripts.OnClick(SpellmindNudge.dismiss)');
+  vm.advance(10);
+  assert.ok(!shown(vm), 'still near: once');
+  vm.run('STUB.questDist[1338] = 900'); vm.advance(6);
+  vm.run('STUB.questDist[1338] = 100'); vm.advance(6);
+  assert.ok(shown(vm), 'away and back: again');
+});

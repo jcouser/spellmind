@@ -146,6 +146,71 @@ function Q.Go(id)
 	return nil
 end
 
+-- XP, with thousands separated: 1350 -> "1,350".
+function Q.Num(n)
+	local s = tostring(math.floor(tonumber(n) or 0))
+	local out = s:reverse():gsub("(%d%d%d)", "%1,"):reverse()
+	return (out:gsub("^,", ""))
+end
+
+-- What turning in a list of XP rewards does for the character: "gets you to level 16" or "takes you
+-- from 43% to 78% of level 15". Only this level's XP is known, so a jump past the next level says
+-- "at least". Returns the line, or nil without the numbers.
+function Q.XpLine(total)
+	local xp, max = tonumber(ns.Try(UnitXP, "player")), tonumber(ns.Try(UnitXPMax, "player"))
+	local level = tonumber(ns.Try(UnitLevel, "player"))
+	if not (xp and max and max > 0 and level) or not total or total <= 0 then return nil end
+	local after = xp + total
+	if after >= max then
+		return "Turning these in gets you to |cff19ff19level " .. (level + 1) .. "|r" .. (after - max >= max and " or further" or "")
+			.. " (" .. Q.Num(total) .. " XP)."
+	end
+	return string.format("Turning these in takes you from %d%% to |cff19ff19%d%%|r of level %d (%s XP).", math.floor(xp / max * 100),
+		math.floor(after / max * 100), level, Q.Num(total))
+end
+
+-- An LFG line for a group or dungeon quest, to put in the chat box: the dungeon (its log header) or
+-- the quest, the group quests of that header with it, and who's asking ("level 15 Rogue, DPS"). The
+-- player edits and sends it; nothing is sent here.
+Q.ROLES = { DAMAGER = "DPS", TANK = "tank", HEALER = "healer" }
+function Q.LFGText(id)
+	local q = Q.Read(id)
+	if not q then return nil end
+	local dungeon = q.tagName == "Dungeon" or q.tagName == "Raid"
+	local where = dungeon and q.header or q.title
+	local quests = {}
+	local QL = C_QuestLog
+	local n = Try(QL.GetNumQuestLogEntries) or 0
+	for i = 1, n do
+		local info = Try(QL.GetInfo, i)
+		if type(info) == "table" and not info.isHeader and info.questID and info.questID > 0 then
+			local other = info.questID == id and q or (dungeon and Q.Read(info.questID)) or nil
+			if other and (other.id == id or (other.header == q.header and (other.tagName == q.tagName))) and not other.complete then
+				quests[#quests + 1] = other.title
+			end
+		end
+	end
+	local level = tonumber(ns.Try(UnitLevel, "player"))
+	local class = ns.Try(UnitClass, "player")
+	local t = ns.State and ns.State.Collect and ns.State.Collect.talents and select(2, pcall(ns.State.Collect.talents))
+	local role
+	for _, kv in ipairs(type(t) == "table" and t._o or {}) do if kv[1] == "role" then role = Q.ROLES[kv[2]] end end
+	local who = (level and ("level " .. level .. " ") or "") .. (type(class) == "string" and class or "") .. (role and (", " .. role) or "")
+	local text = "LFG " .. (where or "this quest") .. (dungeon and #quests > 0 and (": " .. table.concat(quests, ", ")) or "") .. ". " .. ns.Trim(who) .. "."
+	return ns.Utf8Cut(text, 250)
+end
+
+-- The line in the game's chat box, for the player to edit and send (Enter). The LookingForGroup
+-- channel's number goes first when the player is in it, so Enter sends it there.
+function Q.PutInChat(text)
+	if type(text) ~= "string" or text == "" then return false end
+	local ch = Try(GetChannelName, "LookingForGroup")
+	local prefix = (type(ch) == "number" and ch > 0) and ("/" .. ch .. " ") or ""
+	local open = rawget(_G, "ChatFrame_OpenChat")
+	if type(open) ~= "function" then return false end
+	return pcall(open, prefix .. text, rawget(_G, "DEFAULT_CHAT_FRAME")) and true or false
+end
+
 -- What's left of a quest, short: its unfinished objectives ("0/8 Carved Stone Idol"), at most two.
 function Q.Left(q)
 	local bits = {}

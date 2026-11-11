@@ -24,6 +24,7 @@ N.ICONS = {
 	durability = "Interface\\Icons\\Trade_BlackSmithing",
 	bags = "Interface\\Icons\\INV_Misc_Bag_08",
 	turnin = "Interface\\Icons\\INV_Letter_15",
+	near = "Interface\\Icons\\INV_Misc_Map_01",
 	prof = "Interface\\Icons\\INV_Misc_Note_01",
 }
 N.SLOT_NAMES = { "head", "neck", "shoulders", "shirt", "chest", "waist", "legs", "feet", "wrists", "hands", "ring", "ring",
@@ -142,6 +143,31 @@ function Detect.turnin()
 	return out
 end
 
+-- A ready quest's turn-in nearby: the game's distance to a completed quest is to where it's
+-- handed in. Within NEAR_YD, once; again only after going further than FAR_YD away.
+N.NEAR_YD, N.FAR_YD = 150, 400
+N.NEAR_EVERY = 5 -- seconds
+function Detect.near()
+	local q = Part("quests")
+	local out = {}
+	local seen = Saved().seen
+	for _, it in ipairs(type(q.list) == "table" and q.list or {}) do
+		if it.complete and ns.Quests then
+			local info = ns.Quests.Read(it.id)
+			local dist = info and info.dist
+			local kind = "near:" .. it.id
+			if dist and dist > N.FAR_YD then seen[kind] = nil end
+			if dist and dist <= N.NEAR_YD then
+				local dir = ns.Quests.Direction(info.where)
+				out[#out + 1] = { kind = kind, key = "near", title = "Turn-in nearby",
+					text = ns.Escape(info.title or it.title or "A quest") .. ": about " .. dist .. " yd" .. (dir and (" " .. dir) or ""),
+					ask = "I'm near where " .. (info.title or "my quest") .. " is turned in. Who exactly do I hand it to, and what comes after it?" }
+			end
+		end
+	end
+	return out
+end
+
 function Detect.prof()
 	local s = Part("skills")
 	local out = {}
@@ -156,7 +182,7 @@ function Detect.prof()
 	return out
 end
 
-N.ORDER = { "talents", "spells", "durability", "bags", "turnin", "prof" }
+N.ORDER = { "talents", "spells", "durability", "bags", "turnin", "near", "prof" }
 
 ---------------------------------------------------------------------------
 -- The queue
@@ -469,4 +495,12 @@ ns.On("PLAYER_REGEN_ENABLED", function() N.Next() end)
 ns.On("PLAYER_LOGIN", function()
 	-- A few seconds in, once the game's data has settled (the quest log, the spellbook).
 	C_Timer.After(8, function() N.Check() end)
+	-- Moving fires no event: every 5 s, a look for turn-ins nearby (only while a quest is ready).
+	C_Timer.NewTicker(N.NEAR_EVERY, function()
+		if not N.On() or InCombat() then return end
+		local q = Part("quests")
+		for _, it in ipairs(type(q.list) == "table" and q.list or {}) do
+			if it.complete then N.Check() return end
+		end
+	end)
 end)

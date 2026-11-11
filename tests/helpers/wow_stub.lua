@@ -679,3 +679,12 @@ C_SuperTrack = {
 	SetSuperTrackedUserWaypoint = function(on) table.insert(STUB.superTracked, "waypoint") end,
 	SetSuperTrackedQuestID = function(id) table.insert(STUB.superTracked, "quest:" .. id) end,
 }
+
+-- The chat box opened with text (ChatFrame_OpenChat), and the channels the player is in.
+STUB.channels = { LookingForGroup = 4 }
+function ChatFrame_OpenChat(text, frame) STUB.openedChat = text end
+function GetChannelName(name)
+	local id = STUB.channels[name]
+	if id then return id, name end
+	return 0
+end

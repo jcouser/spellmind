@@ -361,6 +361,7 @@ Always available: anything the player asks, with the character attached. Chips u
    - the Advisor panel shell with its tabs;
    - nudges;
    - the minimap button;
+   - the chat window redesign, with the thinking dropdown and the web search toggle (§3.10);
    - item and quest links into the chat box;
    - chips;
    - Codex art.

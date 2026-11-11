@@ -117,3 +117,15 @@ test('live: a game event redraws an open panel once, a second later', () => {
   vm.advance(1.1);
   assert.ok(drawn(vm).some(x => x.text === 'On you' && /2g/.test(x.right)), JSON.stringify(drawn(vm)));
 });
+
+test('resizable: the grip sizes it, the rows and Ask buttons follow, the size is kept for next time', () => {
+  const vm = session();
+  vm.run('NS.Panel.Show("quests")');
+  assert.equal(vm.num('SpellmindPanel.content:GetWidth()'), 560 - 150 - 24);
+  vm.run('SpellmindPanel:SetSize(800, 600); SpellmindPanel.grip.scripts.OnMouseUp(SpellmindPanel.grip)');
+  assert.equal(vm.num('SpellmindDB.panel.w'), 800);
+  assert.equal(vm.num('SpellmindDB.panel.h'), 600);
+  assert.equal(vm.num('SpellmindPanel.content:GetWidth()'), 800 - 150 - 24, 'the rows take the new width');
+  assert.equal(vm.num('SpellmindPanel.rows[2]:GetWidth()'), 800 - 150 - 24);
+  assert.equal(vm.num('SpellmindPanel.asks[1]:GetWidth()'), Math.floor((800 - 150 - 24 - 12) / 2));
+});

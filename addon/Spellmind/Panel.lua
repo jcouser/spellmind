@@ -11,6 +11,7 @@ ns.Panel = P
 local R = ns.R
 
 P.W, P.H = 560, 480
+P.MIN_W, P.MIN_H, P.MAX_W, P.MAX_H = 500, 380, 1100, 1000
 P.RAIL_W = 150
 P.ROW_H = 24
 P.ROW_H2 = 38 -- a row with a second line
@@ -528,7 +529,10 @@ function P.Build()
 	if panel then return panel end
 	local saved = Saved()
 	local f = CreateFrame("Frame", "SpellmindPanel", UIParent, "BackdropTemplate")
-	f:SetSize(P.W, P.H)
+	-- Resizable (the grip at the bottom right), its size kept: quest rows carry a lot.
+	f:SetSize(math.max(P.MIN_W, math.min(P.MAX_W, tonumber(saved.w) or P.W)), math.max(P.MIN_H, math.min(P.MAX_H, tonumber(saved.h) or P.H)))
+	f:SetResizable(true)
+	if f.SetResizeBounds then f:SetResizeBounds(P.MIN_W, P.MIN_H, P.MAX_W, P.MAX_H) end
 	if saved.point then f:SetPoint(saved.point, UIParent, saved.relPoint or saved.point, tonumber(saved.x) or 0, tonumber(saved.y) or 0)
 	else f:SetPoint("CENTER", UIParent, "CENTER", -120, 40) end
 	f:SetFrameStrata("DIALOG")
@@ -591,11 +595,22 @@ function P.Build()
 	f.rows = {}
 
 	f.asks = { AskButton(f), AskButton(f) }
-	local half = math.floor((P.W - P.RAIL_W - 36) / 2)
-	for i, b in ipairs(f.asks) do
-		b:SetWidth(half)
-		b:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", P.RAIL_W + 12 + (i - 1) * (half + 12), 14)
-	end
+	P.PlaceAsks(f)
+
+	f.grip = CreateFrame("Button", nil, f)
+	f.grip:SetSize(16, 16)
+	f.grip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2)
+	f.grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+	f.grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+	f.grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+	f.grip:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
+	f.grip:SetScript("OnMouseUp", function()
+		f:StopMovingOrSizing()
+		saved.w, saved.h = f:GetWidth(), f:GetHeight()
+		P.Show(P.tab)
+	end)
+	-- While sizing: the Ask buttons follow at once, the rows when it stops (or a moment after).
+	f:SetScript("OnSizeChanged", function() P.PlaceAsks(f); P.Soon() end)
 
 	-- Live while open: the game's own events, at most one redraw a second.
 	f:RegisterEvent("QUEST_LOG_UPDATE")
@@ -617,6 +632,21 @@ function P.Build()
 end
 
 function P.Get() return panel end
+
+-- The content's width at the panel's size now.
+function P.ContentWidth(f)
+	return math.max(200, (tonumber(f:GetWidth()) or P.W) - P.RAIL_W - 24)
+end
+
+-- The two Ask buttons, side by side across the content's width.
+function P.PlaceAsks(f)
+	local half = math.floor((P.ContentWidth(f) - 12) / 2)
+	for i, b in ipairs(f.asks or {}) do
+		b:SetWidth(half)
+		b:ClearAllPoints()
+		b:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", P.RAIL_W + 12 + (i - 1) * (half + 12), 14)
+	end
+end
 
 function P.Soon()
 	if not panel or not panel:IsShown() or P.pending then return end
@@ -642,7 +672,8 @@ function P.Show(id)
 	end
 	f.who:SetText(P.Who())
 	P.CountNudges()
-	f.content:SetWidth(P.W - P.RAIL_W - 24)
+	f.content:SetWidth(P.ContentWidth(f))
+	P.PlaceAsks(f)
 	local ok, specs = pcall(Tabs[id])
 	Draw(f, ok and specs or { { kind = "text", text = "|cffff6060This tab couldn't read your character just now.|r" } })
 	for i, b in ipairs(f.asks) do

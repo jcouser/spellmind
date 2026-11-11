@@ -17,4 +17,5 @@ Chat.lua
 Marks.lua
 Quests.lua
 Tooltip.lua
+Panel.lua
 Minimap.lua

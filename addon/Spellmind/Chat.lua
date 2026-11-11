@@ -518,6 +518,11 @@ SlashCmdList.SPELLMIND = function(msg)
 			or "Spellmind: the marks on the game's windows and the tooltip line are on.")
 		return
 	end
+	-- /sm panel: the Advisor panel.
+	if lower == "panel" and ns.Panel and ns.db then
+		ns.Panel.Toggle()
+		return
+	end
 	-- /sm minimap off and /sm minimap on: the minimap button.
 	local mm = lower:match("^minimap%s+(%a+)$")
 	if (mm == "off" or mm == "on") and ns.db and ns.MinimapButton then

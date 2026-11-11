@@ -1,6 +1,6 @@
 -- Minimap.lua: Spellmind's button on the minimap's rim (docs/features.md §2). Click: the chat window.
 -- Drag: around the rim (its angle saved in SpellmindDB.minimap). /sm minimap off hides it.
--- Later: right-click opens the Advisor panel, and a dot shows while a nudge waits.
+-- Right-click: the Advisor panel. Later: a dot shows while a nudge waits.
 
 local _, ns = ...
 local MB = {}
@@ -60,7 +60,7 @@ function MB.Create()
 	b:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight", "ADD")
 	b:SetScript("OnClick", function(_, button)
 		if button == "RightButton" then
-			ns.Chat.System("The Advisor panel is coming. For now: click the button for the chat window, /sm marks off to hide the marks.")
+			if ns.Panel then ns.Panel.Toggle() end
 		else
 			ns.Chat.Toggle()
 		end
@@ -77,6 +77,7 @@ function MB.Create()
 		GameTooltip:SetOwner(self, "ANCHOR_LEFT")
 		GameTooltip:SetText("Spellmind", 0.62, 0.49, 1)
 		GameTooltip:AddLine("Click: the chat window.", 1, 1, 1)
+		GameTooltip:AddLine("Right-click: the Advisor panel.", 1, 1, 1)
 		GameTooltip:AddLine("Drag: move the button around the map.", 0.7, 0.7, 0.7)
 		GameTooltip:Show()
 	end)

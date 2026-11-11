@@ -181,7 +181,9 @@ end
 
 function M.ShowCard(b, req, key)
 	local card = BuildCard()
-	card.owner, card.key, card.about, card.label = b, key, req.about, req.label
+	-- owner: the frame whose hiding closes the card (the mark, or the Advisor panel for its marks and
+	-- Ask buttons: its rows redraw, so a row's mark hiding mustn't close it).
+	card.owner, card.key, card.about, card.label = req.owner or b, key, req.about, req.label
 	card.title:SetText(req.label)
 	Fill(card, M.THINKING)
 	card:ClearAllPoints()
@@ -207,6 +209,15 @@ function M.OnAnswer(key, r)
 	end
 	Fill(card, text)
 	return true
+end
+
+-- A question from a button (the Advisor panel's Ask buttons): sent like a typed one, shown in the
+-- window as label, its answer in the card beside anchor (which also owns it).
+function M.Ask(anchor, label, text)
+	local key = ns.Chat.Send(text, { shown = label, card = true })
+	if not key then return nil end
+	M.ShowCard(anchor, { label = label, anchor = anchor, owner = anchor }, key)
+	return key
 end
 
 -- Ask more: the chat window, its next questions about the card's thing.

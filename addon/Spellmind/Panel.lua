@@ -21,7 +21,7 @@ P.TABS = {
 	{ id = "spells", name = "Spells", icon = "Interface\\Icons\\Spell_Holy_MagicalSentry" },
 	{ id = "professions", name = "Professions", icon = "Interface\\Icons\\Trade_BlackSmithing" },
 	{ id = "gold", name = "Gold", icon = "Interface\\Icons\\INV_Misc_Coin_01" },
-	{ id = "nudges", name = "Nudges", icon = "Interface\\AddOns\\Spellmind\\Media\\Badge" },
+	{ id = "nudges", name = "Nudges", icon = "Interface\\AddOns\\Spellmind\\Media\\Mark" },
 }
 -- Each tab's two Ask buttons: { label, the question }.
 P.ASKS = {

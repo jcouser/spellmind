@@ -169,7 +169,8 @@ test('the tooltip line: what a red requirement means (a skill to learn, a level)
   assert.deepEqual(show(2504), ['|cff9d7dffSpellmind:|r no Bows skill yet: a weapon master may teach it'], 'Ranged and Bow in red: a skill, maybe learnable');
   assert.deepEqual(show(5404), ['|cff9d7dffSpellmind:|r needs level 18'], 'a level requirement in red');
   assert.deepEqual(show(4936), ['|cff9d7dffSpellmind:|r fills your empty Back slot']);
-  assert.deepEqual(show(2140), ['|cff9d7dffSpellmind:|r +0.9 dps, +2 Str vs your Craftsman\'s Dagger'], 'against the main hand');
+  assert.deepEqual(show(2140), ['|cff9d7dffSpellmind:|r |cff19ff19+0.9 dps|r, |cff19ff19+2 Str|r vs your Craftsman\'s Dagger'], 'against the main hand, gains in green');
+  assert.deepEqual(show(7010), ['|cff9d7dffSpellmind:|r |cffff1919-2 Agi|r, |cff19ff19+2 Sta|r, |cff19ff19+2 Armor|r vs your Simple Robe of the Monkey'], 'a loss in red');
   assert.deepEqual(show(2218), [], 'the dagger it wears: nothing to say');
   assert.deepEqual(show(6948), [], 'not wearable: no line');
   assert.deepEqual(lines(vm, `STUB.ShowItem(ShoppingTooltip1 or CreateFrame("Frame", "ShoppingTooltip1"), STUB.ItemLink(4936))`), [], 'comparison tooltips stay the game\'s');

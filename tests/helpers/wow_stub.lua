@@ -654,3 +654,7 @@ STUB.tooltips[STUB.ItemLink(2504)] = { "Worn Shortbow", "Binds when equipped", {
 STUB.tooltips[STUB.ItemLink(2140)] = { "Fine Longsword", { "Main Hand", "Sword" }, "7.0 damage per second" }
 STUB.tooltips[STUB.ItemLink(5404)] = { "Serpent's Shoulders", "Shoulder", "Leather", { "Requires Level 18", red = "left" } }
 STUB.tooltips[STUB.ItemLink(4936)] = { "Dirt-stained Cloak", "Back", "9 Armor" }
+-- A chest piece that trades agility for stamina against the worn robe (a loss and gains).
+STUB.items[7010] = { "Patched Tunic", 2, 16, 11, "Armor", "Leather", 1, "INVTYPE_CHEST", 132719, 300, 4, 2 }
+STUB.itemStats[7010] = { ITEM_MOD_AGILITY_SHORT = 1, ITEM_MOD_STAMINA_SHORT = 5, RESISTANCE0_NAME = 30 }
+STUB.tooltips[STUB.ItemLink(7010)] = { "Patched Tunic", "Chest", "30 Armor" }

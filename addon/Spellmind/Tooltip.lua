@@ -17,6 +17,7 @@ ns.Tooltip = T
 
 T.PREFIX = "|cff9d7dffSpellmind:|r "
 T.NAME_MAX = 32
+T.GAIN, T.LOSS = "|cff19ff19", "|cffff1919" -- GREEN_FONT_COLOR and RED_FONT_COLOR
 -- Where an item is worn: its equip location's slots (the first is the one compared).
 T.SLOTS = {
 	INVTYPE_HEAD = { 1 }, INVTYPE_NECK = { 2 }, INVTYPE_SHOULDER = { 3 }, INVTYPE_BODY = { 4 }, INVTYPE_CHEST = { 5 },
@@ -81,7 +82,9 @@ function T.Why(reds, classID, sub)
 end
 
 local function Fmt(key, v)
-	local n = key == "dps" and string.format("%.1f", v) or tostring(math.floor(v + (v >= 0 and 0.5 or -0.5)))
+	-- Rounded half away from zero: -2 stays -2 (floor(-2 - 0.5) made it -3).
+	local whole = v >= 0 and math.floor(v + 0.5) or -math.floor(-v + 0.5)
+	local n = key == "dps" and string.format("%.1f", v) or string.format("%d", whole)
 	n = n:gsub("%.0$", "")
 	return (v > 0 and "+" or "") .. n
 end
@@ -122,7 +125,10 @@ function T.Line(link, data)
 	local bits = {}
 	for _, st in ipairs(T.STATS) do
 		local d = (tonumber(a[st[1]]) or 0) - (tonumber(b[st[1]]) or 0)
-		if math.abs(d) >= (st[1] == "dps" and 0.05 or 0.5) and #bits < T.STATS_SHOWN then bits[#bits + 1] = Fmt(st[1], d) .. " " .. st[2] end
+		if math.abs(d) >= (st[1] == "dps" and 0.05 or 0.5) and #bits < T.STATS_SHOWN then
+			-- Green for a gain, red for a loss: the game's own comparison colours.
+			bits[#bits + 1] = (d > 0 and T.GAIN or T.LOSS) .. Fmt(st[1], d) .. " " .. st[2] .. "|r"
+		end
 	end
 	local name = ns.State.Text(wornLink:match("|h%[(.-)%]|h"), T.NAME_MAX) or "item"
 	if #bits == 0 then return T.PREFIX .. "about the same as your " .. ns.Escape(name) end

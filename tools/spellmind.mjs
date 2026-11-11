@@ -3,7 +3,7 @@
 //
 //   node tools/spellmind.mjs install --wow "C:\Program Files (x86)\World of Warcraft\_forever_"
 //        the addon, its 200 slot addons and its doorbells, with WoW closed (saves the folder)
-//   node tools/spellmind.mjs start [--provider chatgpt] [--model <id>] [--effort high|medium|low]
+//   node tools/spellmind.mjs start [--provider chatgpt] [--model <id>] [--effort high|medium|low] [--search off]
 //        reads the game's strip, asks your AI, brings replies back; Ctrl+C stops it
 //   node tools/spellmind.mjs status
 //
@@ -62,9 +62,12 @@ switch (a._[0]) {
     const m = manifests.find(x => x.id === (a.provider || cfg.provider || 'chatgpt'));
     if (!m || m.custom) { console.error('Unknown AI.'); process.exit(2); }
     const model = a.model || cfg.model || m.models.default;
-    // high by default: low and medium got game facts (which weapon master teaches Bows) wrong most
-    // of the time in a test on 2026-11-10; high got them right, at about 10 s an answer instead of 3.
-    const effort = a.effort || cfg.effort || 'high';
+    // Web search on by default where the AI has it (manifest webSearch): without it, low and medium
+    // thinking got game facts (which weapon master teaches Bows) wrong most of the time in a test on
+    // 2026-11-10, and high was right only at about 10 s an answer. With it, low was right 3 of 3 at
+    // 6 to 10 s; medium is the default, so plain chat stays quick and facts come from the web.
+    const search = !!m.webSearch && (a.search || cfg.search || 'on') !== 'off';
+    const effort = a.effort || cfg.effort || (search ? 'medium' : 'high');
     const keystore = createKeyStore({ backend: 'os' });
     const egress = createEgress({ allowHosts: () => new Set(m.hosts), loopbackOk: true });
     const session = createSignIns({ keystore, fetch: egress.fetch }).for(m);
@@ -80,11 +83,12 @@ switch (a._[0]) {
     // One turn: the prompt, the chat's history, then the game data and the message; the reply's
     // text, or the error's words.
     const turn = async ({ text, history, signal, game }) => {
-      let out = '';
+      let out = '', searched = false;
       const { system, messages, meta } = buildRequest({ pack, game, history, userText: text });
       log('request', { pack: pack.version, dataChars: meta.dataChars, omitted: meta.omitted.length ? meta.omitted : undefined, stale: game?.stale || undefined });
-      for await (const ev of provider.stream({ model, effort, system, messages }, { signal })) {
+      for await (const ev of provider.stream({ model, effort, system, messages, webSearch: search }, { signal })) {
         if (ev.type === 'text') out += ev.delta;
+        else if (ev.type === 'progress' && ev.searching && !searched) { searched = true; log('web-search', {}); }
         else if (ev.type === 'error') {
           if (ev.error?.kind === 'interrupted') return { aborted: true };
           const l = userLine(ev.error, { provider: m.name, product: 'Spellmind' });
@@ -115,13 +119,13 @@ switch (a._[0]) {
       onStatus: (s) => { if (s.connected === true) say('Screen reading started.'); },
     });
     capture.start();
-    say(`Spellmind is running with ${m.name} (${model}, thinking ${effort}), prompt ${pack.version}. In game: /sm <question>. Ctrl+C stops it.`);
+    say(`Spellmind is running with ${m.name} (${model}, thinking ${effort}${search ? ', web search on' : ''}), prompt ${pack.version}. In game: /sm <question>. Ctrl+C stops it.`);
     const stop = () => { say('Stopping…'); try { capture.stop(); } catch { /* stopping */ } svc.stop(); process.exit(0); };
     process.on('SIGINT', stop);
     process.on('SIGTERM', stop);
     break;
   }
   default:
-    console.error('Commands: install --wow <folder> · start [--provider chatgpt] [--model id] [--effort high|medium|low] · status');
+    console.error('Commands: install --wow <folder> · start [--provider chatgpt] [--model id] [--effort high|medium|low] [--search off] · status');
     process.exit(2);
 }

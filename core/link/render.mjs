@@ -13,6 +13,13 @@ const CONTROL = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g;
 /** `|` doubled: a literal pipe in game, never an escape. */
 export const escapePipes = s => String(s).replace(/\|/g, '||');
 
+const looksLikeHost = t => /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(String(t).trim());
+/** A citation's site, short: the link's own words when they're a host name, else the URL's host (no www.). */
+function sourceName(text, url) {
+  if (looksLikeHost(text)) return String(text).trim().replace(/^www\./i, '');
+  try { return new URL(url).hostname.replace(/^www\./i, ''); } catch { return 'the web'; }
+}
+
 /** Markdown to the plain text the window shows: headings, emphasis, code and links flattened; lists kept. */
 export function markdownToWow(md) {
   let s = String(md ?? '').replace(/\r\n?/g, '\n').replace(CONTROL, '');
@@ -24,7 +31,11 @@ export function markdownToWow(md) {
   s = s.replace(/(^|[^*\w])\*(?!\s)(.+?)\*(?!\w)/g, '$1$2');
   s = s.replace(/`([^`\n]+)`/g, '$1');
   s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1');
-  s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '$1 ($2)');
+  // Links can't be clicked in game, so a URL is never shown: a web search's citation,
+  // "([wowhead.com](https://…))", becomes "(source: wowhead.com)", and a link in the text keeps its words.
+  s = s.replace(/\(\s*\[([^\]]+)\]\((https?:[^)\s]+)\)\s*\)/g, (_, text, url) => `(source: ${sourceName(text, url)})`);
+  s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (_, text, url) => (looksLikeHost(text) ? `(source: ${sourceName(text, url)})` : text));
+  s = s.replace(/https?:\/\/\S+/g, m => `(source: ${sourceName('', m)})`);
   s = s.replace(/^\s*([-*_])\s*(?:\1\s*){2,}$/gm, '');
   s = s.replace(/\n{3,}/g, '\n\n');
   return s.trim();

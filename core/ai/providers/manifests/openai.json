@@ -6,6 +6,7 @@
   "hidden": false,
   "local": false,
   "adapter": "openai-responses",
+  "webSearch": { "type": "web_search" },
   "baseUrl": "https://api.openai.com/v1",
   "hosts": ["api.openai.com"],
   "auth": { "header": "authorization", "scheme": "Bearer" },

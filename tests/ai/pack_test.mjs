@@ -30,7 +30,9 @@ test('the prompt holds the game-data rule and the rest of milestone 4\'s list', 
   assert.match(t, /## Gear decisions/);
   assert.match(t, /No invented scores/);
   assert.match(t, /API key/);
-  assert.match(t, /no tools/i);
+  assert.match(t, /no files, no programs/i); // web search only (milestone 5): no other tools
+  assert.match(t, /When to search/);
+  assert.match(t, /game data over the web, and the web over your memory/);
   assert.match(t, /1 Hated/);
   assert.match(t, /0 poor/);
 });

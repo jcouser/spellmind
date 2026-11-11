@@ -59,6 +59,10 @@ export function responsesRequest(manifest, req, { authHeaders = {}, requestOptio
     const include = Array.isArray(body.include) ? body.include : [];
     body.include = include.includes('reasoning.encrypted_content') ? include : [...include, 'reasoning.encrypted_content'];
   }
+  // Web search (manifest webSearch: the Responses API's built-in tool, run on the provider's side, so
+  // nothing new leaves this machine): offered when the turn asks for it; the model decides when to search.
+  if (req.webSearch && manifest.webSearch && typeof manifest.webSearch === 'object') body.tools = [{ ...manifest.webSearch }];
+  else delete body.tools;
   if (manifest.safetyIdentifier && req.safetyId) body.safety_identifier = String(req.safetyId);
   else delete body.safety_identifier;
   // A chat's cache key (manifest cacheKey: the ChatGPT plan's Codex backend reuses a chat's prompt
@@ -110,6 +114,8 @@ export async function* responsesParse(res, ctx) {
       if (data.response?.usage) yield { type: 'usage', usage: { ...responsesUsage(data.response.usage), partial: true } };
       yield { type: 'error', error: ctx.fail(data) };
       return;
+    } else if (/^response\.web_search_call\./.test(type) || ((type === 'response.output_item.added' || type === 'response.output_item.done') && data.item?.type === 'web_search_call')) {
+      yield { type: 'progress', searching: true }; // a search under way: no text yet, but alive
     } else if ((type === 'response.output_item.added' || type === 'response.output_item.done') && data.item?.type === 'reasoning') {
       yield { type: 'thinking', active: type === 'response.output_item.added' };
     } else if (typeof type === 'string' && type.endsWith('.delta')) {

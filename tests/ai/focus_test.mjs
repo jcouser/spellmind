@@ -56,3 +56,36 @@ test('notes: an empty or missing focus isn\'t "missing" or reported', () => {
   assert.deepEqual(partNotes({ ...full, focus: { v: 1 } }), []);
   assert.deepEqual(partNotes({ ...full, focus: { v: 1, too_large: true } }), ['focus: too large to send this turn.']);
 });
+
+test('web search: offered on the Responses request only when the turn asks and the AI has it; its events keep the stream alive', async () => {
+  const { loadManifests } = await import('../../core/ai/providers/index.mjs');
+  const { responsesRequest, responsesParse } = await import('../../core/ai/providers/adapters/openai.mjs');
+  const ms = loadManifests();
+  const chatgpt = ms.find(m => m.id === 'chatgpt');
+  assert.deepEqual(chatgpt.webSearch, { type: 'web_search' });
+  assert.deepEqual(ms.find(m => m.id === 'openai').webSearch, { type: 'web_search' });
+  for (const id of ['anthropic', 'google', 'xai']) assert.equal(ms.find(m => m.id === id).webSearch, undefined, `${id}: no adapter for it yet`);
+  const req = { model: chatgpt.models.default, effort: 'medium', system: [{ text: 'S' }], messages: [{ role: 'user', content: 'hi' }] };
+  const body = t => { const b = t.body ?? t.init?.body; return typeof b === 'string' ? JSON.parse(b) : b; };
+  assert.deepEqual(body(responsesRequest(chatgpt, { ...req, webSearch: true })).tools, [{ type: 'web_search' }]);
+  assert.equal(body(responsesRequest(chatgpt, req)).tools, undefined, 'not asked: no tools');
+  assert.equal(body(responsesRequest({ ...chatgpt, webSearch: undefined }, { ...req, webSearch: true })).tools, undefined, 'an AI without it: no tools');
+  const sse = ['response.web_search_call.in_progress', 'response.web_search_call.searching', 'response.web_search_call.completed']
+    .map(type => `event: ${type}\ndata: ${JSON.stringify({ type })}\n\n`).join('')
+    + `data: ${JSON.stringify({ type: 'response.output_text.delta', delta: 'Darnassus.' })}\n\n`
+    + `data: ${JSON.stringify({ type: 'response.completed', response: { usage: {} } })}\n\n`;
+  const res = { body: new Response(sse).body };
+  const evs = [];
+  for await (const ev of responsesParse(res, { fail: x => x })) evs.push(ev);
+  assert.deepEqual(evs.filter(e => e.type === 'progress').map(e => e.searching), [true, true, true]);
+  assert.equal(evs.find(e => e.type === 'text').delta, 'Darnassus.');
+});
+
+test('a citation shows as its site: the game can\'t show links, so no URL reaches it', async () => {
+  const { markdownToWow } = await import('../../core/link/render.mjs');
+  assert.equal(markdownToWow('Ilyenia Moonfire teaches Bows. ([worldofwarcraft.blizzard.com](https://worldofwarcraft.blizzard.com/en-us/news/1?utm_source=openai))'),
+    'Ilyenia Moonfire teaches Bows. (source: worldofwarcraft.blizzard.com)');
+  assert.equal(markdownToWow('See [Wowhead](https://www.wowhead.com/classic/npc=4204) for her spot.'), 'See Wowhead for her spot.');
+  assert.equal(markdownToWow('[www.wowhead.com](https://www.wowhead.com/x)'), '(source: wowhead.com)');
+  assert.equal(markdownToWow('Bare: https://warcraft.wiki.gg/wiki/Weapon_master.'), 'Bare: (source: warcraft.wiki.gg)');
+});

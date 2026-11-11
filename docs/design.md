@@ -74,6 +74,8 @@
 
 - **Transport: reuse NeverQuestAlone's (MIT).** Game → app: the addon draws a colored strip that a capture helper reads. App → game: replies go into pre-installed "slot" addons, and a sound-file change rings the doorbell. Keep its attribution in NOTICE and CREDITS.
 - **Tools are the key difference.** NeverQuestAlone deliberately gives the AI no tools. Here the AI gets read-only lookups over a local database, so item stats, talent ranks and recipes come from data, not memory. Still no tools that act on the game or the computer.
+  - **First tool, 2026-11-10: web search** (the AI's own, where it has one: the ChatGPT plan and OpenAI's Responses API, run on the provider's side, so the app still talks only to the AI). Added after the AI named the wrong weapon master from memory in game. With search on, thinking defaults to medium; `--search off` turns it off. Citations show as "(source: site)": the game can't show links.
+  - Next: a small facts file of our own and the player's own sightings (trainers seen, guard directions), then QuestieDB's public provider API (`LibQuestieDB`) when it's installed. Never Questie's data shipped, never Wowhead scraped.
 - **State budget.** State goes with every turn, so keep it compact and shed detail in a fixed priority order when it's too big (NeverQuestAlone's `DROP_ORDER` pattern). Send full detail only for what the question needs.
 - **Provider layer.** OpenAI Responses API to `chatgpt.com/backend-api/codex` with ChatGPT OAuth: PKCE, a loopback callback, refresh-token rotation, and only the refresh token stored in the OS keychain. Plus Anthropic, OpenAI, Gemini, xAI with API keys, and any OpenAI-compatible base URL. Built first as a NeverQuestAlone PR, then shared.
 

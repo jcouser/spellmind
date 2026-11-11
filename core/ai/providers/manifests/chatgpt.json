@@ -6,6 +6,7 @@
   "hidden": false,
   "local": false,
   "adapter": "openai-responses",
+  "webSearch": { "type": "web_search" },
   "baseUrl": "https://chatgpt.com/backend-api/codex",
   "hosts": ["chatgpt.com", "auth.openai.com"],
   "auth": { "header": "authorization", "scheme": "Bearer", "signIn": "chatgpt" },

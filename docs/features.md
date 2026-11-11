@@ -284,11 +284,17 @@ Always available: anything the player asks, with the character attached. Chips u
   - the combat review on or off;
   - the chat frame lines, for short replies.
 
-**In the app (milestone 3):** sign-in, the AI and model, per-part sharing, usage, and:
-- a **thinking (effort) dropdown**: the levels the chosen model offers (low, medium, high, and more for some). Each one shows its trade-off, from the test of 2026-11-10: low answers in about 3 s, high in about 10 s, and higher levels use more of the plan's limits. It defaults to medium with web search, high without. Today it's `--effort` and `effort` in config.json.
-- a **web search** switch, for AIs that have it, with a note on which AIs do. Today it's `--search off`.
+**In the chat window (in game, as NeverQuestAlone's chat has):**
+- A **thinking dropdown** in the window's header: the levels the app's model offers (low, medium, high, and more for some), each with its trade-off from the test of 2026-11-10 (low about 3 s, high about 10 s; higher uses more of the plan's limits). The default is medium with web search, high without.
+- A **web search** toggle beside it, shown only when the AI has search.
+- How it works:
+  - The app lists the model's levels and whether it can search in its slot (`bridge.ai = { efforts, effort, search }`).
+  - Each message carries the player's choice (`effort=high;search=0`). The service checks it against the list, falling back to its default.
+  - The choice is saved in `SpellmindDB`, so it sticks across sessions.
+  - It's a plain dropdown of Spellmind's own (the modern client's menu API, or a simple list frame), never a secure template.
+- Today it's `--effort` and `--search off` when the app starts (or `effort` and `search` in config.json).
 
-Both could also show in game, in the Settings tab, as a read-only line ("thinking medium, web search on"), so the player knows what's answering.
+**In the app (milestone 3):** sign-in, the AI and model, per-part sharing, usage, and the default thinking level and search setting that the chat window starts from.
 
 ## 4. Data still to add (by part)
 

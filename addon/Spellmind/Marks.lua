@@ -119,6 +119,7 @@ local function BuildCard()
 		f:SetBackdropColor(0.05, 0.05, 0.08, 0.95)
 		f:SetBackdropBorderColor(0.62, 0.49, 1, 1)
 	end
+	if ns.Window and ns.Window.Fill then ns.Window.Fill(f, 4, 0.035, 0.025, 0.08, 0.97) end -- solid: the tooltip background shows the world through
 	f.portrait = f:CreateTexture(nil, "ARTWORK")
 	f.portrait:SetSize(24, 24)
 	f.portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -7)

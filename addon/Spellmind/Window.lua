@@ -36,6 +36,20 @@ local BUBBLE_BACKDROP = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
 
 local win
 
+W.WELCOME = "Ask me anything about your character: gear, talents, spells, quests, professions or gold.\n\nShift-click an item or a quest into the box to ask about it."
+W.STARTERS = { "What should I train next?", "Any upgrades in my bags?", "Which quests should I do now?" }
+
+-- A solid colour under a backdrop frame, inset past its border.
+function W.Fill(frame, inset, r, g, b, a)
+	local t = frame.fill or frame:CreateTexture(nil, "BACKGROUND", nil, -8)
+	frame.fill = t
+	t:SetColorTexture(r, g, b, a)
+	t:ClearAllPoints()
+	t:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
+	t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
+	return t
+end
+
 local function UI()
 	local db = ns.db
 	if not db then return {} end
@@ -225,6 +239,8 @@ function W.Layout()
 				row:SetBackdropColor(c.bg[1], c.bg[2], c.bg[3], c.bg[4])
 				row:SetBackdropBorderColor(c.edge[1], c.edge[2], c.edge[3], c.edge[4])
 			end
+			W.Fill(row, 3, COLORS[who].bg[1], COLORS[who].bg[2], COLORS[who].bg[3], 1)
+			row.fill:Show()
 			row.text:SetPoint("TOPLEFT", row, "TOPLEFT", W.PAD, -W.PAD + 1)
 			if who == "you" then
 				row:SetPoint("TOPRIGHT", f.content, "TOPRIGHT", -2, y)
@@ -241,6 +257,7 @@ function W.Layout()
 				row:SetBackdropColor(0, 0, 0, 0)
 				row:SetBackdropBorderColor(0, 0, 0, 0)
 			end
+			if row.fill then row.fill:Hide() end
 			row.text:SetWidth(listW - 20)
 			local th = tonumber(row.text:GetStringHeight()) or 14
 			row:SetSize(listW - 20, th)
@@ -251,14 +268,23 @@ function W.Layout()
 		row:Show()
 	end
 	for i = #msgs + 1, #f.rows do f.rows[i]:Hide(); f.rows[i].icon:Hide() end
-	-- The chips of the last reply, when it's the last message.
+	-- Nothing said yet: a welcome, with starter chips.
+	f.welcome:SetShown(#msgs == 0)
+	if #msgs == 0 then
+		f.welcome:SetWidth(listW - 40)
+		f.welcome:ClearAllPoints()
+		f.welcome:SetPoint("TOP", f.content, "TOP", 0, -16)
+		y = -16 - (tonumber(f.welcome:GetStringHeight()) or 40) - 14
+	end
+	-- The chips of the last reply, when it's the last message (or the starters).
 	for _, c in ipairs(f.chips) do c:Hide() end
 	local last = msgs[#msgs]
 	f.chipTexts = {}
-	if last and last.w == "sm" and type(last.c) == "table" and #last.c > 0 then
-		local x = 30
+	local asks = #msgs == 0 and W.STARTERS or (last and last.w == "sm" and type(last.c) == "table" and #last.c > 0 and last.c) or nil
+	if asks then
+		local x = #msgs == 0 and 10 or 30
 		y = y + W.GAP - 4
-		for i, ask in ipairs(last.c) do
+		for i, ask in ipairs(asks) do
 			local c = f.chips[i] or NewChip(f)
 			f.chips[i] = c
 			c.text:SetText(ask)
@@ -342,6 +368,8 @@ function W.Build()
 		f:SetBackdropColor(0.04, 0.03, 0.09, 0.94)
 		f:SetBackdropBorderColor(0.62, 0.49, 1, 1)
 	end
+	-- A solid fill under it: the tooltip background is see-through even at full alpha (seen in game).
+	W.Fill(f, 4, 0.035, 0.025, 0.08, 0.97)
 
 	-- Header: the owl, the title, and at the right close, minimize, web search and thinking.
 	f.portrait = f:CreateTexture(nil, "ARTWORK")
@@ -394,6 +422,11 @@ function W.Build()
 		self:SetVerticalScroll(math.max(0, math.min(range, y)))
 	end)
 	f.rows, f.chips = {}, {}
+	f.welcome = f.content:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	f.welcome:SetJustifyH("CENTER")
+	f.welcome:SetJustifyV("TOP")
+	if f.welcome.SetWordWrap then f.welcome:SetWordWrap(true) end
+	f.welcome:SetText(W.WELCOME)
 
 	-- The input and the send button.
 	f.input = CreateFrame("EditBox", nil, f, "BackdropTemplate")

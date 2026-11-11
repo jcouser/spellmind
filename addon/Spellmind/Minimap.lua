@@ -79,6 +79,12 @@ function MB.Create()
 		GameTooltip:AddLine("Click: the chat window.", 1, 1, 1)
 		GameTooltip:AddLine("Right-click: the Advisor panel.", 1, 1, 1)
 		GameTooltip:AddLine("Drag: move the button around the map.", 0.7, 0.7, 0.7)
+		local waiting = ns.Nudges and ns.Nudges.Waiting() or {}
+		if #waiting > 0 then
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddLine("Waiting (click the gold dot):", 1, 0.82, 0)
+			for _, t in ipairs(waiting) do GameTooltip:AddLine("  " .. t, 1, 1, 1) end
+		end
 		GameTooltip:Show()
 	end)
 	b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -93,10 +99,18 @@ function MB.Dot(on)
 	local b = MB.button
 	if not b then return end
 	if not b.dot then
-		b.dot = b:CreateTexture(nil, "OVERLAY", nil, 7)
-		b.dot:SetSize(10, 10)
-		b.dot:SetPoint("TOPRIGHT", b, "TOPRIGHT", -2, -2)
-		b.dot:SetColorTexture(1, 0.82, 0, 1)
+		-- A small button of its own: clicked, it brings the waiting nudge back (Nudges.Bring).
+		b.dot = CreateFrame("Button", "SpellmindMinimapDot", b)
+		b.dot:SetSize(12, 12)
+		b.dot:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, 0)
+		local level = b:GetFrameLevel()
+		b.dot:SetFrameLevel((type(level) == "number" and level or 8) + 2)
+		b.dot.tex = b.dot:CreateTexture(nil, "OVERLAY")
+		b.dot.tex:SetAllPoints(b.dot)
+		b.dot.tex:SetColorTexture(1, 0.82, 0, 1)
+		b.dot:SetScript("OnClick", function() if ns.Nudges then ns.Nudges.Bring() end end)
+		b.dot:SetScript("OnEnter", function(self) local s = b:GetScript("OnEnter"); if s then s(b) end end)
+		b.dot:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 	end
 	b.dot:SetShown(on and true or false)
 end

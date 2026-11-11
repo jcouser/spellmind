@@ -13,6 +13,8 @@ local R = ns.R
 
 N.THROTTLE = 2 -- seconds: events coalesce into one check
 N.GAP = 3 -- seconds between one nudge and the next
+N.FADE_AFTER = 20 -- seconds a toast shows before it fades (it keeps waiting: the dot brings it back)
+N.FADE_TIME = 1
 N.BAGS_LOW, N.BAGS_OK = 3, 6 -- free slots: nudge at or below LOW; again only after rising above OK
 N.DURABILITY_LOW = 20 -- percent
 N.PROF_NEAR = 5 -- ranks below the cap
@@ -179,6 +181,7 @@ function N.Check()
 			if seen[n.kind] ~= n.key and not queued[n.kind] then
 				q[#q + 1] = n
 				queued[n.kind] = true
+				R.nudgeFaded = nil -- something new: the toast shows again
 			end
 		end
 	end
@@ -201,7 +204,7 @@ end
 -- The first waiting nudge on show, unless one is showing or in combat.
 function N.Next()
 	if ns.MinimapButton and ns.MinimapButton.Dot then ns.MinimapButton.Dot(#Queue() > 0) end
-	if not N.On() or InCombat() or R.nudgeGap then return end
+	if not N.On() or InCombat() or R.nudgeGap or R.nudgeFaded then return end
 	local f = N.Build()
 	if f:IsShown() then
 		-- One is showing: only its count of the ones waiting behind it changes.
@@ -217,7 +220,51 @@ function N.Next()
 	f.text:SetText(n.text or "")
 	local left = #Queue() - 1
 	f.count:SetText(left > 0 and ("+" .. left .. " more") or "")
+	f:SetAlpha(1)
 	f:Show()
+	N.ArmFade()
+end
+
+-- After FADE_AFTER seconds the toast fades out but its nudge keeps waiting (the minimap dot); a
+-- mouse over it holds it. Each showing has its own timer, so an old one can't fade a newer toast.
+function N.ArmFade(delay)
+	R.nudgeShowing = (R.nudgeShowing or 0) + 1
+	local id = R.nudgeShowing
+	C_Timer.After(delay or N.FADE_AFTER, function()
+		local f = toast
+		if not f or id ~= R.nudgeShowing or not f:IsShown() or not f.nudge then return end
+		if f.IsMouseOver and f:IsMouseOver() then N.ArmFade(5) return end
+		N.Fade()
+	end)
+end
+
+function N.Fade()
+	local f = toast
+	if not f then return end
+	R.nudgeFaded = true
+	if type(UIFrameFadeOut) == "function" then
+		UIFrameFadeOut(f, N.FADE_TIME, f:GetAlpha() or 1, 0)
+		C_Timer.After(N.FADE_TIME, function() if R.nudgeFaded then f:Hide(); f:SetAlpha(1) end end)
+	else
+		f:Hide()
+	end
+	f.nudge = nil
+	if ns.MinimapButton and ns.MinimapButton.Dot then ns.MinimapButton.Dot(#Queue() > 0) end
+end
+
+-- The minimap button's dot, clicked: the waiting nudge back on show.
+function N.Bring()
+	R.nudgeFaded = nil
+	R.nudgeGap = nil
+	if toast and toast:IsShown() and not toast.nudge then toast:Hide() end
+	N.Next()
+end
+
+-- What waits, for the minimap button's tooltip.
+function N.Waiting()
+	local out = {}
+	for _, n in ipairs(Queue()) do out[#out + 1] = n.title end
+	return out
 end
 
 -- Done with the showing one (asked or dismissed): it won't come back for this situation.

@@ -8,6 +8,7 @@ import { newVM } from '../helpers/addon-vm.mjs';
 
 // Logged in and past the nudges' first look (8 s in).
 const session = () => newVM().login().advance(9);
+const list = (vm, expr) => { const v = vm.json(expr); return Array.isArray(v) ? v : Object.values(v || {}); };
 const shown = vm => vm.evaluate('tostring(SpellmindNudge ~= nil and SpellmindNudge.shown)') === 'true';
 const title = vm => vm.evaluate('SpellmindNudge.title:GetText()');
 
@@ -131,4 +132,32 @@ test('the toast sits beside the minimap, at its left (not under it, where the qu
   assert.equal(vm.evaluate('SpellmindNudge.anchor.point'), 'TOPRIGHT');
   assert.equal(vm.evaluate('tostring(SpellmindNudge.anchor.rel == Minimap)'), 'true');
   assert.equal(vm.evaluate('SpellmindNudge.anchor.relPoint'), 'TOPLEFT');
+});
+
+test('a toast fades after 20 s but keeps waiting: the dot stays, the tooltip lists it, clicking the dot brings it back', () => {
+  const vm = session();
+  assert.ok(shown(vm));
+  vm.advance(21);
+  assert.ok(!shown(vm), 'faded');
+  assert.equal(vm.evaluate('tostring(SpellmindMinimapDot.shown)'), 'true', 'still waiting');
+  vm.run('SpellmindMinimapButton.scripts.OnEnter(SpellmindMinimapButton)');
+  assert.ok(list(vm, 'GameTooltip.added').includes('  A spell to train'), JSON.stringify(list(vm, 'GameTooltip.added')));
+  vm.run('NS.Nudges.Check()');
+  vm.advance(1);
+  assert.ok(!shown(vm), 'a check with nothing new doesn\'t bring it back');
+  vm.run('SpellmindMinimapDot.scripts.OnClick(SpellmindMinimapDot)');
+  assert.ok(shown(vm), 'the dot brings it back');
+  assert.equal(title(vm), 'A spell to train');
+  vm.run('SpellmindNudge.dismiss.scripts.OnClick(SpellmindNudge.dismiss)');
+  assert.equal(vm.evaluate('tostring(SpellmindMinimapDot.shown)'), 'false');
+});
+
+test('a new situation after a fade shows the toast again on its own', () => {
+  const vm = session();
+  vm.advance(21);
+  assert.ok(!shown(vm));
+  vm.run('for b = 0, 4 do STUB.bags[b].free = 0 end; STUB.FireEvent("BAG_UPDATE_DELAYED")');
+  vm.advance(3);
+  assert.ok(shown(vm), 'something new');
+  assert.equal(vm.evaluate('SpellmindNudge.count:GetText()'), '+1 more');
 });

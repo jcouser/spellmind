@@ -137,8 +137,8 @@ local function SmallButton(parent, width)
 end
 
 -- The thinking menu: one row per level the app's model offers.
-local function BuildMenu(f)
-	local m = CreateFrame("Frame", "SpellmindEffortMenu", f, "BackdropTemplate")
+local function BuildMenu(f, name)
+	local m = CreateFrame("Frame", name or "SpellmindEffortMenu", f, "BackdropTemplate")
 	m:SetFrameStrata("FULLSCREEN_DIALOG")
 	m:SetSize(230, 20)
 	if m.SetBackdrop then
@@ -233,7 +233,7 @@ end
 function W.Layout()
 	local f = win
 	if not f or not ns.db then return end
-	local msgs = ns.db.msgs or {}
+	local msgs = ns.Chat.Msgs()
 	local listW = math.max(200, (tonumber(f.scroll:GetWidth()) or (W.DEF_W - 24)) - 4)
 	local maxText = math.floor(listW * W.BUBBLE) - 2 * W.PAD
 	f.content:SetWidth(listW)
@@ -426,11 +426,32 @@ function W.Build()
 	f.effort.tip = "How hard your AI thinks before it answers. Higher is slower and more careful."
 	f.effort:SetScript("OnClick", function() W.OpenMenu() end)
 	f.menu = BuildMenu(f)
+	f.chatsMenu = BuildMenu(f, "SpellmindChatsMenu")
 
 	f.status = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	f.status:SetPoint("TOPLEFT", f, "TOPLEFT", 48, -30)
-	f.status:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -30)
+	f.status:SetPoint("TOPRIGHT", f, "TOPRIGHT", -152, -30)
 	f.status:SetJustifyH("LEFT")
+	if f.status.SetWordWrap then f.status:SetWordWrap(false) end
+	-- Chats: the list of recent ones, and a new one.
+	f.new = SmallButton(f, 58)
+	f.new:SetHeight(18)
+	f.new.text:SetText("+ New")
+	f.new.tip = "Start a new chat. This one stays in Chats."
+	f.new:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -25)
+	f.new:SetScript("OnClick", function() ns.Chat.NewChat() end)
+	f.chats = SmallButton(f, 74)
+	f.chats:SetHeight(18)
+	f.chats.text:ClearAllPoints()
+	f.chats.text:SetPoint("LEFT", f.chats, "LEFT", 8, 0)
+	f.chats.text:SetText("Chats")
+	f.chats.arrow = f.chats:CreateTexture(nil, "OVERLAY")
+	f.chats.arrow:SetSize(11, 11)
+	f.chats.arrow:SetPoint("RIGHT", f.chats, "RIGHT", -6, 0)
+	f.chats.arrow:SetTexture(W.MEDIA .. "Chevron")
+	f.chats.tip = "Your recent chats: pick one to go back to it."
+	f.chats:SetPoint("RIGHT", f.new, "LEFT", -6, 0)
+	f.chats:SetScript("OnClick", function() W.OpenChats() end)
 	f.rule = f:CreateTexture(nil, "ARTWORK")
 	f.rule:SetColorTexture(0.62, 0.49, 1, 0.35)
 	f.rule:SetHeight(1)
@@ -511,6 +532,58 @@ function W.Build()
 end
 
 function W.Get() return win end
+
+-- "now", "5m ago", "2h ago", "3d ago".
+function W.Ago(at)
+	local d = math.max(0, time() - (tonumber(at) or 0))
+	if d < 60 then return "now" end
+	if d < 3600 then return math.floor(d / 60) .. "m ago" end
+	if d < 86400 then return math.floor(d / 3600) .. "h ago" end
+	return math.floor(d / 86400) .. "d ago"
+end
+
+-- The chats menu: the recent chats, newest first, the current one marked.
+function W.OpenChats()
+	local f = win
+	if not f then return end
+	local m = f.chatsMenu
+	if m:IsShown() then m:Hide() return end
+	f.menu:Hide()
+	for _, r in ipairs(m.rows) do r:Hide() end
+	local y = -6
+	m.items = ns.Chat.List()
+	for i, c in ipairs(m.items) do
+		local r = m.rows[i]
+		if not r then
+			r = CreateFrame("Button", nil, m)
+			r:SetSize(258, 22)
+			r.name = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+			r.name:SetPoint("LEFT", r, "LEFT", 6, 0)
+			r.name:SetWidth(190)
+			r.name:SetJustifyH("LEFT")
+			if r.name.SetWordWrap then r.name:SetWordWrap(false) end
+			r.age = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+			r.age:SetPoint("RIGHT", r, "RIGHT", -6, 0)
+			r:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+			m.rows[i] = r
+		end
+		r.name:SetText((c.current and "|cffffd100> " or "") .. (c.title or "New chat") .. (c.current and "|r" or ""))
+		r.age:SetText(W.Ago(c.at))
+		r.id = c.id
+		r:SetScript("OnClick", function(self)
+			m:Hide()
+			ns.Chat.SwitchChat(self.id)
+		end)
+		r:ClearAllPoints()
+		r:SetPoint("TOPLEFT", m, "TOPLEFT", 6, y)
+		r:Show()
+		y = y - 24
+	end
+	m:SetSize(270, -y + 4)
+	m:ClearAllPoints()
+	m:SetPoint("TOPRIGHT", f.chats, "BOTTOMRIGHT", 0, -2)
+	m:Show()
+end
 
 -- Folded: the header only.
 function W.Fold(on)

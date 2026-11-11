@@ -57,6 +57,8 @@ export const RERING_FOR_MS = 600000;
 export const ALIVE_EVERY_MS = 10000;
 /** How many earlier messages (user and assistant) go with a turn. */
 export const HISTORY_MAX = 20;
+/** Chats whose history is kept (the most recently used): the addon keeps 10 of its own. */
+export const CHATS_KEPT = 30;
 export const RESERVED_PREFIX = /^\s*\[Spellmind/i;
 /** How long a message waits for the parts its st= names before it runs with stale: true. */
 export const STATE_WAIT_MS = 4000;
@@ -100,7 +102,12 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
   function remember(chatId, role, content) {
     const h = Array.isArray(history[chatId]) ? history[chatId] : [];
     h.push({ role, content: String(content).slice(0, 12000) });
+    // Moved to the end (most recently used), and only the newest CHATS_KEPT chats kept: the addon
+    // keeps 10 (milestone 6), so older ones are never asked for again.
+    delete history[chatId];
     history[chatId] = h.slice(-HISTORY_MAX);
+    const ids = Object.keys(history);
+    for (const old of ids.slice(0, Math.max(0, ids.length - CHATS_KEPT))) delete history[old];
     saveHistory();
   }
 

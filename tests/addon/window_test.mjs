@@ -63,7 +63,7 @@ test('bubbles and chips: your message on the right, the reply on the left with t
   assert.equal(seen[1].text, "Where's Darnassus?", 'the chip is the question');
   for (let i = 0; i < 4; i++) await round();
   assert.deepEqual(list(vm, 'SpellmindWindow.chipTexts'), [], 'a reply without a Next: line has none, and the old ones go');
-  assert.ok(list(vm, 'SpellmindDB.msgs').length >= 4, 'kept for the next session');
+  assert.ok(list(vm, 'SpellmindDB.chats[SpellmindDB.chat].msgs').length >= 4, 'kept for the next session, in its chat');
 });
 
 test('the header: thinking and web search from the app; a pick goes with the next message, and is saved', async (t) => {
@@ -171,4 +171,70 @@ test('an empty conversation: a welcome and three starter chips; a starter asks; 
   assert.equal(vm.windowLines()[0], 'Any upgrades in my bags?', 'then, with no app in this test, the note to start it');
   assert.equal(vm.evaluate('tostring(SpellmindWindow.welcome.shown)'), 'false', 'gone once something is said');
   assert.equal(vm.evaluate('tostring(SpellmindWindow.rows[1].fill.color[4])'), '1', 'bubbles are solid too');
+});
+
+test('chats: + New starts a clean one (the old one kept in Chats); picking it goes back; its history stays its own', async (t) => {
+  const seen = [];
+  const { vm, round } = rig(t, async (a) => { seen.push(a); return { text: `Answer ${seen.length}.` }; });
+  await round();
+  vm.slash('');
+  type(vm, 'Am I ready for the Hall of Thanes?');
+  for (let i = 0; i < 12 && seen.length < 1; i++) await round();
+  for (let i = 0; i < 3; i++) await round();
+  const first = vm.evaluate('SpellmindDB.chat');
+  vm.run('SpellmindWindow.new.scripts.OnClick(SpellmindWindow.new)');
+  const second = vm.evaluate('SpellmindDB.chat');
+  assert.notEqual(second, first, 'a new chat');
+  assert.deepEqual(vm.windowLines(), [], 'empty');
+  assert.equal(vm.evaluate('tostring(SpellmindWindow.welcome.shown)'), 'true', 'the welcome again');
+  vm.run('SpellmindWindow.new.scripts.OnClick(SpellmindWindow.new)');
+  assert.equal(vm.evaluate('SpellmindDB.chat'), second, 'an empty chat isn\'t replaced by another');
+  type(vm, 'What do I train next?');
+  for (let i = 0; i < 12 && seen.length < 2; i++) await round();
+  for (let i = 0; i < 3; i++) await round();
+  assert.equal(seen[1].history.length, 0, 'the new chat\'s turn has none of the old one\'s history');
+  vm.run('SpellmindWindow.chats.scripts.OnClick(SpellmindWindow.chats)');
+  assert.equal(vm.evaluate('tostring(SpellmindChatsMenu.shown)'), 'true');
+  assert.equal(vm.evaluate('SpellmindChatsMenu.rows[1].name:GetText()'), '|cffffd100> What do I train next?|r', 'newest first, the current marked');
+  assert.equal(vm.evaluate('SpellmindChatsMenu.rows[2].name:GetText()'), 'Am I ready for the Hall of Thanes?');
+  assert.equal(vm.evaluate('SpellmindChatsMenu.rows[2].age:GetText()'), 'now');
+  vm.run('SpellmindChatsMenu.rows[2].scripts.OnClick(SpellmindChatsMenu.rows[2])');
+  assert.equal(vm.evaluate('SpellmindDB.chat'), first);
+  assert.deepEqual(vm.windowLines(), ['Am I ready for the Hall of Thanes?', 'Answer 1.']);
+  type(vm, 'And with a group?');
+  for (let i = 0; i < 12 && seen.length < 3; i++) await round();
+  assert.deepEqual(seen[2].history.map(m => m.content), ['Am I ready for the Hall of Thanes?', 'Answer 1.'], 'back in the first chat, with its history');
+});
+
+test('an answer to a chat that isn\'t the shown one lands in its own chat', async (t) => {
+  const seen = [];
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const { vm, round } = rig(t, async (a) => { seen.push(a); await gate; return { text: 'Late answer.' }; });
+  await round();
+  vm.slash('');
+  type(vm, 'A slow question');
+  const first = vm.evaluate('SpellmindDB.chat');
+  for (let i = 0; i < 12 && seen.length < 1; i++) await round();
+  vm.run('NS.Chat.NewChat()');
+  release();
+  for (let i = 0; i < 6; i++) await round();
+  assert.deepEqual(vm.windowLines(), [], 'not in the new chat');
+  assert.deepEqual(list(vm, `SpellmindDB.chats["${first}"].msgs`).map(m => m.t), ['A slow question', 'Late answer.']);
+});
+
+test('after a break of 4 hours the next question starts a new chat; Chats keeps 10', () => {
+  const vm = newVM().login().advance(3.1);
+  vm.slash('');
+  type(vm, 'first question');
+  const first = vm.evaluate('SpellmindDB.chat');
+  vm.run('STUB.now = STUB.now + 4 * 3600 + 60');
+  type(vm, 'back again');
+  assert.notEqual(vm.evaluate('SpellmindDB.chat'), first);
+  assert.match(vm.windowLines()[0], /A new chat, after a break/);
+  assert.equal(vm.windowLines()[1], 'back again');
+  // (No app here, so every send waits; a chat waiting for an answer is never pruned. Answered:)
+  for (let i = 0; i < 12; i++) { vm.run('NS.R.pending = {}; NS.Chat.NewChat()'); type(vm, `q${i}`); }
+  vm.run('NS.R.pending = {}; NS.Chat.NewChat()');
+  assert.equal(vm.num('#NS.Chat.List()'), 10);
 });

@@ -861,7 +861,7 @@ function L.ApplyRecords(records)
 			local replay = r.replay == 1 or r.replay == true
 			if not APPLIED[r.t] then
 				R.skipped = R.skipped + 1 -- a type from a later protocol milestone
-			elseif r.chat == db.chat then
+			elseif r.chat == db.chat or ns.Chat.Known(r.chat) then -- any of our chats (milestone 6)
 				ns.Chat.OnRecord(r, replay)
 			else
 				R.orphans = R.orphans + 1

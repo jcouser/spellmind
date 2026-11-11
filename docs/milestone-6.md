@@ -12,7 +12,15 @@ Mockup A of 2026-11-10 (bubbles and chip buttons; Codex's drafts in the session'
 | Links | `Chat.lua`, `Tooltip.lua` | A shift-clicked item or quest goes into the focused box (a hook on `ChatFrameUtil.InsertLink`, else `ChatEdit_InsertLink`). Sent, it shows in green or yellow; the AI gets "[Name]" and, for the first link, the item or quest as the focus part (`about=item:<id>` or `quest:<id>`). |
 | Minimap button | `addon/Spellmind/Minimap.lua` | The book logo on the minimap's rim. Click: the chat. Drag: around the rim (angle in `SpellmindDB.minimap`). `/sm minimap off` and `on`. Right-click: the Advisor panel, later. |
 
-`SpellmindDB.msgs` keeps the last 80 messages (`{ w = "you"|"sm"|"sys"|"err", t = shown text, c = chips }`), and `SpellmindDB.lines` keeps the flat text as before.
+**Chats** (as NeverQuestAlone has):
+- "Chats" lists the recent chats, newest first. Each shows its title (its first question) and how long ago it was used, and a pick reopens it.
+- "+ New" starts a clean chat; the old one stays.
+- After a break of 4 hours, the next question starts a new chat on its own, with a line saying so.
+- 10 chats are kept, and a chat still waiting for an answer is never dropped.
+- An answer goes to the chat it belongs to, even when another chat is shown. Quest "Break it down" answers stay in the current chat.
+- In saved data: `SpellmindDB.chats[id] = { title, at, msgs }`, and `SpellmindDB.chat` is the current one. The app keeps the history of the 30 most recently used chats (`CHATS_KEPT`).
+
+Each chat keeps its last 80 messages (`{ w = "you"|"sm"|"sys"|"err", t = shown text, c = chips }`), and `SpellmindDB.lines` keeps the flat text as before.
 
 ## The contract
 

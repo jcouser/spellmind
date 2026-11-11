@@ -129,14 +129,130 @@ local function AddText(prefix, text)
 	end
 end
 
--- One message of the conversation: who ("you", "sm", "sys" or "err"), its shown text (escaped), and
--- a reply's chips. Drawn as a bubble when the window is made.
-local function AddMsg(who, text, chips)
+---------------------------------------------------------------------------
+-- Chats (milestone 6): up to CHATS_MAX conversations, each { title, at, msgs }, in SpellmindDB.chats;
+-- SpellmindDB.chat is the one the window shows and new questions go to. The app keeps each one's
+-- history by its id. After a break of NEW_AFTER seconds, the next question starts a new one.
+---------------------------------------------------------------------------
+
+C.CHATS_MAX = 10
+C.NEW_AFTER = 4 * 3600
+C.TITLE_MAX = 48
+
+local function Chats()
 	local db = ns.db
-	if type(db.msgs) ~= "table" then db.msgs = {} end
-	db.msgs[#db.msgs + 1] = { w = who, t = tostring(text), c = chips }
-	while #db.msgs > C.MSGS_MAX do table.remove(db.msgs, 1) end
+	if type(db.chats) ~= "table" then db.chats = {} end
+	return db.chats
+end
+
+-- A chat's entry, made when it isn't there.
+local function Entry(id)
+	local chats = Chats()
+	local e = chats[id]
+	if type(e) ~= "table" then
+		e = { at = time(), msgs = {} }
+		chats[id] = e
+	end
+	if type(e.msgs) ~= "table" then e.msgs = {} end
+	return e
+end
+
+-- The current chat's messages (Window.lua draws them).
+function C.Msgs()
+	if not ns.db then return {} end
+	return Entry(ns.db.chat).msgs
+end
+
+function C.Known(id)
+	return type(id) == "string" and ns.db ~= nil and type(Chats()[id]) == "table"
+end
+
+-- The chats, newest first: { id, title, at, current, n }.
+function C.List()
+	local out = {}
+	for id, e in pairs(Chats()) do
+		if type(e) == "table" and type(e.msgs) == "table" and (#e.msgs > 0 or id == ns.db.chat) then
+			out[#out + 1] = { id = id, title = e.title or "New chat", at = tonumber(e.at) or 0, current = id == ns.db.chat, n = #e.msgs }
+		end
+	end
+	table.sort(out, function(a, b) return a.at > b.at end)
+	return out
+end
+
+-- Older chats past CHATS_MAX go (never the current one, nor one with an answer on its way).
+local function Prune()
+	local list = C.List()
+	local busy = {}
+	for _, p in ipairs(R.pending or {}) do if p.chat then busy[p.chat] = true end end
+	-- The current one always stays; of the others, the newest CHATS_MAX - 1.
+	local kept = 0
+	for _, c in ipairs(list) do
+		if not c.current then
+			kept = kept + 1
+			if kept > C.CHATS_MAX - 1 and not busy[c.id] then Chats()[c.id] = nil end
+		end
+	end
+	for id, e in pairs(Chats()) do
+		if type(e) == "table" and type(e.msgs) == "table" and #e.msgs == 0 and id ~= ns.db.chat and not busy[id] then Chats()[id] = nil end
+	end
+end
+
+-- A new, empty chat becomes the current one (nothing happens when the current one is empty already).
+function C.NewChat()
+	local db = ns.db
+	if not db then return end
+	if #C.Msgs() == 0 then return db.chat end
+	db.chat = ns.NewChatId()
+	Entry(db.chat)
+	R.ask = nil
+	Prune()
 	if ns.Window.Get() then ns.Window.Layout() end
+	C.Refresh()
+	return db.chat
+end
+
+function C.SwitchChat(id)
+	if not C.Known(id) then return end
+	ns.db.chat = id
+	R.ask = nil
+	if ns.Window.Get() then ns.Window.Layout() end
+	C.Refresh()
+end
+
+-- PLAYER_LOGIN: the single chat of before (SpellmindDB.msgs) becomes the first entry.
+function C.InitChats()
+	local db = ns.db
+	local e = Entry(db.chat)
+	if type(db.msgs) == "table" then
+		if #e.msgs == 0 then e.msgs = db.msgs end
+		db.msgs = nil
+	end
+	if not e.title then
+		for _, m in ipairs(e.msgs) do
+			if m.w == "you" then e.title = C.Title(m.t); break end
+		end
+	end
+	Prune()
+end
+
+-- A chat's title: its first question, plain, at most TITLE_MAX bytes.
+function C.Title(shown)
+	local s = tostring(shown or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("||", "|"):gsub("%s+", " ")
+	s = ns.Trim(s)
+	if #s > C.TITLE_MAX then s = ns.Utf8Cut(s, C.TITLE_MAX - 3) .. "..." end
+	return ns.Escape(s)
+end
+
+-- One message of a chat (the current one by default): who ("you", "sm", "sys" or "err"), its shown
+-- text (escaped), and a reply's chips. Drawn as a bubble when it's the window's chat.
+local function AddMsg(who, text, chips, chatId)
+	local id = chatId or ns.db.chat
+	local e = Entry(id)
+	e.msgs[#e.msgs + 1] = { w = who, t = tostring(text), c = chips }
+	while #e.msgs > C.MSGS_MAX do table.remove(e.msgs, 1) end
+	e.at = time()
+	if who == "you" and not e.title then e.title = C.Title(text) end
+	if id == ns.db.chat and ns.Window.Get() then ns.Window.Layout() end
 end
 
 local function ChatFrame(text)
@@ -269,6 +385,12 @@ function C.Send(text, opts)
 		C.System("Not sent: other messages are still on their way. Send it again in a moment.")
 		return nil, "Other messages are still on their way."
 	end
+	-- Back after a long break: this question starts a new chat (the last one stays in Chats).
+	local current = Entry(db.chat)
+	if #current.msgs > 0 and time() - (tonumber(current.at) or 0) > C.NEW_AFTER then
+		C.NewChat()
+		AddMsg("sys", "|cff888888A new chat, after a break. The last one is in Chats.|r")
+	end
 	local args = { { "cur", db.cursor }, { "agent", ns.DEFAULT_AGENT }, { "ctx", 0 } }
 	-- The character's state built first, so the message and its parts come out in one draw; st
 	-- names the parts the app hasn't confirmed ("" when it has them all, none: no game data).
@@ -283,7 +405,7 @@ function C.Send(text, opts)
 	if search ~= nil then args[#args + 1] = { "search", search and 1 or 0 } end
 	local key = ns.Link.NewKeyed("msg", db.chat, args, ns.CleanField(text))
 	if not key then return nil, "Not ready yet: try again in a moment." end
-	table.insert(Pending(), { key = key, t = time(), card = opts.card and true or nil })
+	table.insert(Pending(), { key = key, t = time(), card = opts.card and true or nil, chat = db.chat })
 	-- opts.shown is escaped already (a card's label, or the box's text with its links coloured).
 	local shown = opts.shown or ns.Escape(text)
 	AddText(YOU, shown)
@@ -311,7 +433,14 @@ end
 -- applied before a client crash rolled the cursor back, so it's shown without the chat frame.
 function C.OnRecord(r, replay)
 	local kind = r.t
-	local p = not replay and table.remove(Pending(), 1) or nil
+	-- The oldest send of that chat waits for this answer (each chat's answers come in order).
+	local p
+	if not replay then
+		for i, x in ipairs(Pending()) do
+			if x.chat == nil or x.chat == r.chat then p = table.remove(Pending(), i); break end
+		end
+	end
+	local chatId = C.Known(r.chat) and r.chat or ns.db.chat
 	-- An Explain's answer goes to its card too; shown there, it skips the chat frame.
 	local carded = p and p.card and ns.Marks and ns.Marks.OnAnswer(p.key, r) or false
 	if carded then replay = true end
@@ -326,7 +455,7 @@ function C.OnRecord(r, replay)
 		for _, c in ipairs(type(r.chips) == "table" and r.chips or {}) do
 			if type(c) == "string" and c ~= "" and #chips < 3 then chips[#chips + 1] = ns.SafeText(ns.Utf8Cut(c, 60)) end
 		end
-		AddMsg("sm", whole, #chips > 0 and chips or nil)
+		AddMsg("sm", whole, #chips > 0 and chips or nil, chatId)
 		if not replay then
 			-- A short reply goes to the chat frame whole, line by line: its first line alone can be
 			-- "…across three talents:" with the list below it (a player's, 2026-11-10). A longer one
@@ -345,12 +474,12 @@ function C.OnRecord(r, replay)
 	elseif kind == "error" then
 		text = ns.SafeText(r.text)
 		AddText(ERR, text)
-		AddMsg("err", "|cffff6060" .. text .. "|r")
+		AddMsg("err", "|cffff6060" .. text .. "|r", nil, chatId)
 		if not replay then ChatFrame("Spellmind: " .. Short(r.text)) end
 	else
 		text = ns.SafeText(type(r.text) == "string" and r.text ~= "" and r.text or "Stopped.")
 		AddText(WHO, text)
-		AddMsg("sm", text)
+		AddMsg("sm", text, nil, chatId)
 		if not replay then ChatFrame("Spellmind: " .. Short(text)) end
 	end
 	C.Refresh()
@@ -421,6 +550,7 @@ end)
 
 ns.On("PLAYER_LOGIN", function()
 	if not ns.db then ns.InitDB() end
+	C.InitChats()
 	ns.Link.Start()
 	-- Messages drawn again after a /reload still wait for their answers.
 	local keys = {}
@@ -428,6 +558,6 @@ ns.On("PLAYER_LOGIN", function()
 		if o.type == "msg" then keys[#keys + 1] = { key = key, n = o.n } end
 	end
 	table.sort(keys, function(a, b) return a.n < b.n end)
-	for _, k in ipairs(keys) do table.insert(Pending(), { key = k.key, t = time() }) end
+	for _, k in ipairs(keys) do table.insert(Pending(), { key = k.key, t = time(), chat = R.out[k.key].chat }) end
 	C.Refresh()
 end)

@@ -39,7 +39,7 @@ import { openStore } from './store.mjs';
 import { createSignals } from './signals.mjs';
 import { createPublisher } from './publisher.mjs';
 import { SLOT_COUNT } from './slots.mjs';
-import { renderReply, systemLine } from './render.mjs';
+import { renderReply, splitChips, systemLine } from './render.mjs';
 import { createRunQueue } from '../ai/runqueue.mjs';
 import { looksLikeKey } from '../ai/security/keycheck.mjs';
 import { writeFileQuick } from '../files.mjs';
@@ -65,9 +65,17 @@ export const CAPS = Object.freeze(['state', 'z']);
 export const KEY_REFUSED = 'Not sent: that looks like an API key. Keys go in the Spellmind app, never in game.';
 
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+const EFFORT_RE = /^[a-z]{2,12}$/;
 
 export function createService({ addonsDir, stateDir, turn, log = () => {}, now = Date.now, slotCount = SLOT_COUNT,
-  concurrency = 2, ackRingMs = ACK_RING_MS, timers = true, publisherOpts = {}, stateWaitMs = STATE_WAIT_MS } = {}) {
+  concurrency = 2, ackRingMs = ACK_RING_MS, timers = true, publisherOpts = {}, stateWaitMs = STATE_WAIT_MS, ai = null } = {}) {
+  // ai: what the chat window's header shows and lets the player pick (docs/milestone-6.md):
+  // { name, model, efforts: ['low', …], effort (the default), search (the AI has it), searchOn (default) }.
+  const AI = isObj(ai) ? {
+    name: String(ai.name || '').slice(0, 40), model: String(ai.model || '').slice(0, 40),
+    efforts: (Array.isArray(ai.efforts) ? ai.efforts : []).filter(e => EFFORT_RE.test(e)).slice(0, 8),
+    effort: EFFORT_RE.test(ai.effort || '') ? ai.effort : undefined, search: ai.search === true, searchOn: ai.search === true && ai.searchOn !== false,
+  } : null;
   if (!addonsDir || !stateDir) throw new Error('createService needs addonsDir and stateDir');
   if (typeof turn !== 'function') throw new Error('createService needs turn()');
   fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
@@ -107,7 +115,7 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
     });
     return {
       v: 2, ts: new Date(now()).toISOString(), now: Math.floor(now() / 1000), token: token || '',
-      bridge: { ver: SERVICE_VERSION, push: S.push, epoch: S.epoch, nonce: t?.nonce || '', acked: t?.acked || [], caps: [...CAPS], state: slotState(token) },
+      bridge: { ver: SERVICE_VERSION, push: S.push, epoch: S.epoch, nonce: t?.nonce || '', acked: t?.acked || [], caps: [...CAPS], state: slotState(token), ...(AI ? { ai: AI } : {}) },
       gw: { state: 'ready', since: Math.floor((S.startedAt || now()) / 1000), queued: store.outbox.length },
       agents: [AGENT],
       chats,
@@ -271,7 +279,11 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
     const st = typeof r.args.st === 'string' ? r.args.st.slice(0, 200) : null;
     // about: what the player clicked Explain on (quest:1338), so the turn gets its focus part.
     const about = ABOUT_RE.test(r.args.about || '') ? r.args.about : undefined;
-    const item = { token: r.token, key: r.key, chat: c.id, kind: 'msg', text, st, about, firstSeen: now(), attempts: 0 };
+    // effort= and search= (the chat window's header): the player's pick for this message, taken only
+    // when the AI offers it; otherwise the app's defaults.
+    const effort = AI && AI.efforts.includes(r.args.effort) ? r.args.effort : undefined;
+    const search = AI && AI.search && (r.args.search === '0' || r.args.search === '1') ? r.args.search === '1' : undefined;
+    const item = { token: r.token, key: r.key, chat: c.id, kind: 'msg', text, st, about, effort, search, firstSeen: now(), attempts: 0 };
     store.addOutbox(item); // on disk before the ack (SE-2)
     // A message that waits for its parts is acked with a ring now, so the strip frees for them.
     const wait = !!st && !stReady(st, chars.tokens[r.token]);
@@ -334,7 +346,7 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
       if (o) o.running = true;
       const game = gameFor(item);
       if (item.st !== null && item.st !== undefined) log('turn-game', { chat: item.chat, parts: game.state ? Object.keys(game.state) : [], stale: game.stale || undefined });
-      return turn({ chatId: item.chat, text: item.text, history: prior, signal, game });
+      return turn({ chatId: item.chat, text: item.text, history: prior, signal, game, effort: item.effort, search: item.search });
     }).then((res) => finish(runId, item, res), (err) => finish(runId, item, err?.name === 'AbortError' ? { aborted: true } : { error: { kind: 'error', text: String(err?.message || err) } }));
   }
 
@@ -360,12 +372,14 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
       record({ t: 'error', chat: c.id, kind: 'empty', text: systemLine('Your AI sent an empty reply. Ask again.') });
       return;
     }
-    const r = renderReply(raw);
-    const rec = store.addRecord({ t: 'reply', chat: c.id, run: runId, agent: AGENT.id, text: r.text, summary: r.summary, more: r.more }, now());
+    // The "Next: a / b / c" line becomes the reply's chips: off the text, and out of the history.
+    const { body, chips } = splitChips(raw);
+    const r = renderReply(body);
+    const rec = store.addRecord({ t: 'reply', chat: c.id, run: runId, agent: AGENT.id, text: r.text, summary: r.summary, more: r.more, ...(chips.length ? { chips } : {}) }, now());
     store.markRun(runId, rec.seq);
     store.saveState();
     remember(c.id, 'user', item.text);
-    remember(c.id, 'assistant', raw);
+    remember(c.id, 'assistant', body);
     log('reply', { chat: c.id, seq: rec.seq, chars: raw.length, more: r.more || undefined });
     publisher.publish({ push: true });
   }

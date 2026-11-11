@@ -82,11 +82,11 @@ switch (a._[0]) {
 
     // One turn: the prompt, the chat's history, then the game data and the message; the reply's
     // text, or the error's words.
-    const turn = async ({ text, history, signal, game }) => {
+    const turn = async ({ text, history, signal, game, effort: pickedEffort, search: pickedSearch }) => {
       let out = '', searched = false;
       const { system, messages, meta } = buildRequest({ pack, game, history, userText: text });
       log('request', { pack: pack.version, dataChars: meta.dataChars, omitted: meta.omitted.length ? meta.omitted : undefined, stale: game?.stale || undefined });
-      for await (const ev of provider.stream({ model, effort, system, messages, webSearch: search }, { signal })) {
+      for await (const ev of provider.stream({ model, effort: pickedEffort || effort, system, messages, webSearch: pickedSearch ?? search }, { signal })) {
         if (ev.type === 'text') out += ev.delta;
         else if (ev.type === 'progress' && ev.searching && !searched) { searched = true; log('web-search', {}); }
         else if (ev.type === 'error') {
@@ -99,7 +99,11 @@ switch (a._[0]) {
     };
 
     const addonsDir = path.join(flavorDir, 'Interface', 'AddOns');
-    const svc = createService({ addonsDir, stateDir: path.join(DATA, 'link'), turn, log: (k, d) => {
+    // What the chat window's header shows and lets the player pick: the model's thinking levels and search.
+    const efforts = Object.keys(m.effort?.[model] || {});
+    const label = m.models.list.find(x => x.id === model)?.label || model;
+    const ai = { name: m.name, model: label, efforts, effort, search: !!m.webSearch, searchOn: search };
+    const svc = createService({ addonsDir, stateDir: path.join(DATA, 'link'), turn, ai, log: (k, d) => {
       log(k, d);
       if (k === 'hello') say('The game said hello (addon', d.ver + ').');
       else if (k === 'msg') say('Message in', d.chat, `(${d.bytes} bytes): asking ${m.name}…`);

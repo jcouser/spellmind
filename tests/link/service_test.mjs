@@ -15,7 +15,7 @@ const TOKEN = '3fa9c2d1';
 const NONCE = 'a3f1';
 const CHAT = 'c3f9a1e';
 
-function rig(t, { turn, slotCount = 3 } = {}) {
+function rig(t, { turn, slotCount = 3, ai = null } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-service-'));
   const addonsDir = path.join(root, 'AddOns');
   fs.mkdirSync(path.join(addonsDir, 'Spellmind', 'sig', 'ctl'), { recursive: true });
@@ -23,7 +23,7 @@ function rig(t, { turn, slotCount = 3 } = {}) {
   const stateDir = path.join(root, 'state');
   const lines = [];
   const calls = [];
-  const svc = createService({ addonsDir, stateDir, slotCount, timers: false, ackRingMs: 0, log: (k, d) => lines.push([k, d]),
+  const svc = createService({ addonsDir, stateDir, slotCount, timers: false, ackRingMs: 0, ai, log: (k, d) => lines.push([k, d]),
     turn: turn ?? (async (a) => { calls.push(a); return { text: `**Echo:** ${a.text} | pipes` }; }) });
   svc.start();
   t.after(() => { svc.stop(); fs.rmSync(root, { recursive: true, force: true }); });
@@ -161,4 +161,40 @@ test('the doorbells: start makes the bells the addon probes for; a reply rings p
   r.msg(1, 'ring me');
   await r.settle();
   assert.ok(r.slot().bridge.push > p1, 'the reply rang');
+});
+
+test("milestone 6: bridge.ai in the slot; a message's effort= and search= go to its turn when the AI offers them; a reply's Next: line becomes chips", async (t) => {
+  const calls = [];
+  const r = rig(t, {
+    ai: { name: 'ChatGPT', model: 'GPT-6 Luna', efforts: ['low', 'medium', 'high', 'BAD!'], effort: 'medium', search: true, searchOn: true },
+    turn: async (a) => { calls.push(a); return { text: "Not yet: no Bows skill.\n\nNext: Where's Darnassus? / Compare with Cheese Knife / What do I train next?" }; },
+  });
+  r.hello();
+  r.send({ token: TOKEN, key: `${NONCE}_1`, type: 'msg', chat: CHAT, args: { cur: 0, ctx: 0, effort: 'high', search: 0 }, text: 'Should I keep the bow?' });
+  r.send({ token: TOKEN, key: `${NONCE}_2`, type: 'msg', chat: CHAT, args: { cur: 0, ctx: 0, effort: 'ultra', search: 'maybe' }, text: 'Again?' });
+  for (let i = 0; i < 20 && calls.length < 2; i++) await r.settle();
+  await r.settle();
+  assert.equal(calls[0].effort, 'high');
+  assert.equal(calls[0].search, false);
+  assert.equal(calls[1].effort, undefined, "a level the AI doesn't offer: the app's default");
+  assert.equal(calls[1].search, undefined);
+  const s = r.slot();
+  assert.equal(s.bridge.ai.name, 'ChatGPT');
+  assert.equal(s.bridge.ai.model, 'GPT-6 Luna');
+  assert.deepEqual(toArr(s.bridge.ai.efforts), ['low', 'medium', 'high'], 'efforts are checked');
+  assert.equal(s.bridge.ai.effort, 'medium');
+  assert.equal(s.bridge.ai.search, true);
+  const reply = toArr(s.records).find(x => x.t === 'reply');
+  assert.deepEqual(toArr(reply.chips), ["Where's Darnassus?", 'Compare with Cheese Knife', 'What do I train next?']);
+  assert.equal(reply.text, 'Not yet: no Bows skill.', 'the Next: line is off the text');
+});
+
+test('without ai, the slot has no bridge.ai and effort= is ignored', async (t) => {
+  const r = rig(t);
+  r.hello();
+  r.send({ token: TOKEN, key: `${NONCE}_1`, type: 'msg', chat: CHAT, args: { cur: 0, ctx: 0, effort: 'high', search: 1 }, text: 'hi' });
+  for (let i = 0; i < 20 && r.calls.length < 1; i++) await r.settle();
+  assert.equal(r.calls[0].effort, undefined);
+  assert.equal(r.calls[0].search, undefined);
+  assert.equal(r.slot().bridge.ai, undefined);
 });

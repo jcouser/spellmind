@@ -49,6 +49,25 @@ export function firstSentence(plain, max = SUMMARY_MAX) {
   return s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`;
 }
 
+export const CHIPS_MAX = 3;
+export const CHIP_MAX = 40;
+const CHIPS_LINE = /^\s*(?:\*\*|__)?\s*Next\s*(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*(.+?)\s*$/i;
+/**
+ * The reply's suggestion chips (the prompt asks for a last line "Next: a / b / c"): that line taken off
+ * the text, its suggestions as at most CHIPS_MAX short one-line strings. A reply without one has none.
+ */
+export function splitChips(raw) {
+  const lines = String(raw ?? '').replace(/\r\n?/g, '\n').split('\n');
+  let i = lines.length - 1;
+  while (i >= 0 && !lines[i].trim()) i--;
+  const m = i >= 0 ? lines[i].match(CHIPS_LINE) : null;
+  if (!m) return { body: String(raw ?? ''), chips: [] };
+  const chips = m[1].split(/\s+\/\s+|\s*;\s*/)
+    .map(c => markdownToWow(c).replace(/^["“']|["”']$/g, '').replace(/\s+/g, ' ').trim())
+    .filter(c => c && c.length <= CHIP_MAX).slice(0, CHIPS_MAX).map(escapePipes);
+  return { body: lines.slice(0, i).join('\n').trimEnd(), chips };
+}
+
 /** A reply record's fields: {text, summary, more}. more: 1 when the text was cut to fit. */
 export function renderReply(raw) {
   const plain = markdownToWow(raw);

@@ -284,7 +284,11 @@ Always available: anything the player asks, with the character attached. Chips u
   - the combat review on or off;
   - the chat frame lines, for short replies.
 
-**In the app (milestone 3):** sign-in, the AI and model, per-part sharing, usage.
+**In the app (milestone 3):** sign-in, the AI and model, per-part sharing, usage, and:
+- a **thinking (effort) dropdown**: the levels the chosen model offers (low, medium, high, and more for some). Each one shows its trade-off, from the test of 2026-11-10: low answers in about 3 s, high in about 10 s, and higher levels use more of the plan's limits. It defaults to medium with web search, high without. Today it's `--effort` and `effort` in config.json.
+- a **web search** switch, for AIs that have it, with a note on which AIs do. Today it's `--search off`.
+
+Both could also show in game, in the Settings tab, as a read-only line ("thinking medium, web search on"), so the player knows what's answering.
 
 ## 4. Data still to add (by part)
 

@@ -22,6 +22,7 @@ M.PORTRAIT = "Interface\\AddOns\\Spellmind\\Media\\Portrait"
 M.HINT = "|cff888888Click: Explain. Shift-click: ask in the chat window.|r"
 M.NO_DATA = "Explain needs your game data. Type /sm data on, then click again."
 M.THINKING = "|cff888888Thinking…|r"
+M.NO_APP = "|cff9d7dffThe Spellmind app isn't running, so there's no answer yet.|r\n\nStart it on your computer (node tools/spellmind.mjs start in the Spellmind folder). Your question is waiting: its answer will show here."
 M.CARD_W, M.CARD_MIN_H, M.CARD_MAX_H = 360, 120, 420
 
 -- Marks on or off (/sm marks off): the saved switch, on unless set off.
@@ -215,7 +216,9 @@ function M.ShowCard(b, req, key)
 	-- Ask buttons: its rows redraw, so a row's mark hiding mustn't close it).
 	card.owner, card.key, card.about, card.label = req.owner or b, key, req.about, req.label
 	card.title:SetText(req.label)
-	Fill(card, M.THINKING)
+	-- With no app heard, "Thinking…" would wait forever (seen in game): say so. The question stays
+	-- queued, and its answer still comes here when the app starts.
+	if ns.Link and ns.Link.BridgeAlive and not ns.Link.BridgeAlive() then Fill(card, M.NO_APP) else Fill(card, M.THINKING) end
 	card:ClearAllPoints()
 	local anchor = req.anchor or b
 	-- side "left": the card opens to the anchor's left (a nudge by the minimap, at the screen's right edge).

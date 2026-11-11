@@ -206,3 +206,11 @@ test('the badge: red, with how many wait on it', () => {
   assert.equal(vm.evaluate('SpellmindMinimapDot.count:GetText()'), '2');
   assert.ok(vm.evaluate('SpellmindMinimapDot.tex.texture').endsWith('Media\\Badge'));
 });
+
+test('Ask with no app running: the card says the app isn\'t running (not "Thinking…" forever)', () => {
+  const vm = session(); // no app in this VM
+  vm.run('SpellmindNudge.ask.scripts.OnClick(SpellmindNudge.ask)');
+  const card = list(vm, 'SpellmindCard.lines');
+  assert.match(card[0], /The Spellmind app isn't running/);
+  assert.ok(!card.some(l => /Thinking/.test(l)));
+});

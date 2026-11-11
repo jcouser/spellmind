@@ -165,6 +165,61 @@ function ns.ProbeRound4(out, try, g)
 	out["Pawn fns"] = table.concat(pawn, ",")
 end
 
+-- Round 5 (the gear advisor's upgrades, 2026-11-11): the Dungeon Journal. Does Forever have it, with
+-- classic dungeons and their loot? It loads the journal's own Blizzard addon (load on demand, read
+-- only) and reads the first tiers, instances, an encounter and its loot. Nothing is opened on screen.
+function ns.ProbeRound5(out, try, g)
+	local AO = rawget(_G, "C_AddOns")
+	out["EJ addon exists"] = describe(AO and AO.DoesAddOnExist and select(2, pcall(AO.DoesAddOnExist, "Blizzard_EncounterJournal")))
+	out["EJ addon loaded before"] = describe(AO and AO.IsAddOnLoaded and select(2, pcall(AO.IsAddOnLoaded, "Blizzard_EncounterJournal")))
+	if AO and AO.LoadAddOn then out["EJ LoadAddOn"] = try(AO.LoadAddOn, "Blizzard_EncounterJournal") end
+	out["fns:C_EncounterJournal"] = fnList(rawget(_G, "C_EncounterJournal"))
+	local ej = {}
+	for name, v in pairs(_G) do
+		if type(name) == "string" and type(v) == "function" and name:find("^EJ_") then ej[#ej + 1] = name end
+	end
+	table.sort(ej)
+	out["EJ_ globals"] = table.concat(ej, ",")
+	local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+	out["EJ_GetInstanceForMap(here)"] = try(g("EJ_GetInstanceForMap"), map or 0)
+	out["EJ_GetNumTiers()"] = try(g("EJ_GetNumTiers"))
+	out["EJ_GetCurrentTier()"] = try(g("EJ_GetCurrentTier"))
+	local tiers = {}
+	local nt = select(2, pcall(g("EJ_GetNumTiers") or function() return 0 end)) or 0
+	local firstInstance
+	for t = 1, math.min(tonumber(nt) or 0, 4) do
+		pcall(g("EJ_SelectTier"), t)
+		local names = { tier = describe(select(2, pcall(g("EJ_GetTierInfo"), t))) }
+		for i = 1, 6 do
+			local ok, id, name = pcall(g("EJ_GetInstanceByIndex"), i, false)
+			if ok and id then
+				names[#names + 1] = tostring(id) .. "=" .. tostring(name)
+				firstInstance = firstInstance or id
+			end
+		end
+		tiers["tier" .. t] = names
+	end
+	out["EJ tiers (dungeons)"] = tiers
+	if firstInstance then
+		pcall(g("EJ_SelectInstance"), firstInstance)
+		out["EJ_GetInstanceInfo(first)"] = try(g("EJ_GetInstanceInfo"), firstInstance)
+		out["EJ_GetEncounterInfoByIndex(1)"] = try(g("EJ_GetEncounterInfoByIndex"), 1)
+		local ok, _, _, encounterID = pcall(g("EJ_GetEncounterInfoByIndex"), 1)
+		if ok and encounterID then pcall(g("EJ_SelectEncounter"), encounterID) end
+		out["EJ_GetNumLoot()"] = try(g("EJ_GetNumLoot"))
+		local CEJ = rawget(_G, "C_EncounterJournal")
+		out["C_EncounterJournal.GetLootInfoByIndex(1)"] = try(CEJ and CEJ.GetLootInfoByIndex, 1)
+		out["EJ_GetLootInfoByIndex(1)"] = try(g("EJ_GetLootInfoByIndex"), 1)
+	end
+	-- And the merchant and quest turn-in reward functions the vendor helper and the picks badge use.
+	local kinds = {}
+	for _, name in ipairs({ "GetMerchantNumItems", "GetMerchantItemLink", "GetQuestItemLink", "GetNumQuestChoices", "GetQuestItemInfo",
+		"GetQuestReward", "GetSellValue", "PaperDollItemSlotButton_Update", "PaperDollFrame_UpdateStats" }) do
+		kinds[name] = type(rawget(_G, name))
+	end
+	out["globals round 5"] = kinds
+end
+
 function ns.Probe()
 	local link5 = GetInventoryItemLink and GetInventoryItemLink("player", 5)
 	local link16 = GetInventoryItemLink and GetInventoryItemLink("player", 16)
@@ -258,6 +313,7 @@ function ns.Probe()
 	out["C_Spell.GetSpellName(1752)"] = try(g("C_Spell.GetSpellName"), 1752)
 	out["IsPlayerSpell(1752)"] = try(g("IsPlayerSpell"), 1752)
 	ns.ProbeRound4(out, try, g)
+	pcall(ns.ProbeRound5, out, try, g)
 	ns.db.probe = out
 	local n = 0
 	for _ in pairs(out) do n = n + 1 end

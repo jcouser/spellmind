@@ -271,7 +271,9 @@ function N.Build()
 	local saved = Saved()
 	local map = rawget(_G, "Minimap")
 	if saved.point then f:SetPoint(saved.point, UIParent, saved.relPoint or saved.point, tonumber(saved.x) or 0, tonumber(saved.y) or 0)
-	elseif map then f:SetPoint("TOPRIGHT", map, "BOTTOMRIGHT", 0, -28)
+	-- Beside the minimap, at its left and level with its top: under it sits the quest tracker
+	-- (Questie's, seen in game), which the toast covered.
+	elseif map then f:SetPoint("TOPRIGHT", map, "TOPLEFT", -14, 0)
 	else f:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -20, -240) end
 	f:SetFrameStrata("HIGH")
 	f:SetClampedToScreen(true)

@@ -125,3 +125,10 @@ test('/sm nudges demo: a sample toast; Ask works on it like a real one', () => {
   vm.run('SpellmindNudge.ask.scripts.OnClick(SpellmindNudge.ask)');
   assert.equal(vm.evaluate('SpellmindCard.title:GetText()'), 'Nudge: A sample nudge');
 });
+
+test('the toast sits beside the minimap, at its left (not under it, where the quest tracker is)', () => {
+  const vm = session();
+  assert.equal(vm.evaluate('SpellmindNudge.anchor.point'), 'TOPRIGHT');
+  assert.equal(vm.evaluate('tostring(SpellmindNudge.anchor.rel == Minimap)'), 'true');
+  assert.equal(vm.evaluate('SpellmindNudge.anchor.relPoint'), 'TOPLEFT');
+});

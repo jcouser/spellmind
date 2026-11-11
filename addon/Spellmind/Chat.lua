@@ -91,119 +91,52 @@ end
 local RESERVED_PATTERN = "^%[" .. ns.RESERVED:sub(2):gsub("%a", function(c) return "[" .. c:upper() .. c:lower() .. "]" end)
 
 ---------------------------------------------------------------------------
--- The window
+-- The conversation (Window.lua draws it)
 ---------------------------------------------------------------------------
 
-local win
-
-local function Build()
-	if win then return win end
-	local f = CreateFrame("Frame", "SpellmindWindow", UIParent, "BackdropTemplate")
-	f:SetSize(440, 300)
-	f:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
-	f:SetFrameStrata("DIALOG")
-	f:SetMovable(true)
-	f:EnableMouse(true)
-	f:SetClampedToScreen(true)
-	f:RegisterForDrag("LeftButton")
-	f:SetScript("OnDragStart", function(self) self:StartMoving() end)
-	f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
-	if f.SetBackdrop then
-		f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-			tile = true, tileSize = 16, edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
-		f:SetBackdropColor(0.05, 0.05, 0.08, 0.92)
-		f:SetBackdropBorderColor(0.62, 0.49, 1, 1)
-	end
-
-	-- The persona's portrait (Media\Portrait.tga, a round wisp) beside the title.
-	f.portrait = f:CreateTexture(nil, "ARTWORK")
-	f.portrait:SetSize(32, 32)
-	f.portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -6)
-	f.portrait:SetTexture("Interface\\AddOns\\Spellmind\\Media\\Portrait")
-
-	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-	f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 46, -10)
-	f.title:SetText("Spellmind: AI Companion")
-
-	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-	f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
-
-	f.status = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	f.status:SetPoint("TOPLEFT", f, "TOPLEFT", 46, -26)
-	f.status:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -28)
-	f.status:SetJustifyH("LEFT")
-
-	f.log = CreateFrame("ScrollingMessageFrame", nil, f)
-	f.log:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -44)
-	f.log:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 40)
-	f.log:SetFontObject(ChatFontNormal)
-	f.log:SetJustifyH("LEFT")
-	f.log:SetFading(false)
-	f.log:SetMaxLines(500)
-	f.log:SetHyperlinksEnabled(false)
-	f.log:EnableMouseWheel(true)
-	f.log:SetScript("OnMouseWheel", function(self, delta)
-		if delta > 0 then self:ScrollUp() else self:ScrollDown() end
-	end)
-
-	f.input = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-	f.input:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 18, 12)
-	f.input:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 12)
-	f.input:SetHeight(22)
-	f.input:SetAutoFocus(false)
-	f.input:SetMaxBytes(ns.MAX_TEXT + 1)
-	f.input:SetScript("OnEnterPressed", function(self)
-		local text = self:GetText()
-		if text and text:match("%S") then
-			-- After an answer card's Ask more, the questions stay about its thing until the card closes.
-			local key, _, why = C.Send(text, R.ask and { about = R.ask.about } or nil)
-			-- Sent, or refused as a key: either way the box keeps nothing.
-			if key or why == "key" then self:SetText("") end
-		end
-		-- Like the game's own chat box: Enter leaves it, so the movement keys move the character
-		-- again instead of typing into the box (a player's "wwawa", 2026-11-10).
-		self:ClearFocus()
-	end)
-	f.input:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-
-	if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "SpellmindWindow") end
-	f:Hide()
-	for _, line in ipairs(ns.db and ns.db.lines or {}) do f.log:AddMessage(line) end
-	win = f
-	C.Refresh()
-	return f
-end
+C.MSGS_MAX = 80 -- messages kept in saved data (SpellmindDB.msgs)
 
 function C.IsOpen()
-	return win ~= nil and win:IsShown() and true or false
+	local f = ns.Window.Get()
+	return f ~= nil and f:IsShown() and true or false
 end
 
 function C.Toggle()
-	local f = Build()
+	local f = ns.Window.Build()
 	if f:IsShown() then
 		f:Hide()
 	else
 		f:Show()
 		C.Refresh()
+		ns.Window.Layout()
 		f.input:SetFocus()
 	end
 end
 
--- One shown line: into the window (if it's been made) and the saved lines.
+-- One flat line into the saved lines (the window's history as text, for /reload and the tests).
 local function AddLine(line)
 	local lines = ns.db.lines
 	lines[#lines + 1] = line
 	while #lines > ns.MAX_LINES do table.remove(lines, 1) end
-	if win then win.log:AddMessage(line) end
 end
 
--- Text with newlines as window lines: the prefix on the first.
+-- Text with newlines as flat lines: the prefix on the first.
 local function AddText(prefix, text)
 	local first = true
 	for line in (tostring(text) .. "\n"):gmatch("(.-)\n") do
 		AddLine(first and (prefix .. line) or line)
 		first = false
 	end
+end
+
+-- One message of the conversation: who ("you", "sm", "sys" or "err"), its shown text (escaped), and
+-- a reply's chips. Drawn as a bubble when the window is made.
+local function AddMsg(who, text, chips)
+	local db = ns.db
+	if type(db.msgs) ~= "table" then db.msgs = {} end
+	db.msgs[#db.msgs + 1] = { w = who, t = tostring(text), c = chips }
+	while #db.msgs > C.MSGS_MAX do table.remove(db.msgs, 1) end
+	if ns.Window.Get() then ns.Window.Layout() end
 end
 
 local function ChatFrame(text)
@@ -223,21 +156,21 @@ end
 function C.System(text)
 	if not ns.db then return end
 	AddText(WHO, text)
+	AddMsg("sys", "|cff9d7dff" .. text .. "|r")
 	ChatFrame("Spellmind: " .. text)
 end
 
 function C.Refresh()
-	if not win then return end
-	local about = R.ask and R.ask.label and ("  |cff9d7dffAbout: " .. R.ask.label .. "|r") or ""
-	win.status:SetText(ns.Link.Status() .. about)
+	ns.Window.Refresh()
 end
 
 -- The window open with its box focused; text (when given) put in the box to edit first.
 function C.Open(text)
-	local f = Build()
+	local f = ns.Window.Build()
 	if not f:IsShown() then f:Show() end
 	if text then f.input:SetText(text) end
 	f.input:SetFocus()
+	ns.Window.Layout()
 	C.Refresh()
 end
 
@@ -246,6 +179,54 @@ end
 function C.AskAbout(about, label)
 	R.ask = about and { about = about, label = label } or nil
 	C.Refresh()
+end
+
+---------------------------------------------------------------------------
+-- Links in what the player types (shift-clicked items and quests)
+---------------------------------------------------------------------------
+
+-- The text as it's sent: a link becomes its [Name], and every other escape goes.
+function C.PlainText(text)
+	local s = tostring(text or "")
+	s = s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|cn[^:|]*:", ""):gsub("|r", "")
+	s = s:gsub("|H[^|]*|h(.-)|h", "%1"):gsub("|T[^|]*|t", ""):gsub("|A[^|]*|a", "")
+	return s
+end
+
+-- The text as the window shows it: links in green (items) or yellow (quests), the rest escaped.
+function C.ShownText(text)
+	local s = tostring(text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|cn[^:|]*:", ""):gsub("|r", "")
+	local links = {}
+	s = s:gsub("|H([%a]+):[^|]*|h(.-)|h", function(kind, name)
+		links[#links + 1] = (kind == "quest" and "|cffffd100" or "|cff1eff00") .. ns.Escape(name) .. "|r"
+		return "\1" .. #links .. "\2"
+	end)
+	s = ns.Escape(s):gsub("\1(%d+)\2", function(n) return links[tonumber(n)] or "" end)
+	return s
+end
+
+-- What the window's box sends: the first linked item or quest goes as the focus part (about=), so
+-- the AI gets its stats or its text; otherwise the card's thread (Ask more) when there is one.
+function C.SendTyped(text)
+	local opts = { about = R.ask and R.ask.about or nil, shown = C.ShownText(text) }
+	local sharing = ns.State and ns.State.Sharing()
+	-- The whole link (its colour too): the game's tooltip data is read from the hyperlink as shown.
+	local item = text:match("(|c[^|]-|Hitem:[^|]*|h.-|h|r)") or text:match("(|Hitem:[^|]*|h.-|h)")
+	local quest = tonumber(text:match("|Hquest:(%d+)"))
+	if sharing and item and ns.Tooltip then
+		local focus = ns.Tooltip.Focus(item)
+		if focus then
+			ns.State.SetFocus(focus)
+			opts.about = "item:" .. tonumber(item:match("item:(%d+)"))
+		end
+	elseif sharing and quest and ns.Quests then
+		local focus = ns.Quests.Focus(quest)
+		if focus then
+			ns.State.SetFocus(focus)
+			opts.about = "quest:" .. quest
+		end
+	end
+	return C.Send(C.PlainText(text), opts)
 end
 
 ---------------------------------------------------------------------------
@@ -295,10 +276,18 @@ function C.Send(text, opts)
 	if st then args[#args + 1] = { "st", st } end
 	local about = type(opts.about) == "string" and opts.about:match("^%l+:%d+$") and opts.about or nil
 	if about then args[#args + 1] = { "about", about } end
+	-- The header's picks (Window.lua): sent only when the app offers them; otherwise its defaults.
+	local effort = ns.Window and ns.Window.Effort()
+	if effort then args[#args + 1] = { "effort", effort } end
+	local search = ns.Window and ns.Window.Search()
+	if search ~= nil then args[#args + 1] = { "search", search and 1 or 0 } end
 	local key = ns.Link.NewKeyed("msg", db.chat, args, ns.CleanField(text))
 	if not key then return nil, "Not ready yet: try again in a moment." end
 	table.insert(Pending(), { key = key, t = time(), card = opts.card and true or nil })
-	AddText(YOU, ns.Escape(opts.shown or text))
+	-- opts.shown is escaped already (a card's label, or the box's text with its links coloured).
+	local shown = opts.shown or ns.Escape(text)
+	AddText(YOU, shown)
+	AddMsg("you", shown)
 	if not ns.Link.BridgeAlive() and not R.toldStart then
 		R.toldStart = true
 		C.System(C.NOT_HEARD)
@@ -330,7 +319,14 @@ function C.OnRecord(r, replay)
 	if kind == "reply" then
 		text = ns.SafeText(r.text)
 		local more = math.max(0, math.floor(tonumber(r.more) or 0))
-		AddText(WHO, text .. (more > 0 and " |cff888888(the rest is in the Spellmind app)|r" or ""))
+		local whole = text .. (more > 0 and " |cff888888(the rest is in the Spellmind app)|r" or "")
+		AddText(WHO, whole)
+		-- The reply's suggestion chips (the app's, from its "Next:" line): one click asks.
+		local chips = {}
+		for _, c in ipairs(type(r.chips) == "table" and r.chips or {}) do
+			if type(c) == "string" and c ~= "" and #chips < 3 then chips[#chips + 1] = ns.SafeText(ns.Utf8Cut(c, 60)) end
+		end
+		AddMsg("sm", whole, #chips > 0 and chips or nil)
 		if not replay then
 			-- A short reply goes to the chat frame whole, line by line: its first line alone can be
 			-- "…across three talents:" with the list below it (a player's, 2026-11-10). A longer one
@@ -349,10 +345,12 @@ function C.OnRecord(r, replay)
 	elseif kind == "error" then
 		text = ns.SafeText(r.text)
 		AddText(ERR, text)
+		AddMsg("err", "|cffff6060" .. text .. "|r")
 		if not replay then ChatFrame("Spellmind: " .. Short(r.text)) end
 	else
 		text = ns.SafeText(type(r.text) == "string" and r.text ~= "" and r.text or "Stopped.")
 		AddText(WHO, text)
+		AddMsg("sm", text)
 		if not replay then ChatFrame("Spellmind: " .. Short(text)) end
 	end
 	C.Refresh()
@@ -389,6 +387,13 @@ SlashCmdList.SPELLMIND = function(msg)
 		end
 		ChatFrame(marks == "off" and "Spellmind: the marks on the game's windows and the tooltip line are off. Type /sm marks on to show them again."
 			or "Spellmind: the marks on the game's windows and the tooltip line are on.")
+		return
+	end
+	-- /sm minimap off and /sm minimap on: the minimap button.
+	local mm = lower:match("^minimap%s+(%a+)$")
+	if (mm == "off" or mm == "on") and ns.db and ns.MinimapButton then
+		ns.MinimapButton.Show(mm == "on")
+		ChatFrame(mm == "off" and "Spellmind: the minimap button is hidden. Type /sm minimap on to show it again." or "Spellmind: the minimap button is back.")
 		return
 	end
 	-- /sm data: what the app gets of the character; /sm data off and /sm data on.

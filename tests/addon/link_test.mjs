@@ -110,8 +110,10 @@ test('a slot written by slotTable(\'SpellmindSlotData\') and loaded on a push ri
   assert.ok(lines.includes('A ||Hitem:2140||h link stays text.'), 'a single | is doubled: no live link');
   vm.slash('');
   assert.ok(vm.bool('SpellmindWindow.shown'), '/sm alone opens the window');
-  assert.deepEqual(vm.windowLines(), lines, 'the window shows the lines');
-  assert.equal(vm.evaluate('SpellmindWindow.status.text'), '', 'heard and nothing awaited');
+  // The window draws the conversation as messages (milestone 6): the question, then the whole reply.
+  const shown = vm.windowLines();
+  assert.equal(shown.at(-1), 'Take **Skinning** ||cff00ff00 always||r.\nA ||Hitem:2140||h link stays text.', JSON.stringify(shown));
+  assert.equal(vm.evaluate('SpellmindWindow.status.text'), 'Connected', 'heard and nothing awaited');
   vm.slash('');
   assert.equal(vm.bool('SpellmindWindow.shown'), false, 'and closes it');
   // The load is reported: a seen with the cursor, the push counter read and the next slot.

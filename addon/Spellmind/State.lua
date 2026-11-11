@@ -958,6 +958,12 @@ end
 -- have goes again, so an app that lost them gets the full set.
 function S.OnBridge(bridge)
 	if not ns.db or type(bridge) ~= "table" then return end
+	-- What the app's AI offers the chat window's header (milestone 6): its name, model, thinking levels, search.
+	local ai = type(bridge.ai) == "table" and bridge.ai or nil
+	if ai ~= R.ai then
+		R.ai = ai
+		if ns.Window then ns.Window.Refresh() end
+	end
 	local caps = {}
 	for _, c in ipairs(type(bridge.caps) == "table" and bridge.caps or {}) do
 		if type(c) == "string" then caps[c] = true end

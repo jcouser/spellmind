@@ -1,0 +1,499 @@
+-- Window.lua: the chat window (docs/milestone-6.md; mockup A of 2026-11-10): the owl and the title,
+-- the thinking dropdown and the web search toggle, a status line, the conversation as bubbles (yours
+-- on the right in gold, Spellmind's on the left in violet with the owl), the reply's suggestion chips,
+-- and an input box that takes shift-clicked item and quest links. Movable and resizable; its place,
+-- size and picks are saved (SpellmindDB.ui).
+--
+-- Chat.lua keeps the conversation (SpellmindDB.msgs) and the sending; this file only draws.
+
+local _, ns = ...
+local W = {}
+ns.Window = W
+local R = ns.R
+
+W.PORTRAIT = "Interface\\AddOns\\Spellmind\\Media\\Portrait"
+W.MIN_W, W.MIN_H, W.MAX_W, W.MAX_H = 360, 300, 900, 900
+W.DEF_W, W.DEF_H = 460, 440
+W.PAD = 10 -- inside a bubble
+W.GAP = 8 -- between rows
+W.BUBBLE = 0.78 -- of the list's width, at most
+W.PLACEHOLDER = "Ask Spellmind… (shift-click items or quests to add them)"
+W.EFFORT_NAMES = { low = "Low", medium = "Medium", high = "High", xhigh = "Extra high", max = "Max", none = "None", minimal = "Minimal" }
+W.EFFORT_HINT = {
+	low = "Fastest (about 3 s). Fine for plain questions.",
+	medium = "Balanced. With web search, facts come from the web.",
+	high = "Slower (about 10 s), more careful.",
+	xhigh = "Slower still; uses more of your plan.",
+	max = "The slowest and most thorough; uses the most of your plan.",
+}
+
+local COLORS = {
+	you = { bg = { 0.20, 0.15, 0.05, 0.92 }, edge = { 0.85, 0.68, 0.25, 1 } },
+	sm = { bg = { 0.13, 0.09, 0.24, 0.92 }, edge = { 0.58, 0.45, 0.98, 1 } },
+}
+local BUBBLE_BACKDROP = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+	tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } }
+
+local win
+
+local function UI()
+	local db = ns.db
+	if not db then return {} end
+	if type(db.ui) ~= "table" then db.ui = {} end
+	return db.ui
+end
+
+---------------------------------------------------------------------------
+-- What the app offers (bridge.ai, read by Chat.lua into R.ai) and the player's picks
+---------------------------------------------------------------------------
+
+-- The thinking level to send: the player's pick when the app offers it, else nil (the app's default).
+function W.Effort()
+	local ai, pick = R.ai, UI().effort
+	if type(ai) ~= "table" or type(pick) ~= "string" then return nil end
+	for _, e in ipairs(type(ai.efforts) == "table" and ai.efforts or {}) do
+		if e == pick then return pick end
+	end
+	return nil
+end
+
+-- Web search to send: true or false when the AI has it, else nil.
+function W.Search()
+	local ai = R.ai
+	if type(ai) ~= "table" or ai.search ~= true then return nil end
+	local pick = UI().search
+	if pick == nil then return ai.searchOn ~= false end
+	return pick and true or false
+end
+
+local function EffortLabel()
+	local ai = R.ai
+	local e = W.Effort() or (type(ai) == "table" and ai.effort) or nil
+	return "Thinking: " .. (e and (W.EFFORT_NAMES[e] or e) or "Default") .. " v"
+end
+
+---------------------------------------------------------------------------
+-- The header's controls
+---------------------------------------------------------------------------
+
+local function SmallButton(parent, width)
+	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
+	b:SetSize(width, 20)
+	if b.SetBackdrop then
+		b:SetBackdrop(BUBBLE_BACKDROP)
+		b:SetBackdropColor(0.08, 0.06, 0.16, 0.95)
+		b:SetBackdropBorderColor(0.5, 0.4, 0.85, 1)
+	end
+	b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	b.text:SetPoint("CENTER", b, "CENTER", 0, 0)
+	b:SetScript("OnEnter", function(self)
+		if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.85, 0.68, 0.25, 1) end
+		if self.tip and GameTooltip then
+			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+			GameTooltip:SetText(self.tip, 1, 1, 1, 1, true)
+			GameTooltip:Show()
+		end
+	end)
+	b:SetScript("OnLeave", function(self)
+		if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.5, 0.4, 0.85, 1) end
+		if GameTooltip then GameTooltip:Hide() end
+	end)
+	return b
+end
+
+-- The thinking menu: one row per level the app's model offers.
+local function BuildMenu(f)
+	local m = CreateFrame("Frame", "SpellmindEffortMenu", f, "BackdropTemplate")
+	m:SetFrameStrata("FULLSCREEN_DIALOG")
+	m:SetSize(230, 20)
+	if m.SetBackdrop then
+		m:SetBackdrop(BUBBLE_BACKDROP)
+		m:SetBackdropColor(0.05, 0.04, 0.1, 0.98)
+		m:SetBackdropBorderColor(0.58, 0.45, 0.98, 1)
+	end
+	m.rows = {}
+	m:Hide()
+	return m
+end
+
+function W.OpenMenu()
+	local f = win
+	if not f then return end
+	local m = f.menu
+	if m:IsShown() then m:Hide() return end
+	local ai = R.ai
+	local efforts = type(ai) == "table" and type(ai.efforts) == "table" and ai.efforts or {}
+	for _, r in ipairs(m.rows) do r:Hide() end
+	local y = -6
+	for i, e in ipairs(efforts) do
+		local r = m.rows[i]
+		if not r then
+			r = CreateFrame("Button", nil, m)
+			r:SetSize(218, 34)
+			r.name = r:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+			r.name:SetPoint("TOPLEFT", r, "TOPLEFT", 6, -2)
+			r.hint = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+			r.hint:SetPoint("TOPLEFT", r.name, "BOTTOMLEFT", 0, -1)
+			r.hint:SetWidth(206)
+			r.hint:SetJustifyH("LEFT")
+			r:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+			m.rows[i] = r
+		end
+		local current = (W.Effort() or (type(ai) == "table" and ai.effort)) == e
+		r.name:SetText((current and "|cffffd100> " or "") .. (W.EFFORT_NAMES[e] or e) .. (type(ai) == "table" and ai.effort == e and " |cff888888(default)|r" or ""))
+		r.hint:SetText(W.EFFORT_HINT[e] or "")
+		r.effort = e
+		r:SetScript("OnClick", function(self)
+			UI().effort = self.effort
+			m:Hide()
+			W.Refresh()
+		end)
+		r:ClearAllPoints()
+		r:SetPoint("TOPLEFT", m, "TOPLEFT", 6, y)
+		r:Show()
+		y = y - 36
+	end
+	m:SetHeight(-y + 4)
+	m:ClearAllPoints()
+	m:SetPoint("TOPRIGHT", f.effort, "BOTTOMRIGHT", 0, -2)
+	m:Show()
+end
+
+---------------------------------------------------------------------------
+-- The conversation: rows of bubbles, pooled
+---------------------------------------------------------------------------
+
+local function NewRow(f)
+	local row = CreateFrame("Frame", nil, f.content, "BackdropTemplate")
+	row.text = row:CreateFontString(nil, "OVERLAY")
+	row.text:SetFontObject(ChatFontNormal)
+	row.text:SetJustifyH("LEFT")
+	row.text:SetJustifyV("TOP")
+	if row.text.SetWordWrap then row.text:SetWordWrap(true) end
+	row.icon = f.content:CreateTexture(nil, "ARTWORK")
+	row.icon:SetSize(22, 22)
+	row.icon:SetTexture(W.PORTRAIT)
+	row.icon:Hide()
+	return row
+end
+
+local function NewChip(f)
+	local c = SmallButton(f.content, 80)
+	c:SetHeight(22)
+	c.text:SetFontObject(GameFontHighlightSmall)
+	c:SetScript("OnClick", function(self)
+		if self.ask then ns.Chat.Send(self.ask, R.ask and { about = R.ask.about } or nil) end
+	end)
+	return c
+end
+
+-- Plain width of a text, for a short bubble that shouldn't span the list.
+local function TextWidth(fs)
+	local w = fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()
+	if type(w) ~= "number" or w <= 0 then w = fs:GetStringWidth() end
+	return tonumber(w) or 100
+end
+
+-- Every row laid out again (after a new message, a resize or a /reload).
+function W.Layout()
+	local f = win
+	if not f or not ns.db then return end
+	local msgs = ns.db.msgs or {}
+	local listW = math.max(200, (tonumber(f.scroll:GetWidth()) or (W.DEF_W - 24)) - 4)
+	local maxText = math.floor(listW * W.BUBBLE) - 2 * W.PAD
+	f.content:SetWidth(listW)
+	local y = -4
+	f.texts = {}
+	for i, msg in ipairs(msgs) do
+		local row = f.rows[i] or NewRow(f)
+		f.rows[i] = row
+		local who = msg.w
+		row.text:SetText(msg.t or "")
+		f.texts[#f.texts + 1] = msg.t or ""
+		row:ClearAllPoints()
+		row.text:ClearAllPoints()
+		row.icon:Hide()
+		if who == "you" or who == "sm" then
+			row.text:SetWidth(maxText)
+			local tw = math.min(maxText, TextWidth(row.text))
+			row.text:SetWidth(tw)
+			local th = tonumber(row.text:GetStringHeight()) or 14
+			row:SetSize(tw + 2 * W.PAD, th + 2 * W.PAD - 2)
+			if row.SetBackdrop then
+				if not row.backdropSet then row:SetBackdrop(BUBBLE_BACKDROP); row.backdropSet = true end
+				local c = COLORS[who]
+				row:SetBackdropColor(c.bg[1], c.bg[2], c.bg[3], c.bg[4])
+				row:SetBackdropBorderColor(c.edge[1], c.edge[2], c.edge[3], c.edge[4])
+			end
+			row.text:SetPoint("TOPLEFT", row, "TOPLEFT", W.PAD, -W.PAD + 1)
+			if who == "you" then
+				row:SetPoint("TOPRIGHT", f.content, "TOPRIGHT", -2, y)
+			else
+				row:SetPoint("TOPLEFT", f.content, "TOPLEFT", 30, y)
+				row.icon:ClearAllPoints()
+				row.icon:SetPoint("TOPLEFT", f.content, "TOPLEFT", 2, y - 2)
+				row.icon:Show()
+			end
+			y = y - (th + 2 * W.PAD - 2) - W.GAP
+		else
+			-- A line of Spellmind's own (a system note or an error): no bubble, centred.
+			if row.SetBackdropColor and row.backdropSet then
+				row:SetBackdropColor(0, 0, 0, 0)
+				row:SetBackdropBorderColor(0, 0, 0, 0)
+			end
+			row.text:SetWidth(listW - 20)
+			local th = tonumber(row.text:GetStringHeight()) or 14
+			row:SetSize(listW - 20, th)
+			row:SetPoint("TOPLEFT", f.content, "TOPLEFT", 10, y)
+			row.text:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+			y = y - th - W.GAP
+		end
+		row:Show()
+	end
+	for i = #msgs + 1, #f.rows do f.rows[i]:Hide(); f.rows[i].icon:Hide() end
+	-- The chips of the last reply, when it's the last message.
+	for _, c in ipairs(f.chips) do c:Hide() end
+	local last = msgs[#msgs]
+	f.chipTexts = {}
+	if last and last.w == "sm" and type(last.c) == "table" and #last.c > 0 then
+		local x = 30
+		y = y + W.GAP - 4
+		for i, ask in ipairs(last.c) do
+			local c = f.chips[i] or NewChip(f)
+			f.chips[i] = c
+			c.text:SetText(ask)
+			c.ask = ask
+			local cw = math.min(listW - 34, TextWidth(c.text) + 18)
+			c:SetWidth(cw)
+			if x + cw > listW then x = 30; y = y - 26 end
+			c:ClearAllPoints()
+			c:SetPoint("TOPLEFT", f.content, "TOPLEFT", x, y)
+			c:Show()
+			f.chipTexts[#f.chipTexts + 1] = ask
+			x = x + cw + 6
+		end
+		y = y - 22 - W.GAP
+	end
+	f.content:SetHeight(math.max(10, -y))
+	-- The newest at the bottom, in view.
+	local range = tonumber(f.scroll:GetVerticalScrollRange()) or 0
+	f.scroll:SetVerticalScroll(range)
+end
+
+---------------------------------------------------------------------------
+-- The input: text, and shift-clicked links
+---------------------------------------------------------------------------
+
+-- A link shift-clicked anywhere in the game while the box has focus goes into it.
+local function HookLinks()
+	if W.linksHooked then return end
+	local function insert(link)
+		if win and win:IsShown() and win.input:HasFocus() and type(link) == "string" then win.input:Insert(link) end
+	end
+	local util = rawget(_G, "ChatFrameUtil")
+	if type(util) == "table" and type(util.InsertLink) == "function" then
+		hooksecurefunc(util, "InsertLink", insert)
+	elseif type(rawget(_G, "ChatEdit_InsertLink")) == "function" then
+		hooksecurefunc("ChatEdit_InsertLink", insert)
+	end
+	W.linksHooked = true
+end
+
+local function Send(self)
+	local text = self:GetText()
+	if text and text:match("%S") then
+		local key, _, why = ns.Chat.SendTyped(text)
+		if key or why == "key" then self:SetText("") end
+	end
+	-- Like the game's own chat box: Enter leaves it, so the movement keys move the character again.
+	self:ClearFocus()
+end
+
+---------------------------------------------------------------------------
+-- The window
+---------------------------------------------------------------------------
+
+local function SavePlace(f)
+	local ui = UI()
+	local point, _, relPoint, x, y = f:GetPoint()
+	ui.point, ui.relPoint, ui.x, ui.y = point, relPoint, x, y
+	ui.w, ui.h = f:GetWidth(), f:GetHeight()
+end
+
+function W.Build()
+	if win then return win end
+	local ui = UI()
+	local f = CreateFrame("Frame", "SpellmindWindow", UIParent, "BackdropTemplate")
+	f:SetSize(math.max(W.MIN_W, math.min(W.MAX_W, tonumber(ui.w) or W.DEF_W)), math.max(W.MIN_H, math.min(W.MAX_H, tonumber(ui.h) or W.DEF_H)))
+	if ui.point then f:SetPoint(ui.point, UIParent, ui.relPoint or ui.point, tonumber(ui.x) or 0, tonumber(ui.y) or 0)
+	else f:SetPoint("CENTER", UIParent, "CENTER", 0, 80) end
+	f:SetFrameStrata("DIALOG")
+	f:SetMovable(true)
+	f:SetResizable(true)
+	if f.SetResizeBounds then f:SetResizeBounds(W.MIN_W, W.MIN_H, W.MAX_W, W.MAX_H) end
+	f:EnableMouse(true)
+	f:SetClampedToScreen(true)
+	f:RegisterForDrag("LeftButton")
+	f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+	f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing(); SavePlace(self) end)
+	if f.SetBackdrop then
+		f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+			tile = true, tileSize = 16, edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
+		f:SetBackdropColor(0.04, 0.03, 0.09, 0.94)
+		f:SetBackdropBorderColor(0.62, 0.49, 1, 1)
+	end
+
+	-- Header: the owl, the title, and at the right close, minimize, web search and thinking.
+	f.portrait = f:CreateTexture(nil, "ARTWORK")
+	f.portrait:SetSize(34, 34)
+	f.portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -6)
+	f.portrait:SetTexture(W.PORTRAIT)
+	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 48, -10)
+	f.title:SetText("Spellmind")
+	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+	f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
+	f.mini = SmallButton(f, 20)
+	f.mini.text:SetText("-")
+	f.mini.tip = "Fold the window to its header."
+	f.mini:SetPoint("RIGHT", f.close, "LEFT", -2, 0)
+	f.mini:SetScript("OnClick", function() W.Fold(not UI().folded) end)
+	f.search = SmallButton(f, 104)
+	f.search:SetPoint("RIGHT", f.mini, "LEFT", -6, 0)
+	f.search:SetScript("OnClick", function()
+		UI().search = not W.Search()
+		W.Refresh()
+	end)
+	f.effort = SmallButton(f, 124)
+	f.effort:SetPoint("RIGHT", f.search, "LEFT", -6, 0)
+	f.effort.tip = "How hard your AI thinks before it answers. Higher is slower and more careful."
+	f.effort:SetScript("OnClick", function() W.OpenMenu() end)
+	f.menu = BuildMenu(f)
+
+	f.status = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	f.status:SetPoint("TOPLEFT", f, "TOPLEFT", 48, -30)
+	f.status:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -30)
+	f.status:SetJustifyH("LEFT")
+	f.rule = f:CreateTexture(nil, "ARTWORK")
+	f.rule:SetColorTexture(0.62, 0.49, 1, 0.35)
+	f.rule:SetHeight(1)
+	f.rule:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -44)
+	f.rule:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -44)
+
+	-- The conversation.
+	f.scroll = CreateFrame("ScrollFrame", nil, f)
+	f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -50)
+	f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 44)
+	f.content = CreateFrame("Frame", nil, f.scroll)
+	f.content:SetSize(W.DEF_W - 24, 10)
+	f.scroll:SetScrollChild(f.content)
+	f.scroll:EnableMouseWheel(true)
+	f.scroll:SetScript("OnMouseWheel", function(self, delta)
+		local range = tonumber(self:GetVerticalScrollRange()) or 0
+		local y = (tonumber(self:GetVerticalScroll()) or 0) - delta * 40
+		self:SetVerticalScroll(math.max(0, math.min(range, y)))
+	end)
+	f.rows, f.chips = {}, {}
+
+	-- The input and the send button.
+	f.input = CreateFrame("EditBox", nil, f, "BackdropTemplate")
+	f.input:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 10)
+	f.input:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -44, 10)
+	f.input:SetHeight(26)
+	if f.input.SetBackdrop then
+		f.input:SetBackdrop(BUBBLE_BACKDROP)
+		f.input:SetBackdropColor(0.07, 0.05, 0.14, 0.95)
+		f.input:SetBackdropBorderColor(0.5, 0.4, 0.85, 1)
+	end
+	f.input:SetFontObject(ChatFontNormal)
+	f.input:SetTextInsets(8, 8, 0, 0)
+	f.input:SetAutoFocus(false)
+	f.input:SetMaxBytes(ns.MAX_TEXT + 1)
+	f.input:SetScript("OnEnterPressed", Send)
+	f.input:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+	f.input:SetScript("OnTextChanged", function() W.Placeholder() end)
+	f.input:SetScript("OnEditFocusGained", function() W.Placeholder() end)
+	f.input:SetScript("OnEditFocusLost", function() W.Placeholder() end)
+	f.hint = f.input:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	f.hint:SetPoint("LEFT", f.input, "LEFT", 9, 0)
+	f.hint:SetText(W.PLACEHOLDER)
+	f.send = CreateFrame("Button", nil, f)
+	f.send:SetSize(28, 28)
+	f.send:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 9)
+	f.send:SetNormalTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up")
+	f.send:SetPushedTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Down")
+	f.send:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+	f.send:SetScript("OnClick", function() Send(f.input) end)
+
+	-- The resize grip.
+	f.grip = CreateFrame("Button", nil, f)
+	f.grip:SetSize(16, 16)
+	f.grip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2)
+	f.grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+	f.grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+	f.grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+	f.grip:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
+	f.grip:SetScript("OnMouseUp", function() f:StopMovingOrSizing(); SavePlace(f); W.Layout() end)
+	f:SetScript("OnSizeChanged", function() if win then W.Layout() end end)
+
+	if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "SpellmindWindow") end
+	f:Hide()
+	win = f
+	HookLinks()
+	W.Fold(ui.folded)
+	W.Refresh()
+	W.Layout()
+	return f
+end
+
+function W.Get() return win end
+
+-- Folded: the header only.
+function W.Fold(on)
+	local f = win
+	if not f then return end
+	UI().folded = on and true or nil
+	local show = not on
+	f.scroll:SetShown(show)
+	f.input:SetShown(show)
+	f.send:SetShown(show)
+	f.grip:SetShown(show)
+	if on then
+		f.unfoldedH = f:GetHeight()
+		f:SetHeight(52)
+	elseif f.unfoldedH then
+		f:SetHeight(f.unfoldedH)
+	end
+	f.mini.text:SetText(on and "+" or "-")
+end
+
+function W.Placeholder()
+	local f = win
+	if not f then return end
+	local empty = (f.input:GetText() or "") == ""
+	f.hint:SetShown(empty and not f.input:HasFocus())
+end
+
+-- The header's controls and the status line, from R.ai and the link's status.
+function W.Refresh()
+	local f = win
+	if not f then return end
+	local ai = R.ai
+	local hasAI = type(ai) == "table"
+	f.effort:SetShown(hasAI and type(ai.efforts) == "table" and #ai.efforts > 0)
+	f.effort.text:SetText(EffortLabel())
+	local search = W.Search()
+	f.search:SetShown(search ~= nil)
+	f.search.text:SetText("Web search: " .. (search and "|cff19ff19On|r" or "|cff888888Off|r"))
+	f.search.tip = "Lets your AI look up facts on the web (trainers, quest turn-ins, drops). Off answers from its memory."
+	local bits = {}
+	local link = ns.Link.Status()
+	bits[#bits + 1] = (link ~= "" and link) or "Connected"
+	if hasAI then
+		if type(ai.name) == "string" and ai.name ~= "" then bits[#bits + 1] = ns.Escape(ai.name) end
+		if type(ai.model) == "string" and ai.model ~= "" then bits[#bits + 1] = ns.Escape(ai.model) end
+	end
+	local about = R.ask and R.ask.label and ("  |cff9d7dffAbout: " .. R.ask.label .. "|r") or ""
+	f.status:SetText(table.concat(bits, " · ") .. about)
+	W.Placeholder()
+end

@@ -135,6 +135,32 @@ function T.Line(link, data)
 	return T.PREFIX .. table.concat(bits, ", ") .. " vs your " .. ns.Escape(name)
 end
 
+-- The focus part for an item linked in the chat box (milestone 6): what the AI needs to weigh it.
+-- usable and why from the game's own red text; vs is the tooltip line's comparison, in words.
+function T.Focus(link)
+	if type(link) ~= "string" then return nil end
+	local r = C_Item and type(C_Item.GetItemInfo) == "function" and { pcall(C_Item.GetItemInfo, link) } or {}
+	if not r[1] or type(r[2]) ~= "string" then return nil end
+	local S = ns.State
+	local data = C_TooltipInfo and type(C_TooltipInfo.GetHyperlink) == "function" and select(2, pcall(C_TooltipInfo.GetHyperlink, link)) or nil
+	local reds = T.RedTexts(type(data) == "table" and data or nil)
+	local why = #reds > 0 and T.Why(reds, tonumber(r[13]), S.Text(r[8], 30)) or nil
+	local equipLoc = type(r[10]) == "string" and r[10] or ""
+	local wearable = T.SLOTS[equipLoc] ~= nil
+	local vs
+	if wearable and not why then
+		local ok, line = pcall(T.Line, link, data)
+		if ok and type(line) == "string" then
+			vs = S.Text((line:gsub("^|cff9d7dffSpellmind:|r ", ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")), 120)
+		end
+	end
+	local O = S.JSON.O
+	return O("v", 1, "kind", "item", "id", tonumber(link:match("item:(%d+)")), "name", S.Text(r[2]), "q", S.Whole(r[4]),
+		"ilvl", S.Whole(r[5]), "req", S.Whole(r[6]), "type", S.Text(r[7], 30), "sub", S.Text(r[8], 30),
+		"equip", wearable and S.Text(equipLoc:gsub("^INVTYPE_", ""):lower()) or nil, "st", wearable and S.ItemStatsO(link) or nil,
+		"usable", why == nil, "why", why, "vs", vs)
+end
+
 function T.OnTooltip(tooltip, data)
 	if not ns.db or not ns.Marks.On("tooltip") then return end
 	if tooltip ~= rawget(_G, "GameTooltip") and tooltip ~= rawget(_G, "ItemRefTooltip") then return end

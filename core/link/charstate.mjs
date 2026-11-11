@@ -73,9 +73,11 @@ const SHAPES = {
   quests: { count: int, max: int, unread: int, list: list(QUEST, LIST_MAX.quests) },
   rep: { list: list(REP, LIST_MAX.rep), collapsed: int },
   // What the player clicked Explain on (docs/milestone-5.md): a quest, for now.
-  focus: { kind: v => v === 'quest', id: int, title: str, level: num, diff: str, trivial: bool, elite: bool, group: int, complete: bool,
+  // A quest (milestone 5's Break it down, or a quest linked in the chat box) or an item (linked, milestone 6).
+  focus: { kind: v => v === 'quest' || v === 'item', id: int, title: str, level: num, diff: str, trivial: bool, elite: bool, group: int, complete: bool,
     text: str, goal: str, obj: list(OBJ, LIST_MAX.focusObj), money: num, xp: num, choices: list(REWARD, LIST_MAX.rewards),
-    items: list(REWARD, LIST_MAX.rewards), where: shape(WHERE) },
+    items: list(REWARD, LIST_MAX.rewards), where: shape(WHERE),
+    name: str, q: intIn(0, 8), ilvl: num, req: num, type: str, sub: str, equip: str, st: numMap, usable: bool, why: str, vs: str },
 };
 const COMMON = { v: v => v === 1, omitted: strList(LIST_MAX.omitted), too_large: v => v === true };
 

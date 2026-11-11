@@ -658,3 +658,10 @@ STUB.tooltips[STUB.ItemLink(4936)] = { "Dirt-stained Cloak", "Back", "9 Armor" }
 STUB.items[7010] = { "Patched Tunic", 2, 16, 11, "Armor", "Leather", 1, "INVTYPE_CHEST", 132719, 300, 4, 2 }
 STUB.itemStats[7010] = { ITEM_MOD_AGILITY_SHORT = 1, ITEM_MOD_STAMINA_SHORT = 5, RESISTANCE0_NAME = 30 }
 STUB.tooltips[STUB.ItemLink(7010)] = { "Patched Tunic", "Chest", "30 Armor" }
+
+-- The minimap, for Spellmind's button on its rim.
+Minimap = CreateFrame("Frame", "Minimap", UIParent)
+function Minimap:GetCenter() return 1800, 900 end
+function Minimap:GetEffectiveScale() return 1 end
+STUB.cursor = { 1700, 900 }
+function GetCursorPosition() return STUB.cursor[1], STUB.cursor[2] end

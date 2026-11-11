@@ -12,7 +12,9 @@ Core.lua
 Link.lua
 State.lua
 Probe.lua
+Window.lua
 Chat.lua
 Marks.lua
 Quests.lua
 Tooltip.lua
+Minimap.lua

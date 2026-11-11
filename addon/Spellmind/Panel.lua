@@ -298,7 +298,8 @@ function Tabs.gear()
 					tag = { (why:gsub("^no (.-) skill yet.*$", "needs %1 skill")), 1, 0.3, 0.3 }
 				else
 					local ok, line = pcall(ns.Tooltip.Line, link, data)
-					if ok and type(line) == "string" then right = line:gsub("^|cff9d7dffSpellmind:|r ", "") end
+					-- Just the differences: the row names the item, and "vs your …" crowded its name out (seen in game).
+					if ok and type(line) == "string" then right = (line:gsub("^|cff9d7dffSpellmind:|r ", ""):gsub(" vs your .*$", "")) end
 				end
 			elseif type(sell) == "number" and sell > 0 then
 				right = "sell: " .. Money(sell * (it.n or 1))

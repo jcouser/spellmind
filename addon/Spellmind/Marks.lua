@@ -152,10 +152,21 @@ local function BuildCard()
 		local y = (tonumber(self:GetVerticalScroll()) or 0) - delta * 28
 		self:SetVerticalScroll(math.max(0, math.min(range, y)))
 	end)
-	f.more = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+	-- Ask more, in the chat window's own button style (the game's red one clashed, seen in game).
+	f.more = CreateFrame("Button", nil, f, "BackdropTemplate")
 	f.more:SetSize(96, 22)
 	f.more:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 9)
-	f.more:SetText("Ask more")
+	if f.more.SetBackdrop then
+		f.more:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+			tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+		f.more:SetBackdropColor(0.08, 0.06, 0.16, 0.95)
+		f.more:SetBackdropBorderColor(0.58, 0.45, 0.98, 1)
+	end
+	f.more.text = f.more:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	f.more.text:SetPoint("CENTER", f.more, "CENTER", 0, 0)
+	f.more.text:SetText("Ask more")
+	f.more:SetScript("OnEnter", function(self) if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.85, 0.68, 0.25, 1) end end)
+	f.more:SetScript("OnLeave", function(self) if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.58, 0.45, 0.98, 1) end end)
 	f.more:SetScript("OnClick", function() M.AskMore() end)
 	f:SetScript("OnHide", function(self)
 		-- Closing the card ends its thread: the window's next questions are about nothing in particular.

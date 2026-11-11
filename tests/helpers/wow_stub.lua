@@ -668,3 +668,14 @@ function Minimap:GetCenter() return 1800, 900 end
 function Minimap:GetEffectiveScale() return 1 end
 STUB.cursor = { 1700, 900 }
 function GetCursorPosition() return STUB.cursor[1], STUB.cursor[2] end
+
+-- Waypoints: the game's own pin and arrow (Go on a quest row), recorded.
+STUB.waypoints, STUB.superTracked = {}, {}
+UiMapPoint = { CreateFromCoordinates = function(map, x, y) return { uiMapID = map, position = { x = x, y = y } } end }
+C_Map.CanSetUserWaypointOnMap = function(map) return true end
+C_Map.SetUserWaypoint = function(p) table.insert(STUB.waypoints, p) end
+C_Map.GetMapWorldSize = function(map) return 3000, 2000 end
+C_SuperTrack = {
+	SetSuperTrackedUserWaypoint = function(on) table.insert(STUB.superTracked, "waypoint") end,
+	SetSuperTrackedQuestID = function(id) table.insert(STUB.superTracked, "quest:" .. id) end,
+}

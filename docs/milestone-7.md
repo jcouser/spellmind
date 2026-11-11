@@ -40,3 +40,24 @@ The tabs read the same builders as the state parts (`State.Collect`), so the pan
   - Professions: the next recipes.
   - Gold: auction prices, if an addon exposes them.
 - Nudges, which come from the same facts.
+
+## Quest help, finished (features.md §3.1, 2026-11-11)
+
+**Sections**, re-read live on quest log, quest watch, level and zone changes:
+- Ready to turn in (nearest first)
+- Do now: here (at your level, on your map, nearest first)
+- Do now: elsewhere
+- Group (elite or a suggested group)
+- Later (orange or red, with "+N levels" when the game has no spot for it)
+- Skip? Little XP left (grey)
+
+**Each row** is two lines:
+- **First line:** the level in its difficulty colour and the title. At the right: direction and distance ("NE · 560 yd", the direction from the player's map position, scaled by the map's world size), an Elite or Group tag, **Go**, and the quest's mark.
+- **Second line:** what's left ("0/8 Carved Stone Idol", up to two objectives), or "Ready to turn in".
+
+**Go** (Quests.Go) acts only on the player's click:
+- With the quest's spot on this map, it sets the game's own map pin (`C_Map.SetUserWaypoint` with `UiMapPoint`) and super-tracks it, so the game's arrow points there.
+- Otherwise it super-tracks the quest (`C_SuperTrack.SetSuperTrackedQuestID`).
+- A line in the chat says which happened.
+
+The "Next:" line and Plan my session stay optional (§3.1).

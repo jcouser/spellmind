@@ -13,6 +13,7 @@ local R = ns.R
 P.W, P.H = 560, 480
 P.RAIL_W = 150
 P.ROW_H = 24
+P.ROW_H2 = 38 -- a row with a second line
 P.BAG_ROWS = 8
 P.TABS = {
 	{ id = "quests", name = "Quests", icon = "Interface\\Icons\\INV_Letter_15" },
@@ -96,6 +97,10 @@ local function NewRow(f)
 	r.left:SetJustifyH("LEFT")
 	if r.left.SetWordWrap then r.left:SetWordWrap(false) end
 	r.right = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	-- A second line (a quest's what's-left), small, under the first.
+	r.sub = r:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	r.sub:SetJustifyH("LEFT")
+	if r.sub.SetWordWrap then r.sub:SetWordWrap(false) end
 	r.right:SetJustifyH("RIGHT")
 	r.tag = CreateFrame("Frame", nil, r, "BackdropTemplate")
 	r.tag:SetHeight(16)
@@ -131,6 +136,8 @@ local function Draw(f, specs)
 		r.tag:Hide()
 		r.rule:SetShown(s.kind == "head")
 		r.right:SetText("")
+		r.sub:SetText("")
+		r.sub:Hide()
 		r.left:ClearAllPoints()
 		r.right:ClearAllPoints()
 		if r.mark then r.mark:Hide() end
@@ -158,10 +165,21 @@ local function Draw(f, specs)
 			r.left:SetText(s.text)
 			y = y - 22
 		else
-			r:SetHeight(P.ROW_H)
+			local h = s.sub and P.ROW_H2 or P.ROW_H
+			r:SetHeight(h)
 			r.left:SetFontObject(GameFontHighlight)
 			if s.icon then r.icon:SetTexture(s.icon) end
-			r.left:SetPoint("LEFT", r, "LEFT", s.icon and 30 or 8, 0)
+			local lx = s.icon and 30 or 8
+			if s.sub then
+				r.left:SetPoint("TOPLEFT", r, "TOPLEFT", lx, -5)
+				r.sub:ClearAllPoints()
+				r.sub:SetPoint("TOPLEFT", r, "TOPLEFT", lx + 2, -21)
+				r.sub:SetPoint("RIGHT", r, "RIGHT", -8, 0)
+				r.sub:SetText(s.sub)
+				r.sub:Show()
+			else
+				r.left:SetPoint("LEFT", r, "LEFT", lx, 0)
+			end
 			local rightEdge = -6
 			if s.quest and ns.Marks then
 				if not r.mark then
@@ -224,10 +242,10 @@ local function Draw(f, specs)
 			r.right:SetText(s.right or "")
 			r.left:SetPoint("RIGHT", r.right, "LEFT", -8, 0)
 			r.left:SetText(s.left or "")
-			y = y - P.ROW_H - 4
+			y = y - h - 4
 		end
 		r:Show()
-		f.drawn[#f.drawn + 1] = { kind = s.kind, text = s.text or s.left, right = s.right, tag = s.tag and s.tag[1], quest = s.quest }
+		f.drawn[#f.drawn + 1] = { kind = s.kind, text = s.text or s.left, right = s.right, tag = s.tag and s.tag[1], quest = s.quest, sub = s.sub }
 	end
 	for i = #specs + 1, #f.rows do f.rows[i]:Hide() end
 	f.content:SetHeight(math.max(10, -y))
@@ -241,11 +259,21 @@ end
 local Tabs = {}
 P.Tabs = Tabs
 
--- Quests: ready to turn in, worth doing now, later (elite, group, or orange and red), and grey.
+-- Quests (features.md §3.1), re-read on every quest-log change, level-up and zone change:
+--   Ready to turn in            nearest first
+--   Do now: here                at your level, its objectives on your map, nearest first
+--   Do now: elsewhere           at your level, not on this map
+--   Group                       elite or a suggested group
+--   Later                       orange or red for your level, with the gap
+--   Skip?                       grey: little XP left
+-- Each row: the level in its difficulty colour, the title, what's left on a second line, the
+-- direction and distance when the game knows the spot, Go (the game's own map pin and arrow, on
+-- click) and the quest's Spellmind mark (Break it down).
+P.FAR = 1e9
 function Tabs.quests()
 	local q = Part("quests")
 	local you = ns.State.Whole(ns.Try(UnitLevel, "player")) or 1
-	local ready, now, later, grey = {}, {}, {}, {}
+	local groups = { ready = {}, here = {}, away = {}, group = {}, later = {}, grey = {} }
 	for _, it in ipairs(type(q.list) == "table" and q.list or {}) do
 		local info = ns.Quests.Read(it.id)
 		if info then
@@ -253,40 +281,61 @@ function Tabs.quests()
 			local c = ns.Try(GetQuestDifficultyColor, level)
 			local color = type(c) == "table" and Hex(c.r, c.g, c.b) or "|cffffffff"
 			local plus = (info.elite or info.group) and "+" or ""
-			local left = color .. "[" .. level .. plus .. "]|r " .. ns.Escape(info.title or it.title or "?")
-			local right, tag
-			if info.complete then
-				right = "|cff40c040ready to turn in|r"
-			elseif info.where then
-				right = "on your map" .. (info.dist and (" · " .. info.dist .. " yd") or "")
-			else
-				local done, all = 0, 0
-				for _, o in ipairs(Plain(info.obj) or {}) do
-					all = all + 1
-					if (tonumber(o.have) or 0) >= (tonumber(o.need) or 1) then done = done + 1 end
-				end
-				if all > 1 then right = done .. " of " .. all .. " done" elseif info.dist then right = info.dist .. " yd" end
-			end
-			if info.elite then tag = { "Elite", 1, 0.3, 0.3 } elseif info.group then tag = { "Group", 1, 0.6, 0.2 } end
-			local row = { kind = "item", left = left, right = right, tag = tag, quest = it.id }
-			if info.complete then ready[#ready + 1] = row
-			elseif info.diff == "Trivial" or info.trivial then grey[#grey + 1] = row
-			elseif info.elite or info.group or info.diff == "VeryDifficult" or info.diff == "Impossible" then later[#later + 1] = row
-			else now[#now + 1] = row end
+			local dir = ns.Quests.Direction(info.where)
+			local where
+			if info.dist then where = (dir and (dir .. " · ") or "") .. info.dist .. " yd" end
+			local sub
+			if info.complete then sub = "|cff40c040Ready to turn in|r"
+			else sub = ns.Quests.Left(info) and ("|cffbbbbbb" .. ns.Quests.Left(info) .. "|r") or nil end
+			local tag
+			if info.elite then tag = { "Elite", 1, 0.3, 0.3 } elseif info.group then tag = { "Group " .. info.group, 1, 0.6, 0.2 } end
+			local gap = level - you
+			local right = where
+			if not right and gap >= 3 and not info.complete then right = "|cffff8040+" .. gap .. " levels|r" end
+			local id = it.id
+			local row = { kind = "item", left = color .. "[" .. level .. plus .. "]|r " .. ns.Escape(info.title or it.title or "?"),
+				sub = sub, right = right, tag = tag, quest = id, dist = info.dist or P.FAR,
+				actions = { { "Go", function() P.Go(id) end } } }
+			if info.complete then groups.ready[#groups.ready + 1] = row
+			elseif info.diff == "Trivial" or info.trivial then groups.grey[#groups.grey + 1] = row
+			elseif info.elite or info.group then groups.group[#groups.group + 1] = row
+			elseif info.diff == "VeryDifficult" or info.diff == "Impossible" then groups.later[#groups.later + 1] = row
+			elseif info.where then groups.here[#groups.here + 1] = row
+			else groups.away[#groups.away + 1] = row end
 		end
 	end
+	local function near(a, b) return a.dist < b.dist end
+	table.sort(groups.ready, near)
+	table.sort(groups.here, near)
 	local out = {}
 	local function Section(title, rows)
 		if #rows == 0 then return end
 		out[#out + 1] = { kind = "head", text = title }
 		for _, r in ipairs(rows) do out[#out + 1] = r end
 	end
-	Section("Ready to turn in", ready)
-	Section("Worth doing now", now)
-	Section("Later", later)
-	Section("Grey: little XP left", grey)
+	Section("Ready to turn in", groups.ready)
+	Section("Do now: here", groups.here)
+	Section("Do now: elsewhere", groups.away)
+	Section("Group", groups.group)
+	Section("Later", groups.later)
+	Section("Skip? Little XP left", groups.grey)
 	if #out == 0 then out[1] = { kind = "text", text = "Your quest log is empty. Ask what's worth picking up nearby." } end
 	return out
+end
+
+-- Go on a quest row: the game's pin and arrow, and a line saying which.
+function P.Go(id)
+	local did = ns.Quests.Go(id)
+	local q = ns.Quests.Read(id)
+	local title = q and q.title or "the quest"
+	if did == "pin" then
+		ns.Chat.System("Map pin set for " .. ns.Escape(title) .. ": follow the arrow.")
+	elseif did == "track" then
+		ns.Chat.System("Tracking " .. ns.Escape(title) .. ": the game's arrow points where it knows to.")
+	else
+		ns.Chat.System("The game doesn't know where " .. ns.Escape(title) .. " is on this map. Break it down asks Spellmind.")
+	end
+	return did
 end
 
 -- Gear: what's worn, what's in the bags (wearables with the tooltip line's verdict, then the rest), empty slots.
@@ -550,6 +599,8 @@ function P.Build()
 
 	-- Live while open: the game's own events, at most one redraw a second.
 	f:RegisterEvent("QUEST_LOG_UPDATE")
+	f:RegisterEvent("QUEST_WATCH_UPDATE")
+	f:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 	f:RegisterEvent("BAG_UPDATE_DELAYED")
 	f:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 	f:RegisterEvent("PLAYER_LEVEL_UP")

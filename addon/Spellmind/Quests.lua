@@ -79,7 +79,61 @@ local function Where(id)
 	if not x then return nil, dist end
 	local info = Try(C_Map.GetMapInfo, map)
 	local zone = type(info) == "table" and S().Text(info.name) or nil
-	return { zone = zone, x = x, y = y }, dist
+	return { zone = zone, x = x, y = y, map = map }, dist
+end
+
+Q.COMPASS = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" }
+
+-- The compass direction from the player to a spot on the same map (x, y in map percent), or nil.
+-- The map's world size, when the game gives it, keeps east-west and north-south in proportion.
+function Q.Direction(where)
+	if type(where) ~= "table" or not where.map then return nil end
+	local pos = Try(C_Map.GetPlayerMapPosition, where.map, "player")
+	local px, py
+	if type(pos) == "table" then
+		if type(pos.GetXY) == "function" then px, py = pos:GetXY() else px, py = pos.x, pos.y end
+	end
+	if type(px) ~= "number" or type(py) ~= "number" then return nil end
+	local w, h = Try(C_Map.GetMapWorldSize, where.map)
+	w, h = (type(w) == "number" and w > 0) and w or 1, (type(h) == "number" and h > 0) and h or 1
+	local dx, dy = (where.x / 100 - px) * w, (where.y / 100 - py) * h -- map y grows southward
+	if math.abs(dx) < 1e-6 and math.abs(dy) < 1e-6 then return nil end
+	local atan2 = math.atan2 or math.atan
+	local deg = (math.deg(atan2(dx, -dy)) + 360) % 360 -- 0 = north, clockwise
+	return Q.COMPASS[math.floor((deg + 22.5) / 45) % 8 + 1]
+end
+
+-- Go: the game's own map pin and arrow, on the player's click (features.md §1 rule 6: Spellmind
+-- never acts by itself; a waypoint is the game's player-facing feature). The quest's spot on this
+-- map when the game shows one; otherwise the quest itself is super-tracked, which points the
+-- game's arrow wherever it knows to. Returns what it did ("pin", "track") or nil.
+function Q.Go(id)
+	local q = Q.Read(id)
+	if not q then return nil end
+	local w = q.where
+	local SM, ST = rawget(_G, "C_Map"), rawget(_G, "C_SuperTrack")
+	local point = rawget(_G, "UiMapPoint")
+	if w and SM and type(SM.SetUserWaypoint) == "function" and type(point) == "table" and type(point.CreateFromCoordinates) == "function"
+		and Try(SM.CanSetUserWaypointOnMap, w.map) ~= false then
+		local ok = pcall(function()
+			SM.SetUserWaypoint(point.CreateFromCoordinates(w.map, w.x / 100, w.y / 100))
+			if ST and type(ST.SetSuperTrackedUserWaypoint) == "function" then ST.SetSuperTrackedUserWaypoint(true) end
+		end)
+		if ok then return "pin" end
+	end
+	if ST and type(ST.SetSuperTrackedQuestID) == "function" and pcall(ST.SetSuperTrackedQuestID, id) then return "track" end
+	return nil
+end
+
+-- What's left of a quest, short: its unfinished objectives ("0/8 Carved Stone Idol"), at most two.
+function Q.Left(q)
+	local bits = {}
+	for _, o in ipairs(type(q) == "table" and q.obj or {}) do
+		local p = Plain(o)
+		local have, need = tonumber(p.have) or 0, tonumber(p.need) or 0
+		if have < need and #bits < 2 then bits[#bits + 1] = have .. "/" .. need .. " " .. ns.Escape(p.text or "objective") end
+	end
+	return #bits > 0 and table.concat(bits, ", ") or nil
 end
 
 -- The rewards: money, XP, and the items (to choose from, and given). Choice info reads the selected

@@ -23,23 +23,45 @@ test('opens from the minimap button\'s right-click and /sm panel; the header say
   assert.equal(vm.num('#SpellmindPanel.tabs'), 7, 'six, and Nudges');
 });
 
-test('Quests: ready to turn in, worth doing now, later (orange), each with its level, a hint and a Break it down mark', () => {
+test('Quests: ready, do now here (nearest first) and elsewhere, later with its gap; what\'s left on a second line; direction and distance; a mark on each', () => {
   const vm = session();
+  // Bingles' Missing Supplies on this map too, south-west of the player (at 35.4, 48.2).
+  vm.run('table.insert(STUB.questsOnMap[1432], { questID = 2038, x = 0.30, y = 0.60 }); STUB.questDist[2038] = 200');
   vm.run('NS.Panel.Show("quests")');
   const d = drawn(vm);
   const heads = d.filter(x => x.kind === 'head').map(x => x.text);
-  assert.deepEqual(heads, ['Ready to turn in', 'Worth doing now', 'Later']);
-  const after = h => d.slice(d.findIndex(x => x.text === h) + 1).filter((x, i, a) => i < (a.findIndex(y => y.kind === 'head') + 1 || a.length) && x.kind === 'item');
-  const ready = after('Ready to turn in').map(x => x.text);
-  assert.ok(ready.some(t => /Stormpike's Order/.test(t)), JSON.stringify(ready));
-  assert.ok(after('Ready to turn in').every(x => /ready to turn in/.test(x.right)));
-  const later = after('Later');
-  assert.ok(later.some(x => /\[18\]\|r Gathering Idols/.test(x.text) && /on your map · 560 yd/.test(x.right)), JSON.stringify(later));
-  assert.ok(after('Worth doing now').some(x => /Bingles' Missing Supplies/.test(x.text)));
+  assert.deepEqual(heads, ['Ready to turn in', 'Do now: here', 'Do now: elsewhere', 'Later']);
+  const section = h => { const i = d.findIndex(x => x.text === h); const j = d.findIndex((x, k) => k > i && x.kind === 'head'); return d.slice(i + 1, j < 0 ? d.length : j); };
+  assert.ok(section('Ready to turn in').every(x => /Ready to turn in/.test(x.sub)));
+  const here = section('Do now: here');
+  assert.equal(here.length, 1);
+  assert.match(here[0].text, /Bingles' Missing Supplies/);
+  assert.equal(here[0].sub, "|cffbbbbbb0/1 Bingles' Wrench, 0/1 Bingles' Screwdriver|r", 'what\'s left');
+  assert.equal(here[0].right, 'SW · 200 yd', 'direction and distance');
+  assert.ok(section('Do now: elsewhere').some(x => /Old Ironforge Incursion/.test(x.text)));
+  const later = section('Later');
+  assert.match(later[0].text, /\[18\]\|r Gathering Idols/);
+  assert.equal(later[0].right, 'NE · 560 yd');
   assert.ok(d.filter(x => x.kind === 'item').every(x => typeof x.quest === 'number'), 'every quest row has its mark');
   assert.equal(vm.evaluate('SpellmindPanel.asks[1].text:GetText()'), 'Ask: Plan my next hour');
 });
 
+test('Go: the game\'s own map pin and arrow for a quest on this map; super-tracking for one elsewhere; a line says which', () => {
+  const vm = session();
+  vm.run('NS.Panel.Go(297)');
+  assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1432);
+  assert.equal(vm.evaluate('string.format("%.3f", STUB.waypoints[1].position.x)'), '0.706');
+  assert.equal(vm.evaluate('STUB.superTracked[1]'), 'waypoint');
+  assert.ok(vm.chatLines().some(l => /Map pin set for Gathering Idols/.test(l)));
+  vm.run('NS.Panel.Go(96393)'); // not on this map
+  assert.equal(vm.evaluate('STUB.superTracked[2]'), 'quest:96393');
+  assert.ok(vm.chatLines().some(l => /Tracking Old Ironforge Incursion/.test(l)));
+  // The row's own Go button does the same.
+  vm.run('NS.Panel.Show("quests")');
+  const n = vm.num('#STUB.waypoints');
+  vm.run('for _, r in ipairs(SpellmindPanel.rows) do if r.mark and r.mark.questID == 297 and r:IsShown() then r.actions[1].scripts.OnClick(r.actions[1]) end end');
+  assert.equal(vm.num('#STUB.waypoints'), n + 1);
+});
 test('Gear: worn items in slot order with item level and dps, the bow tagged "needs Bows skill", empty slots', () => {
   const vm = session();
   vm.run('table.insert(STUB.bags[2].items, { 2504, 1 })'); // the bow into a bag

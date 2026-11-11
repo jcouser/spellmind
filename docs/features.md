@@ -23,12 +23,14 @@ Spellmind is one companion with a few surfaces, not a set of separate tools. Thi
 
 Every feature is built from these, so the addon stays coherent and small.
 
+**Decided (2026-11-10):** the home base is the chat window plus the Advisor panel, with the marks in the game's own windows (§2.1). Explain answers go to an answer card beside the window. Nudges are a toast by the minimap. The build order is §6.
+
 | Surface | What it is | Used by |
 |---|---|---|
 | **Chat window** (`/sm`) | The conversation: movable, resizable, scrollable, remembers its place. An input box with **item and quest links** (shift-click an item or quest into it, as with the game's chat). A row of **suggestion chips** under a reply ("Compare with my dagger", "What do I train next?"). | Everything |
 | **Advisor panel** | One frame with tabs: **Quests · Gear · Talents · Spells · Professions · Gold**. Each tab shows the local facts at once (live), with Ask buttons beside them. It opens from the minimap button, `/sm panel`, or a nudge. | §3.1–3.6 |
 | **Tooltip line** | One quiet line at the bottom of item tooltips: "Spellmind: can't use: no Bows skill", or "upgrade over Cheese Knife (+0.3 dps)", from local rules only (no AI). Shift-right-click asks about the item. | Gear |
-| **Nudge** | A small toast near the minimap (or a chat line, by setting): an icon, one line and **Ask** / **Dismiss**. Grouped, at most one at a time, never in combat. | Talents, Spells, Bags, Quests, Dungeons |
+| **Nudge** | A small toast near the minimap (a chat line instead is a setting): an icon, one line and **Ask** / **Dismiss**. Grouped, at most one at a time, never in combat. | Talents, Spells, Bags, Quests, Dungeons |
 | **Minimap button** | Opens the panel; right-click opens chat. Its icon shows a dot while a nudge waits. | All |
 | **Waypoint** | The game's own map pin and super-tracked arrow (`C_Map.SetUserWaypoint`, `C_SuperTrack`), set when the player clicks **Go** on a quest or a stop. *To probe on Forever.* | Quests, Dungeons, Professions |
 
@@ -309,7 +311,7 @@ Always available: anything the player asks, with the character attached. Chips u
 - The game windows of §2.1 on Forever: the names of the frames and their details panes (`QuestFrame`, `QuestMapFrame` and its details, `CharacterFrame`, `PlayerSpellsFrame` or `ClassTalentFrame`, the spellbook, `ClassTrainerFrame`, `MerchantFrame`, `GroupLootFrame`, the professions frame), and which of them are secure. Also the quest text: `GetQuestText`, `C_QuestLog.GetQuestDescription` or how the details pane gets it.
 - How Questie, Pawn and the installed bag addons decorate the same frames, so Spellmind's marks don't collide.
 
-## 6. Build order (proposed)
+## 6. Build order (decided 2026-11-10)
 
 1. **Surfaces first:**
    - the Spellmind mark, the hover tooltip and the answer card (§2.1), with the first two integrations: **quest details: Break it down**, and the **item tooltip line**;

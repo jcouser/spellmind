@@ -42,6 +42,129 @@ local function g(path)
 	return v
 end
 
+local function fnList(ns_, cap)
+	if type(ns_) ~= "table" then return "missing" end
+	local fns = {}
+	for k, f in pairs(ns_) do if type(f) == "function" then fns[#fns + 1] = k end end
+	table.sort(fns)
+	if #fns > (cap or 200) then for i = #fns, (cap or 200) + 1, -1 do fns[i] = nil end; fns[#fns + 1] = "..." end
+	return table.concat(fns, ",")
+end
+
+-- Round 4 (docs/features.md §5): quest help and the marks in the game's own windows. Read only: it
+-- doesn't select a quest, open a window or set a waypoint. Other addons are listed by folder name.
+function ns.ProbeRound4(out, try, g)
+	-- The quest APIs: what the client has in each namespace, then the likely calls on the first quest.
+	for _, name in ipairs({ "C_QuestLog", "C_SuperTrack", "C_TaskQuest", "C_QuestInfoSystem", "C_Map", "C_TradeSkillUI", "C_AddOns", "C_TooltipInfo", "C_CombatLog" }) do
+		out["fns:" .. name] = fnList(rawget(_G, name))
+	end
+	local quest, logIndex
+	local QL = rawget(_G, "C_QuestLog")
+	if type(QL) == "table" and QL.GetNumQuestLogEntries and QL.GetInfo then
+		local ok, n = pcall(QL.GetNumQuestLogEntries)
+		for i = 1, (ok and tonumber(n) or 0) do
+			local ok2, info = pcall(QL.GetInfo, i)
+			if ok2 and type(info) == "table" and not info.isHeader and info.questID then
+				quest, logIndex = info.questID, i
+				out["C_QuestLog.GetInfo(first quest)"] = describe(info)
+				break
+			end
+		end
+	end
+	out["first quest id"] = describe(quest)
+	local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+	local q = quest or 0
+	local calls = {
+		{ "C_QuestLog.GetQuestObjectives", q }, { "C_QuestLog.GetTitleForQuestID", q }, { "C_QuestLog.GetQuestDifficultyLevel", q },
+		{ "C_QuestLog.IsComplete", q }, { "C_QuestLog.ReadyForTurnIn", q }, { "C_QuestLog.GetQuestTagInfo", q }, { "GetQuestTagInfo", q },
+		{ "C_QuestLog.GetSuggestedGroupSize", q }, { "C_QuestLog.IsQuestTrivial", q }, { "C_QuestLog.GetLogIndexForQuestID", q },
+		{ "C_QuestLog.GetNextWaypoint", q }, { "C_QuestLog.GetNextWaypointText", q }, { "C_QuestLog.GetDistanceSqToQuest", q },
+		{ "C_QuestLog.GetQuestsOnMap", mapID or 0 }, { "C_QuestLog.GetZoneStoryInfo", mapID or 0 }, { "C_QuestLog.GetSelectedQuest" },
+		{ "C_QuestLog.GetQuestLogPortraitGiver" }, { "C_QuestLog.GetRequiredMoney", q }, { "C_QuestLog.GetQuestType", q },
+		{ "GetQuestLogQuestText", logIndex or 1 }, { "GetQuestLogLeaderBoard", 1, logIndex or 1 }, { "GetQuestDifficultyColor", 15 },
+		{ "GetNumQuestLogChoices", q }, { "GetQuestLogChoiceInfo", 1 }, { "GetNumQuestLogRewards", q }, { "GetQuestLogRewardInfo", 1, q },
+		{ "GetQuestLogRewardMoney", q }, { "GetQuestLogRewardXP", q }, { "GetQuestLogItemLink", "choice", 1 },
+		{ "C_Map.CanSetUserWaypointOnMap", mapID or 0 }, { "C_Map.HasUserWaypoint" }, { "C_Map.GetMapInfo", mapID or 0 },
+		{ "C_SuperTrack.GetSuperTrackedQuestID" }, { "C_SuperTrack.IsSuperTrackingAnything" },
+		{ "GetInstanceInfo" }, { "IsInInstance" }, { "GetQuestGreenRange" }, { "UnitQuestTrivialLevelRange", "player" },
+		{ "C_AddOns.GetNumAddOns" }, { "C_TradeSkillUI.GetAllProfessionTradeSkillLines" },
+	}
+	for _, c in ipairs(calls) do
+		out[c[1] .. "(" .. tostring(c[2] or "") .. ")"] = try(g(c[1]), select(2, unpack(c)))
+	end
+	-- Which of these globals exist (type only): the quest window's text, linking, hooking.
+	local kinds = {}
+	for _, name in ipairs({ "GetQuestText", "GetObjectiveText", "GetRewardText", "GetProgressText", "GetNumQuestChoices", "GetQuestItemLink",
+		"GetQuestItemInfo", "GetQuestID", "QuestInfo_Display", "QuestMapFrame_ShowQuestDetails", "QuestLog_Update", "QuestLog_SetSelection",
+		"ChatEdit_InsertLink", "ChatEdit_GetActiveWindow", "HandleModifiedItemClick", "hooksecurefunc", "TooltipDataProcessor",
+		"CombatLogGetCurrentEventInfo", "InCombatLockdown", "GameTooltip_AddQuestRewardsToTooltip", "PawnVersion", "Questie",
+		"QuestieLoader", "ElvUI", "Bagnon", "AdiBags", "Baganator" }) do
+		kinds[name] = type(rawget(_G, name))
+	end
+	out.globals = kinds
+	local TDP = rawget(_G, "TooltipDataProcessor")
+	out["TooltipDataProcessor fns"] = fnList(TDP)
+	out["Enum.TooltipDataType"] = Enum and describe(Enum.TooltipDataType) or "missing"
+	local tip = rawget(_G, "GameTooltip")
+	if tip and tip.HasScript then
+		local ok, has = pcall(tip.HasScript, tip, "OnTooltipSetItem")
+		out["GameTooltip:HasScript(OnTooltipSetItem)"] = describe(ok and has)
+	end
+	-- The game windows of §2.1: whether each exists now (some load on demand), is shown, is protected.
+	local frames = {}
+	for _, name in ipairs({ "QuestFrame", "QuestFrameDetailPanel", "QuestInfoFrame", "QuestInfoDescriptionText", "QuestInfoObjectivesText",
+		"QuestInfoRewardsFrame", "QuestLogFrame", "QuestLogDetailFrame", "QuestLogDetailScrollFrame", "QuestLogPopupDetailFrame",
+		"QuestMapFrame", "QuestMapDetailsScrollFrame", "WorldMapFrame", "ObjectiveTrackerFrame", "QuestWatchFrame",
+		"CharacterFrame", "PaperDollFrame", "CharacterHeadSlot", "CharacterMainHandSlot", "PlayerSpellsFrame", "ClassTalentFrame",
+		"PlayerTalentFrame", "SpellBookFrame", "ClassTrainerFrame", "MerchantFrame", "GroupLootFrame1", "ProfessionsFrame",
+		"TradeSkillFrame", "ContainerFrame1", "ContainerFrameCombinedBags", "GameTooltip", "ItemRefTooltip", "ShoppingTooltip1",
+		"Minimap", "MinimapCluster", "ChatFrame1EditBox" }) do
+		local f = rawget(_G, name)
+		if type(f) ~= "table" then
+			frames[name] = "nil"
+		else
+			local bits = {}
+			if f.GetObjectType then local ok, t = pcall(f.GetObjectType, f); bits[#bits + 1] = ok and tostring(t) or "?" end
+			if f.IsShown then local ok, s = pcall(f.IsShown, f); bits[#bits + 1] = (ok and s) and "shown" or "hidden" end
+			if f.IsProtected then local ok, p = pcall(f.IsProtected, f); if ok and p then bits[#bits + 1] = "protected" end end
+			frames[name] = table.concat(bits, ",")
+		end
+	end
+	out.frames = frames
+	-- The load-on-demand UIs those windows live in.
+	local AO = rawget(_G, "C_AddOns")
+	local lod = {}
+	for _, name in ipairs({ "Blizzard_TrainerUI", "Blizzard_PlayerSpells", "Blizzard_ClassTalentUI", "Blizzard_TalentUI", "Blizzard_Professions",
+		"Blizzard_TradeSkillUI", "Blizzard_QuestLog", "Blizzard_WorldMap", "Blizzard_ObjectiveTracker" }) do
+		local ok, loaded = pcall(AO and AO.IsAddOnLoaded or IsAddOnLoaded, name)
+		lod[name] = ok and tostring(loaded) or "?"
+	end
+	out.lodUI = lod
+	-- Other addons that are loaded, by folder name only, to plan around their decorations (Questie, Pawn, bags).
+	local loaded = {}
+	if AO and AO.GetNumAddOns and AO.GetAddOnInfo and AO.IsAddOnLoaded then
+		local ok, n = pcall(AO.GetNumAddOns)
+		for i = 1, (ok and tonumber(n) or 0) do
+			local ok2, name = pcall(AO.GetAddOnInfo, i)
+			local ok3, on = pcall(AO.IsAddOnLoaded, i)
+			if ok2 and ok3 and on and type(name) == "string" and not name:find("^Spellmind_S") and not name:find("^NeverQuestAlone_S") then
+				loaded[#loaded + 1] = name
+			end
+			if #loaded >= 80 then break end
+		end
+	end
+	table.sort(loaded)
+	out.addons = table.concat(loaded, ",")
+	-- Pawn's public functions, if Pawn is there (its API is what we may use; its files aren't read).
+	local pawn = {}
+	for name, v in pairs(_G) do
+		if type(name) == "string" and type(v) == "function" and name:find("^Pawn") then pawn[#pawn + 1] = name end
+	end
+	table.sort(pawn)
+	for i = #pawn, 61, -1 do pawn[i] = nil end
+	out["Pawn fns"] = table.concat(pawn, ",")
+end
+
 function ns.Probe()
 	local link5 = GetInventoryItemLink and GetInventoryItemLink("player", 5)
 	local link16 = GetInventoryItemLink and GetInventoryItemLink("player", 16)
@@ -134,6 +257,7 @@ function ns.Probe()
 	out["C_Spell.GetSpellSubtext(1752)"] = try(g("C_Spell.GetSpellSubtext"), 1752) -- Sinister Strike (rank 1)
 	out["C_Spell.GetSpellName(1752)"] = try(g("C_Spell.GetSpellName"), 1752)
 	out["IsPlayerSpell(1752)"] = try(g("IsPlayerSpell"), 1752)
+	ns.ProbeRound4(out, try, g)
 	ns.db.probe = out
 	local n = 0
 	for _ in pairs(out) do n = n + 1 end

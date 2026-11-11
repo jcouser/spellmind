@@ -313,6 +313,11 @@ test('/sm probe: every client function tried safely, the results saved in Spellm
   assert.ok(vm.chatLines().some(l => /probed \d+ client functions/.test(l)));
   assert.equal(vm.evaluate('type(SpellmindDB.probe)'), 'table');
   assert.equal(vm.evaluate('type(SpellmindDB.probe["UnitClass(player)"])'), 'table');
+  // Round 4 (features.md §5): the quest calls, the game windows and the loaded addons, by name only.
+  assert.equal(vm.evaluate('type(SpellmindDB.probe.frames)'), 'table');
+  assert.equal(vm.evaluate('type(SpellmindDB.probe.globals)'), 'table');
+  assert.equal(vm.evaluate('type(SpellmindDB.probe["fns:C_QuestLog"])'), 'string');
+  assert.equal(vm.evaluate('type(SpellmindDB.probe["C_QuestLog.GetQuestObjectives(" .. tostring(SpellmindDB.probe["first quest id"]):gsub("^number:", "") .. ")"])'), 'table');
   assert.equal(stripRecords(vm).length, before, 'nothing sent');
 });
 

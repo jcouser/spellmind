@@ -3,7 +3,7 @@
 //
 //   node tools/spellmind.mjs install --wow "C:\Program Files (x86)\World of Warcraft\_forever_"
 //        the addon, its 200 slot addons and its doorbells, with WoW closed (saves the folder)
-//   node tools/spellmind.mjs start [--provider chatgpt] [--model <id>] [--effort low]
+//   node tools/spellmind.mjs start [--provider chatgpt] [--model <id>] [--effort high|medium|low]
 //        reads the game's strip, asks your AI, brings replies back; Ctrl+C stops it
 //   node tools/spellmind.mjs status
 //
@@ -62,7 +62,9 @@ switch (a._[0]) {
     const m = manifests.find(x => x.id === (a.provider || cfg.provider || 'chatgpt'));
     if (!m || m.custom) { console.error('Unknown AI.'); process.exit(2); }
     const model = a.model || cfg.model || m.models.default;
-    const effort = a.effort || cfg.effort || 'low';
+    // high by default: low and medium got game facts (which weapon master teaches Bows) wrong most
+    // of the time in a test on 2026-11-10; high got them right, at about 10 s an answer instead of 3.
+    const effort = a.effort || cfg.effort || 'high';
     const keystore = createKeyStore({ backend: 'os' });
     const egress = createEgress({ allowHosts: () => new Set(m.hosts), loopbackOk: true });
     const session = createSignIns({ keystore, fetch: egress.fetch }).for(m);
@@ -120,6 +122,6 @@ switch (a._[0]) {
     break;
   }
   default:
-    console.error('Commands: install --wow <folder> · start [--provider chatgpt] [--model id] [--effort low] · status');
+    console.error('Commands: install --wow <folder> · start [--provider chatgpt] [--model id] [--effort high|medium|low] · status');
     process.exit(2);
 }

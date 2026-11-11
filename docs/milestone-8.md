@@ -17,6 +17,7 @@ Nudges are small toasts by the minimap (`addon/Spellmind/Nudges.lua`), built fro
   - It's movable, and its place is saved.
 - **Never in combat:** a toast showing when a fight starts hides, and the queue goes on when the fight ends.
 - **Ask:** the question goes into the chat (shown as "Nudge: …"). Its answer opens in the card to the toast's left, because the minimap sits at the screen's right edge.
+- **Ask vs Dismiss:** Ask sends the question and keeps the nudge in the Nudges tab, tagged "asked". It doesn't toast again or count on the badge. Dismiss takes it out of the list.
 - **Once only:** a dismissed or asked nudge is kept as `SpellmindDB.nudges.seen[kind] = key`, where the key is its situation (for spells, the level and how many are due). It comes back only when that changes. Bags come back once they've been cleared (more than 6 free) and fill up again.
 - **Fading:** a toast fades after 20 seconds (a mouse over it holds it) but isn't dismissed: it keeps waiting.
 - **The Nudges tab** of the Advisor panel lists every waiting nudge (faded ones too) with Ask and Dismiss, and counts them on the tab.

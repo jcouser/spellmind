@@ -167,9 +167,20 @@ local function Queue()
 	return R.nudges
 end
 
--- The queue changed: the minimap badge, and the Advisor panel's Nudges tab.
+-- The ones still to see: not asked yet (an asked one stays in the list until dismissed, but doesn't
+-- toast again or count on the badge).
+local function Pending()
+	local out = {}
+	for _, n in ipairs(Queue()) do if not n.asked then out[#out + 1] = n end end
+	return out
+end
+
+-- The queue changed: the minimap badge, and the Advisor panel's Nudges tab. With nothing left to
+-- see, a faded toast's state goes, so the next nudge toasts again.
 local function Changed()
-	if ns.MinimapButton and ns.MinimapButton.Dot then ns.MinimapButton.Dot(#Queue()) end
+	local pending = #Pending()
+	if pending == 0 then R.nudgeFaded = nil end
+	if ns.MinimapButton and ns.MinimapButton.Dot then ns.MinimapButton.Dot(pending) end
 	if ns.Panel and ns.Panel.NudgesChanged then ns.Panel.NudgesChanged() end
 end
 
@@ -207,25 +218,24 @@ local function InCombat()
 	return type(InCombatLockdown) == "function" and InCombatLockdown() and true or false
 end
 
--- The first waiting nudge on show, unless one is showing or in combat.
+-- The first nudge still to see on show, unless one is showing, it faded, or in combat.
 function N.Next()
 	Changed()
 	if not N.On() or InCombat() or R.nudgeGap or R.nudgeFaded then return end
 	local f = N.Build()
-	if f:IsShown() then
+	local pending = Pending()
+	if f:IsShown() and f.nudge then
 		-- One is showing: only its count of the ones waiting behind it changes.
-		local left = #Queue() - 1
-		f.count:SetText(left > 0 and ("+" .. left .. " more") or "")
+		f.count:SetText(#pending > 1 and ("+" .. (#pending - 1) .. " more") or "")
 		return
 	end
-	local n = Queue()[1]
+	local n = pending[1]
 	if not n then return end
 	f.nudge = n
 	f.icon:SetTexture(n.icon)
 	f.title:SetText(n.title)
 	f.text:SetText(n.text or "")
-	local left = #Queue() - 1
-	f.count:SetText(left > 0 and ("+" .. left .. " more") or "")
+	f.count:SetText(#pending > 1 and ("+" .. (#pending - 1) .. " more") or "")
 	f:SetAlpha(1)
 	f:Show()
 	N.ArmFade()
@@ -266,17 +276,17 @@ function N.Bring()
 	N.Next()
 end
 
--- What waits, for the minimap button's tooltip.
+-- What's still to see, for the minimap button's tooltip.
 function N.Waiting()
 	local out = {}
-	for _, n in ipairs(Queue()) do out[#out + 1] = n.title end
+	for _, n in ipairs(Pending()) do out[#out + 1] = n.title end
 	return out
 end
 
--- Every waiting nudge (the Advisor panel's Nudges tab): { kind, title, text, icon }.
+-- Every nudge in the list (the Advisor panel's Nudges tab), asked ones too: { kind, title, text, icon, asked }.
 function N.List()
 	local out = {}
-	for _, n in ipairs(Queue()) do out[#out + 1] = { kind = n.kind, title = n.title, text = n.text, icon = n.icon } end
+	for _, n in ipairs(Queue()) do out[#out + 1] = { kind = n.kind, title = n.title, text = n.text, icon = n.icon, asked = n.asked } end
 	return out
 end
 
@@ -284,48 +294,50 @@ local function Find(kind)
 	for i, n in ipairs(Queue()) do if n.kind == kind then return i, n end end
 end
 
--- Done with one from the list, wherever it is in the queue (the toast moves on if it was showing it).
-function N.DoneKind(kind)
-	local i, n = Find(kind)
-	if not i then return nil end
-	if toast and toast.nudge == n then N.Done() return n end
-	Saved().seen[n.kind] = n.key
-	table.remove(Queue(), i)
-	N.Next()
-	Changed()
-	return n
-end
-
--- Asked from the list: its answer in the card beside anchor (the panel).
-function N.AskKind(kind, anchor)
-	local _, n = Find(kind)
-	if not n then return end
-	N.DoneKind(kind)
-	if ns.Marks then ns.Marks.Ask(anchor, "Nudge: " .. n.title, n.ask) end
-end
-
--- Done with the showing one (asked or dismissed): it won't come back for this situation.
-function N.Done()
+-- The toast off (asked or dismissed from it or the list), and the next after a short gap.
+local function ToastOff(n)
 	local f = toast
-	if not f or not f.nudge then return end
-	local n = f.nudge
-	Saved().seen[n.kind] = n.key
-	table.remove(Queue(), 1)
+	if not f or f.nudge ~= n then return end
 	f.nudge = nil
 	f:Hide()
 	R.nudgeGap = true
 	C_Timer.After(N.GAP, function() R.nudgeGap = nil; N.Next() end)
-	Changed()
+end
+
+-- Dismissed (from the toast or the list): out of the list, and not back for this situation.
+function N.DoneKind(kind)
+	local i, n = Find(kind)
+	if not i then return nil end
+	Saved().seen[n.kind] = n.key
+	table.remove(Queue(), i)
+	ToastOff(n)
+	N.Next()
+	return n
+end
+
+-- Asked (from the toast or the list): its question sent, its answer in the card beside anchor. It
+-- stays in the list, marked asked, until it's dismissed; it doesn't toast again.
+function N.AskKind(kind, anchor, opts)
+	local _, n = Find(kind)
+	if not n then return end
+	n.asked = true
+	Saved().seen[n.kind] = n.key
+	ToastOff(n)
+	N.Next()
+	if ns.Marks then ns.Marks.Ask(anchor, "Nudge: " .. n.title, n.ask, opts) end
+end
+
+-- The toast's own buttons.
+function N.Done()
+	local f = toast
+	if f and f.nudge then N.DoneKind(f.nudge.kind) end
 end
 
 function N.Ask()
 	local f = toast
-	if not f or not f.nudge then return end
-	local n = f.nudge
-	local anchor = f
-	N.Done()
-	if ns.Marks then ns.Marks.Ask(anchor, "Nudge: " .. n.title, n.ask, { side = "left" }) end
+	if f and f.nudge then N.AskKind(f.nudge.kind, f, { side = "left" }) end
 end
+
 
 ---------------------------------------------------------------------------
 -- The toast
@@ -414,7 +426,9 @@ function N.Demo()
 	table.insert(Queue(), { kind = "demo:" .. R.demoN, key = "demo", icon = N.ICONS.spells,
 		title = "A sample nudge", text = "Real ones come from your character: spells, talents, bags, gear, quests.",
 		ask = "What kinds of nudges can Spellmind give me, and when do they show?" })
-	R.nudgeGap = nil
+	-- Something new, like any new nudge: it toasts even after an earlier one faded (seen in game: it
+	-- only joined the list).
+	R.nudgeGap, R.nudgeFaded = nil, nil
 	N.Next()
 end
 

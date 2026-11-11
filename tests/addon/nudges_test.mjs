@@ -179,9 +179,23 @@ test('the Advisor panel\'s Nudges tab: every waiting one (faded too) with Ask an
   vm.run('SpellmindPanel.rows[2].actions[1].scripts.OnClick(SpellmindPanel.rows[2].actions[1])'); // Ask the spells one
   assert.equal(vm.evaluate('SpellmindCard.title:GetText()'), 'Nudge: A spell to train');
   assert.equal(vm.evaluate('tostring(SpellmindCard.anchor.rel == SpellmindPanel)'), 'true', 'beside the panel');
-  assert.equal(vm.evaluate('SpellmindPanel.tabs[7].text:GetText()'), 'Nudges');
-  assert.ok(list(vm, 'SpellmindPanel.drawn').some(x => /Nothing waiting/.test(x.text || '')));
+  // Asked isn't dismissed (seen in game: Ask removed it): it stays, tagged, off the badge's count.
+  const after = list(vm, 'SpellmindPanel.drawn').filter(x => x.kind === 'item');
+  assert.equal(after.length, 1, 'still in the list');
+  assert.equal(after[0].tag, 'asked');
+  assert.equal(vm.evaluate('SpellmindPanel.tabs[7].text:GetText()'), 'Nudges', 'nothing left to see');
   assert.equal(vm.evaluate('tostring(SpellmindMinimapDot.shown)'), 'false');
+  vm.advance(4);
+  assert.ok(!shown(vm), 'an asked one doesn\'t toast again');
+  // Dismissing the last one: "Nothing waiting", with no buttons left over on that row (seen in game).
+  vm.run('SpellmindPanel.rows[2].actions[2].scripts.OnClick(SpellmindPanel.rows[2].actions[2])');
+  assert.ok(list(vm, 'SpellmindPanel.drawn').some(x => /Nothing waiting/.test(x.text || '')));
+  assert.equal(vm.evaluate('tostring(SpellmindPanel.rows[2].actions[1].shown)'), 'false');
+  assert.equal(vm.evaluate('tostring(SpellmindPanel.rows[2].actions[2].shown)'), 'false');
+  // Then a demo toasts again, though the last toast faded (seen in game: it only joined the list).
+  vm.slash('nudges demo');
+  assert.ok(shown(vm));
+  assert.equal(title(vm), 'A sample nudge');
 });
 
 test('the badge: red, with how many wait on it', () => {

@@ -125,6 +125,9 @@ local function Draw(f, specs)
 		r:SetPoint("TOPLEFT", f.content, "TOPLEFT", 0, y)
 		r:SetWidth(w)
 		r.icon:SetShown(s.kind == "item" and s.icon ~= nil)
+		-- A reused row keeps no buttons of its last life (seen in game: "Nothing waiting" with Ask and
+		-- Dismiss over it).
+		for _, a in ipairs(r.actions or {}) do a:Hide() end
 		r.tag:Hide()
 		r.rule:SetShown(s.kind == "head")
 		r.right:SetText("")
@@ -401,6 +404,7 @@ function Tabs.nudges()
 	for _, n in ipairs(list) do
 		local kind = n.kind
 		out[#out + 1] = { kind = "item", icon = n.icon, left = n.title .. (n.text and n.text ~= "" and ("  |cff888888" .. n.text .. "|r") or ""),
+			tag = n.asked and { "asked", 0.4, 0.85, 0.4 } or nil,
 			actions = {
 				{ "Ask", function() ns.Nudges.AskKind(kind, panel) end },
 				{ "Dismiss", function() ns.Nudges.DoneKind(kind) end },
@@ -604,7 +608,7 @@ end
 function P.CountNudges()
 	local f = panel
 	if not f then return end
-	local n = ns.Nudges and #ns.Nudges.List() or 0
+	local n = ns.Nudges and #ns.Nudges.Waiting() or 0 -- still to see (asked ones stay listed, uncounted)
 	for _, b in ipairs(f.tabs) do
 		if b.id == "nudges" then b.text:SetText(n > 0 and ("Nudges |cffffd100(" .. n .. ")|r") or "Nudges") end
 	end

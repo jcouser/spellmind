@@ -525,6 +525,13 @@ SlashCmdList.SPELLMIND = function(msg)
 		ChatFrame(nd == "off" and "Spellmind: nudges are off. Type /sm nudges on to have them again." or "Spellmind: nudges are on.")
 		return
 	end
+	-- /sm nudges reset: the dismissed ones forgotten, so whatever applies now shows again.
+	if nd == "reset" and ns.db and ns.Nudges then
+		local n = ns.Nudges.Reset()
+		ChatFrame(n > 0 and ("Spellmind: " .. n .. " nudge" .. (n > 1 and "s" or "") .. " to show.")
+			or "Spellmind: nothing to nudge about right now (no spells due, points to spend, broken gear, full bags or capped professions).")
+		return
+	end
 	-- /sm panel: the Advisor panel.
 	if lower == "panel" and ns.Panel and ns.db then
 		ns.Panel.Toggle()

@@ -321,6 +321,17 @@ end
 
 function N.Get() return toast end
 
+-- /sm nudges reset: every dismissed situation forgotten, and a look now. Returns how many wait.
+function N.Reset()
+	Saved().seen = {}
+	Saved().off = nil
+	R.nudges = {}
+	R.nudgeGap = nil
+	if toast then toast.nudge = nil; toast:Hide() end
+	N.Check()
+	return #Queue()
+end
+
 -- /sm nudges off and on.
 function N.SetOn(on)
 	Saved().off = not on or nil

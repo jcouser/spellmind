@@ -105,3 +105,14 @@ test('/sm nudges off: none, and the dot goes; on: they come back', () => {
   vm.slash('nudges on');
   assert.ok(shown(vm));
 });
+
+test('/sm nudges reset: dismissed ones show again, with a count in chat', () => {
+  const vm = session();
+  vm.run('SpellmindNudge.dismiss.scripts.OnClick(SpellmindNudge.dismiss)');
+  vm.advance(4);
+  assert.ok(!shown(vm));
+  vm.slash('nudges reset');
+  assert.ok(shown(vm));
+  assert.equal(title(vm), 'A spell to train');
+  assert.ok(vm.chatLines().includes('Spellmind: 1 nudge to show.'), JSON.stringify(vm.chatLines()));
+});

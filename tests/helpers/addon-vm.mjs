@@ -54,6 +54,9 @@ function Methods.SetMaxBytes(self, n) self.maxBytes = n end
 function Methods.SetMovable(self, v) self.movable = v end
 function Methods.AddMessage(self, text) self.messages = self.messages or {}; table.insert(self.messages, tostring(text)) end
 function Methods.Clear(self) self.messages = {} end
+function Methods.SetVerticalScroll(self, v) self.vscroll = v end
+function Methods.GetVerticalScroll(self) return self.vscroll or 0 end
+function Methods.GetVerticalScrollRange(self) return self.range or 0 end
 function Methods.AddLine(self, text) self.added = self.added or {}; table.insert(self.added, tostring(text)) end
 function Methods.SetOwner(self, owner, anchor) self.owner = owner; self.added = {} end
 function Methods.GetItem(self) if self.item then return self.item:match("%[(.-)%]"), self.item end end

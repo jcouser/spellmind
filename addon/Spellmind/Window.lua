@@ -230,10 +230,13 @@ local function TextWidth(fs)
 end
 
 -- Every row laid out again (after a new message, a resize or a /reload).
-function W.Layout()
+function W.Layout(stick)
 	local f = win
 	if not f or not ns.db then return end
 	local msgs = ns.Chat.Msgs()
+	-- Where the player is before the rows change: at the bottom (within a few pixels) or reading.
+	local range0 = tonumber(f.scroll:GetVerticalScrollRange()) or 0
+	local atBottom = (tonumber(f.scroll:GetVerticalScroll()) or 0) >= range0 - 12
 	local listW = math.max(200, (tonumber(f.scroll:GetWidth()) or (W.DEF_W - 24)) - 4)
 	local maxText = math.floor(listW * W.BUBBLE) - 2 * W.PAD
 	f.content:SetWidth(listW)
@@ -322,9 +325,22 @@ function W.Layout()
 		y = y - 22 - W.GAP
 	end
 	f.content:SetHeight(math.max(10, -y))
-	-- The newest at the bottom, in view.
-	local range = tonumber(f.scroll:GetVerticalScrollRange()) or 0
-	f.scroll:SetVerticalScroll(range)
+	-- The newest at the bottom, in view: when the player was at the bottom already, or just asked
+	-- (stick); left alone when they scrolled up to read. The scroll range only catches up with the
+	-- new height on the next frame (seen in game: it stopped one reply short), so again then.
+	if stick or atBottom then W.ScrollToEnd() end
+end
+
+function W.ScrollToEnd()
+	local f = win
+	if not f then return end
+	local function go()
+		if f.scroll.UpdateScrollChildRect then f.scroll:UpdateScrollChildRect() end
+		f.scroll:SetVerticalScroll(tonumber(f.scroll:GetVerticalScrollRange()) or 0)
+	end
+	go()
+	W.scrolls = (W.scrolls or 0) + 1
+	if C_Timer and C_Timer.After then C_Timer.After(0, go) end
 end
 
 ---------------------------------------------------------------------------

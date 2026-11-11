@@ -238,3 +238,23 @@ test('after a break of 4 hours the next question starts a new chat; Chats keeps 
   vm.run('NS.R.pending = {}; NS.Chat.NewChat()');
   assert.equal(vm.num('#NS.Chat.List()'), 10);
 });
+
+test('scrolling: a new message scrolls to the end, again a frame later (when the range has caught up); scrolled up to read, it stays put', () => {
+  const vm = newVM().login().advance(3.1);
+  vm.slash('');
+  const sc = 'SpellmindWindow.scroll';
+  vm.run(`${sc}.range = 500; ${sc}.vscroll = 500`); // at the bottom
+  vm.run('NS.Chat.System("a new line")');
+  vm.run(`${sc}.range = 800`); // the next frame: the range has grown
+  vm.advance(0.1);
+  assert.equal(vm.num(`${sc}.vscroll`), 800, 'followed to the new end');
+  vm.run(`${sc}.vscroll = 100`); // scrolled up to read
+  vm.run('NS.Chat.System("another")');
+  vm.run(`${sc}.range = 900`);
+  vm.advance(0.1);
+  assert.equal(vm.num(`${sc}.vscroll`), 100, 'left where the player is reading');
+  vm.run('SpellmindWindow.input:SetText("my question"); SpellmindWindow.input.scripts.OnEnterPressed(SpellmindWindow.input)');
+  vm.run(`${sc}.range = 1000`);
+  vm.advance(0.1);
+  assert.equal(vm.num(`${sc}.vscroll`), 1000, 'asking brings it to the end');
+});

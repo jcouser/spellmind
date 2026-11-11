@@ -108,7 +108,7 @@ function C.Toggle()
 	else
 		f:Show()
 		C.Refresh()
-		ns.Window.Layout()
+		ns.Window.Layout(true)
 		f.input:SetFocus()
 	end
 end
@@ -206,7 +206,7 @@ function C.NewChat()
 	Entry(db.chat)
 	R.ask = nil
 	Prune()
-	if ns.Window.Get() then ns.Window.Layout() end
+	if ns.Window.Get() then ns.Window.Layout(true) end
 	C.Refresh()
 	return db.chat
 end
@@ -215,7 +215,7 @@ function C.SwitchChat(id)
 	if not C.Known(id) then return end
 	ns.db.chat = id
 	R.ask = nil
-	if ns.Window.Get() then ns.Window.Layout() end
+	if ns.Window.Get() then ns.Window.Layout(true) end
 	C.Refresh()
 end
 
@@ -252,7 +252,7 @@ local function AddMsg(who, text, chips, chatId)
 	while #e.msgs > C.MSGS_MAX do table.remove(e.msgs, 1) end
 	e.at = time()
 	if who == "you" and not e.title then e.title = C.Title(text) end
-	if id == ns.db.chat and ns.Window.Get() then ns.Window.Layout() end
+	if id == ns.db.chat and ns.Window.Get() then ns.Window.Layout(who == "you") end
 end
 
 local function ChatFrame(text)
@@ -286,7 +286,7 @@ function C.Open(text)
 	if not f:IsShown() then f:Show() end
 	if text then f.input:SetText(text) end
 	f.input:SetFocus()
-	ns.Window.Layout()
+	ns.Window.Layout(true)
 	C.Refresh()
 end
 

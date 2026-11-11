@@ -7,7 +7,8 @@ The style is **flat and minimal**: three or four solid colours (dark indigo `#1a
 | Source (1024 px) | In game | Used for |
 |---|---|---|
 | `source/logo.png`: an open book with the teal flame sigil and a gold star above it | `addon/Spellmind/Media/Spellmind.tga`, 64×64 | the addon list icon (TOC `IconTexture`, also the slot addons'), the minimap button |
-| `source/portrait.png`: the arcane owl, with the sigil on its brow | `Media/Portrait.tga`, 128×128, cut to a circle | the chat window's header |
+| `source/portrait.png`: the hooded sage, glowing teal eyes and a gold star clasp, in a teal ring | `Media/Portrait.tga`, 128×128, cut to a circle | the chat window's header and the answer card |
+| `source/portrait-owl.png`: the arcane owl, the earlier choice | (not in game) | kept to switch back: remake Portrait.tga from it with the command below |
 | `source/mark.png`: the sigil alone | `Media/Mark.tga`, 32×32, its background made transparent, with a dark outline so it reads on parchment | the Spellmind mark on the game's windows (features.md §2.1) |
 
 The textures are uncompressed 32-bit TGA with power-of-two sides, which the game loads. Remake them from the sources with ImageMagick, from this folder:

@@ -104,7 +104,7 @@ function M.Explain(b)
 		return nil
 	end
 	ns.State.SetFocus(req.focus)
-	local key = ns.Chat.Send(req.text, { about = req.about, shown = req.label, card = true })
+	local key = ns.Chat.PendingKey(req.text, req.about) or ns.Chat.Send(req.text, { about = req.about, shown = req.label, card = true })
 	if not key then return nil end
 	M.ShowCard(b, req, key)
 	return key
@@ -249,7 +249,7 @@ end
 -- A question from a button (the Advisor panel's Ask buttons): sent like a typed one, shown in the
 -- window as label, its answer in the card beside anchor (which also owns it).
 function M.Ask(anchor, label, text, opts)
-	local key = ns.Chat.Send(text, { shown = label, card = true })
+	local key = ns.Chat.PendingKey(text, nil) or ns.Chat.Send(text, { shown = label, card = true })
 	if not key then return nil end
 	-- A nudge's toast hides as it's asked, so it can't own the card: the card stays until closed.
 	local owner = opts and opts.side == "left" and UIParent or anchor

@@ -359,6 +359,20 @@ function C.Waiting()
 	return Pending()[1]
 end
 
+-- The key of the same question (text and about) still waiting for its answer in the current chat,
+-- or nil. A button pressed again while its question waits (the app not running, seen in game: one
+-- Ask a click, each answered later) reuses it instead of queueing a copy.
+function C.PendingKey(text, about)
+	text = ns.Trim(tostring(text or ""))
+	for _, p in ipairs(Pending()) do
+		if p.text == text and p.about == about and p.chat == (ns.db and ns.db.chat) then
+			p.card = true
+			return p.key
+		end
+	end
+	return nil
+end
+
 -- Ask Spellmind. Returns the record's key, or nil, a reason and (for a key-shaped text) "key".
 -- opts (Marks.lua): about = what was clicked ("quest:1338"; the app gives the turn its focus part),
 -- shown = the window's line instead of the text, card = the answer also goes to the answer card.
@@ -405,7 +419,7 @@ function C.Send(text, opts)
 	if search ~= nil then args[#args + 1] = { "search", search and 1 or 0 } end
 	local key = ns.Link.NewKeyed("msg", db.chat, args, ns.CleanField(text))
 	if not key then return nil, "Not ready yet: try again in a moment." end
-	table.insert(Pending(), { key = key, t = time(), card = opts.card and true or nil, chat = db.chat })
+	table.insert(Pending(), { key = key, t = time(), card = opts.card and true or nil, chat = db.chat, text = text, about = about })
 	-- opts.shown is escaped already (a card's label, or the box's text with its links coloured).
 	local shown = opts.shown or ns.Escape(text)
 	AddText(YOU, shown)

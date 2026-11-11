@@ -214,3 +214,12 @@ test('Ask with no app running: the card says the app isn\'t running (not "Thinki
   assert.match(card[0], /The Spellmind app isn't running/);
   assert.ok(!card.some(l => /Thinking/.test(l)));
 });
+
+test('asking the same thing again while it waits reuses that question: one copy queued, one answer for the card', () => {
+  const vm = session(); // no app: the question waits
+  vm.run('SpellmindNudge.ask.scripts.OnClick(SpellmindNudge.ask)');
+  vm.run('NS.Panel.Show("nudges")');
+  vm.run('SpellmindPanel.rows[2].actions[1].scripts.OnClick(SpellmindPanel.rows[2].actions[1])'); // Ask again, from the list
+  assert.equal(vm.outbox().filter(o => /I can train/.test(o.wire)).length, 1, 'one copy queued');
+  assert.equal(vm.savedLines().filter(l => /Nudge: A spell to train/.test(l)).length, 1, 'one question in the chat');
+});

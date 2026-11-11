@@ -21,6 +21,7 @@ P.TABS = {
 	{ id = "spells", name = "Spells", icon = "Interface\\Icons\\Spell_Holy_MagicalSentry" },
 	{ id = "professions", name = "Professions", icon = "Interface\\Icons\\Trade_BlackSmithing" },
 	{ id = "gold", name = "Gold", icon = "Interface\\Icons\\INV_Misc_Coin_01" },
+	{ id = "nudges", name = "Nudges", icon = "Interface\\AddOns\\Spellmind\\Media\\Badge" },
 }
 -- Each tab's two Ask buttons: { label, the question }.
 P.ASKS = {
@@ -176,6 +177,32 @@ local function Draw(f, specs)
 				r.mark:SetPoint("RIGHT", r, "RIGHT", -4, 0)
 				r.mark:Show()
 				rightEdge = -28
+			end
+			-- Buttons of the row's own (a nudge's Ask and Dismiss), at the right.
+			r.actions = r.actions or {}
+			for _, a in ipairs(r.actions) do a:Hide() end
+			for k = #(s.actions or {}), 1, -1 do
+				local spec = s.actions[k]
+				local a = r.actions[k]
+				if not a then
+					a = CreateFrame("Button", nil, r, "BackdropTemplate")
+					a:SetSize(58, 18)
+					if a.SetBackdrop then
+						a:SetBackdrop(BACKDROP)
+						a:SetBackdropColor(0.08, 0.06, 0.16, 0.95)
+						a:SetBackdropBorderColor(0.58, 0.45, 0.98, 1)
+					end
+					a.text = a:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+					a.text:SetPoint("CENTER", a, "CENTER", 0, 0)
+					a:SetScript("OnClick", function(self) if self.fn then self.fn() end end)
+					r.actions[k] = a
+				end
+				a.text:SetText(spec[1])
+				a.fn = spec[2]
+				a:ClearAllPoints()
+				a:SetPoint("RIGHT", r, "RIGHT", rightEdge, 0)
+				a:Show()
+				rightEdge = rightEdge - 64
 			end
 			if s.tag then
 				r.tag.text:SetText(s.tag[1])
@@ -367,6 +394,22 @@ function Tabs.professions()
 	return out
 end
 
+-- Nudges: every one waiting (faded or behind the toast), each with Ask and Dismiss.
+function Tabs.nudges()
+	local out = { { kind = "head", text = "Waiting" } }
+	local list = ns.Nudges and ns.Nudges.List() or {}
+	for _, n in ipairs(list) do
+		local kind = n.kind
+		out[#out + 1] = { kind = "item", icon = n.icon, left = n.title .. (n.text and n.text ~= "" and ("  |cff888888" .. n.text .. "|r") or ""),
+			actions = {
+				{ "Ask", function() ns.Nudges.AskKind(kind, panel) end },
+				{ "Dismiss", function() ns.Nudges.DoneKind(kind) end },
+			} }
+	end
+	if #list == 0 then out[#out + 1] = { kind = "text", text = "Nothing waiting. Nudges show by the minimap when something comes up." } end
+	return out
+end
+
 function Tabs.gold()
 	local c = Part("char")
 	local b = Part("bags")
@@ -543,6 +586,7 @@ function P.Show(id)
 		end
 	end
 	f.who:SetText(P.Who())
+	P.CountNudges()
 	f.content:SetWidth(P.W - P.RAIL_W - 24)
 	local ok, specs = pcall(Tabs[id])
 	Draw(f, ok and specs or { { kind = "text", text = "|cffff6060This tab couldn't read your character just now.|r" } })
@@ -554,6 +598,21 @@ function P.Show(id)
 	end
 	if not f:IsShown() then f:Show() end
 	return f
+end
+
+-- The Nudges tab's label with its count, and the tab redrawn when it's the one showing.
+function P.CountNudges()
+	local f = panel
+	if not f then return end
+	local n = ns.Nudges and #ns.Nudges.List() or 0
+	for _, b in ipairs(f.tabs) do
+		if b.id == "nudges" then b.text:SetText(n > 0 and ("Nudges |cffffd100(" .. n .. ")|r") or "Nudges") end
+	end
+end
+
+function P.NudgesChanged()
+	P.CountNudges()
+	if panel and panel:IsShown() and P.tab == "nudges" then P.Show("nudges") end
 end
 
 function P.Toggle()

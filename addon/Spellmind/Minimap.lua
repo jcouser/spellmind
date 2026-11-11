@@ -83,7 +83,7 @@ function MB.Create()
 		local waiting = ns.Nudges and ns.Nudges.Waiting() or {}
 		if #waiting > 0 then
 			GameTooltip:AddLine(" ")
-			GameTooltip:AddLine("Waiting (click the gold dot):", 1, 0.82, 0)
+			GameTooltip:AddLine("Waiting (click the gold badge, or the Advisor's Nudges tab):", 1, 0.82, 0)
 			for _, t in ipairs(waiting) do GameTooltip:AddLine("  " .. t, 1, 1, 1) end
 		end
 		GameTooltip:Show()

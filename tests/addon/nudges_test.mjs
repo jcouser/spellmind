@@ -161,3 +161,25 @@ test('a new situation after a fade shows the toast again on its own', () => {
   assert.ok(shown(vm), 'something new');
   assert.equal(vm.evaluate('SpellmindNudge.count:GetText()'), '+1 more');
 });
+
+test('the Advisor panel\'s Nudges tab: every waiting one (faded too) with Ask and Dismiss; its count on the tab', () => {
+  const vm = session();
+  vm.run('for b = 0, 4 do STUB.bags[b].free = 0 end; STUB.FireEvent("BAG_UPDATE_DELAYED")');
+  vm.advance(3);
+  vm.advance(21); // the toast fades; both still wait
+  vm.run('NS.Panel.Show("nudges")');
+  const tab = vm.evaluate('SpellmindPanel.tabs[7].text:GetText()');
+  assert.equal(tab, 'Nudges |cffffd100(2)|r');
+  const rows = list(vm, 'SpellmindPanel.drawn').filter(x => x.kind === 'item').map(x => x.text);
+  assert.equal(rows.length, 2);
+  assert.match(rows[0], /^A spell to train/);
+  assert.match(rows[1], /^Bags nearly full/);
+  vm.run('SpellmindPanel.rows[3].actions[2].scripts.OnClick(SpellmindPanel.rows[3].actions[2])'); // Dismiss the bags one
+  assert.equal(vm.evaluate('SpellmindPanel.tabs[7].text:GetText()'), 'Nudges |cffffd100(1)|r', 'redrawn, counted');
+  vm.run('SpellmindPanel.rows[2].actions[1].scripts.OnClick(SpellmindPanel.rows[2].actions[1])'); // Ask the spells one
+  assert.equal(vm.evaluate('SpellmindCard.title:GetText()'), 'Nudge: A spell to train');
+  assert.equal(vm.evaluate('tostring(SpellmindCard.anchor.rel == SpellmindPanel)'), 'true', 'beside the panel');
+  assert.equal(vm.evaluate('SpellmindPanel.tabs[7].text:GetText()'), 'Nudges');
+  assert.ok(list(vm, 'SpellmindPanel.drawn').some(x => /Nothing waiting/.test(x.text || '')));
+  assert.equal(vm.evaluate('tostring(SpellmindMinimapDot.shown)'), 'false');
+});

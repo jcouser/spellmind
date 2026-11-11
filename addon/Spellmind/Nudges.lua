@@ -167,6 +167,12 @@ local function Queue()
 	return R.nudges
 end
 
+-- The queue changed: the minimap badge, and the Advisor panel's Nudges tab.
+local function Changed()
+	if ns.MinimapButton and ns.MinimapButton.Dot then ns.MinimapButton.Dot(#Queue() > 0) end
+	if ns.Panel and ns.Panel.NudgesChanged then ns.Panel.NudgesChanged() end
+end
+
 -- Every detector, in order; a new situation (kind with a key it hasn't shown) joins the queue.
 function N.Check()
 	if not N.On() then return end
@@ -203,7 +209,7 @@ end
 
 -- The first waiting nudge on show, unless one is showing or in combat.
 function N.Next()
-	if ns.MinimapButton and ns.MinimapButton.Dot then ns.MinimapButton.Dot(#Queue() > 0) end
+	Changed()
 	if not N.On() or InCombat() or R.nudgeGap or R.nudgeFaded then return end
 	local f = N.Build()
 	if f:IsShown() then
@@ -249,7 +255,7 @@ function N.Fade()
 		f:Hide()
 	end
 	f.nudge = nil
-	if ns.MinimapButton and ns.MinimapButton.Dot then ns.MinimapButton.Dot(#Queue() > 0) end
+	Changed()
 end
 
 -- The minimap button's dot, clicked: the waiting nudge back on show.
@@ -267,6 +273,37 @@ function N.Waiting()
 	return out
 end
 
+-- Every waiting nudge (the Advisor panel's Nudges tab): { kind, title, text, icon }.
+function N.List()
+	local out = {}
+	for _, n in ipairs(Queue()) do out[#out + 1] = { kind = n.kind, title = n.title, text = n.text, icon = n.icon } end
+	return out
+end
+
+local function Find(kind)
+	for i, n in ipairs(Queue()) do if n.kind == kind then return i, n end end
+end
+
+-- Done with one from the list, wherever it is in the queue (the toast moves on if it was showing it).
+function N.DoneKind(kind)
+	local i, n = Find(kind)
+	if not i then return nil end
+	if toast and toast.nudge == n then N.Done() return n end
+	Saved().seen[n.kind] = n.key
+	table.remove(Queue(), i)
+	N.Next()
+	Changed()
+	return n
+end
+
+-- Asked from the list: its answer in the card beside anchor (the panel).
+function N.AskKind(kind, anchor)
+	local _, n = Find(kind)
+	if not n then return end
+	N.DoneKind(kind)
+	if ns.Marks then ns.Marks.Ask(anchor, "Nudge: " .. n.title, n.ask) end
+end
+
 -- Done with the showing one (asked or dismissed): it won't come back for this situation.
 function N.Done()
 	local f = toast
@@ -278,7 +315,7 @@ function N.Done()
 	f:Hide()
 	R.nudgeGap = true
 	C_Timer.After(N.GAP, function() R.nudgeGap = nil; N.Next() end)
-	if ns.MinimapButton and ns.MinimapButton.Dot then ns.MinimapButton.Dot(#Queue() > 0) end
+	Changed()
 end
 
 function N.Ask()

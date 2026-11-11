@@ -20,7 +20,7 @@ test('opens from the minimap button\'s right-click and /sm panel; the header say
   assert.equal(vm.evaluate('tostring(SpellmindPanel.shown)'), 'false', '/sm panel toggles');
   vm.slash('panel');
   assert.equal(vm.evaluate('tostring(SpellmindPanel.shown)'), 'true');
-  assert.equal(vm.num('#SpellmindPanel.tabs'), 6);
+  assert.equal(vm.num('#SpellmindPanel.tabs'), 7, 'six, and Nudges');
 });
 
 test('Quests: ready to turn in, worth doing now, later (orange), each with its level, a hint and a Break it down mark', () => {

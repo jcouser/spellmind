@@ -148,7 +148,9 @@ test('LFG on a dungeon quest: the dungeon and its quests, who\'s asking, in the 
   const row = drawn(vm).find(x => /Old Ironforge Incursion/.test(x.text || ''));
   assert.ok(row);
   vm.run('NS.Panel.LFG(96393)');
-  assert.equal(vm.evaluate('STUB.openedChat'), '/4 LFG Ironforge: Gathering Idols, Old Ironforge Incursion. level 15 Rogue, DPS.');
+  assert.equal(vm.evaluate('STUB.openedChat'), '/4 LFG Ironforge DPS Rogue', 'short: the dungeon, the role, the class');
+  vm.run('NS.Panel.LFG(297)');
+  assert.equal(vm.evaluate('STUB.openedChat'), '/4 LFG Ironforge DPS Rogue', "any of the dungeon's quests: the same line");
   assert.ok(!vm.chatLines().some(l => /^LFG/.test(l)), 'nothing sent');
   vm.run('STUB.channels = {}; STUB.openedChat = nil; NS.Panel.LFG(96393)');
   assert.match(vm.evaluate('STUB.openedChat'), /^LFG Ironforge/, 'not in the channel: no channel number');
@@ -161,4 +163,11 @@ test('the LFG button: only on group, elite or dungeon quests that aren\'t done',
   const labels = vm.json('(function() local out = {} for _, r in ipairs(SpellmindPanel.rows) do if r:IsShown() and r.mark and r.mark.questID then local t = {} for _, a in ipairs(r.actions or {}) do if a:IsShown() then t[#t + 1] = a.text:GetText() end end out[tostring(r.mark.questID)] = table.concat(t, ",") end end return out end)()');
   assert.equal(labels['96393'], 'LFG,Go');
   assert.equal(labels['2038'], 'Go');
+});
+
+test('LFG on a group quest that isn\'t a dungeon: its own title; a leading "The" goes', () => {
+  const vm = session();
+  vm.run('STUB.quests[11].title = "The Mo\'grosh Problem"; C_QuestLog.IsEliteQuest = function(id) return id == 96393 end');
+  vm.run('NS.Panel.LFG(96393)');
+  assert.equal(vm.evaluate('STUB.openedChat'), "/4 LFG Mo'grosh Problem DPS Rogue");
 });

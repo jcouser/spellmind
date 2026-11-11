@@ -65,5 +65,5 @@ The "Next:" line and Plan my session stay optional (§3.1).
 
 - **XP:** each quest row's second line shows its XP reward (`GetQuestLogRewardXP`). Under "Ready to turn in", a line says what turning them all in does: "takes you from 43% to 78% of level 15", or "gets you to level 16" (only this level's XP is known, so "or further" past that).
 - **LFG**, on group, elite and dungeon quests that aren't done:
-  - It builds "LFG The Hall of Thanes: Important Heirlooms, The Restless Dead. level 15 Rogue, DPS." The dungeon's other quests in the log go with it, and the role comes from the talents part.
+  - It builds a short line, as players write them: "LFG Hall of Thanes DPS Rogue". Any of a dungeon's quests gives the dungeon (its log header); a group quest gives its own title. A leading "The" goes, and the role comes from the talents part. There's no quest list or level: the player found that too long.
   - It opens the game's chat box with the message, prefixed with the LookingForGroup channel's number when the player is in it. The player edits it and presses Enter; Spellmind never sends it.

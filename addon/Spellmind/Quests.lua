@@ -169,35 +169,24 @@ function Q.XpLine(total)
 		math.floor(after / max * 100), level, Q.Num(total))
 end
 
--- An LFG line for a group or dungeon quest, to put in the chat box: the dungeon (its log header) or
--- the quest, the group quests of that header with it, and who's asking ("level 15 Rogue, DPS"). The
+-- An LFG line, short, as players write them: "LFG Hall of Thanes DPS Rogue". The dungeon (its log
+-- header) for any of its quests, or the group quest's own title; the role from the talents part and
+-- the class. No quest list, no level (the player found the long form too much, 2026-11-11). The
 -- player edits and sends it; nothing is sent here.
-Q.ROLES = { DAMAGER = "DPS", TANK = "tank", HEALER = "healer" }
+Q.ROLES = { DAMAGER = "DPS", TANK = "Tank", HEALER = "Healer" }
 function Q.LFGText(id)
 	local q = Q.Read(id)
 	if not q then return nil end
 	local dungeon = q.tagName == "Dungeon" or q.tagName == "Raid"
-	local where = dungeon and q.header or q.title
-	local quests = {}
-	local QL = C_QuestLog
-	local n = Try(QL.GetNumQuestLogEntries) or 0
-	for i = 1, n do
-		local info = Try(QL.GetInfo, i)
-		if type(info) == "table" and not info.isHeader and info.questID and info.questID > 0 then
-			local other = info.questID == id and q or (dungeon and Q.Read(info.questID)) or nil
-			if other and (other.id == id or (other.header == q.header and (other.tagName == q.tagName))) and not other.complete then
-				quests[#quests + 1] = other.title
-			end
-		end
-	end
-	local level = tonumber(ns.Try(UnitLevel, "player"))
+	local where = tostring((dungeon and q.header) or q.title or "group"):gsub("^[Tt]he%s+", "")
 	local class = ns.Try(UnitClass, "player")
 	local t = ns.State and ns.State.Collect and ns.State.Collect.talents and select(2, pcall(ns.State.Collect.talents))
 	local role
 	for _, kv in ipairs(type(t) == "table" and t._o or {}) do if kv[1] == "role" then role = Q.ROLES[kv[2]] end end
-	local who = (level and ("level " .. level .. " ") or "") .. (type(class) == "string" and class or "") .. (role and (", " .. role) or "")
-	local text = "LFG " .. (where or "this quest") .. (dungeon and #quests > 0 and (": " .. table.concat(quests, ", ")) or "") .. ". " .. ns.Trim(who) .. "."
-	return ns.Utf8Cut(text, 250)
+	local bits = { "LFG", where }
+	if role then bits[#bits + 1] = role end
+	if type(class) == "string" and class ~= "" then bits[#bits + 1] = class end
+	return ns.Utf8Cut(table.concat(bits, " "), 250)
 end
 
 -- The line in the game's chat box, for the player to edit and send (Enter). The LookingForGroup

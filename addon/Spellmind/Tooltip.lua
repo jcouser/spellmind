@@ -1,7 +1,8 @@
 -- Tooltip.lua: one quiet line at the bottom of an item's tooltip (docs/features.md §2, docs/milestone-5.md),
 -- from local rules only (no AI, no cost):
 --
---   Spellmind: can't use: Bow                  the game shows a requirement in red (skill, level, class)
+--   Spellmind: no Bows skill yet: a weapon master may teach it    the game shows it in red
+--   Spellmind: needs level 20                  (a requirement in red: level, skill, armor, class)
 --   Spellmind: fills your empty Ranged slot
 --   Spellmind: +0.9 dps, +2 Agi vs your Craftsman's Dagger
 --
@@ -41,20 +42,42 @@ local function Red(c)
 	return type(r) == "number" and r > 0.9 and (g or 1) < 0.3 and (b or 1) < 0.3
 end
 
--- A red text of the game's own tooltip (a requirement the character doesn't meet), past the name:
--- either side of a line ("Ranged" white, "Bow" red on the right, for a rogue without Bows).
-function T.RedLine(data)
+-- The red texts of the game's own tooltip (requirements the character doesn't meet), past the name:
+-- either side of a line (a rogue without Bows sees "Ranged" and "Bow" both in red).
+function T.RedTexts(data)
+	local out = {}
 	for i, line in ipairs(type(data) == "table" and type(data.lines) == "table" and data.lines or {}) do
 		if i > 1 and type(line) == "table" then
 			for _, side in ipairs({ { line.leftColor, line.leftText }, { line.rightColor, line.rightText } }) do
 				if Red(side[1]) and type(side[2]) == "string" then
 					local text = ns.State.Text(side[2], 40)
-					if text then return text end
+					if text then out[#out + 1] = text end
 				end
 			end
 		end
 	end
-	return nil
+	return out
+end
+
+-- What the red texts mean, in a few words. A weapon type the character lacks is a skill a weapon
+-- master may teach: the game doesn't say which classes can learn which (and Forever differs from
+-- classic: its rogues learn Axes), so it says "may". classID 2 is a weapon, 4 armor.
+function T.Why(reds, classID, sub)
+	local bits, other = {}, nil
+	for _, t in ipairs(reds) do
+		local lvl = t:match("[Rr]equires [Ll]evel (%d+)")
+		if lvl then bits[#bits + 1] = "needs level " .. lvl elseif not other then other = t end
+	end
+	if other then
+		if classID == 2 and type(sub) == "string" and sub ~= "" then
+			bits[#bits + 1] = "no " .. sub .. " skill yet: a weapon master may teach it"
+		elseif classID == 4 and type(sub) == "string" and sub ~= "" then
+			bits[#bits + 1] = "can't wear " .. sub .. " yet"
+		else
+			bits[#bits + 1] = "can't use: " .. other
+		end
+	end
+	return table.concat(bits, "; ")
 end
 
 local function Fmt(key, v)
@@ -71,8 +94,12 @@ function T.Line(link, data)
 	local equipLoc = r[1] and r[10] or nil
 	local slots = type(equipLoc) == "string" and T.SLOTS[equipLoc]
 	if not slots then return nil end
-	local red = T.RedLine(data)
-	if red then return T.PREFIX .. "can't use: " .. ns.Escape(red) end
+	local reds = T.RedTexts(data)
+	if #reds > 0 then
+		-- GetItemInfo's 7th return is the sub-type ("Bows"), its 12th the class id.
+		local sub = ns.State.Text(r[8], 30)
+		return T.PREFIX .. ns.Escape(T.Why(reds, tonumber(r[13]), sub))
+	end
 	local id = tonumber(link:match("item:(%d+)"))
 	-- Worn already, in any of its slots: nothing to say.
 	for _, s in ipairs(slots) do

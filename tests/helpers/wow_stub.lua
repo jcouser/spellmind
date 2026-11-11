@@ -127,7 +127,7 @@ C_TooltipInfo = {
 				-- { left, right, red = "left" or "right" }: a requirement the character doesn't meet, in red.
 				local red, white = { r = 1, g = 0.125, b = 0.125 }, { r = 1, g = 1, b = 1 }
 				table.insert(data.lines, { leftText = l[1], rightText = l[2], type = 0,
-					leftColor = l.red == "left" and red or white, rightColor = l.red == "right" and red or white })
+					leftColor = (l.red == "left" or l.red == "both") and red or white, rightColor = (l.red == "right" or l.red == "both") and red or white })
 			else
 				table.insert(data.lines, { leftText = l, type = 0 })
 			end
@@ -650,6 +650,7 @@ STUB.items[5404] = { "Serpent's Shoulders", 2, 18, 13, "Armor", "Leather", 1, "I
 STUB.items[4936] = { "Dirt-stained Cloak", 1, 12, 7, "Armor", "Cloth", 1, "INVTYPE_CLOAK", 133762, 90, 4, 1 }
 STUB.itemStats[2140] = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 7.0, ITEM_MOD_STRENGTH_SHORT = 2 }
 STUB.itemStats[4936] = { RESISTANCE0_NAME = 9 }
-STUB.tooltips[STUB.ItemLink(2504)] = { "Worn Shortbow", "Binds when equipped", { "Ranged", "Bow", red = "right" }, "3 - 6 Damage", "Requires Level 5" }
+STUB.tooltips[STUB.ItemLink(2504)] = { "Worn Shortbow", "Binds when equipped", { "Ranged", "Bow", red = "both" }, "3 - 6 Damage", "Requires Level 5" }
 STUB.tooltips[STUB.ItemLink(2140)] = { "Fine Longsword", { "Main Hand", "Sword" }, "7.0 damage per second" }
+STUB.tooltips[STUB.ItemLink(5404)] = { "Serpent's Shoulders", "Shoulder", "Leather", { "Requires Level 18", red = "left" } }
 STUB.tooltips[STUB.ItemLink(4936)] = { "Dirt-stained Cloak", "Back", "9 Armor" }

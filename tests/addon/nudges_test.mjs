@@ -116,3 +116,12 @@ test('/sm nudges reset: dismissed ones show again, with a count in chat', () => 
   assert.equal(title(vm), 'A spell to train');
   assert.ok(vm.chatLines().includes('Spellmind: 1 nudge to show.'), JSON.stringify(vm.chatLines()));
 });
+
+test('/sm nudges demo: a sample toast; Ask works on it like a real one', () => {
+  const vm = newVM().login().advance(3.1); // before the first look
+  vm.slash('nudges demo');
+  assert.ok(shown(vm));
+  assert.equal(title(vm), 'A sample nudge');
+  vm.run('SpellmindNudge.ask.scripts.OnClick(SpellmindNudge.ask)');
+  assert.equal(vm.evaluate('SpellmindCard.title:GetText()'), 'Nudge: A sample nudge');
+});

@@ -525,6 +525,11 @@ SlashCmdList.SPELLMIND = function(msg)
 		ChatFrame(nd == "off" and "Spellmind: nudges are off. Type /sm nudges on to have them again." or "Spellmind: nudges are on.")
 		return
 	end
+	-- /sm nudges demo: a sample toast.
+	if nd == "demo" and ns.db and ns.Nudges then
+		ns.Nudges.Demo()
+		return
+	end
 	-- /sm nudges reset: the dismissed ones forgotten, so whatever applies now shows again.
 	if nd == "reset" and ns.db and ns.Nudges then
 		local n = ns.Nudges.Reset()

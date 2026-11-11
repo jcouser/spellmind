@@ -321,6 +321,17 @@ end
 
 function N.Get() return toast end
 
+-- /sm nudges demo: a sample nudge, to see the toast, Ask and the card without waiting for a real one.
+function N.Demo()
+	Saved().off = nil
+	R.demoN = (R.demoN or 0) + 1
+	table.insert(Queue(), { kind = "demo:" .. R.demoN, key = "demo", icon = N.ICONS.spells,
+		title = "A sample nudge", text = "Real ones come from your character: spells, talents, bags, gear, quests.",
+		ask = "What kinds of nudges can Spellmind give me, and when do they show?" })
+	R.nudgeGap = nil
+	N.Next()
+end
+
 -- /sm nudges reset: every dismissed situation forgotten, and a look now. Returns how many wait.
 function N.Reset()
 	Saved().seen = {}

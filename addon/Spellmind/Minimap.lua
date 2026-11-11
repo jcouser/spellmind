@@ -96,26 +96,31 @@ function MB.Create()
 end
 
 -- The dot: a nudge waits (Nudges.lua).
-function MB.Dot(on)
+-- n: how many wait (or true/false). Shown as a red notification badge with the count.
+function MB.Dot(n)
 	local b = MB.button
 	if not b then return end
 	if not b.dot then
 		-- A small button of its own: clicked, it brings the waiting nudge back (Nudges.Bring).
-		-- Media\Badge: a round gold disc with the sigil's star (the flat colour square looked crude, seen
-		-- in game), over the icon's corner, gently pulsing.
+		-- Media\Badge: a small red disc with a dark rim and the count on it, like a typical notification
+		-- badge (a gold one read as part of the icon, seen in game), over the icon's corner.
 		b.dot = CreateFrame("Button", "SpellmindMinimapDot", b)
-		b.dot:SetSize(15, 15)
-		b.dot:SetPoint("CENTER", b, "TOPRIGHT", -5, -5)
+		b.dot:SetSize(13, 13)
+		b.dot:SetPoint("CENTER", b, "TOPRIGHT", -6, -6)
 		local level = b:GetFrameLevel()
 		b.dot:SetFrameLevel((type(level) == "number" and level or 8) + 2)
 		b.dot.tex = b.dot:CreateTexture(nil, "OVERLAY")
 		b.dot.tex:SetAllPoints(b.dot)
 		b.dot.tex:SetTexture(MB.BADGE)
+		b.dot.count = b.dot:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		b.dot.count:SetPoint("CENTER", b.dot, "CENTER", 0, 0)
+		local font = b.dot.count.GetFont and b.dot.count:GetFont()
+		if type(font) == "string" then b.dot.count:SetFont(font, 8, "OUTLINE") end
 		b.dot.pulse = b.dot:CreateAnimationGroup()
 		b.dot.pulse:SetLooping("BOUNCE")
 		local fade = b.dot.pulse:CreateAnimation("Alpha")
 		fade:SetFromAlpha(1)
-		fade:SetToAlpha(0.55)
+		fade:SetToAlpha(0.7)
 		fade:SetDuration(0.9)
 		b.dot:SetScript("OnShow", function(self) self.pulse:Play() end)
 		b.dot:SetScript("OnHide", function(self) self.pulse:Stop() end)
@@ -123,7 +128,9 @@ function MB.Dot(on)
 		b.dot:SetScript("OnEnter", function(self) local s = b:GetScript("OnEnter"); if s then s(b) end end)
 		b.dot:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 	end
-	b.dot:SetShown(on and true or false)
+	local count = type(n) == "number" and n or (n and 1 or 0)
+	b.dot.count:SetText(count > 9 and "9+" or (count > 0 and tostring(count) or ""))
+	b.dot:SetShown(count > 0)
 end
 
 function MB.Show(on)

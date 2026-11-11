@@ -169,7 +169,7 @@ end
 
 -- The queue changed: the minimap badge, and the Advisor panel's Nudges tab.
 local function Changed()
-	if ns.MinimapButton and ns.MinimapButton.Dot then ns.MinimapButton.Dot(#Queue() > 0) end
+	if ns.MinimapButton and ns.MinimapButton.Dot then ns.MinimapButton.Dot(#Queue()) end
 	if ns.Panel and ns.Panel.NudgesChanged then ns.Panel.NudgesChanged() end
 end
 

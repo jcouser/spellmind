@@ -183,3 +183,12 @@ test('the Advisor panel\'s Nudges tab: every waiting one (faded too) with Ask an
   assert.ok(list(vm, 'SpellmindPanel.drawn').some(x => /Nothing waiting/.test(x.text || '')));
   assert.equal(vm.evaluate('tostring(SpellmindMinimapDot.shown)'), 'false');
 });
+
+test('the badge: red, with how many wait on it', () => {
+  const vm = session();
+  assert.equal(vm.evaluate('SpellmindMinimapDot.count:GetText()'), '1');
+  vm.run('for b = 0, 4 do STUB.bags[b].free = 0 end; STUB.FireEvent("BAG_UPDATE_DELAYED")');
+  vm.advance(3);
+  assert.equal(vm.evaluate('SpellmindMinimapDot.count:GetText()'), '2');
+  assert.ok(vm.evaluate('SpellmindMinimapDot.tex.texture').endsWith('Media\\Badge'));
+});

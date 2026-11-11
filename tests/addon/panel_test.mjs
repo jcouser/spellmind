@@ -78,7 +78,8 @@ test('Gear: worn items in slot order with item level and dps, the bow tagged "ne
   vm.run('table.insert(STUB.bags[2].items, { 2504, 1 })'); // the bow into a bag
   vm.run('NS.Panel.Show("gear")');
   const d = drawn(vm);
-  const worn = d.filter(x => x.kind === 'item').slice(0, 3).map(x => x.text);
+  const wornAt = d.findIndex(x => x.text === 'Your gear (worn)');
+  const worn = d.slice(wornAt + 1).filter(x => x.kind === 'item').slice(0, 3).map(x => x.text);
   assert.match(worn[0], /^Chest · \|cff1eff00Simple Robe of the Monkey/);
   assert.match(worn[2], /^Main Hand · .*Craftsman's Dagger/);
   assert.match(d.find(x => /Craftsman's Dagger/.test(x.text)).right, /ilvl 15 · 6\.1 dps/);
@@ -111,9 +112,11 @@ test('an Ask button: asked in the chat, its answer in the card beside the panel;
   vm.run('NS.Panel.Show("gear")');
   vm.run('SpellmindPanel.asks[1].scripts.OnClick(SpellmindPanel.asks[1])');
   assert.equal(vm.evaluate('tostring(SpellmindCard.shown)'), 'true');
-  assert.equal(vm.evaluate('SpellmindCard.title:GetText()'), 'Advisor: Any upgrades?');
+  assert.equal(vm.evaluate('SpellmindCard.title:GetText()'), 'Advisor: Find my next upgrades');
   assert.equal(vm.evaluate('tostring(SpellmindCard.anchor.rel == SpellmindPanel)'), 'true');
-  assert.ok(vm.savedLines().some(l => /Advisor: Any upgrades\?/.test(l)), 'the chat keeps the question');
+  assert.ok(vm.savedLines().some(l => /Advisor: Find my next upgrades/.test(l)), 'the chat keeps the question');
+  // The question names the weakest slots, so the AI looks where it counts.
+  assert.ok(vm.outbox().some(o => o.wire.includes('Find my next realistic gear upgrades, starting with my weakest slots: Head (empty)')));
   vm.run('NS.Panel.Show("gear")'); // a redraw (rows hidden and shown again) keeps the card
   assert.equal(vm.evaluate('tostring(SpellmindCard.shown)'), 'true');
   vm.run('SpellmindPanel:Hide()');

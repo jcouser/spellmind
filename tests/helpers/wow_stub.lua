@@ -690,3 +690,36 @@ function GetChannelName(name)
 end
 -- The channels as GetChannelList gives them: number, name, disabled, ...
 function GetChannelList() return 2, "General - Ironforge", false, 3, "Trade - City", false end
+
+-- The gear advisor (milestone 9). Gathering Idols' three reward choices as items: leather gloves
+-- (an upgrade: the rogue's hands are empty), a mace (no Maces skill: red in its tooltip) and a cloak.
+STUB.items[7001] = { "Ironband's Gloves", 2, 18, 13, "Armor", "Leather", 1, "INVTYPE_HAND", 132952, 210, 4, 2 }
+STUB.items[7002] = { "Trogg Mace", 2, 18, 13, "Weapon", "One-Handed Maces", 1, "INVTYPE_WEAPON", 133476, 640, 2, 4 }
+STUB.items[7003] = { "Idol Cloak", 2, 18, 13, "Armor", "Cloth", 1, "INVTYPE_CLOAK", 133762, 260, 4, 1 }
+STUB.itemStats[7001] = { ITEM_MOD_AGILITY_SHORT = 3, RESISTANCE0_NAME = 40 }
+STUB.itemStats[7002] = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 8.2, ITEM_MOD_STRENGTH_SHORT = 3 }
+STUB.itemStats[7003] = { ITEM_MOD_STAMINA_SHORT = 2, RESISTANCE0_NAME = 12 }
+STUB.tooltips[STUB.ItemLink(7001)] = { "Ironband's Gloves", "Hands", "Leather" }
+STUB.tooltips[STUB.ItemLink(7002)] = { "Trogg Mace", { "One-Hand", "Mace", red = "both" } }
+STUB.tooltips[STUB.ItemLink(7003)] = { "Idol Cloak", "Back" }
+-- The selected quest's reward links (the log's details), and the NPC's turn-in window.
+function GetQuestLogItemLink(kind, i)
+	local r = Rew(STUB.selectedQuest)
+	local c = (kind == "choice" and r.choices or r.items or {})[i]
+	if c and c[6] and STUB.items[c[6]] then return STUB.ItemLink(c[6]) end
+end
+STUB.window = nil -- { id, title, choices = { itemID, ... } } while the NPC's window shows a quest
+function GetQuestID() return STUB.window and STUB.window.id or 0 end
+function GetTitleText() return STUB.window and STUB.window.title or "" end
+function GetNumQuestChoices() return STUB.window and #STUB.window.choices or 0 end
+function GetQuestItemLink(kind, i)
+	local id = STUB.window and kind == "choice" and STUB.window.choices[i]
+	if id then return STUB.ItemLink(id) end
+end
+-- The character sheet, its slot buttons, and a merchant.
+PaperDollFrame = CreateFrame("Frame", "PaperDollFrame", UIParent)
+for _, n in ipairs({ "Head", "Neck", "Shoulder", "Shirt", "Chest", "Waist", "Legs", "Feet", "Wrist", "Hands", "Finger0", "Finger1",
+	"Trinket0", "Trinket1", "Back", "MainHand", "SecondaryHand", "Ranged", "Tabard" }) do
+	CreateFrame("Button", "Character" .. n .. "Slot", PaperDollFrame)
+end
+MerchantFrame = CreateFrame("Frame", "MerchantFrame", UIParent)

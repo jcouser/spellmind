@@ -246,6 +246,16 @@ function M.OnAnswer(key, r)
 	return true
 end
 
+-- A card of Spellmind's own text, no AI (the vendor helper's list): beside anchor, owned by it,
+-- with Ask more to take it to the chat.
+function M.ShowText(anchor, label, text, opts)
+	M.ShowCard(anchor, { label = label, anchor = anchor, owner = (opts and opts.owner) or anchor, side = opts and opts.side }, nil)
+	local card = M.card
+	card.key = nil
+	Fill(card, text)
+	return card
+end
+
 -- A question from a button (the Advisor panel's Ask buttons): sent like a typed one, shown in the
 -- window as label, its answer in the card beside anchor (which also owns it).
 function M.Ask(anchor, label, text, opts)

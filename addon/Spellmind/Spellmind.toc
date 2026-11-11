@@ -17,6 +17,8 @@ Chat.lua
 Marks.lua
 Quests.lua
 Tooltip.lua
+Gear.lua
+GearUI.lua
 Panel.lua
 Nudges.lua
 Minimap.lua

@@ -28,7 +28,7 @@ P.TABS = {
 -- Each tab's two Ask buttons: { label, the question }.
 P.ASKS = {
 	quests = { { "Plan my next hour", "Plan my next hour of questing: which of my quests to do, in what order, and where." }, { "What's worth skipping?", "Which of my quests are worth skipping or leaving for later, and why?" } },
-	gear = { { "Any upgrades?", "Is anything in my bags an upgrade for me? And what should I look for next at my level?" }, { "What should I sell?", "What in my bags should I sell, keep or put on the auction house?" } },
+	gear = { { "Find my next upgrades", "GEAR_UPGRADES" }, { "What should I sell?", "What in my bags should I sell, keep or put on the auction house?" } },
 	talents = { { "Plan my next points", "Plan my next talent points for how I play now." }, { "Is my build good?", "Is my talent build good for my level and role? What would you change?" } },
 	spells = { { "What do I train next?", "What should I train next, and when? Which spells matter most for me?" }, { "My rotation", "What should my basic rotation be with the spells I have?" } },
 	professions = { { "Level my professions", "How do I level my professions from where they are now?" }, { "Which suit me?", "Which professions suit my class and how I play, and why?" } },
@@ -443,8 +443,43 @@ function P.Go(id)
 end
 
 -- Gear: what's worn, what's in the bags (wearables with the tooltip line's verdict, then the rest), empty slots.
+-- The question behind "Find my next upgrades": the weak slots named, so the AI looks where it counts.
+function P.UpgradeQuestion()
+	local weak = ns.Gear and ns.Gear.WeakSlots() or {}
+	local names = {}
+	for i, w in ipairs(weak) do
+		if i > 6 then break end
+		names[#names + 1] = w.name .. " (" .. w.why .. ")"
+	end
+	return "Find my next realistic gear upgrades" .. (#names > 0 and (", starting with my weakest slots: " .. table.concat(names, "; ")) or "")
+		.. ". For each, name one item and exactly how to get it now or soon: a quest near me or in my log, a dungeon at my level (which boss), a vendor, something I can craft with my professions, or the auction house. Skip anything my class can't use. Search the web for item sources and cite them."
+end
+
 function Tabs.gear()
-	local out = { { kind = "head", text = "Your gear (worn)" } }
+	local out = {}
+	-- Next upgrades (milestone 9): what's already within reach, then the weakest slots.
+	local cands = ns.Gear and ns.Gear.Candidates() or {}
+	local weak = ns.Gear and ns.Gear.WeakSlots() or {}
+	if #cands > 0 or #weak > 0 then
+		out[#out + 1] = { kind = "head", text = "Next upgrades" }
+		local bySlot = {}
+		for _, c in ipairs(cands) do
+			bySlot[c.slot] = true
+			out[#out + 1] = { kind = "item", icon = c.icon, left = (P.SLOT_NAMES[c.slot] or "?") .. " · " .. (QUALITY[c.q or 1] or "") .. ns.Escape(c.name) .. "|r",
+				sub = "|cffbbbbbb" .. (c.from == "bags" and "In your bags" or ("Reward of " .. ns.Escape(c.from))) .. ": |r" .. (c.reason or ""),
+				tag = { "upgrade", 0.1, 1, 0.1 },
+				actions = c.quest and { { "Go", function() P.Go(c.quest) end } } or nil }
+		end
+		local shown = 0
+		for _, w in ipairs(weak) do
+			if not bySlot[w.slot] and shown < 5 then
+				shown = shown + 1
+				out[#out + 1] = { kind = "item", left = w.name .. (w.item and (" · " .. ns.Escape(w.item)) or ""),
+					right = "|cffff8040" .. w.why .. "|r" }
+			end
+		end
+	end
+	out[#out + 1] = { kind = "head", text = "Your gear (worn)" }
 	local gear = Part("gear")
 	local worn = {}
 	for _, it in ipairs(type(gear.items) == "table" and gear.items or {}) do worn[#worn + 1] = it end
@@ -624,7 +659,11 @@ local function AskButton(f)
 	b.text:SetPoint("CENTER", b, "CENTER", 0, 0)
 	b:SetScript("OnEnter", function(self) if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.85, 0.68, 0.25, 1) end end)
 	b:SetScript("OnLeave", function(self) if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.58, 0.45, 0.98, 1) end end)
-	b:SetScript("OnClick", function(self) if self.ask then P.Ask(self.ask[1], self.ask[2]) end end)
+	b:SetScript("OnClick", function(self)
+		if not self.ask then return end
+		local q = self.ask[2] == "GEAR_UPGRADES" and P.UpgradeQuestion() or self.ask[2]
+		P.Ask(self.ask[1], q)
+	end)
 	return b
 end
 

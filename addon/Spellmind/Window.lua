@@ -39,6 +39,27 @@ local win
 W.WELCOME = "Ask me anything about your character: gear, talents, spells, quests, professions or gold.\n\nShift-click an item or a quest into the box to ask about it."
 W.STARTERS = { "What should I train next?", "Any upgrades in my bags?", "Which quests should I do now?" }
 
+W.MEDIA = "Interface\\AddOns\\Spellmind\\Media\\"
+
+-- The gold corner trim (Media\Corner, a top-left piece, flipped for the other three).
+function W.Corners(frame, size, inset)
+	size, inset = size or 22, inset or -3
+	frame.corners = frame.corners or {}
+	local spots = {
+		{ "TOPLEFT", inset, -inset, 0, 1, 0, 1 }, { "TOPRIGHT", -inset, -inset, 1, 0, 0, 1 },
+		{ "BOTTOMLEFT", inset, inset, 0, 1, 1, 0 }, { "BOTTOMRIGHT", -inset, inset, 1, 0, 1, 0 },
+	}
+	for i, s in ipairs(spots) do
+		local t = frame.corners[i] or frame:CreateTexture(nil, "OVERLAY", nil, 7)
+		frame.corners[i] = t
+		t:SetTexture(W.MEDIA .. "Corner")
+		t:SetSize(size, size)
+		t:SetTexCoord(s[4], s[5], s[6], s[7])
+		t:ClearAllPoints()
+		t:SetPoint(s[1], frame, s[1], s[2], s[3])
+	end
+end
+
 -- A solid colour under a backdrop frame, inset past its border.
 function W.Fill(frame, inset, r, g, b, a)
 	local t = frame.fill or frame:CreateTexture(nil, "BACKGROUND", nil, -8)
@@ -83,7 +104,7 @@ end
 local function EffortLabel()
 	local ai = R.ai
 	local e = W.Effort() or (type(ai) == "table" and ai.effort) or nil
-	return "Thinking: " .. (e and (W.EFFORT_NAMES[e] or e) or "Default") .. " v"
+	return "Thinking: " .. (e and (W.EFFORT_NAMES[e] or e) or "Default")
 end
 
 ---------------------------------------------------------------------------
@@ -370,6 +391,7 @@ function W.Build()
 	end
 	-- A solid fill under it: the tooltip background is see-through even at full alpha (seen in game).
 	W.Fill(f, 4, 0.035, 0.025, 0.08, 0.97)
+	W.Corners(f)
 
 	-- Header: the owl, the title, and at the right close, minimize, web search and thinking.
 	f.portrait = f:CreateTexture(nil, "ARTWORK")
@@ -392,8 +414,15 @@ function W.Build()
 		UI().search = not W.Search()
 		W.Refresh()
 	end)
-	f.effort = SmallButton(f, 124)
+	f.effort = SmallButton(f, 132)
 	f.effort:SetPoint("RIGHT", f.search, "LEFT", -6, 0)
+	-- A real dropdown: the label at the left, the gold chevron at the right.
+	f.effort.text:ClearAllPoints()
+	f.effort.text:SetPoint("LEFT", f.effort, "LEFT", 8, 0)
+	f.effort.arrow = f.effort:CreateTexture(nil, "OVERLAY")
+	f.effort.arrow:SetSize(12, 12)
+	f.effort.arrow:SetPoint("RIGHT", f.effort, "RIGHT", -6, 0)
+	f.effort.arrow:SetTexture(W.MEDIA .. "Chevron")
 	f.effort.tip = "How hard your AI thinks before it answers. Higher is slower and more careful."
 	f.effort:SetScript("OnClick", function() W.OpenMenu() end)
 	f.menu = BuildMenu(f)
@@ -450,12 +479,14 @@ function W.Build()
 	f.hint = f.input:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	f.hint:SetPoint("LEFT", f.input, "LEFT", 9, 0)
 	f.hint:SetText(W.PLACEHOLDER)
-	f.send = CreateFrame("Button", nil, f)
-	f.send:SetSize(28, 28)
-	f.send:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 9)
-	f.send:SetNormalTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up")
-	f.send:SetPushedTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Down")
-	f.send:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+	f.send = SmallButton(f, 30)
+	f.send:SetHeight(26)
+	f.send:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 10)
+	f.send.tip = "Send (Enter)"
+	f.send.arrow = f.send:CreateTexture(nil, "OVERLAY")
+	f.send.arrow:SetSize(16, 16)
+	f.send.arrow:SetPoint("CENTER", f.send, "CENTER", 1, 0)
+	f.send.arrow:SetTexture(W.MEDIA .. "Send")
 	f.send:SetScript("OnClick", function() Send(f.input) end)
 
 	-- The resize grip.

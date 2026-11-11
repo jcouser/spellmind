@@ -97,8 +97,11 @@ test('every file adapted from NeverQuestAlone says so on its first line and has 
 test('the art: every texture the addon and its slots name is in Media as a 32-bit TGA with power-of-two sides', () => {
   const named = new Set();
   const sources = [read('Spellmind.toc'), ...tocFiles().map(read), fs.readFileSync(path.join(ROOT, 'core/link/slots.mjs'), 'utf8')];
-  for (const src of sources) for (const m of src.matchAll(/Interface\\{1,2}AddOns\\{1,2}Spellmind\\{1,2}Media\\{1,2}(\w+)/g)) named.add(m[1]);
-  assert.deepEqual([...named].sort(), ['Mark', 'Portrait', 'Spellmind']);
+  for (const src of sources) {
+    for (const m of src.matchAll(/Interface\\{1,2}AddOns\\{1,2}Spellmind\\{1,2}Media\\{1,2}(\w+)/g)) named.add(m[1]);
+    for (const m of src.matchAll(/MEDIA \.\. "(\w+)"/g)) named.add(m[1]); // Window.lua's W.MEDIA .. "Corner"
+  }
+  assert.deepEqual([...named].sort(), ['Chevron', 'Corner', 'Mark', 'Portrait', 'Send', 'Spellmind']);
   for (const name of named) {
     const file = path.join(ADDON, 'Media', `${name}.tga`);
     assert.ok(fs.existsSync(file), `${name}.tga is there`);

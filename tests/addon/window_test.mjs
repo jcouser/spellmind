@@ -73,7 +73,7 @@ test('the header: thinking and web search from the app; a pick goes with the nex
   vm.slash('');
   vm.run('NS.Window.Refresh()');
   assert.equal(vm.evaluate('tostring(SpellmindWindow.effort.shown)'), 'true');
-  assert.equal(vm.evaluate('SpellmindWindow.effort.text:GetText()'), 'Thinking: Medium v', 'the app\'s default');
+  assert.equal(vm.evaluate('SpellmindWindow.effort.text:GetText()'), 'Thinking: Medium', 'the app\'s default');
   assert.match(vm.evaluate('SpellmindWindow.search.text:GetText()'), /Web search: .*On/);
   assert.match(vm.evaluate('SpellmindWindow.status:GetText()'), /^Connected · ChatGPT · GPT-6 Luna/);
   vm.run('SpellmindWindow.effort.scripts.OnClick(SpellmindWindow.effort)');
@@ -81,7 +81,7 @@ test('the header: thinking and web search from the app; a pick goes with the nex
   assert.equal(vm.num('#SpellmindEffortMenu.rows'), 3);
   vm.run('SpellmindEffortMenu.rows[3].scripts.OnClick(SpellmindEffortMenu.rows[3])');
   assert.equal(vm.evaluate('SpellmindDB.ui.effort'), 'high');
-  assert.equal(vm.evaluate('SpellmindWindow.effort.text:GetText()'), 'Thinking: High v');
+  assert.equal(vm.evaluate('SpellmindWindow.effort.text:GetText()'), 'Thinking: High');
   vm.run('SpellmindWindow.search.scripts.OnClick(SpellmindWindow.search)');
   assert.match(vm.evaluate('SpellmindWindow.search.text:GetText()'), /Off/);
   type(vm, 'think hard');

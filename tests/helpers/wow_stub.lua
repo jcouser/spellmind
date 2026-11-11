@@ -40,6 +40,7 @@ function Methods.Hide(self)
 	local was = self.shown
 	self.shown = false
 	if was and self.scripts.OnHide then self.scripts.OnHide(self) end
+	if was then for _, fn in ipairs(self.hooks.OnHide or {}) do fn(self) end end
 end
 function Methods.SetShown(self, v) if v then self:Show() else self:Hide() end end
 function Methods.IsShown(self) return self.shown end
@@ -123,7 +124,10 @@ C_TooltipInfo = {
 		local data = { type = 0, lines = {} }
 		for _, l in ipairs(src) do
 			if type(l) == "table" then
-				table.insert(data.lines, { leftText = l[1], rightText = l[2], type = 0 })
+				-- { left, right, red = "left" or "right" }: a requirement the character doesn't meet, in red.
+				local red, white = { r = 1, g = 0.125, b = 0.125 }, { r = 1, g = 1, b = 1 }
+				table.insert(data.lines, { leftText = l[1], rightText = l[2], type = 0,
+					leftColor = l.red == "left" and red or white, rightColor = l.red == "right" and red or white })
 			else
 				table.insert(data.lines, { leftText = l, type = 0 })
 			end
@@ -554,3 +558,98 @@ function print(...)
 	for i = 1, select("#", ...) do parts[i] = tostring((select(i, ...))) end
 	table.insert(STUB.prints, table.concat(parts, " "))
 end
+
+-- Quest details (probe round 4, 2026-11-10): the quest's text, its difficulty colour, its rewards
+-- and where it is on the player's map. Gathering Idols (297) has three rewards to choose from.
+STUB.questText = {
+	[297] = { "The troggs in the Valley of Kings carry stone idols. Prospector Ironband wants them studied.", "Bring 8 Carved Stone Idols to Prospector Ironband." },
+	[1338] = { "There is a dwarven armorsmith whose work I admire greatly.", "Bring Stormpike's Request to Furen Longbeard in Stormwind." },
+}
+STUB.questRewards = {
+	[297] = { money = 650, xp = 1350, choices = { { "Ironband's Gloves", 0, 1, 2, true, 7001 }, { "Trogg Mace", 0, 1, 2, false, 7002 }, { "Idol Cloak", 0, 1, 2, true, 7003 } } },
+	[1338] = { money = 600, xp = 975 },
+}
+STUB.questsOnMap = { [1432] = { { questID = 297, x = 0.7063, y = 0.2498, inProgress = true, numObjectives = 1 } } }
+STUB.questDist = { [297] = 563 }
+STUB.selectedQuest = 297
+C_QuestLog.GetLogIndexForQuestID = function(id)
+	for i, q in ipairs(STUB.quests) do if q.questID == id then return i end end
+end
+C_QuestLog.GetSelectedQuest = function() return STUB.selectedQuest end
+C_QuestLog.GetQuestsOnMap = function(map) return STUB.questsOnMap[map] or {} end
+C_QuestLog.GetDistanceSqToQuest = function(id)
+	local d = STUB.questDist[id]
+	if d then return d * d, true end
+	return nil, false
+end
+C_QuestLog.GetSuggestedGroupSize = function(id) return 0 end
+C_QuestLog.IsEliteQuest = function(id) return false end
+C_QuestLog.IsQuestTrivial = function(id)
+	for _, q in ipairs(STUB.quests) do if q.questID == id then return (q.level or 0) < P.level - 5 end end
+	return false
+end
+C_QuestLog.GetTitleForQuestID = function(id)
+	for _, q in ipairs(STUB.quests) do if q.questID == id then return q.title end end
+end
+function GetQuestLogQuestText(i)
+	local q = STUB.quests[i]
+	local t = q and STUB.questText[q.questID]
+	if t then return t[1], t[2] end
+	return "", ""
+end
+function GetQuestDifficultyColor(level)
+	local d = level - P.level
+	local font = d >= 5 and "Impossible" or d >= 3 and "VeryDifficult" or d >= -2 and "Difficult" or d >= -5 and "Standard" or "Trivial"
+	return { r = 1, g = 1, b = 0, font = "QuestDifficulty_" .. font }
+end
+local function Rew(id) return STUB.questRewards[id] or {} end
+function GetQuestLogRewardMoney(id) return Rew(id).money or 0 end
+function GetQuestLogRewardXP(id) return Rew(id).xp or 0 end
+function GetNumQuestLogChoices(id) return #(Rew(id).choices or {}) end
+-- The selected quest's choice (the game reads the selection, not an id).
+function GetQuestLogChoiceInfo(i)
+	local c = (Rew(STUB.selectedQuest).choices or {})[i]
+	if c then return c[1], c[2], c[3], c[4], c[5], c[6] end
+end
+function GetNumQuestLogRewards(id) return #(Rew(id).items or {}) end
+function GetQuestLogRewardInfo(i, id)
+	local c = (Rew(id).items or {})[i]
+	if c then return c[1], c[2], c[3], c[4], c[5], c[6] end
+end
+
+-- The quest log is the world map's quest panel on Forever; its details open through
+-- QuestMapFrame_ShowQuestDetails (hooked, never called by the addon).
+WorldMapFrame = CreateFrame("Frame", "WorldMapFrame")
+QuestMapFrame = CreateFrame("Frame", "QuestMapFrame", WorldMapFrame)
+QuestMapFrame.DetailsFrame = CreateFrame("Frame", nil, QuestMapFrame)
+function QuestMapFrame_ShowQuestDetails(questID) STUB.selectedQuest = questID end
+
+-- Tooltips: TooltipDataProcessor's post-calls, and STUB.ShowItem(tooltip, link) as the game shows an
+-- item: the game's tooltip data for the link, then every post-call for items.
+ItemRefTooltip = CreateFrame("Frame", "ItemRefTooltip")
+Enum.TooltipDataType = { Item = 0, Spell = 1, Unit = 2, Quest = 23 }
+STUB.tipCalls = {}
+TooltipDataProcessor = {
+	AddTooltipPostCall = function(kind, fn) table.insert(STUB.tipCalls, { kind = kind, fn = fn }) end,
+}
+function STUB.ShowItem(tip, link)
+	tip.item, tip.added = link, {}
+	local data = C_TooltipInfo.GetHyperlink(link) or { type = 0, lines = { { leftText = "?" } } }
+	for _, c in ipairs(STUB.tipCalls) do
+		if c.kind == Enum.TooltipDataType.Item then c.fn(tip, data) end
+	end
+	return tip.added
+end
+STUB.shift = false
+function IsShiftKeyDown() return STUB.shift end
+
+-- More items for the tooltip line: a bow the rogue has no skill for (red "Bow" in its tooltip), a
+-- sword with more dps than the worn dagger, and a cloak for the empty back slot.
+STUB.items[2504] = { "Worn Shortbow", 1, 5, 1, "Weapon", "Bows", 1, "INVTYPE_RANGED", 135490, 7, 2, 2 }
+STUB.items[5404] = { "Serpent's Shoulders", 2, 18, 13, "Armor", "Leather", 1, "INVTYPE_SHOULDER", 135039, 400, 4, 2 }
+STUB.items[4936] = { "Dirt-stained Cloak", 1, 12, 7, "Armor", "Cloth", 1, "INVTYPE_CLOAK", 133762, 90, 4, 1 }
+STUB.itemStats[2140] = { ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 7.0, ITEM_MOD_STRENGTH_SHORT = 2 }
+STUB.itemStats[4936] = { RESISTANCE0_NAME = 9 }
+STUB.tooltips[STUB.ItemLink(2504)] = { "Worn Shortbow", "Binds when equipped", { "Ranged", "Bow", red = "right" }, "3 - 6 Damage", "Requires Level 5" }
+STUB.tooltips[STUB.ItemLink(2140)] = { "Fine Longsword", { "Main Hand", "Sword" }, "7.0 damage per second" }
+STUB.tooltips[STUB.ItemLink(4936)] = { "Dirt-stained Cloak", "Back", "9 Armor" }

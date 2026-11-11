@@ -155,7 +155,8 @@ local function Build()
 	f.input:SetScript("OnEnterPressed", function(self)
 		local text = self:GetText()
 		if text and text:match("%S") then
-			local key, _, why = C.Send(text)
+			-- After an answer card's Ask more, the questions stay about its thing until the card closes.
+			local key, _, why = C.Send(text, R.ask and { about = R.ask.about } or nil)
 			-- Sent, or refused as a key: either way the box keeps nothing.
 			if key or why == "key" then self:SetText("") end
 		end
@@ -227,7 +228,24 @@ end
 
 function C.Refresh()
 	if not win then return end
-	win.status:SetText(ns.Link.Status())
+	local about = R.ask and R.ask.label and ("  |cff9d7dffAbout: " .. R.ask.label .. "|r") or ""
+	win.status:SetText(ns.Link.Status() .. about)
+end
+
+-- The window open with its box focused; text (when given) put in the box to edit first.
+function C.Open(text)
+	local f = Build()
+	if not f:IsShown() then f:Show() end
+	if text then f.input:SetText(text) end
+	f.input:SetFocus()
+	C.Refresh()
+end
+
+-- Marks.lua: what the next questions from the window are about (nil: nothing). label is shown
+-- escaped already.
+function C.AskAbout(about, label)
+	R.ask = about and { about = about, label = label } or nil
+	C.Refresh()
 end
 
 ---------------------------------------------------------------------------
@@ -245,7 +263,10 @@ function C.Waiting()
 end
 
 -- Ask Spellmind. Returns the record's key, or nil, a reason and (for a key-shaped text) "key".
-function C.Send(text)
+-- opts (Marks.lua): about = what was clicked ("quest:1338"; the app gives the turn its focus part),
+-- shown = the window's line instead of the text, card = the answer also goes to the answer card.
+function C.Send(text, opts)
+	opts = opts or {}
 	local db = ns.db
 	if not db or not R.nonce then return nil, "Not ready yet: try again in a moment." end
 	text = ns.Trim(text)
@@ -272,10 +293,12 @@ function C.Send(text)
 	-- names the parts the app hasn't confirmed ("" when it has them all, none: no game data).
 	local st = ns.State and ns.State.BeforeSend()
 	if st then args[#args + 1] = { "st", st } end
+	local about = type(opts.about) == "string" and opts.about:match("^%l+:%d+$") and opts.about or nil
+	if about then args[#args + 1] = { "about", about } end
 	local key = ns.Link.NewKeyed("msg", db.chat, args, ns.CleanField(text))
 	if not key then return nil, "Not ready yet: try again in a moment." end
-	table.insert(Pending(), { key = key, t = time() })
-	AddText(YOU, ns.Escape(text))
+	table.insert(Pending(), { key = key, t = time(), card = opts.card and true or nil })
+	AddText(YOU, ns.Escape(opts.shown or text))
 	if not ns.Link.BridgeAlive() and not R.toldStart then
 		R.toldStart = true
 		C.System(C.NOT_HEARD)
@@ -299,7 +322,10 @@ end
 -- applied before a client crash rolled the cursor back, so it's shown without the chat frame.
 function C.OnRecord(r, replay)
 	local kind = r.t
-	if not replay then table.remove(Pending(), 1) end
+	local p = not replay and table.remove(Pending(), 1) or nil
+	-- An Explain's answer goes to its card too; shown there, it skips the chat frame.
+	local carded = p and p.card and ns.Marks and ns.Marks.OnAnswer(p.key, r) or false
+	if carded then replay = true end
 	local text
 	if kind == "reply" then
 		text = ns.SafeText(r.text)
@@ -350,8 +376,22 @@ SlashCmdList.SPELLMIND = function(msg)
 		ChatFrame(("Spellmind: probed %d client functions. Type /reload to save the results."):format(n))
 		return
 	end
-	-- /sm data: what the app gets of the character; /sm data off and /sm data on.
 	local lower = msg:lower()
+	-- /sm marks off and /sm marks on: the Spellmind marks on the game's windows and the tooltip line.
+	local marks = lower:match("^marks%s+(%a+)$")
+	if (marks == "off" or marks == "on") and ns.db then
+		ns.db.marks = type(ns.db.marks) == "table" and ns.db.marks or {}
+		ns.db.marks.all = marks == "on"
+		if ns.Quests and ns.Quests.mark then
+			if marks == "off" then ns.Quests.mark:Hide() end
+		elseif marks == "on" and ns.Quests then
+			ns.Quests.Hook()
+		end
+		ChatFrame(marks == "off" and "Spellmind: the marks on the game's windows and the tooltip line are off. Type /sm marks on to show them again."
+			or "Spellmind: the marks on the game's windows and the tooltip line are on.")
+		return
+	end
+	-- /sm data: what the app gets of the character; /sm data off and /sm data on.
 	local data = (lower == "data" and "") or lower:match("^data%s+(%a+)$")
 	if data and ns.State and ns.db then
 		if data == "off" then

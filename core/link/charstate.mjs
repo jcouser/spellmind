@@ -1,4 +1,5 @@
-// The character's state as the addon sends it (docs/milestone-4.md, "The contract"): eight parts,
+// The character's state as the addon sends it (docs/milestone-4.md, "The contract"; focus in
+// docs/milestone-5.md): ten parts,
 // each its own `state` record with its own seq, merged here into one stored state per token.
 //
 //   readStateRecord(args, body)  a state record's args and body → { ok, off } | { ok, sid, part, seq, value, bytes, z } | { ok: false, reason }
@@ -17,13 +18,20 @@ import { inflateBody } from './records.mjs';
 import { writeFileQuick } from '../files.mjs';
 
 /** The parts, in the order the addon draws them. */
-export const PARTS = Object.freeze(['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep']);
+export const PARTS = Object.freeze(['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep', 'focus']);
+/** Parts with nothing in them most of the time ({"v":1}): focus, until the player clicks a Spellmind mark. */
+export const OPTIONAL_PARTS = Object.freeze(['focus']);
+/** What a message's about= names: the thing the player clicked Explain on (focus.kind:focus.id). */
+export const ABOUT_RE = /^(quest|item|spell|talent):\d{1,10}$/;
+/** focus's long strings: the quest's text and its objectives line, in characters. */
+export const FOCUS_TEXT_MAX = 1200;
+export const FOCUS_GOAL_MAX = 400;
 /** A part's JSON, inflated or plain: at most this many bytes. */
 export const PART_JSON_MAX = 8000;
 /** A z=1 body (base64) the service takes: at most this many characters (the strip's own cap is 2,900). */
 export const PART_BODY_MAX = 4096;
 /** The lists' caps: the addon's own, so a forged part can't be longer than a real one. */
-export const LIST_MAX = Object.freeze({ gearItems: 19, gearEmpty: 19, bagItems: 40, quests: 100, obj: 5, rep: 40, nodes: 60, skills: 25, spellTabs: 8, spells: 100, nextSpells: 10, omitted: 16 });
+export const LIST_MAX = Object.freeze({ gearItems: 19, gearEmpty: 19, bagItems: 40, quests: 100, obj: 5, rep: 40, nodes: 60, skills: 25, spellTabs: 8, spells: 100, nextSpells: 10, omitted: 16, focusObj: 8, rewards: 6 });
 export const SID_RE = /^[0-9a-f]{16}$/;
 export const STATE_FILE = 'charstate.json';
 const SEQ_RE = /^\d{1,12}$/;
@@ -51,6 +59,8 @@ const SPELL_TAB = { name: str, list: list(SPELL, LIST_MAX.spells) };
 const SKILL = { name: str, rank: num, max: num };
 const OBJ = { text: str, have: num, need: num };
 const QUEST = { id: int, title: str, level: num, complete: bool, obj: list(OBJ, LIST_MAX.obj) };
+const REWARD = { id: int, name: str, q: intIn(0, 8), n: int, usable: bool };
+const WHERE = { zone: str, x: num, y: num, dist: num };
 const REP = { id: int, name: str, r: intIn(1, 8), v: num, max: num, watched: bool };
 const SHAPES = {
   char: { class: str, classFile: str, race: str, raceFile: str, faction: str, level: int, xp: num, xpMax: num, rested: num, resting: bool, money: num, loc: shape(LOC) },
@@ -62,6 +72,10 @@ const SHAPES = {
   skills: { prof: list(SKILL, LIST_MAX.skills), weapon: list(SKILL, LIST_MAX.skills) },
   quests: { count: int, max: int, unread: int, list: list(QUEST, LIST_MAX.quests) },
   rep: { list: list(REP, LIST_MAX.rep), collapsed: int },
+  // What the player clicked Explain on (docs/milestone-5.md): a quest, for now.
+  focus: { kind: v => v === 'quest', id: int, title: str, level: num, diff: str, trivial: bool, elite: bool, group: int, complete: bool,
+    text: str, goal: str, obj: list(OBJ, LIST_MAX.focusObj), money: num, xp: num, choices: list(REWARD, LIST_MAX.rewards),
+    items: list(REWARD, LIST_MAX.rewards), where: shape(WHERE) },
 };
 const COMMON = { v: v => v === 1, omitted: strList(LIST_MAX.omitted), too_large: v => v === true };
 

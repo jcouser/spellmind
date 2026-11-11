@@ -21,11 +21,12 @@
 // large or trimmed by the addon (its `omitted`).
 import crypto from 'node:crypto';
 import { sanitizeState, encodeData } from './sanitize.mjs';
-import { PARTS } from '../link/charstate.mjs';
+import { PARTS, OPTIONAL_PARTS, ABOUT_RE } from '../link/charstate.mjs';
 
 export const TAG = 'game_data';
 export const DATA_MAX_CHARS = 16000;
 export const STALE_NOTE = 'Stale: some parts this message named didn\'t arrive in time, so what\'s here may be from before the player\'s latest change.';
+export const FOCUS_NOTE = "Focus: the player clicked Spellmind's mark on the thing in `focus`, and this message is about it.";
 export const NO_DATA_NOTE = 'No game data arrived for this message: the character\'s details aren\'t known this turn.';
 
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -49,10 +50,11 @@ export function questNote(quests) {
 /** The parts' own notes: missing, too large, or trimmed by the addon (its `omitted`). */
 export function partNotes(state) {
   const out = [];
-  const missing = PARTS.filter(p => !isObj(state?.[p]));
+  const missing = PARTS.filter(p => !OPTIONAL_PARTS.includes(p) && !isObj(state?.[p]));
   if (missing.length) out.push(`Not in this game data: ${missing.join(', ')}.`);
   for (const p of PARTS) {
     const v = state?.[p];
+    if (OPTIONAL_PARTS.includes(p) && isObj(v) && Object.keys(v).length <= 1) continue;
     if (!isObj(v)) continue;
     if (v.too_large) out.push(`${p}: too large to send this turn.`);
     else if (Array.isArray(v.omitted) && v.omitted.length) out.push(`${p}: the addon left out ${v.omitted.join(', ')} to fit.`);
@@ -102,7 +104,19 @@ function historyMessages(history) {
 }
 
 /**
- * pack: { text } (loadPack) or the prompt's text; game: { state, stale } or null; history:
+ * focus goes only to the turn it's about: kept when the message's about= (game.about) names it
+ * (kind:id), with a note saying so; otherwise left out, so an old click can't steer a new question.
+ */
+export function focusFor(state, about) {
+  const f = state?.focus;
+  if (!isObj(f)) return { state, focused: false };
+  const { focus, ...rest } = state;
+  const named = typeof about === 'string' && ABOUT_RE.test(about) && typeof f.kind === 'string' && `${f.kind}:${f.id}` === about;
+  return named ? { state, focused: true } : { state: rest, focused: false };
+}
+
+/**
+ * pack: { text } (loadPack) or the prompt's text; game: { state, stale, about } or null; history:
  * [{ role, content }]; userText: what the player typed; nonce: hex, drawn per turn by default.
  */
 export function buildRequest({ pack, game = null, history = [], userText = '', nonce = crypto.randomBytes(4).toString('hex'), dataMax = DATA_MAX_CHARS } = {}) {
@@ -112,13 +126,14 @@ export function buildRequest({ pack, game = null, history = [], userText = '', n
   const text = String(userText ?? '');
   const system = [{ text: packText, cache: true }];
   const messages = historyMessages(history);
-  const state = isObj(game?.state) ? sanitizeState(game.state) : null;
+  const picked = focusFor(isObj(game?.state) ? game.state : null, game?.about);
+  const state = picked.state ? sanitizeState(picked.state) : null;
   const stale = game?.stale === true;
   if (!state && !stale) {
     messages.push({ role: 'user', content: text });
     return { system, messages, meta: { nonce: null, dataChars: 0, omitted: [] } };
   }
-  const notes = state ? [questNote(state.quests), ...(stale ? [STALE_NOTE] : []), ...partNotes(state)] : [NO_DATA_NOTE, STALE_NOTE];
+  const notes = state ? [questNote(state.quests), ...(picked.focused ? [FOCUS_NOTE] : []), ...(stale ? [STALE_NOTE] : []), ...partNotes(state)] : [NO_DATA_NOTE, STALE_NOTE];
   const fitted = fitData({ ...(state || {}), notes }, Math.max(1000, Number(dataMax) || DATA_MAX_CHARS));
   const line = encodeData({ source: 'game', game: fitted.game });
   const content = `<${TAG} id="${nonce}">\n${line}\n</${TAG} id="${nonce}">\n${text}`;

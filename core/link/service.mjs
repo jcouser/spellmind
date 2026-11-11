@@ -43,7 +43,7 @@ import { renderReply, systemLine } from './render.mjs';
 import { createRunQueue } from '../ai/runqueue.mjs';
 import { looksLikeKey } from '../ai/security/keycheck.mjs';
 import { writeFileQuick } from '../files.mjs';
-import { readStateRecord, mergeInto, stReady, partSeqs, gameState, loadCharState, saveCharState, SID_RE } from './charstate.mjs';
+import { readStateRecord, mergeInto, stReady, partSeqs, gameState, loadCharState, saveCharState, SID_RE, ABOUT_RE } from './charstate.mjs';
 
 /** The service's version: the addon's and this one's major numbers must match (the addon checks). */
 export const SERVICE_VERSION = '0.1.0';
@@ -269,13 +269,15 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
     const c = ensureChat(r.chat, r.token);
     // st: the parts the addon hadn't seen confirmed ('' = it had them all); none = no game data.
     const st = typeof r.args.st === 'string' ? r.args.st.slice(0, 200) : null;
-    const item = { token: r.token, key: r.key, chat: c.id, kind: 'msg', text, st, firstSeen: now(), attempts: 0 };
+    // about: what the player clicked Explain on (quest:1338), so the turn gets its focus part.
+    const about = ABOUT_RE.test(r.args.about || '') ? r.args.about : undefined;
+    const item = { token: r.token, key: r.key, chat: c.id, kind: 'msg', text, st, about, firstSeen: now(), attempts: 0 };
     store.addOutbox(item); // on disk before the ack (SE-2)
     // A message that waits for its parts is acked with a ring now, so the strip frees for them.
     const wait = !!st && !stReady(st, chars.tokens[r.token]);
     noteAck(r.token, r.key, { soon: !wait });
     store.saveState();
-    log('msg', { key: r.key, chat: c.id, bytes: Buffer.byteLength(text), game: st === null ? undefined : true, wait: wait || undefined });
+    log('msg', { key: r.key, chat: c.id, bytes: Buffer.byteLength(text), game: st === null ? undefined : true, wait: wait || undefined, about: about ? about.split(':')[0] : undefined });
     publisher.publish({});
     send(item);
   }
@@ -303,7 +305,7 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
   function gameFor(item) {
     if (item.st === null || item.st === undefined) return { state: null, stale: false };
     const c = chars.tokens[item.token];
-    return { state: gameState(c), stale: !stReady(item.st, c) };
+    return { state: gameState(c), stale: !stReady(item.st, c), ...(item.about ? { about: item.about } : {}) };
   }
 
   function send(item) {

@@ -1,7 +1,11 @@
 -- Spellmind: adapted from NeverQuestAlone's addon/NeverQuestAlone/Companion.lua (MIT; see NOTICE.md).
--- State.lua: the character, as eight parts the app keeps (docs/milestone-4.md, "The contract").
+-- State.lua: the character, as ten parts the app keeps (docs/milestone-4.md, "The contract"; focus in
+-- docs/milestone-5.md).
 --
---   char stats talents gear bags skills quests rep
+--   char stats talents spells gear bags skills quests rep focus
+--
+-- focus is {"v":1} until the player clicks a Spellmind mark: then it's the thing clicked (a quest's
+-- text, objectives and rewards), set by Marks.lua through S.SetFocus.
 --
 -- Each part is a JSON object (v = 1, keys in the contract's order, a key left out when the game
 -- has no data for it). A part goes on the strip only when its JSON changed since it was last
@@ -26,7 +30,7 @@ local S = {}
 ns.State = S
 local R = ns.R
 
-S.PARTS = { "char", "stats", "talents", "spells", "gear", "bags", "skills", "quests", "rep" }
+S.PARTS = { "char", "stats", "talents", "spells", "gear", "bags", "skills", "quests", "rep", "focus" }
 S.MAX_JSON = 8000 -- bytes of one part's JSON
 S.MAX_BODY = 2900 -- bytes of one part's body on the strip
 S.STR_MAX = 60 -- bytes of one string from the game
@@ -145,22 +149,25 @@ local function StripEscapes(s)
 end
 
 -- Game text as data: escapes and links out (a link's name out of its brackets), then every |
--- and control character; at most 60 bytes, cut at a UTF-8 boundary.
-local function Clean(s)
+-- and control character; at most 60 bytes (or max), cut at a UTF-8 boundary.
+local function Clean(s, max)
 	s = tostring(s or "")
 	s = StripEscapes((s:gsub("|H([^|]*)|h%[([^\r\n]-)%]|h", "|H%1|h%2|h")))
 	s = s:gsub("|", ""):gsub("%c", " "):gsub("%s+", " ")
-	return ns.Utf8Cut(ns.Trim(s), S.STR_MAX)
+	return ns.Utf8Cut(ns.Trim(s), max or S.STR_MAX)
 end
 S.Clean = Clean
 
 -- Clean text, or nil when there's none (the key is left out).
-local function Text(s)
+local function Text(s, max)
 	if type(s) ~= "string" and type(s) ~= "number" then return nil end
-	local c = Clean(s)
+	local c = Clean(s, max)
 	if c == "" then return nil end
 	return c
 end
+S.Text = Text
+S.Whole = function(v) return Whole(v) end
+S.Round1 = function(v) return Round1(v) end
 
 -- The name in an item link: |Hitem:...|h[Name]|h.
 local function LinkName(link)
@@ -358,6 +365,13 @@ local function ItemStats(link)
 	end
 	return n > 0 and st or nil
 end
+-- An item's stats as a plain table ({ agi = 3, armor = 28 }), for the tooltip line.
+function S.ItemStats(link)
+	local st = ItemStats(link)
+	local out = {}
+	for _, kv in ipairs(st and st._o or {}) do out[kv[1]] = kv[2] end
+	return out
+end
 
 local function ItemLevel(link, fallback)
 	local lvl = ns.Try(C_Item and C_Item.GetDetailedItemLevelInfo, link)
@@ -513,6 +527,7 @@ local function Objectives(id)
 	end
 	return #out > 0 and out or nil
 end
+S.Objectives = Objectives
 
 -- From NeverQuestAlone's Store.lua ns.QuestLog: one pass over every row C_QuestLog.GetInfo lists,
 -- quests under a collapsed header too (Forever lists them), so no header is ever opened or
@@ -542,6 +557,17 @@ function Build.quests()
 		end
 	end
 	return O("v", 1, "count", #list, "max", QuestMax(#list), "unread", unread, "list", list, "omitted", {})
+end
+
+-- focus: what the player clicked Explain on (Marks.lua), or {"v":1}. Kept until the next click; the
+-- app gives it only to the messages whose about= names it.
+function Build.focus()
+	return R.focus or O("v", 1)
+end
+
+-- Marks.lua: the thing clicked (an O object with v = 1), or nil to empty it.
+function S.SetFocus(obj)
+	R.focus = obj
 end
 
 -- Factions in the game's order; headers are counted only when collapsed (a header with its own
@@ -677,6 +703,15 @@ local TRIMS = {
 		{ "st", function(obj)
 			for _, it in ipairs(Get(obj, "items") or {}) do Set(it, "st", nil) end
 		end },
+	},
+	focus = {
+		{ "text", function(obj)
+			local t = Get(obj, "text")
+			if type(t) ~= "string" or #t <= 200 then Set(obj, "text", nil); return false end
+			Set(obj, "text", ns.Utf8Cut(t, math.floor(#t / 2)))
+			return true
+		end },
+		{ "rewards", function(obj) Set(obj, "choices", nil); Set(obj, "items", nil) end },
 	},
 	spells = {
 		{ "next", function(obj) Set(obj, "next", nil) end },

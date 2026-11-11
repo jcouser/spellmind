@@ -15,7 +15,7 @@ import { slotTable } from '../../core/link/luaenc.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'fixtures', 'state-parts.json'), 'utf8'));
-const PARTS = ['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep'];
+const PARTS = ['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep', 'focus'];
 const LIMITS = { maxBody: 2900, maxText: 8000 };
 
 // Saved data as an install that has sent six builds before (the fixture's parts are seq 7).
@@ -99,7 +99,7 @@ test('each part State.lua builds from the stub is the fixture\'s, byte for byte 
   assert.deepEqual(vm.json('STUB.identityCalls'), {}, 'name, realm and guild never read');
 });
 
-test('after the hello is answered with caps state and z, all eight parts come off the strip: z=1 bodies inflate to the fixture, one seq, the hello\'s sid', () => {
+test('after the hello is answered with caps state and z, all ten parts come off the strip: z=1 bodies inflate to the fixture, one seq, the hello\'s sid', () => {
   const vm = session();
   const hello = stripRecords(vm).find(r => r.type === 'hello');
   assert.match(hello.args.sid, /^[0-9a-f]{16}$/);
@@ -114,8 +114,10 @@ test('after the hello is answered with caps state and z, all eight parts come of
     const r = got[p];
     assert.deepEqual(r.part, FIXTURE.parts[p], p);
     assert.equal(r.json, JSON.stringify(FIXTURE.parts[p]), `${p}: the same bytes`);
-    assert.equal(r.args.z, '1', `${p} deflated`);
-    assert.deepEqual(Object.keys(r.args), ['cur', 'sid', 'part', 'seq', 'z'], 'the contract\'s args order');
+    // An empty focus ({"v":1}) deflates no shorter, so it goes as plain JSON (S.Deflate's rule).
+    const z = p !== 'focus';
+    assert.equal(r.args.z, z ? '1' : undefined, `${p} deflated: ${z}`);
+    assert.deepEqual(Object.keys(r.args), z ? ['cur', 'sid', 'part', 'seq', 'z'] : ['cur', 'sid', 'part', 'seq'], 'the contract\'s args order');
     assert.equal(r.args.sid, hello.args.sid);
     assert.equal(r.args.seq, '7', 'one new seq for the build');
     assert.equal(r.key, hello.key, 'unkeyed: the key is the nonce');
@@ -368,6 +370,7 @@ test('/sm data shows each part\'s size and whether the app has it; /sm data off 
     const bytes = JSON.stringify(FIXTURE.parts[p]).length;
     const shown = bytes >= 1000 ? `${Math.floor(bytes / 1000)},${String(bytes % 1000).padStart(3, '0')}` : String(bytes);
     if (p === 'char') assert.match(sizes[p], /bytes \(\d+ compressed\), on its way$/, 'the money changed: built again, not confirmed');
+    else if (p === 'focus') assert.equal(sizes[p], `Spellmind: focus: ${shown} bytes, the app has it`, 'empty focus: plain JSON');
     else assert.match(sizes[p], new RegExp(`^Spellmind: ${p}: ${shown} bytes \\(\\d+ compressed\\), the app has it$`), sizes[p]);
   }
 

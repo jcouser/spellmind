@@ -13,3 +13,6 @@ Link.lua
 State.lua
 Probe.lua
 Chat.lua
+Marks.lua
+Quests.lua
+Tooltip.lua

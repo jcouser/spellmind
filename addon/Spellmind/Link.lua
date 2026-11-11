@@ -365,8 +365,28 @@ end
 -- Records are drawn newest first until the payload would pass 3,200 bytes; older ones wait
 -- for a later frame (§2.2). A state part that doesn't fit is skipped, not a stop, so smaller
 -- ones fill the space (docs/milestone-4.md). The frame counter changes whenever the content does.
+-- The app is known to be away: the doorbells work (so its alive pulse, every 10 s while it runs,
+-- would be heard) and nothing of it, pulse or slot, came for AWAY_AFTER seconds (nor since this
+-- session's link started). Then the strip isn't drawn: it would sit on screen with nobody to read
+-- it (seen in game, the app not running). What it carries stays queued; the app's first pulse
+-- draws it again. Without working doorbells (slot-only mode) the app can't be told away, so the
+-- strip is drawn as before.
+L.AWAY_AFTER = 25
+function L.AppAway()
+	if not L.SignalsOK() then return false end
+	local now = GetTime()
+	local since = R.bridgeSeenAt or R.linkStartAt or now
+	return now - since >= L.AWAY_AFTER
+end
+
 function L.RefreshStrip()
 	if not ns.db or not R.nonce then return end
+	if L.AppAway() then
+		if R.stripShown then L.HideStrip() end
+		R.stripAway = true
+		return
+	end
+	R.stripAway = nil
 	local parts, size, waits = {}, 0, false
 	local now, untilT = GetTime(), nil
 	local full = false -- a record didn't fit: the older ones wait too
@@ -460,6 +480,8 @@ end
 function L.Beat()
 	R.lastBeatAt = GetTime()
 	L.NoteBridge()
+	-- The app is back after being away: what's queued goes on the strip now.
+	if R.stripAway then L.RefreshStrip() end
 end
 
 ---------------------------------------------------------------------------
@@ -988,6 +1010,7 @@ end
 function L.Start()
 	local db = ns.db
 	L.Reset()
+	R.linkStartAt = GetTime() -- the app counts as away only AWAY_AFTER seconds after this
 	R.nonce = ns.NewNonce()
 	table.insert(db.nonces, 1, R.nonce)
 	while #db.nonces > 8 do table.remove(db.nonces) end

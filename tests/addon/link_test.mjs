@@ -241,7 +241,8 @@ test('the self-heal draws the waiting frame again in full after 12 s while the a
   ring(vm, 'alive_b');
   assert.equal(vm.num('NS.R.heal.ack'), 1);
   assert.ok(stripRecords(vm), 'readable again');
-  vm.advance(30.5);
+  // The app's alive pulse every 10 s, as it rings while running (silent 25 s, it counts as away).
+  vm.advance(10); ring(vm, 'alive_a'); vm.advance(10); ring(vm, 'alive_b'); vm.advance(10.5);
   assert.equal(vm.num('NS.R.heal.ack'), 1, 'once a frame');
   assert.equal(vm.num('NS.R.heal.timer'), 1, 'and every 30 s while it waits');
 });
@@ -345,4 +346,22 @@ test('the chat frame: a short reply (4 lines at most) whole, so a list after "â€
   assert.ok(after.includes('Spellmind: Line 1 of a long answer. |cff888888(more: /sm)|r'), JSON.stringify(after));
   assert.ok(!after.some(l => l.includes('Line 2 of')), 'the rest only in the window');
   void key;
+});
+
+test('the app away (doorbells work, no pulse for 25 s): the strip goes, its records stay queued; the app\'s first pulse draws it again', () => {
+  const vm = session();
+  vm.slash('a question for later');
+  assert.ok(stripRecords(vm).some(r => r.type === 'msg'), 'drawn at first (the app may be starting)');
+  vm.advance(26);
+  assert.equal(vm.screen(), null, 'away: nothing on screen');
+  assert.equal(vm.outbox().length, 1, 'still queued');
+  ring(vm, 'alive_a'); // the app starts: its first alive pulse
+  assert.ok(stripRecords(vm).some(r => r.type === 'msg' && r.text === 'a question for later'), 'drawn again, the question with it');
+});
+
+test('slot-only mode (no doorbells): the app can\'t be told away, so the strip stays', () => {
+  const vm = session({ signals: false });
+  vm.slash('a question');
+  vm.advance(30);
+  assert.ok(stripRecords(vm).some(r => r.type === 'msg'));
 });

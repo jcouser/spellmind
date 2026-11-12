@@ -5,6 +5,7 @@
 --   /sm <words>    ask Spellmind (the window's box does the same)
 --   /sm data       what the app gets of your character; /sm data off and /sm data on
 --   /sm settings   every switch (the Settings tab); /sm panel the last tab other than Chat
+--   /sm guide <link>  your leveling guide: your AI reads it, the Talents tab follows it
 --
 -- Answers arrive through Link.lua (slot records reply, error and aborted) and show in the window
 -- and, shortened, in the chat frame. The app's text comes with every | doubled already; what the
@@ -416,6 +417,10 @@ function C.Send(text, opts)
 	if effort then args[#args + 1] = { "effort", effort } end
 	local search = ns.Window and ns.Window.Search()
 	if search ~= nil then args[#args + 1] = { "search", search and 1 or 0 } end
+	-- A caller's own (Guide.lua's guide=1): short words and numbers only.
+	for _, a in ipairs(type(opts.args) == "table" and opts.args or {}) do
+		if type(a[1]) == "string" and a[1]:match("^%l+$") and tostring(a[2]):match("^[%w]+$") then args[#args + 1] = { a[1], a[2] } end
+	end
 	local key = ns.Link.NewKeyed("msg", db.chat, args, ns.CleanField(text))
 	if not key then return nil, "Not ready yet: try again in a moment." end
 	table.insert(Pending(), { key = key, t = time(), card = opts.card and true or nil, chat = db.chat, text = text, about = about })
@@ -474,6 +479,8 @@ function C.OnRecord(r, replay)
 	if carded then replay = true end
 	local text
 	if kind == "reply" then
+		-- An imported guide (docs/milestone-15.md): its plan saved for this character.
+		if type(r.plan) == "table" and ns.Guide then pcall(ns.Guide.OnPlan, r.plan) end
 		text = ns.SafeText(r.text)
 		local more = math.max(0, math.floor(tonumber(r.more) or 0))
 		local whole = text .. (more > 0 and " |cff888888(the rest is in the Spellmind app)|r" or "")
@@ -571,6 +578,18 @@ SlashCmdList.SPELLMIND = function(msg)
 	-- /sm panel: the Advisor panel.
 	if lower == "panel" and ns.Panel and ns.db then
 		ns.Panel.Toggle()
+		return
+	end
+	-- /sm guide <link>: your guide's link, read now by your AI; /sm guide alone: the link box.
+	local guideArg = (lower == "guide" and "") or msg:match("^[Gg][Uu][Ii][Dd][Ee]%s+(.+)$")
+	if guideArg and ns.Guide and ns.db then
+		if guideArg == "" then
+			ns.Guide.AskLink(ns.Panel and ns.Panel.Get())
+		elseif ns.Guide.SetUrl(guideArg) then
+			ns.Guide.Import()
+		else
+			ChatFrame("Spellmind: that isn't an https:// link. Paste your guide's link after /sm guide.")
+		end
 		return
 	end
 	-- /sm settings: the Settings tab.

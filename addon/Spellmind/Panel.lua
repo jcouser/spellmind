@@ -706,18 +706,66 @@ function Tabs.gear()
 	return out
 end
 
+-- Talents (docs/milestone-15.md): the player's guide, tracked. The next points from its talent order
+-- against the character's own talents, points spent off it, names the tree doesn't have; without a
+-- guide, how to set one. Then what's spent.
 function Tabs.talents()
+	local GD = ns.Guide
 	local t = Part("talents")
-	local out = { { kind = "head", text = "Talents" } }
-	out[#out + 1] = { kind = "text", text = string.format("%d spent, %s", tonumber(t.spent) or 0,
-		(tonumber(t.unspent) or 0) > 0 and ("|cff19ff19" .. t.unspent .. " to spend|r") or "none to spend") }
-	for _, n in ipairs(type(t.nodes) == "table" and t.nodes or {}) do
-		out[#out + 1] = { kind = "item", left = ns.Escape(n.name or "?"), right = (n.r or 0) .. " / " .. (n.max or 0) }
+	local unspent = tonumber(t.unspent) or 0
+	local g = GD.Get()
+	local plan = g and g.plan
+	local out = {}
+	if not g or not g.url then
+		out[#out + 1] = { kind = "head", text = "Your guide" }
+		out[#out + 1] = { kind = "item", left = "No guide yet", sub = "|cff888888Give Spellmind your leveling guide's link: it follows its talent order.|r",
+			actions = { { "Set link", function() GD.AskLink(panel) end } } }
+	elseif not plan then
+		out[#out + 1] = { kind = "head", text = "Your guide" }
+		out[#out + 1] = { kind = "item", left = ns.Escape(GD.Host(g.url) or "your guide"), sub = "|cff888888Not imported yet: your AI reads the page.|r",
+			actions = { { "Change", function() GD.AskLink(panel) end }, { "Import", function() GD.Import(nil, panel) end } } }
+	else
+		out[#out + 1] = { kind = "head", text = "Your guide: " .. ns.Escape(plan.build or "build") }
+		local p = GD.Progress()
+		local tree = ns.State.AllTalents and ns.State.AllTalents() or {}
+		out[#out + 1] = { kind = "item", left = ns.Escape(plan.title or GD.Host(g.url) or "your guide"),
+			sub = "|cff888888" .. ns.Escape(plan.source or "") .. (p and (" · " .. p.done .. " of " .. p.total .. " points taken") or "") .. "|r",
+			actions = { { "Change", function() GD.AskLink(panel) end }, { "Re-import", function() GD.Import(plan.build, panel) end } } }
+		if p and #p.next > 0 then
+			out[#out + 1] = { kind = "head", text = unspent > 0 and ("Spend your " .. (unspent == 1 and "point" or (unspent .. " points"))) or "Next points" }
+			for i, s in ipairs(p.next) do
+				local now = s.now and unspent >= i
+				out[#out + 1] = { kind = "item", indent = true, left = (now and "|cff19ff19" or "") .. ns.Escape(GD.StepText(s, tree)) .. (now and "|r" or ""),
+					right = "level " .. s.level, tag = now and { "now", 0.1, 1, 0.1 } or nil }
+			end
+		elseif p then
+			out[#out + 1] = { kind = "text", text = "|cff19ff19Every point of the guide is taken.|r" }
+		end
+		for _, o in ipairs(p and p.off or {}) do
+			out[#out + 1] = { kind = "item", indent = true, left = "|cffff6060Off plan:|r " .. ns.Escape(o.name) .. " " .. o.have,
+				sub = "|cff888888" .. (o.plan > 0 and ("Your guide takes it to " .. o.plan .. ".") or "Your guide doesn't take it.") .. "|r" }
+		end
+		if p and #p.unknown > 0 then
+			out[#out + 1] = { kind = "text", text = "|cffff6060Not in your talents: " .. ns.Escape(table.concat(p.unknown, ", ")) .. ".|r |cff888888The import may have misread them: Re-import, or ask.|r" }
+		end
+		-- The page's other builds: import one instead.
+		local others = {}
+		for _, b in ipairs(plan.builds or {}) do if b ~= plan.build then others[#others + 1] = b end end
+		if #others > 0 then
+			out[#out + 1] = { kind = "head", text = "Other builds in your guide" }
+			for _, b in ipairs(others) do
+				local build = b
+				out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(build), actions = { { "Import", function() GD.Import(build, panel) end } } }
+			end
+		end
 	end
+	out[#out + 1] = { kind = "head", text = "Talents" }
+	out[#out + 1] = { kind = "text", text = string.format("%d spent, %s", tonumber(t.spent) or 0,
+		unspent > 0 and ("|cff19ff19" .. unspent .. " to spend|r") or "none to spend") }
 	return out
 end
 
-function Tabs.spells()
+local function SpellRows()
 	local s = Part("spells")
 	local you = ns.State.Whole(ns.Try(UnitLevel, "player")) or 1
 	-- The class trainer's kept list (Trainer.lua): Forever's spellbook shows nothing coming.
@@ -754,6 +802,25 @@ function Tabs.spells()
 			right = "level " .. (n.level or "?"), tag = ready and { "train now", 0.1, 1, 0.1 } or nil }
 	end
 	if not any then out[#out + 1] = { kind = "text", text = "Nothing new in your spellbook yet. Open your class trainer once and Spellmind keeps its list." } end
+	return out
+end
+
+-- The Spells tab: the trainer's list (or the book's), then the guide's ability priority and its stat
+-- and weapon advice (Guide.lua), when there's a guide.
+function Tabs.spells()
+	local out = SpellRows()
+	local g = ns.Guide and ns.Guide.Get()
+	local plan = g and g.plan
+	if type(plan) == "table" and #(plan.rotation or {}) > 0 then
+		out[#out + 1] = { kind = "head", text = "Your guide's priority" }
+		-- One line a row: a long step is cut (the AI has the whole of it).
+		for i, line in ipairs(plan.rotation) do out[#out + 1] = { kind = "item", left = i .. ". " .. ns.Escape(ns.Utf8Cut(line, 90)) } end
+	end
+	if type(plan) == "table" and (#(plan.stats or {}) > 0 or plan.weapons) then
+		out[#out + 1] = { kind = "head", text = "Stats and weapons" }
+		if #(plan.stats or {}) > 0 then out[#out + 1] = { kind = "item", left = ns.Escape(table.concat(plan.stats, " > ")) } end
+		if plan.weapons then out[#out + 1] = { kind = "text", text = "|cff888888" .. ns.Escape(ns.Utf8Cut(plan.weapons, 100)) .. "|r" } end
+	end
 	return out
 end
 
@@ -934,6 +1001,12 @@ function Tabs.settings()
 				end } } }
 		end
 	end
+	-- Your guide (Guide.lua): its link, set or changed here too.
+	local g = ns.Guide.Get()
+	out[#out + 1] = { kind = "head", text = "Your guide" }
+	out[#out + 1] = { kind = "item", left = g and g.url and ns.Escape(ns.Guide.Host(g.url) or "your guide") or "No guide yet",
+		sub = "|cff888888" .. (g and g.plan and ("Following " .. ns.Escape(g.plan.build or "its build") .. ". The Talents tab tracks it.") or "A leveling guide's link: its talent order, priorities and weapon advice.") .. "|r",
+		actions = { { g and g.url and "Change" or "Set link", function() ns.Guide.AskLink(panel) end } } }
 	return out
 end
 

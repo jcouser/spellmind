@@ -56,6 +56,8 @@ const BAG_ITEM = { id: int, name: str, q: intIn(0, 8), n: int, ilvl: num, sub: s
 const SPELL = { name: str, rank: int, passive: bool };
 const NEXT_SPELL = { name: str, rank: int, level: int };
 const TRAIN_DUE = { name: str, rank: int, cost: num };
+// The player's guide (Guide.lua, milestone 15): its build, next points and priorities.
+const GUIDE = { build: str, source: str, next: strList(8), stats: strList(8), rotation: strList(8), weapons: str };
 // The class trainer's list from its last visit (Trainer.lua, milestone 10).
 const TRAINER = { at: int, due: list(TRAIN_DUE, LIST_MAX.trainer), soon: list(NEXT_SPELL, LIST_MAX.trainer) };
 const SPELL_TAB = { name: str, list: list(SPELL, LIST_MAX.spells) };
@@ -68,7 +70,7 @@ const REP = { id: int, name: str, r: intIn(1, 8), v: num, max: num, watched: boo
 const SHAPES = {
   char: { class: str, classFile: str, race: str, raceFile: str, faction: str, level: int, xp: num, xpMax: num, rested: num, resting: bool, money: num, loc: shape(LOC) },
   stats: { hp: num, mana: num, str: num, agi: num, sta: num, int: num, spi: num, armor: num, ap: num, rap: num, crit: num, rcrit: num, scrit: num, dodge: num, parry: num, block: num, res: numMap },
-  talents: { spec: str, role: str, spent: int, unspent: int, nodes: list(NODE, LIST_MAX.nodes) },
+  talents: { spec: str, role: str, spent: int, unspent: int, nodes: list(NODE, LIST_MAX.nodes), guide: shape(GUIDE) },
   spells: { tabs: list(SPELL_TAB, LIST_MAX.spellTabs), next: list(NEXT_SPELL, LIST_MAX.nextSpells), trainer: shape(TRAINER) },
   gear: { items: list(GEAR_ITEM, LIST_MAX.gearItems), empty: v => Array.isArray(v) && v.length <= LIST_MAX.gearEmpty && v.every(int) },
   bags: { slots: int, free: int, items: list(BAG_ITEM, LIST_MAX.bagItems), junk: shape({ n: int, copper: num }), more: int },

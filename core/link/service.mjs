@@ -44,6 +44,7 @@ import { createRunQueue } from '../ai/runqueue.mjs';
 import { looksLikeKey } from '../ai/security/keycheck.mjs';
 import { writeFileQuick } from '../files.mjs';
 import { readStateRecord, mergeInto, stReady, partSeqs, gameState, loadCharState, saveCharState, SID_RE, ABOUT_RE } from './charstate.mjs';
+import { guideUrl, guideBuild, guideAsk, parseGuide, guideSummary } from './guide.mjs';
 
 /** The service's version: the addon's and this one's major numbers must match (the addon checks). */
 export const SERVICE_VERSION = '0.1.0';
@@ -290,7 +291,9 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
     // when the AI offers it; otherwise the app's defaults.
     const effort = AI && AI.efforts.includes(r.args.effort) ? r.args.effort : undefined;
     const search = AI && AI.search && (r.args.search === '0' || r.args.search === '1') ? r.args.search === '1' : undefined;
-    const item = { token: r.token, key: r.key, chat: c.id, kind: 'msg', text, st, about, effort, search, firstSeen: now(), attempts: 0 };
+    // guide=1: "Import my guide: <url>" (docs/milestone-15.md): the turn reads that page for a build.
+    const guide = r.args.guide === '1' && guideUrl(text) ? { url: guideUrl(text), build: guideBuild(text) } : undefined;
+    const item = { token: r.token, key: r.key, chat: c.id, kind: 'msg', text, st, about, effort, search, guide, firstSeen: now(), attempts: 0 };
     store.addOutbox(item); // on disk before the ack (SE-2)
     // A message that waits for its parts is acked with a ring now, so the strip frees for them.
     const wait = !!st && !stReady(st, chars.tokens[r.token]);
@@ -353,6 +356,8 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
       if (o) o.running = true;
       const game = gameFor(item);
       if (item.st !== null && item.st !== undefined) log('turn-game', { chat: item.chat, parts: game.state ? Object.keys(game.state) : [], stale: game.stale || undefined });
+      // An import reads the page with web search, whatever the header's pick, and starts from no history.
+      if (item.guide) return turn({ chatId: item.chat, text: guideAsk(item.guide.url, item.guide.build), history: [], signal, game, effort: item.effort, search: AI && AI.search ? true : item.search });
       return turn({ chatId: item.chat, text: item.text, history: prior, signal, game, effort: item.effort, search: item.search });
     }).then((res) => finish(runId, item, res), (err) => finish(runId, item, err?.name === 'AbortError' ? { aborted: true } : { error: { kind: 'error', text: String(err?.message || err) } }));
   }
@@ -377,6 +382,27 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
     const raw = String(res?.text ?? '');
     if (!raw.trim()) {
       record({ t: 'error', chat: c.id, kind: 'empty', text: systemLine('Your AI sent an empty reply. Ask again.') });
+      return;
+    }
+    // An import: the plan read from the AI's JSON goes to the addon as the record's plan; the chat
+    // gets a line saying what came in (or why nothing did), never the JSON.
+    if (item.guide) {
+      const g = parseGuide(raw, item.guide.url);
+      if (!g.ok) {
+        const rec = record({ t: 'error', chat: c.id, kind: 'guide', text: systemLine(g.reason) });
+        store.markRun(runId, rec.seq);
+        store.saveState();
+        log('guide-failed', { chat: c.id });
+        return;
+      }
+      const line = guideSummary(g.plan);
+      const rec = store.addRecord({ t: 'reply', chat: c.id, run: runId, agent: AGENT.id, text: renderReply(line).text, plan: g.plan }, now());
+      store.markRun(runId, rec.seq);
+      store.saveState();
+      remember(c.id, 'user', item.text);
+      remember(c.id, 'assistant', line);
+      log('guide', { chat: c.id, seq: rec.seq, talents: g.plan.talents.length, source: g.plan.source });
+      publisher.publish({ push: true });
       return;
     }
     // The "Next: a / b / c" line becomes the reply's chips: off the text, and out of the history.

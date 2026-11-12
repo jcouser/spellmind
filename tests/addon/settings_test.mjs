@@ -18,7 +18,7 @@ test('the tab: last in the rail; its sections, each switch with its On or Off bu
   assert.equal(vm.evaluate('SpellmindPanel.tabs[10].text:GetText()'), 'Settings');
   const d = list(vm, 'SpellmindPanel.drawn');
   assert.deepEqual(d.filter(x => x.kind === 'head').map(x => x.text),
-    ['On the game\'s windows', 'Nudges', 'Game data the AI gets', 'Chat and the minimap']);
+    ['On the game\'s windows', 'Nudges', 'Game data the AI gets', 'Chat and the minimap', 'Your guide']);
   assert.ok(d.some(x => x.text === 'Item tooltips'));
   assert.ok(d.some(x => x.text === 'Spells to train'));
   assert.ok(d.some(x => x.text === 'Reputations'));

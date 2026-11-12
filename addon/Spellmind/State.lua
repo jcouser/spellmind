@@ -316,7 +316,40 @@ function Build.talents()
 		end
 	end
 	if unspent == nil then unspent = Whole(ns.Try(GetNumUnspentTalents)) end
-	return O("v", 1, "spec", spec, "role", role, "spent", spent, "unspent", unspent, "nodes", nodes)
+	-- The player's guide (Guide.lua): its build, next points and priorities, so answers follow it.
+	local guide
+	if ns.Guide then
+		local have = {}
+		for _, n in ipairs(nodes or {}) do
+			local name, r = Get(n, "name"), Whole(Get(n, "r")) or 0
+			if name then have[name] = math.max(have[name] or 0, r) end
+		end
+		local ok, g = pcall(ns.Guide.ForState, have)
+		if ok then guide = g end
+	end
+	return O("v", 1, "spec", spec, "role", role, "spent", spent, "unspent", unspent, "nodes", nodes, "guide", guide)
+end
+
+-- Every talent the tree offers, with or without points: { [name] = max ranks } (Guide.lua checks an
+-- imported plan's names against it). Empty when the client doesn't say.
+function S.AllTalents()
+	local out = {}
+	local config = type(C_ClassTalents) == "table" and ns.Try(C_ClassTalents.GetActiveConfigID) or nil
+	local CT = C_Traits
+	if type(config) ~= "number" or type(CT) ~= "table" then return out end
+	local info = ns.Try(CT.GetConfigInfo, config)
+	local tree = type(info) == "table" and type(info.treeIDs) == "table" and info.treeIDs[1] or nil
+	local ids = tree and ns.Try(CT.GetTreeNodes, tree)
+	for _, id in ipairs(type(ids) == "table" and ids or {}) do
+		local node = ns.Try(CT.GetNodeInfo, config, id)
+		if type(node) == "table" then
+			for _, entryID in ipairs(type(node.entryIDs) == "table" and node.entryIDs or {}) do
+				local name = TalentName(config, entryID)
+				if name then out[name] = Whole(node.maxRanks) or 1 end
+			end
+		end
+	end
+	return out
 end
 
 -- Short stat names (NeverQuestAlone's Tooltips.lua STAT_KEYS) for C_Item.GetItemStats's keys,
@@ -727,6 +760,9 @@ local TRIMS = {
 			return true
 		end },
 		{ "rewards", function(obj) Set(obj, "choices", nil); Set(obj, "items", nil) end },
+	},
+	talents = {
+		{ "guide", function(obj) Set(obj, "guide", nil) end },
 	},
 	spells = {
 		{ "trainer", function(obj) Set(obj, "trainer", nil) end },

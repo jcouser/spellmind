@@ -93,9 +93,14 @@ function Detect.talents()
 	local t = Part("talents")
 	local n = tonumber(t.unspent) or 0
 	if n <= 0 then return {} end
+	-- With a guide (Guide.lua): its next pick, by name.
+	local text = "Want a pick for your build?"
+	local p = ns.Guide and ns.Guide.Progress and select(2, pcall(ns.Guide.Progress))
+	local first = type(p) == "table" and p.next and p.next[1]
+	if first then text = "Your guide: " .. ns.Escape(ns.Guide.StepText(first, ns.State.AllTalents and ns.State.AllTalents() or {})) .. "." end
 	return { { kind = "talents", key = "talents:" .. n .. ":" .. (ns.State.Whole(ns.Try(UnitLevel, "player")) or 0),
 		title = n == 1 and "A talent point to spend" or (n .. " talent points to spend"),
-		text = "Want a pick for your build?",
+		text = text,
 		ask = "I have " .. n .. " talent point" .. (n > 1 and "s" or "") .. " to spend. What should I take, and why?" } }
 end
 

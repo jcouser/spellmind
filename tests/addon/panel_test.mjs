@@ -96,7 +96,8 @@ test('Gear: worn items in slot order with item level and dps, the bow tagged "ne
 test('the other tabs: talents, the spells coming (train now when due), professions near their cap, gold and bag space', () => {
   const vm = session();
   vm.run('NS.Panel.Show("talents")');
-  assert.ok(drawn(vm).some(x => x.text === 'Malice' && x.right === '1 / 3'));
+  assert.ok(drawn(vm).some(x => x.text === 'No guide yet'), 'without a guide: how to set one');
+  assert.ok(drawn(vm).some(x => /spent/.test(x.text || '')), "and what's spent, not the game's own list");
   vm.run('NS.Panel.Show("spells")');
   const sprint = drawn(vm).find(x => /Sprint/.test(x.text || ''));
   assert.equal(sprint.tag, 'train now', 'level 10 spell at level 15');

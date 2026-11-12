@@ -198,3 +198,37 @@ test('without ai, the slot has no bridge.ai and effort= is ignored', async (t) =
   assert.equal(r.calls[0].search, undefined);
   assert.equal(r.slot().bridge.ai, undefined);
 });
+
+// Milestone 15: a guide import. guide=1 with "Import my guide: <url>": the turn asks the AI to read
+// the page (web search on, no history); its JSON comes back as the reply record's plan, and the chat
+// gets one line saying what came in.
+test('milestone 15: an import reads the guide with web search; the plan rides on the reply; a bad answer is an error', async (t) => {
+  const calls = [];
+  const plan = { title: 'WoW Forever Rogue Leveling Guide', build: 'Combat', builds: ['Combat', 'Assassination'],
+    talents: [{ level: 10, talent: 'Remorseless Attacks', rank: 1 }, { level: 11, talent: 'Remorseless Attacks', rank: 2 }, { level: 0, talent: 'Bad', rank: 1 }],
+    rotation: ['Riposte', 'Sinister Strike'], stats: ['Agility', 'Strength'], weapons: 'Slow main hand, fast off hand.', error: null };
+  const r = rig(t, {
+    ai: { name: 'ChatGPT', model: 'GPT', efforts: ['medium'], effort: 'medium', search: true, searchOn: false },
+    turn: async (a) => { calls.push(a); return { text: calls.length === 1 ? '```json\n' + JSON.stringify(plan) + '\n```' : 'I could not open it.' }; },
+  });
+  r.hello();
+  r.send({ token: TOKEN, key: `${NONCE}_1`, type: 'msg', chat: CHAT, args: { cur: 0, ctx: 0, guide: 1 }, text: 'Import my guide: https://mobalytics.gg/wow-forever/classes/rogue-leveling-guide' });
+  for (let i = 0; i < 20 && calls.length < 1; i++) await r.settle();
+  await r.settle();
+  assert.match(calls[0].text, /^Read this guide with web search: https:\/\/mobalytics\.gg\/wow-forever\/classes\/rogue-leveling-guide/);
+  assert.match(calls[0].text, /the build the page leads with/);
+  assert.equal(calls[0].search, true, 'web search on for an import, whatever the header says');
+  assert.deepEqual(calls[0].history, []);
+  const reply = toArr(r.slot().records).find(x => x.t === 'reply');
+  assert.match(reply.text, /^Imported Combat from mobalytics\.gg: 2 talent points \(levels 10 to 11\), the ability priority, the stat priority, weapon advice\. The page also has Assassination/);
+  assert.equal(reply.plan.build, 'Combat');
+  assert.deepEqual(toArr(reply.plan.talents).map(x => `${x.level} ${x.name} ${x.rank}`), ['10 Remorseless Attacks 1', '11 Remorseless Attacks 2'], 'a level-0 step is dropped');
+  assert.equal(reply.plan.source, 'mobalytics.gg');
+  // A build picked by name; an answer without JSON is an error, not a plan.
+  r.send({ token: TOKEN, key: `${NONCE}_2`, type: 'msg', chat: CHAT, args: { cur: 0, ctx: 0, guide: 1 }, text: 'Import my guide: https://example.com/g\nBuild: Assassination' });
+  for (let i = 0; i < 20 && calls.length < 2; i++) await r.settle();
+  await r.settle();
+  assert.match(calls[1].text, /Use the build named "Assassination"\./);
+  const err = toArr(r.slot().records).find(x => x.t === 'error' && x.kind === 'guide');
+  assert.match(err.text, /in a form Spellmind could read/);
+});

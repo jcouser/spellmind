@@ -26,8 +26,8 @@ local function Money(copper)
 	local g, s, c = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
 	local out = {}
 	if g > 0 then out[#out + 1] = g .. "g" end
-	if s > 0 or g > 0 then out[#out + 1] = s .. "s" end
-	out[#out + 1] = c .. "c"
+	if s > 0 then out[#out + 1] = s .. "s" end
+	if c > 0 or #out == 0 then out[#out + 1] = c .. "c" end -- "3s", not "3s 0c"
 	return table.concat(out, " ")
 end
 U.Money = Money

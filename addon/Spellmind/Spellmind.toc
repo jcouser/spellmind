@@ -19,6 +19,7 @@ Quests.lua
 Tooltip.lua
 Gear.lua
 GearUI.lua
+Professions.lua
 Panel.lua
 Nudges.lua
 Minimap.lua

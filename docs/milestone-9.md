@@ -32,3 +32,22 @@ The reward pick is labelled "likely", and the AI can say why or why not.
 
 - Dungeon loot: **the Dungeon Journal isn't on Forever** (probe round 5: `LoadAddOn` gives WRONG_GAME_TYPE, and 0 tiers), so dungeon drops come from Find my next upgrades' web search. `C_EncounterJournal.GetDungeonEntrancesForMap` exists and could give dungeon entrances on a map later.
 - Off-hand rules for classes that can't dual wield. One-handers are compared with the main hand only.
+
+## In the item tooltip (2026-11-12)
+
+What the Gear tab knows shows on the item itself, as at most three Spellmind lines.
+
+**1. The verdict** (as before): a red requirement in words, "fills your empty … slot", or the stat differences. It now starts with **upgrade:** when the item is one (Gear.Upgrade).
+
+**2. Sell advice** (Tooltip.SellLine):
+- "sell: grey junk (45c each)".
+- For gear that can't be used:
+  - "safe to sell: you can't use it" when soulbound;
+  - "you can't use it: sell, or the auction house" when not;
+  - "sell unless you'll learn Bows" for a weapon skill a weapon master may teach.
+- For gear worse than what's worn: "safe to sell: worse than what you wear", or "worse than yours: sell, or the auction house".
+- Nothing for gear only a level away (usable soon), or for what's worn.
+
+**3. Profession use** (Tooltip.ProfLine):
+- "used in your Leatherworking: Light Armor Kit, Handstitched Leather Boots", from the recipes `Professions.lua` reads while that profession's window is open (`SpellmindDB.recipes[char][itemID]`), learned ones first.
+- Otherwise, for a trade good, by its subtype: "a Leatherworking material (your Leatherworking 61/75)", or "a Tailoring and First Aid material: not one of your professions (sell, or the auction house)".

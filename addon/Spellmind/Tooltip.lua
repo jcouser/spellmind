@@ -177,9 +177,132 @@ function T.OnTooltip(tooltip, data)
 	end
 	local ok, line = pcall(T.Line, link, data)
 	if ok and line then
+		-- An upgrade (Gear.Upgrade: usable, clearly ahead) says so first.
+		local up = ns.Gear and select(2, pcall(ns.Gear.Upgrade, link))
+		if up and not line:find("can't use") and not line:find("needs level") and not line:find("skill yet") then
+			line = line:gsub("^(|cff9d7dffSpellmind:|r )", "%1|cff19ff19upgrade:|r ")
+		end
 		tooltip:AddLine(line, 1, 1, 1, true)
 		T.last = line
 	end
+	-- What the Gear tab knows, where the player looks (the player asked, 2026-11-12): sell advice and
+	-- what the item is to the character's professions. At most these two more lines.
+	T.extra = {}
+	for _, fn in ipairs({ T.SellLine, T.ProfLine }) do
+		local ok2, l = pcall(fn, link, data)
+		if ok2 and type(l) == "string" then
+			tooltip:AddLine(l, 1, 1, 1, true)
+			T.extra[#T.extra + 1] = l
+		end
+	end
+end
+
+local function Money(copper)
+	return ns.GearUI and ns.GearUI.Money(copper) or (tostring(copper) .. "c")
+end
+
+local function ItemInfo(link)
+	local r = C_Item and type(C_Item.GetItemInfo) == "function" and { pcall(C_Item.GetItemInfo, link) } or {}
+	if not r[1] or not r[2] then return nil end
+	return { name = r[2], q = r[4], sub = r[8], equipLoc = r[10], sell = r[12], classID = r[13] }
+end
+
+local function Soulbound(data)
+	local bound = rawget(_G, "ITEM_SOULBOUND") or "Soulbound"
+	for _, l in ipairs(type(data) == "table" and type(data.lines) == "table" and data.lines or {}) do
+		if type(l) == "table" and l.leftText == bound then return true end
+	end
+	return false
+end
+
+-- Sell advice: grey junk; gear that can't be used or is worse than what's worn (safe to sell when
+-- it's soulbound, else "sell, or the auction house"). Nothing for an item worn now.
+function T.SellLine(link, data)
+	if type(link) ~= "string" then return nil end
+	local info = ItemInfo(link)
+	if not info then return nil end
+	local id = tonumber(link:match("item:(%d+)"))
+	local price = tonumber(info.sell) or 0
+	local each = price > 0 and (" (" .. Money(price) .. (info.q == 0 and " each" or "") .. ")") or ""
+	if info.q == 0 and price > 0 then return T.PREFIX .. "sell: grey junk" .. each end
+	local slots = T.SLOTS[info.equipLoc or ""]
+	if not slots or not ns.Gear then return nil end
+	for _, s in ipairs(slots) do
+		if id and ns.Try(GetInventoryItemID, "player", s) == id then return nil end -- worn
+	end
+	local bound = Soulbound(data)
+	if not ns.Gear.Usable(link) then
+		local reds = T.RedTexts(data or (C_TooltipInfo and select(2, pcall(C_TooltipInfo.GetHyperlink, link))))
+		local levelOnly, skill = #reds > 0, nil
+		for _, t in ipairs(reds) do
+			if not t:match("[Rr]equires [Ll]evel") then levelOnly = false end
+		end
+		-- Only a level away: it'll be usable, so no "sell".
+		if levelOnly then return nil end
+		-- A weapon skill a weapon master may teach: sell unless they'll learn it.
+		if tonumber(info.classID) == 2 and type(info.sub) == "string" then
+			return T.PREFIX .. "sell unless you'll learn " .. ns.Escape(info.sub) .. (bound and "" or ", or the auction house") .. each
+		end
+		return T.PREFIX .. (bound and "safe to sell: you can't use it" or "you can't use it: sell, or the auction house") .. each
+	end
+	if ns.Gear.Upgrade(link) then return nil end
+	local worn
+	for _, s in ipairs(slots) do
+		local wl = ns.Try(GetInventoryItemLink, "player", s)
+		if wl and (not worn or ns.Gear.Weight(wl) < ns.Gear.Weight(worn)) then worn = wl end
+	end
+	if worn and ns.Gear.Weight(link) < ns.Gear.Weight(worn) then
+		return T.PREFIX .. (bound and "safe to sell: worse than what you wear" or "worse than yours: sell, or the auction house") .. each
+	end
+	return nil
+end
+
+-- A trade good's subtype and the professions that use it.
+T.MATERIALS = { Leather = { "Leatherworking" }, Cloth = { "Tailoring", "First Aid" }, Meat = { "Cooking" }, Cooking = { "Cooking" },
+	Herb = { "Alchemy" }, ["Metal & Stone"] = { "Blacksmithing", "Engineering" }, Elemental = { "Alchemy", "Blacksmithing", "Enchanting" },
+	Enchanting = { "Enchanting" }, Parts = { "Engineering" } }
+
+-- The character's professions: { [name] = { rank, max } }.
+local function MyProfessions()
+	local out = {}
+	local s = ns.State and ns.State.Collect and ns.State.Collect.skills and select(2, pcall(ns.State.Collect.skills))
+	for _, kv in ipairs(type(s) == "table" and s._o or {}) do
+		if kv[1] == "prof" and type(kv[2]) == "table" then
+			for _, p in ipairs(kv[2]) do
+				local t = {}
+				for _, f in ipairs(p._o or {}) do t[f[1]] = f[2] end
+				if t.name then out[t.name] = { rank = t.rank, max = t.max } end
+			end
+		end
+	end
+	return out
+end
+
+-- What the item is to the character's professions: the recipes of theirs that use it (Professions.lua,
+-- kept as they open a profession's window), else whether it's a material of a profession they have.
+function T.ProfLine(link)
+	if type(link) ~= "string" then return nil end
+	local id = tonumber(link:match("item:(%d+)"))
+	local uses = ns.Professions and ns.Professions.Uses(id) or {}
+	if #uses > 0 then
+		local learned, prof = {}, uses[1].prof
+		for _, r in ipairs(uses) do if r.learned then learned[#learned + 1] = r.name end end
+		if #learned > 0 then
+			local names = table.concat(learned, ", ", 1, math.min(2, #learned)) .. (#learned > 2 and (" and " .. (#learned - 2) .. " more") or "")
+			return T.PREFIX .. "used in your " .. ns.Escape(prof) .. ": " .. ns.Escape(names)
+		end
+		return T.PREFIX .. "used in " .. ns.Escape(prof) .. " recipes you haven't learned yet"
+	end
+	local info = ItemInfo(link)
+	if not info or tonumber(info.classID) ~= 7 then return nil end -- trade goods only
+	local profs = T.MATERIALS[info.sub or ""]
+	if not profs then return nil end
+	local mine = MyProfessions()
+	for _, p in ipairs(profs) do
+		local m = mine[p]
+		if m then return T.PREFIX .. "a " .. p .. " material (your " .. p .. " " .. (m.rank or 0) .. "/" .. (m.max or 0) .. ")" end
+	end
+	return T.PREFIX .. "a " .. table.concat(profs, " and ") .. " material: not one of your professions (sell, or the auction house)"
 end
 
 function T.Hook()

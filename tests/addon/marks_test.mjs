@@ -170,12 +170,31 @@ test('shift-click puts the question in the chat box to edit first, about the que
 test('the tooltip line: what a red requirement means (a skill to learn, a level), an empty slot, or the stat differences against what\'s worn', () => {
   const vm = newVM().login().advance(3.1);
   const show = id => lines(vm, `STUB.ShowItem(GameTooltip, STUB.ItemLink(${id}))`);
-  assert.deepEqual(show(2504), ['|cff9d7dffSpellmind:|r no Bows skill yet: a weapon master may teach it'], 'Ranged and Bow in red: a skill, maybe learnable');
-  assert.deepEqual(show(5404), ['|cff9d7dffSpellmind:|r needs level 18'], 'a level requirement in red');
-  assert.deepEqual(show(4936), ['|cff9d7dffSpellmind:|r fills your empty Back slot']);
-  assert.deepEqual(show(2140), ['|cff9d7dffSpellmind:|r |cff19ff19+0.9 dps|r, |cff19ff19+2 Str|r vs your Craftsman\'s Dagger'], 'against the main hand, gains in green');
-  assert.deepEqual(show(7010), ['|cff9d7dffSpellmind:|r |cffff1919-2 Agi|r, |cff19ff19+2 Sta|r, |cff19ff19+2 Armor|r vs your Simple Robe of the Monkey'], 'a loss in red');
+  assert.deepEqual(show(2504), ['|cff9d7dffSpellmind:|r no Bows skill yet: a weapon master may teach it',
+    "|cff9d7dffSpellmind:|r sell unless you'll learn Bows, or the auction house (7c)"], 'Ranged and Bow in red: a skill, maybe learnable; sell advice that says so');
+  assert.deepEqual(show(5404), ['|cff9d7dffSpellmind:|r needs level 18'], 'a level requirement in red: no "sell" for what is usable soon');
+  assert.deepEqual(show(4936), ['|cff9d7dffSpellmind:|r |cff19ff19upgrade:|r fills your empty Back slot'], 'an upgrade says so');
+  assert.deepEqual(show(2140), ['|cff9d7dffSpellmind:|r |cff19ff19upgrade:|r |cff19ff19+0.9 dps|r, |cff19ff19+2 Str|r vs your Craftsman\'s Dagger'], 'against the main hand, gains in green');
+  assert.deepEqual(show(7010), ['|cff9d7dffSpellmind:|r |cffff1919-2 Agi|r, |cff19ff19+2 Sta|r, |cff19ff19+2 Armor|r vs your Simple Robe of the Monkey',
+    '|cff9d7dffSpellmind:|r worse than yours: sell, or the auction house (3s)'], 'a loss in red; worse than worn: sell advice');
   assert.deepEqual(show(2218), [], 'the dagger it wears: nothing to say');
   assert.deepEqual(show(6948), [], 'not wearable: no line');
   assert.deepEqual(lines(vm, `STUB.ShowItem(ShoppingTooltip1 or CreateFrame("Frame", "ShoppingTooltip1"), STUB.ItemLink(4936))`), [], 'comparison tooltips stay the game\'s');
+});
+
+test('the tooltip\'s extra lines: grey junk to sell; a material of your profession; your recipes that use it (read when its window was open)', () => {
+  const vm = newVM().login().advance(3.1);
+  const show = id => lines(vm, `STUB.ShowItem(GameTooltip, STUB.ItemLink(${id}))`);
+  assert.deepEqual(show(3300), ['|cff9d7dffSpellmind:|r sell: grey junk (45c each)'], "Rabbit's Foot");
+  assert.deepEqual(show(2318), ['|cff9d7dffSpellmind:|r a Leatherworking material (your Leatherworking 61/75)'], 'Light Leather, before any recipe is read');
+  assert.deepEqual(show(2589), ['|cff9d7dffSpellmind:|r a Tailoring and First Aid material: not one of your professions (sell, or the auction house)'], 'Linen Cloth');
+  // The Leatherworking window opens: its recipes and their reagents are read.
+  vm.run(`C_TradeSkillUI = {
+    GetBaseProfessionInfo = function() return { professionName = "Leatherworking" } end,
+    GetAllRecipeIDs = function() return { 2149, 2152, 3753 } end,
+    GetRecipeInfo = function(id) return ({ [2149] = { name = "Handstitched Leather Boots", learned = true }, [2152] = { name = "Light Armor Kit", learned = true }, [3753] = { name = "Handstitched Leather Belt", learned = false } })[id] end,
+    GetRecipeSchematic = function(id) return { reagentSlotSchematics = { { reagents = { { itemID = 2318 } } } } } end,
+  }; STUB.FireEvent("TRADE_SKILL_SHOW")`);
+  vm.advance(1.5);
+  assert.deepEqual(show(2318), ['|cff9d7dffSpellmind:|r used in your Leatherworking: Handstitched Leather Boots, Light Armor Kit'], 'learned recipes, by name');
 });

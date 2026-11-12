@@ -82,7 +82,7 @@ function Detect.dungeon()
 	end
 	local n, ready = 0, 0
 	for _, d in ipairs(DG.FromLog()) do
-		if d.name == here.name then n, ready = #d.quests, d.ready end
+		if DG.Norm(d.name) == DG.Norm(here.name) then n, ready = #d.quests, d.ready end
 	end
 	local text = n > 0 and (n .. " of your quests here" .. (ready > 0 and (", " .. ready .. " ready") or "") .. ". Want a briefing?") or "Want a briefing?"
 	return { { kind = "dungeon", key = here.name, title = "Entering " .. ns.Escape(here.name),

@@ -25,7 +25,7 @@ test('the tab: second in the rail; your quests\' dungeons with their quests, lev
   assert.equal(vm.evaluate('SpellmindPanel.tabs[3].text:GetText()'), 'Dungeons');
   assert.equal(d[0].text, 'Your quests are for');
   assert.equal(d[1].text, 'The Hall of Thanes');
-  assert.match(d[1].sub, /1 quest · level 16/);
+  assert.match(d[1].sub, /1 in your log · level 16/);
   assert.equal(d[2].text, 'Old Ironforge Incursion');
   assert.equal(d[2].quest, 96393, 'with its Break it down mark');
   assert.ok(!d.some(x => x.text === 'At your level'), 'no LFG list on this client: no section');
@@ -64,7 +64,7 @@ test('the LFG tool\'s dungeons at your level, when the client lists them (a dung
   const d = drawn(vm);
   const at = d.findIndex(x => x.text === 'At your level');
   assert.ok(at > 0);
-  assert.deepEqual(d.slice(at + 1).map(x => `${x.text} ${x.right}`), ['Ragefire Chasm 13–18', 'Wailing Caverns 17–24', 'The Deadmines 18–23']);
+  assert.deepEqual(d.slice(at + 1).filter(x => x.kind === 'item').map(x => `${x.text} ${x.right}`), ['Ragefire Chasm 13–18', 'Wailing Caverns 17–24', 'The Deadmines 18–23']);
 });
 
 test('entering a dungeon: a nudge with your quests there and a briefing to ask; the tab says where you are; leaving drops it', () => {
@@ -76,7 +76,8 @@ test('entering a dungeon: a nudge with your quests there and a briefing to ask; 
   assert.equal(vm.evaluate('SpellmindNudge.text:GetText()'), '1 of your quests here. Want a briefing?');
   const d = drawn(vm);
   assert.equal(d[0].text, 'You\'re in The Hall of Thanes');
-  assert.match(d[1].sub, /1 of your quests here · Normal/);
+  assert.match(d[1].sub, /Normal/);
+  assert.equal(d[2].text, 'Old Ironforge Incursion', 'your quest for it, under it');
   vm.run('STUB.instance = nil; STUB.FireEvent("PLAYER_ENTERING_WORLD")');
   vm.advance(4);
   assert.ok(!list(vm, 'NS.Nudges.List()').some(n => n.kind === 'dungeon'), 'out of it: gone');
@@ -99,4 +100,70 @@ test('a login inside a dungeon stays quiet until the first look, then nudges', (
   assert.equal(list(vm, 'NS.Nudges.List()').length, 0);
   vm.advance(6);
   assert.equal(list(vm, 'NS.Nudges.List()')[0].title, 'Entering The Hall of Thanes');
+});
+
+// With QuestieDB installed: each dungeon's quests for this character, from its public API.
+function withDB({ lfg = false } = {}) {
+  const vm = newVM();
+  vm.run(HALL);
+  vm.run('STUB.UseQuestieDB(); STUB.completed[96390] = true');
+  if (lfg) vm.run('STUB.lfg = { { 1, "Hall of Thanes", 13, 20 }, { 2, "Deadmines", 17, 26 } }; STUB.UseLFG(); STUB.completed[1001] = true; STUB.completed[1002] = true');
+  vm.login().advance(9);
+  vm.run('NS.Panel.Show("dungeons")');
+  vm.advance(1); // QuestieDB's quests are read a few hundred a frame, then the tab redraws
+  return vm;
+}
+
+test('QuestieDB: what you haven\'t picked up, who gives it and where; locked ones say what opens them; done and in-log counted', () => {
+  const vm = withDB();
+  const d = drawn(vm);
+  const hall = d.find(x => x.text === 'The Hall of Thanes');
+  assert.match(hall.sub, /^.cff888888level 16 · .cffffd1001 to pick up.r · 2 later · 1 in your log · 1 done/);
+  const oh = d.find(x => x.text === 'Oh Brother...');
+  assert.equal(oh.tag, 'pick up');
+  assert.match(oh.sub, /from Thane Ironbelly, Ironforge \(45, 51\)/);
+  const under = d.find(x => x.text === 'Underground Assault');
+  assert.match(under.sub, /after Oh Brother\.\.\./);
+  assert.equal(under.tag, undefined, 'not yet: no "pick up" tag');
+  const vault = d.find(x => x.text === 'The Deep Vault');
+  assert.match(vault.sub, /at level 22/);
+  for (const other of ['A Horde Errand', 'A Warrior\'s Trial', 'Shadowy Orders', 'Collecting Memories', 'Elwynn Wolves'])
+    assert.ok(!d.some(x => x.text === other), `${other}: another race, class or faction, done, or another zone`);
+});
+
+test('QuestieDB: a dungeon with every quest done says so; the LFG list\'s "Hall of Thanes" is your log\'s "The Hall of Thanes"', () => {
+  const vm = withDB({ lfg: true });
+  const d = drawn(vm);
+  assert.equal(d.filter(x => /Hall of Thanes$/.test(x.text || '')).length, 1, 'one row, not two');
+  const dm = d.find(x => x.text === 'Deadmines');
+  assert.match(dm.sub, /All 2 quests done/);
+});
+
+test('QuestieDB: the briefing names the quests to pick up and who gives them', () => {
+  const vm = withDB();
+  const q = vm.evaluate('NS.Dungeons.Briefing("The Hall of Thanes")');
+  assert.match(q, /Quests for it I haven't picked up: Oh Brother\.\.\. \(from Thane Ironbelly, Ironforge \(45, 51\)\); Underground Assault \(from Thane Ironbelly, Ironforge \(45, 51\)\) after Oh Brother\.\.\./);
+  assert.match(q, /Already done: Collecting Memories\./);
+  assert.match(q, /the best order to pick up the missing quests/);
+});
+
+test('QuestieDB: an at-your-level dungeon\'s quests open under it on Quests, and close on Hide', () => {
+  const vm = newVM();
+  vm.run('STUB.UseQuestieDB(); STUB.lfg = { { 1, "Hall of Thanes", 13, 20 } }; STUB.UseLFG()');
+  vm.login().advance(9);
+  vm.run('NS.Panel.Show("dungeons")');
+  vm.advance(1);
+  let d = drawn(vm);
+  const i = d.findIndex(x => x.text === 'Hall of Thanes');
+  assert.match(d[i].sub, /to pick up/);
+  assert.ok(!d.some(x => x.text === 'Oh Brother...'), 'closed at first');
+  vm.run(`SpellmindPanel.rows[${i + 1}].actions[1].scripts.OnClick(SpellmindPanel.rows[${i + 1}].actions[1], "LeftButton")`);
+  d = list(vm, 'SpellmindPanel.drawn');
+  assert.ok(d.some(x => x.text === 'Oh Brother...'));
+  assert.equal(vm.evaluate(`SpellmindPanel.rows[${i + 1}].actions[1].text:GetText()`), 'Hide');
+});
+
+test('without QuestieDB: a line says what it would add', () => {
+  const vm = session();
+  assert.ok(drawn(vm).some(x => /With the QuestieDB addon installed/.test(x.text || '')));
 });

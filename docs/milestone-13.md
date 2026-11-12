@@ -17,3 +17,21 @@ This covers features.md §3.7. Forever has dungeons of its own (the Hall of Than
 - Run `/sm probe` then `/reload` (probe round 6), and see whether `C_LFGList` lists dungeons and levels on Forever. Check `GetInstanceInfo` inside a dungeon, and the dungeon entrances API for a Go to the entrance later.
 - Check that a dungeon's quests sit under its name in the log.
 - It's a new file (`Dungeons.lua`), so it needs a full restart.
+
+## The quests you're missing (2026-11-12)
+
+The player's ask: "list any missing quests, where to get them … Hall of Thanes could display that all quests are completed". The game alone can't list a dungeon's quests that aren't in the log, so this comes from **QuestieDB's public API** (`LibQuestieDB`, contract 4) when that addon is installed. Spellmind calls it at runtime and ships none of its data (QuestieDB's content is all rights reserved, so nothing of it is copied).
+
+- **The list:** one pass over QuestieDB's quests (400 a frame, once a session) sorts them by zone. A dungeon's quests have the dungeon as their zone. The dungeon is found from a quest of its in the log, else by name (QuestieDB's named areas, then `C_Map.GetAreaInfo`). "The Hall of Thanes" and "Hall of Thanes" are one dungeon, so the LFG list no longer shows a dungeon twice (seen in game: "The Deadmines" and "Deadmines").
+- **For this character:** a quest is left out when it's for another race, class or faction (by its giver), needs a profession, is past its max level, or is shut out by an exclusive quest already done or taken.
+- **Each quest is one of:**
+  - **done**: `C_QuestLog.IsQuestFlaggedCompleted`;
+  - **in your log**;
+  - **to pick up**: tagged, with "from Thane Ironbelly, Ironforge (45, 51)";
+  - **later**: "after Oh Brother…" (a prerequisite not done) or "at level 22".
+- **The tab:**
+  - each dungeon's line reads "1 to pick up · 2 later · 1 in your log · 1 done", or "All 4 quests done" in green;
+  - the quests to pick up are listed under your log's dungeons and the one you're in;
+  - an at-your-level dungeon has a **Quests** button that opens its list under it (and **Hide** closes it);
+  - without QuestieDB, a grey line says what it would add.
+- **The briefing:** the question names the quests to pick up and their givers, and what's done, so the AI orders the pickups instead of guessing the list.

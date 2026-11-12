@@ -784,3 +784,49 @@ end
 -- A crafting reagent no profession of the rogue's uses (Shadowgem: a green trade good, "Crafting Reagent").
 STUB.items[1210] = { "Shadowgem", 2, 20, 0, "Trade Goods", "Trade Goods", 20, "", 134135, 250, 7, 0 }
 STUB.tooltips[STUB.ItemLink(1210)] = { "Shadowgem", "Crafting Reagent" }
+-- QuestieDB's public API, as the dungeons tab reads it (LibQuestieDB, contract 4): a stand-in with a
+-- few made-up quests, for STUB.UseQuestieDB(). Completed quests are STUB.completed[id] = true.
+STUB.completed = {}
+C_QuestLog.IsQuestFlaggedCompleted = function(id) return STUB.completed[id] or false end
+C_Map.GetAreaInfo = function(id) return ({ [16919] = "The Hall of Thanes", [1581] = "The Deadmines", [1537] = "Ironforge", [40] = "Westfall" })[id] end
+STUB.qdb = {
+	quests = {
+		[96393] = { name = "Old Ironforge Incursion", zone = 16919, level = 16 },
+		[96390] = { name = "Collecting Memories", zone = 16919, level = 18 },
+		[96391] = { name = "Oh Brother...", zone = 16919, level = 20, npc = 900 },
+		[96392] = { name = "Underground Assault", zone = 16919, level = 20, npc = 900, single = { 96391 } },
+		[96394] = { name = "A Horde Errand", zone = 16919, level = 18, races = 2 },
+		[96395] = { name = "A Warrior's Trial", zone = 16919, level = 18, classes = 1 },
+		[96396] = { name = "Shadowy Orders", zone = 16919, level = 18, npc = 901 },
+		[96397] = { name = "The Deep Vault", zone = 16919, level = 23, req = 22, npc = 900 },
+		[1001] = { name = "Red Silk Bandanas", zone = 1581, level = 17 },
+		[1002] = { name = "Collecting Memories (Deadmines)", zone = 1581, level = 18 },
+		[5000] = { name = "Elwynn Wolves", zone = 12, level = 5 },
+	},
+	npcs = {
+		[900] = { name = "Thane Ironbelly", zone = 1537, spawns = { [1537] = { { 45.2, 50.7 } } }, friendly = "A" },
+		[901] = { name = "Grunt Dothrak", zone = 1537, spawns = {}, friendly = "H" },
+	},
+}
+function STUB.UseQuestieDB()
+	local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+	local function f(key) return function(id) local q = Q[id]; return q and q[key] end end
+	LibQuestieDB = {
+		contractVersion = 4,
+		RequireContract = function(n) return n <= 4 end,
+		Enum = { zoneIDs = { THE_HALL_OF_THANES = 16919, THE_DEADMINES = 1581, IRONFORGE = 1537 },
+			classKeys = { WARRIOR = 1, ROGUE = 8 }, raceMaskById = { [1] = 1, [2] = 2, [3] = 4 } },
+		Quest = {
+			GetAllIds = function() local ids = {} for id in pairs(Q) do ids[#ids + 1] = id end table.sort(ids) return ids end,
+			name = f("name"), zoneOrSort = f("zone"), questLevel = f("level"), requiredLevel = f("req"),
+			requiredRaces = f("races"), requiredClasses = f("classes"), preQuestSingle = f("single"),
+			preQuestGroup = function() return nil end, exclusiveTo = function() return nil end,
+			requiredMaxLevel = function() return 0 end, requiredSkill = function() return nil end,
+			startedBy = function(id) local q = Q[id]; if not q then return nil end return { q.npc and { q.npc } or {}, {}, {} } end,
+		},
+		Npc = {
+			name = function(id) return N[id] and N[id].name end, zoneID = function(id) return N[id] and N[id].zone end,
+			spawns = function(id) return N[id] and N[id].spawns end, friendlyToFaction = function(id) return N[id] and N[id].friendly end,
+		},
+	}
+end

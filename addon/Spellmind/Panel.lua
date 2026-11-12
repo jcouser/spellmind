@@ -477,46 +477,94 @@ function Tabs.dungeons()
 	local here = DG.Here()
 	local log = DG.FromLog()
 	local shown = {}
+	P.openDungeons = P.openDungeons or {}
+	local redraw = function() if panel and panel:IsShown() and P.tab == "dungeons" then P.Show("dungeons", true) end end
 	local function brief(name)
 		return { "Brief", function() P.Ask("Brief me: " .. name, DG.Briefing(name)) end }
 	end
+	local function lfg(name)
+		return { "LFG", function(_, btn) P.LFGMenu(name, btn) end }
+	end
+	-- The quests still to pick up (QuestieDB's list): who gives each and where, or what opens it.
+	local function pickups(qs)
+		for _, q in ipairs(qs and qs.pickup or {}) do
+			local from = q.from and ("from " .. ns.Escape(q.from)) or "giver unknown"
+			local wait = q.after and ("|cffff6060after " .. ns.Escape(q.after) .. "|r · ") or (q.at and ("|cffff6060at level " .. q.at .. "|r · ") or "")
+			out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(q.name), right = q.level and ("level " .. q.level) or "",
+				sub = wait .. "|cff888888" .. from .. "|r", tag = (not q.after and not q.at) and { "pick up", 1, 0.82, 0 } or nil }
+		end
+	end
+	-- The status line: QuestieDB's count when it's there (while its first read runs, "reading…").
+	local function status(name, fallback)
+		if not DG.HasDB() then return fallback end
+		local qs = DG.Quests(name, redraw)
+		if not qs then return DG.index and fallback or ((fallback and (fallback .. " · ") or "") .. "reading quests…"), nil end
+		local s = DG.Summary(qs)
+		return (fallback and (fallback .. " · ") or "") .. s, qs
+	end
 	if here then
 		out[#out + 1] = { kind = "head", text = "You're in " .. ns.Escape(here.name) }
-		local n = 0
-		for _, d in ipairs(log) do if d.name == here.name then n = #d.quests end end
-		out[#out + 1] = { kind = "item", left = ns.Escape(here.name), sub = "|cff888888" .. (n > 0 and (n .. " of your quests here") or "None of your quests are for it") .. (here.diff and (" · " .. ns.Escape(here.diff)) or "") .. "|r",
-			actions = { brief(here.name) } }
-		shown[here.name] = true
+		local line, qs = status(here.name, here.diff and ns.Escape(here.diff) or nil)
+		out[#out + 1] = { kind = "item", left = ns.Escape(here.name), sub = line and ("|cff888888" .. line .. "|r") or nil, actions = { brief(here.name) } }
+		for _, d in ipairs(log) do
+			if DG.Norm(d.name) == DG.Norm(here.name) then
+				for _, q in ipairs(d.quests) do
+					out[#out + 1] = { kind = "item", indent = true, quest = q.id, left = ns.Escape(q.title or "?"),
+						right = q.complete and "|cff19ff19ready|r" or (q.level and ("level " .. q.level) or "") }
+				end
+			end
+		end
+		pickups(qs)
+		shown[DG.Norm(here.name)] = true
 	end
 	out[#out + 1] = { kind = "head", text = "Your quests are for" }
 	local any = false
 	for _, d in ipairs(log) do
-		any = true
-		local name = d.name
-		local bits = { #d.quests .. " quest" .. (#d.quests > 1 and "s" or "") }
-		local range = DG.Range(d.low, d.high)
-		if range then bits[#bits + 1] = range end
-		if d.ready > 0 then bits[#bits + 1] = "|cff19ff19" .. d.ready .. " ready to turn in|r" end
-		out[#out + 1] = { kind = "item", left = ns.Escape(name), sub = "|cff888888" .. table.concat(bits, " · ") .. "|r",
-			tag = d.raid and { "Raid", 1, 0.5, 0.2 } or nil,
-			actions = { { "LFG", function(_, btn) P.LFGMenu(name, btn) end }, brief(name) } }
-		for _, q in ipairs(d.quests) do
-			out[#out + 1] = { kind = "item", indent = true, quest = q.id,
-				left = ns.Escape(q.title or "?"), right = q.complete and "|cff19ff19ready|r" or (q.level and ("level " .. q.level) or ""),
-				actions = { { "Go", function() P.Go(q.id) end } } }
+		if not shown[DG.Norm(d.name)] then
+			any = true
+			local name = d.name
+			local bits = {}
+			local range = DG.Range(d.low, d.high)
+			if range then bits[#bits + 1] = range end
+			if d.ready > 0 then bits[#bits + 1] = "|cff19ff19" .. d.ready .. " ready to turn in|r" end
+			-- Without QuestieDB's count (which has them), how many are in the log.
+			if not DG.HasDB() then table.insert(bits, 1, #d.quests .. " in your log") end
+			local line, qs = status(name, #bits > 0 and table.concat(bits, " · ") or nil)
+			out[#out + 1] = { kind = "item", left = ns.Escape(name), sub = "|cff888888" .. line .. "|r",
+				tag = d.raid and { "Raid", 1, 0.5, 0.2 } or nil, actions = { lfg(name), brief(name) } }
+			for _, q in ipairs(d.quests) do
+				out[#out + 1] = { kind = "item", indent = true, quest = q.id,
+					left = ns.Escape(q.title or "?"), right = q.complete and "|cff19ff19ready|r" or (q.level and ("level " .. q.level) or ""),
+					actions = { { "Go", function() P.Go(q.id) end } } }
+			end
+			pickups(qs)
+			shown[DG.Norm(name)] = true
 		end
-		shown[name] = true
 	end
 	if not any then out[#out + 1] = { kind = "text", text = "No dungeon quests in your log. Brief on a dungeon below, or ask which one fits." } end
 	local near = {}
-	for _, d in ipairs(DG.AtLevel()) do if not shown[d.name] then near[#near + 1] = d end end
+	for _, d in ipairs(DG.AtLevel()) do if not shown[DG.Norm(d.name)] then near[#near + 1] = d end end
 	if #near > 0 then
 		out[#out + 1] = { kind = "head", text = "At your level" }
 		for _, d in ipairs(near) do
 			local name = d.name
+			local line, qs = status(name, nil)
+			local open = P.openDungeons[DG.Norm(name)]
+			local actions = { lfg(name), brief(name) }
+			-- Quests to pick up: a click lists them under the row (and hides them again).
+			if qs and #qs.pickup > 0 then
+				table.insert(actions, 1, { open and "Hide" or "Quests", function()
+					P.openDungeons[DG.Norm(name)] = not open or nil
+					P.Show("dungeons", true)
+				end })
+			end
 			out[#out + 1] = { kind = "item", left = ns.Escape(name), right = DG.Range(d.low, d.high) or "",
-				actions = { { "LFG", function(_, btn) P.LFGMenu(name, btn) end }, brief(name) } }
+				sub = line and ("|cff888888" .. line .. "|r") or nil, actions = actions }
+			if open then pickups(qs) end
 		end
+	end
+	if not DG.HasDB() then
+		out[#out + 1] = { kind = "text", text = "|cff888888With the QuestieDB addon installed, each dungeon also lists the quests you haven't picked up.|r" }
 	end
 	return out
 end

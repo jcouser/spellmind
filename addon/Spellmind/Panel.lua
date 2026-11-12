@@ -460,23 +460,27 @@ function Tabs.gear()
 	-- Next upgrades (milestone 9): what's already within reach, then the weakest slots.
 	local cands = ns.Gear and ns.Gear.Candidates() or {}
 	local weak = ns.Gear and ns.Gear.WeakSlots() or {}
-	if #cands > 0 or #weak > 0 then
-		out[#out + 1] = { kind = "head", text = "Next upgrades" }
-		local bySlot = {}
-		for _, c in ipairs(cands) do
-			bySlot[c.slot] = true
-			out[#out + 1] = { kind = "item", icon = c.icon, left = (P.SLOT_NAMES[c.slot] or "?") .. " · " .. (QUALITY[c.q or 1] or "") .. ns.Escape(c.name) .. "|r",
-				sub = "|cffbbbbbb" .. (c.from == "bags" and "In your bags" or ("Reward of " .. ns.Escape(c.from))) .. ": |r" .. (c.reason or ""),
-				tag = { "upgrade", 0.1, 1, 0.1 },
-				actions = c.quest and { { "Go", function() P.Go(c.quest) end } } or nil }
-		end
-		local shown = 0
-		for _, w in ipairs(weak) do
-			if not bySlot[w.slot] and shown < 5 then
-				shown = shown + 1
-				out[#out + 1] = { kind = "item", left = w.name .. (w.item and (" · " .. ns.Escape(w.item)) or ""),
-					right = "|cffff8040" .. w.why .. "|r" }
-			end
+	-- Within reach: items you have or a quest in your log gives, that beat what you wear.
+	out[#out + 1] = { kind = "head", text = "Upgrades within reach" }
+	local bySlot = {}
+	for _, c in ipairs(cands) do
+		bySlot[c.slot] = true
+		out[#out + 1] = { kind = "item", icon = c.icon, left = (P.SLOT_NAMES[c.slot] or "?") .. " · " .. (QUALITY[c.q or 1] or "") .. ns.Escape(c.name) .. "|r",
+			sub = "|cffbbbbbb" .. (c.from == "bags" and "In your bags" or ("Reward of " .. ns.Escape(c.from))) .. ": |r" .. (c.reason or ""),
+			tag = { "upgrade", 0.1, 1, 0.1 },
+			actions = c.quest and { { "Go", function() P.Go(c.quest) end } } or nil }
+	end
+	if #cands == 0 then
+		out[#out + 1] = { kind = "text", text = "|cff888888Nothing in your bags or your quests' rewards beats what you wear. Find my next upgrades asks where to look.|r" }
+	end
+	-- The weakest slots, the ones to look for first.
+	local shown = 0
+	for _, w in ipairs(weak) do
+		if not bySlot[w.slot] and shown < 6 then
+			if shown == 0 then out[#out + 1] = { kind = "head", text = "Weakest slots" } end
+			shown = shown + 1
+			out[#out + 1] = { kind = "item", left = w.name .. (w.item and (" · " .. ns.Escape(w.item)) or ""),
+				right = "|cffff8040" .. w.why .. "|r" }
 		end
 	end
 	out[#out + 1] = { kind = "head", text = "Your gear (worn)" }

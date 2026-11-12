@@ -723,3 +723,9 @@ for _, n in ipairs({ "Head", "Neck", "Shoulder", "Shirt", "Chest", "Waist", "Leg
 	CreateFrame("Button", "Character" .. n .. "Slot", PaperDollFrame)
 end
 MerchantFrame = CreateFrame("Frame", "MerchantFrame", UIParent)
+-- A quest's reward items by its id, without selecting it (C_TooltipInfo.GetQuestLogItem).
+C_TooltipInfo.GetQuestLogItem = function(kind, i, questID)
+	local r = STUB.questRewards[questID] or {}
+	local c = (kind == "choice" and r.choices or r.items or {})[i]
+	if c and c[6] and STUB.items[c[6]] then return { type = 0, id = c[6], hyperlink = STUB.ItemLink(c[6]), lines = {} } end
+end

@@ -157,8 +157,8 @@ end
 -- from 43% to 78% of level 15". Only this level's XP is known, so a jump past the next level says
 -- "at least". Returns the line, or nil without the numbers.
 function Q.XpLine(total)
-	local xp, max = tonumber(ns.Try(UnitXP, "player")), tonumber(ns.Try(UnitXPMax, "player"))
-	local level = tonumber(ns.Try(UnitLevel, "player"))
+	local xp, max = tonumber((ns.Try(UnitXP, "player"))), tonumber((ns.Try(UnitXPMax, "player")))
+	local level = tonumber((ns.Try(UnitLevel, "player")))
 	if not (xp and max and max > 0 and level) or not total or total <= 0 then return nil end
 	local after = xp + total
 	if after >= max then

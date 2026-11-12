@@ -105,7 +105,7 @@ function U.AskPick()
 	local f = U.pick
 	if not f or not f.choice then return end
 	local names = {}
-	for i = 1, math.min(tonumber(ns.Try(GetNumQuestChoices)) or 0, 8) do
+	for i = 1, math.min(tonumber((ns.Try(GetNumQuestChoices))) or 0, 8) do
 		local l = ns.Try(GetQuestItemLink, "choice", i)
 		local n = type(l) == "string" and l:match("|h%[(.-)%]|h")
 		if n then names[#names + 1] = n end

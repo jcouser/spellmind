@@ -6,7 +6,7 @@ This covers features.md §3.2, with the player's addition: not just best in slot
 |---|---|---|
 | Weak slots | `Gear.lua` (WeakSlots) | Empty slots first, then gear 5 or more item levels below the character's level, then common or poor quality. The shirt and tabard don't count. |
 | Upgrades within reach | `Gear.lua` (Candidates, Upgrade) | Wearables in the bags, and the rewards of quests in the log. Each must be usable (no requirement in red in the game's own tooltip data) and clearly ahead of what's worn in that slot. |
-| Quest rewards, cached | `Gear.lua` | A quest's reward choices can only be read while it's the selected quest, or while its NPC window is open. So they're kept as the player sees them (`SpellmindDB.rewards[id]`): from the details hook, `QUEST_DETAIL` and `QUEST_COMPLETE`. They're dropped when the quest leaves the log. |
+| Quest rewards, cached | `Gear.lua` | Every quest in the log is read by its id, without selecting it, through `C_TooltipInfo.GetQuestLogItem("choice"/"reward", i, questID)`. This happens 6 s after login, and again (throttled) on quest log changes and when the client loads an item it hadn't. The NPC's window (`QUEST_DETAIL`, `QUEST_COMPLETE`) and the details hook add to it. It's kept in `SpellmindDB.rewards[id]` and dropped when the quest leaves the log. Waiting for the player to open each quest left the list empty (seen in game). |
 | The Gear tab | `Panel.lua` | **Next upgrades** comes first. Each upgrade within reach has its slot, where it's from (bags, or "Reward of …") with a Go button for a quest, an "upgrade" tag and its differences. Then up to 5 weak slots with nothing within reach. **Find my next upgrades** asks the AI (see below). |
 | The reward pick | `GearUI.lua` | Turning in a quest with a choice opens a small "Spellmind picks: …" box beside the quest's window (or at the top, when DialogueUI replaces it), saying why. **Why?** asks the AI with every choice named. The box closes with the window. |
 | The character sheet | `GearUI.lua` | A dot on each gear slot that needs attention: green when an upgrade is waiting, orange below 50% durability, red below 25%. The slot's tooltip says which and from where. |
@@ -30,5 +30,5 @@ The reward pick is labelled "likely", and the AI can say why or why not.
 
 ## Still to come
 
-- Dungeon loot, if the Dungeon Journal is on Forever (probe round 5).
+- Dungeon loot: **the Dungeon Journal isn't on Forever** (probe round 5: `LoadAddOn` gives WRONG_GAME_TYPE, and 0 tiers), so dungeon drops come from Find my next upgrades' web search. `C_EncounterJournal.GetDungeonEntrancesForMap` exists and could give dungeon entrances on a map later.
 - Off-hand rules for classes that can't dual wield. One-handers are compared with the main hand only.

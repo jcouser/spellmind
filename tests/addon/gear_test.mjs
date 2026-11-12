@@ -49,11 +49,12 @@ test('the Gear tab: Next upgrades first (within reach, with where from and Go fo
   const vm = session();
   vm.run('QuestMapFrame_ShowQuestDetails(297); NS.Panel.Show("gear")');
   const d = list(vm, 'SpellmindPanel.drawn');
-  assert.equal(d[0].text, 'Next upgrades');
+  assert.equal(d[0].text, 'Upgrades within reach');
   const gloves = d.find(x => /Ironband's Gloves/.test(x.text || ''));
   assert.match(gloves.text, /^Hands · /);
   assert.match(gloves.sub, /Reward of Gathering Idols/);
   assert.equal(gloves.tag, 'upgrade');
+  assert.ok(d.some(x => x.text === 'Weakest slots'));
   assert.ok(d.some(x => x.text === 'Head' && /empty/.test(x.right)), 'a weak slot with nothing within reach yet');
   assert.ok(d.findIndex(x => x.text === 'Your gear (worn)') > d.findIndex(x => /Ironband's Gloves/.test(x.text || '')));
 });
@@ -101,4 +102,20 @@ test('the merchant: "what to sell" beside its window; the card lists grey junk a
   assert.match(text, /doesn't sell anything/);
   vm.run('STUB.FireEvent("MERCHANT_CLOSED")');
   assert.equal(vm.evaluate('tostring(SpellmindCard.shown)'), 'false');
+});
+
+test('every quest in the log is read for rewards a few seconds after login, without opening it (seen in game: the list was empty until then)', () => {
+  const vm = newVM().login().advance(7); // past the 6 s first read
+  const gloves = list(vm, 'NS.Gear.Candidates()').find(x => x.name === "Ironband's Gloves");
+  assert.ok(gloves, 'Gathering Idols read without its details being opened');
+  assert.equal(gloves.from, 'Gathering Idols');
+  assert.equal(vm.evaluate('tostring(STUB.selectedQuest == 297)'), 'true', 'the selection untouched');
+});
+
+test('the Gear tab says so when nothing within reach beats what you wear', () => {
+  const vm = session();
+  vm.run('STUB.questRewards = {}; NS.Panel.Show("gear")');
+  const d = list(vm, 'SpellmindPanel.drawn');
+  assert.equal(d[0].text, 'Upgrades within reach');
+  assert.match(d[1].text, /Nothing in your bags or your quests' rewards beats what you wear/);
 });

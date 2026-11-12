@@ -31,7 +31,7 @@ local function Class()
 	return type(file) == "string" and file or "WARRIOR"
 end
 
-local function Level() return tonumber(ns.Try(UnitLevel, "player")) or 1 end
+local function Level() return tonumber((ns.Try(UnitLevel, "player"))) or 1 end
 
 -- GetItemInfo's returns (pcall: ns.Try keeps four): name 2, link 3, quality 4, ilvl 5, req 6, type 7,
 -- sub 8, equipLoc 10, icon 11, sell 12, classID 13.
@@ -116,23 +116,57 @@ end
 function G.CacheSelected(id)
 	if type(id) ~= "number" or id <= 0 then return end
 	local links = {}
-	for i = 1, math.min(tonumber(ns.Try(GetNumQuestLogChoices, id)) or 0, 8) do
+	for i = 1, math.min(tonumber((ns.Try(GetNumQuestLogChoices, id))) or 0, 8) do
 		local l = ns.Try(GetQuestLogItemLink, "choice", i)
 		if type(l) == "string" then links[#links + 1] = l end
 	end
-	for i = 1, math.min(tonumber(ns.Try(GetNumQuestLogRewards, id)) or 0, 8) do
+	for i = 1, math.min(tonumber((ns.Try(GetNumQuestLogRewards, id))) or 0, 8) do
 		local l = ns.Try(GetQuestLogItemLink, "reward", i)
 		if type(l) == "string" then links[#links + 1] = l end
 	end
 	Cache()[id] = links
 end
 
+-- Every quest in the log, read without selecting any (C_TooltipInfo.GetQuestLogItem takes the quest's
+-- id; probe round 4): its choices and given items, into the cache. Only waiting for the player to
+-- open each quest left the Next upgrades empty (seen in game). An item the client hasn't loaded yet
+-- is read on a later pass.
+function G.ReadLog()
+	local TI = rawget(_G, "C_TooltipInfo")
+	local QL = C_QuestLog
+	if type(TI) ~= "table" or type(TI.GetQuestLogItem) ~= "function" or not QL then return 0 end
+	local n, read = tonumber((ns.Try(QL.GetNumQuestLogEntries))) or 0, 0
+	for i = 1, n do
+		local info = ns.Try(QL.GetInfo, i)
+		local id = type(info) == "table" and not info.isHeader and info.questID
+		if id and id > 0 then
+			local links = {}
+			for _, kind in ipairs({ "choice", "reward" }) do
+				local count = kind == "choice" and ns.Try(GetNumQuestLogChoices, id) or ns.Try(GetNumQuestLogRewards, id)
+				for k = 1, math.min(tonumber(count) or 0, 8) do
+					local ok, data = pcall(TI.GetQuestLogItem, kind, k, id)
+					if ok and type(data) == "table" then
+						local link = type(data.hyperlink) == "string" and data.hyperlink
+						if not link and tonumber(data.id) then
+							local r = { pcall(C_Item.GetItemInfo, data.id) }
+							link = r[1] and r[3] or nil
+						end
+						if type(link) == "string" then links[#links + 1] = link end
+					end
+				end
+			end
+			if #links > 0 then Cache()[id] = links; read = read + 1 end
+		end
+	end
+	return read
+end
+
 -- The NPC's window (offering or turning in): its choices' links, into the cache.
 function G.CacheWindow()
-	local id = tonumber(ns.Try(GetQuestID))
+	local id = tonumber((ns.Try(GetQuestID)))
 	if not id or id <= 0 then return end
 	local links = {}
-	for i = 1, math.min(tonumber(ns.Try(GetNumQuestChoices)) or 0, 8) do
+	for i = 1, math.min(tonumber((ns.Try(GetNumQuestChoices))) or 0, 8) do
 		local l = ns.Try(GetQuestItemLink, "choice", i)
 		if type(l) == "string" then links[#links + 1] = l end
 	end
@@ -155,7 +189,7 @@ function G.Candidates()
 	end
 	-- The bags' wearables.
 	for bag = 0, (NUM_BAG_SLOTS or 4) do
-		for slot = 1, tonumber(ns.Try(C_Container.GetContainerNumSlots, bag)) or 0 do
+		for slot = 1, tonumber((ns.Try(C_Container.GetContainerNumSlots, bag))) or 0 do
 			local it = ns.Try(C_Container.GetContainerItemInfo, bag, slot)
 			if type(it) == "table" and type(it.hyperlink) == "string" then Add(it.hyperlink, "bags") end
 		end
@@ -200,7 +234,7 @@ end
 
 -- The likely pick of a reward choice (the NPC's turn-in window): { i, name, why } or nil.
 function G.PickChoice()
-	local n = tonumber(ns.Try(GetNumQuestChoices)) or 0
+	local n = tonumber((ns.Try(GetNumQuestChoices))) or 0
 	if n < 2 then return nil end
 	local best, bestScore, bestWhy
 	for i = 1, n do
@@ -225,7 +259,7 @@ end
 function G.SellList()
 	local out, total = {}, 0
 	for bag = 0, (NUM_BAG_SLOTS or 4) do
-		for slot = 1, tonumber(ns.Try(C_Container.GetContainerNumSlots, bag)) or 0 do
+		for slot = 1, tonumber((ns.Try(C_Container.GetContainerNumSlots, bag))) or 0 do
 			local it = ns.Try(C_Container.GetContainerItemInfo, bag, slot)
 			if type(it) == "table" and type(it.hyperlink) == "string" and not it.hasNoValue then
 				local info = Info(it.hyperlink)
@@ -256,7 +290,18 @@ end
 -- Events: rewards cached as they're seen
 ---------------------------------------------------------------------------
 
+-- The log read a few seconds after login (the quest data settles), and again when it changes
+-- (throttled), or when the client finishes loading an item it didn't have.
+function G.Soon()
+	if G.pending then return end
+	G.pending = true
+	C_Timer.After(2, function() G.pending = nil; pcall(G.ReadLog) end)
+end
+ns.On("QUEST_LOG_UPDATE", function() G.Soon() end)
+ns.On("GET_ITEM_INFO_RECEIVED", function() G.Soon() end)
+
 ns.On("PLAYER_LOGIN", function()
+	C_Timer.After(6, function() pcall(G.ReadLog) end)
 	if G.hooked or type(rawget(_G, "QuestMapFrame_ShowQuestDetails")) ~= "function" then return end
 	hooksecurefunc("QuestMapFrame_ShowQuestDetails", function(id) pcall(G.CacheSelected, id) end)
 	G.hooked = true

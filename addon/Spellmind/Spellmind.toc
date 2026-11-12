@@ -23,6 +23,7 @@ Professions.lua
 Trainer.lua
 Settings.lua
 Dungeons.lua
+Gold.lua
 Panel.lua
 Nudges.lua
 Minimap.lua

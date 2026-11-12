@@ -757,15 +757,71 @@ function Tabs.spells()
 	return out
 end
 
+-- Professions (docs/milestone-14.md): what to do next, not the numbers the game shows. Each profession
+-- with its next rank (train now, or at what skill and level); for a crafting one, the recipes worth
+-- crafting for a skill-up (orange, then yellow) and how many the bags make; then the bags' materials
+-- and what they make. Recipes are known once the profession's window has been opened.
+P.DIFF_COLOR = { optimal = "|cffff8040", medium = "|cffffff00", easy = "|cff40c040", trivial = "|cff808080" }
+P.DIFF_NAME = { optimal = "orange", medium = "yellow" }
+P.SKILLUPS_MAX, P.MATERIALS_MAX = 4, 6
 function Tabs.professions()
+	local PR = ns.Professions
 	local s = Part("skills")
 	local out = { { kind = "head", text = "Professions" } }
 	for _, p in ipairs(type(s.prof) == "table" and s.prof or {}) do
-		local near = (p.max or 0) > 0 and (p.rank or 0) >= (p.max or 0) - 5
-		out[#out + 1] = { kind = "item", left = ns.Escape(p.name or "?"), right = (p.rank or 0) .. " / " .. (p.max or 0),
-			tag = near and { "train the next rank", 1, 0.82, 0 } or nil }
+		local name = p.name or "?"
+		local nr = PR.NextRank(p.rank, p.max)
+		local sub
+		if nr == "max" then sub = "|cff888888At the top rank.|r"
+		elseif type(nr) == "table" and nr.ready then sub = "|cff19ff19Train " .. nr.name .. " now:|r |cff888888at a " .. ns.Escape(name) .. " trainer|r"
+		elseif type(nr) == "table" then
+			local need = {}
+			if nr.needSkill then need[#need + 1] = "skill " .. nr.skill end
+			if nr.needLevel then need[#need + 1] = "level " .. nr.level end
+			sub = "|cff888888" .. nr.name .. " at " .. table.concat(need, " and ") .. "|r"
+		end
+		out[#out + 1] = { kind = "item", left = ns.Escape(name), right = (p.rank or 0) .. " / " .. (p.max or 0), sub = sub,
+			tag = (type(nr) == "table" and nr.ready) and { "train", 0.1, 1, 0.1 } or nil }
+		if not PR.GATHERING[name] then
+			local su = PR.SkillUps(name)
+			if not su.read or not su.list then
+				out[#out + 1] = { kind = "text", text = "     |cff888888Open your " .. ns.Escape(name) .. " window once to see what to craft for skill-ups.|r" }
+			elseif #su.list == 0 then
+				out[#out + 1] = { kind = "text", text = "     |cff888888No orange or yellow recipes: learn new ones" .. ((type(nr) == "table" and nr.ready) and ", or train the next rank" or "") .. ".|r" }
+			else
+				for i, r in ipairs(su.list) do
+					if i > P.SKILLUPS_MAX then break end
+					local bits = {}
+					for _, rg in ipairs(r.reagents) do
+						local enough = rg.have >= rg.need
+						bits[#bits + 1] = (enough and "" or "|cffff6060") .. ns.Escape(PR.ItemName(rg.item)) .. " " .. rg.have .. "/" .. rg.need .. (enough and "" or "|r")
+					end
+					out[#out + 1] = { kind = "item", indent = true,
+						left = (P.DIFF_COLOR[r.diff] or "") .. ns.Escape(r.name) .. "|r  |cff888888" .. (P.DIFF_NAME[r.diff] or "") .. "|r",
+						right = r.makes > 0 and ("|cff19ff19make " .. r.makes .. "|r") or "|cff888888make 0|r",
+						sub = "|cff888888" .. table.concat(bits, " · ") .. "|r" }
+				end
+				-- The colours are as the window last showed them: after skill-ups, yellow may be green.
+				if su.skill and tonumber(p.rank) and tonumber(p.rank) > su.skill then
+					out[#out + 1] = { kind = "text", text = "     |cff888888As of skill " .. su.skill .. ": open the window again to refresh.|r" }
+				end
+			end
+		end
 	end
 	if #out == 1 then out[2] = { kind = "text", text = "No professions yet." } end
+	local mats = PR.Materials()
+	if #mats > 0 then
+		out[#out + 1] = { kind = "head", text = "Your materials" }
+		for i, m in ipairs(mats) do
+			if i > P.MATERIALS_MAX then break end
+			local best = m.recipes[1]
+			local also = {}
+			for k = 2, math.min(#m.recipes, 3) do also[#also + 1] = ns.Escape(m.recipes[k].name) end
+			out[#out + 1] = { kind = "item", left = ns.Escape(m.name) .. " x" .. m.n,
+				right = best.makes > 0 and ("|cff19ff19makes " .. best.makes .. " " .. ns.Escape(best.name) .. "|r") or ("|cff888888" .. ns.Escape(best.name) .. ": not enough|r"),
+				sub = #also > 0 and ("|cff888888also " .. table.concat(also, ", ") .. "|r") or nil }
+		end
+	end
 	out[#out + 1] = { kind = "head", text = "Weapon skills" }
 	for _, p in ipairs(type(s.weapon) == "table" and s.weapon or {}) do
 		out[#out + 1] = { kind = "item", left = ns.Escape(p.name or "?"), right = (p.rank or 0) .. " / " .. (p.max or 0) }
@@ -790,18 +846,64 @@ function Tabs.nudges()
 	return out
 end
 
+-- Gold (docs/milestone-14.md): what came in and went out, what's coming, and what the bags would fetch.
+local function Signed(copper)
+	copper = math.floor(tonumber(copper) or 0)
+	if copper == 0 then return "|cff8888880|r" end
+	return (copper > 0 and "|cff19ff19+" or "|cffff6060-") .. Money(math.abs(copper)) .. "|r"
+end
 function Tabs.gold()
+	local GL = ns.Gold
 	local c = Part("char")
 	local b = Part("bags")
+	local money = tonumber(c.money) or 0
 	local out = { { kind = "head", text = "Gold" } }
-	out[#out + 1] = { kind = "item", left = "On you", right = Money(c.money) }
-	if type(b.junk) == "table" then out[#out + 1] = { kind = "item", left = "Grey junk to sell", right = Money(b.junk.copper) .. " (" .. (b.junk.n or 0) .. ")" } end
+	out[#out + 1] = { kind = "item", left = "On you", right = Money(money) }
+	local inc = GL.Income()
+	local s, d = inc.session, inc.today
+	out[#out + 1] = { kind = "item", left = "This session", right = Signed(s.net),
+		sub = "|cff888888in " .. Money(s.earned) .. " · out " .. Money(s.spent) .. (s.perHour and (" · about " .. Money(math.max(0, s.perHour)) .. " an hour") or "") .. "|r" }
+	out[#out + 1] = { kind = "item", left = "Today", right = Signed(d.net), sub = "|cff888888in " .. Money(d.earned) .. " · out " .. Money(d.spent) .. "|r" }
+
+	local costs, total = GL.Costs()
+	if #costs > 0 then
+		out[#out + 1] = { kind = "head", text = "Coming up" }
+		for _, x in ipairs(costs) do
+			out[#out + 1] = { kind = "item", left = ns.Escape(x.label), right = x.copper and Money(x.copper) or "",
+				sub = x.note and ("|cff888888" .. ns.Escape(x.note) .. "|r") or nil }
+		end
+		if total > 0 then
+			out[#out + 1] = { kind = "text", text = (money >= total and "|cff19ff19" or "|cffff6060") .. "Known costs: " .. Money(total) .. " of your " .. Money(money) .. "|r" }
+		end
+	end
+
+	out[#out + 1] = { kind = "head", text = "Your bags are worth" }
+	local sell, sellTotal = ns.Gear.SellList()
+	local names = {}
+	for i, it in ipairs(sell) do if i <= 3 then names[#names + 1] = ns.Escape(it.name) .. (it.n > 1 and (" x" .. it.n) or "") end end
+	out[#out + 1] = { kind = "item", left = "Safe to sell at a vendor", right = Money(sellTotal),
+		sub = #names > 0 and ("|cff888888" .. table.concat(names, ", ") .. (#sell > 3 and (" and " .. (#sell - 3) .. " more") or "") .. "|r") or "|cff888888Nothing clearly safe to sell.|r" }
+	local ah = GL.AHWorth()
+	if not ah then
+		out[#out + 1] = { kind = "text", text = "|cff888888With Auctionator, auction house prices for your trade goods show here.|r" }
+	elseif ah.priced == 0 then
+		out[#out + 1] = { kind = "item", left = "On the auction house", right = "|cff888888no prices yet|r",
+			sub = "|cff888888Scan at the auction house with Auctionator, then look again.|r" }
+	else
+		local top = {}
+		for i, e in ipairs(ah.list) do
+			if i <= 3 then top[#top + 1] = ns.Escape(e.name) .. (e.n > 1 and (" x" .. e.n) or "") .. " " .. Money(e.copper) end
+		end
+		out[#out + 1] = { kind = "item", left = "On the auction house", right = Money(ah.total),
+			sub = "|cff888888" .. table.concat(top, " · ") .. " (Auctionator's last scan)|r" }
+	end
 	if b.slots then
 		local low = (b.free or 0) <= 4
 		out[#out + 1] = { kind = "item", left = "Bag space", right = (b.free or 0) .. " of " .. b.slots .. " free", tag = low and { "nearly full", 1, 0.6, 0.2 } or nil }
 	end
 	return out
 end
+
 
 -- Settings: every switch in one place (Settings.lua), each row's button showing On or Off (or its
 -- pick) and flipping it. A setting under a main switch that's off is greyed.

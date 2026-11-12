@@ -31,7 +31,7 @@ export const PART_JSON_MAX = 8000;
 /** A z=1 body (base64) the service takes: at most this many characters (the strip's own cap is 2,900). */
 export const PART_BODY_MAX = 4096;
 /** The lists' caps: the addon's own, so a forged part can't be longer than a real one. */
-export const LIST_MAX = Object.freeze({ gearItems: 19, gearEmpty: 19, bagItems: 40, quests: 100, obj: 5, rep: 40, nodes: 60, skills: 25, spellTabs: 8, spells: 100, nextSpells: 10, omitted: 16, focusObj: 8, rewards: 6 });
+export const LIST_MAX = Object.freeze({ gearItems: 19, gearEmpty: 19, bagItems: 40, quests: 100, obj: 5, rep: 40, nodes: 60, skills: 25, spellTabs: 8, spells: 100, nextSpells: 10, trainer: 10, omitted: 16, focusObj: 8, rewards: 6 });
 export const SID_RE = /^[0-9a-f]{16}$/;
 export const STATE_FILE = 'charstate.json';
 const SEQ_RE = /^\d{1,12}$/;
@@ -55,6 +55,9 @@ const GEAR_ITEM = { slot: intIn(0, 19), id: int, name: str, q: intIn(0, 8), ilvl
 const BAG_ITEM = { id: int, name: str, q: intIn(0, 8), n: int, ilvl: num, sub: str, equip: str, st: numMap, bound: bool };
 const SPELL = { name: str, rank: int, passive: bool };
 const NEXT_SPELL = { name: str, rank: int, level: int };
+const TRAIN_DUE = { name: str, rank: int, cost: num };
+// The class trainer's list from its last visit (Trainer.lua, milestone 10).
+const TRAINER = { at: int, due: list(TRAIN_DUE, LIST_MAX.trainer), soon: list(NEXT_SPELL, LIST_MAX.trainer) };
 const SPELL_TAB = { name: str, list: list(SPELL, LIST_MAX.spells) };
 const SKILL = { name: str, rank: num, max: num };
 const OBJ = { text: str, have: num, need: num };
@@ -66,7 +69,7 @@ const SHAPES = {
   char: { class: str, classFile: str, race: str, raceFile: str, faction: str, level: int, xp: num, xpMax: num, rested: num, resting: bool, money: num, loc: shape(LOC) },
   stats: { hp: num, mana: num, str: num, agi: num, sta: num, int: num, spi: num, armor: num, ap: num, rap: num, crit: num, rcrit: num, scrit: num, dodge: num, parry: num, block: num, res: numMap },
   talents: { spec: str, role: str, spent: int, unspent: int, nodes: list(NODE, LIST_MAX.nodes) },
-  spells: { tabs: list(SPELL_TAB, LIST_MAX.spellTabs), next: list(NEXT_SPELL, LIST_MAX.nextSpells) },
+  spells: { tabs: list(SPELL_TAB, LIST_MAX.spellTabs), next: list(NEXT_SPELL, LIST_MAX.nextSpells), trainer: shape(TRAINER) },
   gear: { items: list(GEAR_ITEM, LIST_MAX.gearItems), empty: v => Array.isArray(v) && v.length <= LIST_MAX.gearEmpty && v.every(int) },
   bags: { slots: int, free: int, items: list(BAG_ITEM, LIST_MAX.bagItems), junk: shape({ n: int, copper: num }), more: int },
   skills: { prof: list(SKILL, LIST_MAX.skills), weapon: list(SKILL, LIST_MAX.skills) },

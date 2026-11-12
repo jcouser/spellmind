@@ -20,6 +20,7 @@ Tooltip.lua
 Gear.lua
 GearUI.lua
 Professions.lua
+Trainer.lua
 Panel.lua
 Nudges.lua
 Minimap.lua

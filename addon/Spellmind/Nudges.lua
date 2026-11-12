@@ -86,7 +86,21 @@ function Detect.spells()
 	for _, n in ipairs(type(s.next) == "table" and s.next or {}) do
 		if (n.level or 99) <= you then due[#due + 1] = (n.name or "?") .. (n.rank and (" (rank " .. n.rank .. ")") or "") end
 	end
+	-- Forever's spellbook lists nothing coming (seen in game): the trainer's kept list says instead.
+	local fromTrainer = false
+	if #due == 0 and ns.Trainer then
+		local ok, p = pcall(ns.Trainer.Plan)
+		for _, t in ipairs(ok and p and p.due or {}) do due[#due + 1] = ns.Trainer.Label(t) end
+		fromTrainer = #due > 0
+	end
 	if #due == 0 then return {} end
+	if fromTrainer then
+		local shown = table.concat(due, ", ", 1, math.min(3, #due)) .. (#due > 3 and (" and " .. (#due - 3) .. " more") or "")
+		return { { kind = "spells", key = "spells:" .. you .. ":" .. #due,
+			title = (#due == 1 and "A spell" or (#due .. " spells")) .. " to train",
+			text = ns.Escape(shown),
+			ask = "My class trainer has " .. table.concat(due, ", ") .. " for me now. Which are worth it first if gold is short, and which trainer is closest?" } }
+	end
 	local shown = table.concat(due, ", ", 1, math.min(3, #due)) .. (#due > 3 and (" and " .. (#due - 3) .. " more") or "")
 	return { { kind = "spells", key = "spells:" .. you .. ":" .. #due,
 		title = (#due == 1 and "A spell" or (#due .. " spells")) .. " to train",

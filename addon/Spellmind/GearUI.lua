@@ -47,6 +47,7 @@ local function Button(parent, label, w)
 	b:SetScript("OnLeave", function(self) if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.58, 0.45, 0.98, 1) end end)
 	return b
 end
+U.Button = Button
 
 ---------------------------------------------------------------------------
 -- The reward pick

@@ -723,6 +723,16 @@ for _, n in ipairs({ "Head", "Neck", "Shoulder", "Shirt", "Chest", "Waist", "Leg
 	CreateFrame("Button", "Character" .. n .. "Slot", PaperDollFrame)
 end
 MerchantFrame = CreateFrame("Frame", "MerchantFrame", UIParent)
+-- The class trainer's window (Blizzard_TrainerUI): its services when STUB.trainer is set, each
+-- { name, subText, kind ("available", "unavailable", "used", "header"), cost, level }.
+ClassTrainerFrame = CreateFrame("Frame", "ClassTrainerFrame", UIParent)
+STUB.trainer = nil
+STUB.tradeskillTrainer = false
+function GetNumTrainerServices() return STUB.trainer and #STUB.trainer or 0 end
+function GetTrainerServiceInfo(i) local s = STUB.trainer and STUB.trainer[i]; if s then return s[1], s[2], s[3] end end
+function GetTrainerServiceCost(i) local s = STUB.trainer and STUB.trainer[i]; return s and s[4] or 0 end
+function GetTrainerServiceLevelReq(i) local s = STUB.trainer and STUB.trainer[i]; return s and s[5] or 0 end
+function IsTradeskillTrainer() return STUB.tradeskillTrainer end
 -- A quest's reward items by its id, without selecting it (C_TooltipInfo.GetQuestLogItem).
 C_TooltipInfo.GetQuestLogItem = function(kind, i, questID)
 	local r = STUB.questRewards[questID] or {}

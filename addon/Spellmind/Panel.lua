@@ -572,6 +572,31 @@ end
 function Tabs.spells()
 	local s = Part("spells")
 	local you = ns.State.Whole(ns.Try(UnitLevel, "player")) or 1
+	-- The class trainer's kept list (Trainer.lua): Forever's spellbook shows nothing coming.
+	local ok, p = false, nil
+	if ns.Trainer then ok, p = pcall(ns.Trainer.Plan) end
+	if ok and p then
+		local M = ns.GearUI and ns.GearUI.Money or tostring
+		local out = {}
+		if #p.due > 0 then
+			out[#out + 1] = { kind = "head", text = "Train now: " .. M(p.total) }
+			for _, t in ipairs(p.due) do
+				out[#out + 1] = { kind = "item", left = ns.Escape(ns.Trainer.Label(t)), right = M(t.cost or 0), tag = { "train now", 0.1, 1, 0.1 } }
+			end
+			local money = tonumber((ns.Try(GetMoney))) or 0
+			if money < p.total then out[#out + 1] = { kind = "text", text = "|cffff6060You have " .. M(money) .. ": ask which come first.|r" } end
+		else
+			out[#out + 1] = { kind = "head", text = "Train now" }
+			out[#out + 1] = { kind = "text", text = "Nothing new at your level." }
+		end
+		out[#out + 1] = { kind = "head", text = "Coming next" }
+		for _, t in ipairs(p.soon) do
+			out[#out + 1] = { kind = "item", left = ns.Escape(ns.Trainer.Label(t)), right = "level " .. (t.level or "?") }
+		end
+		if #p.soon == 0 then out[#out + 1] = { kind = "text", text = "Nothing more listed by your trainer." } end
+		out[#out + 1] = { kind = "text", text = "|cff888888From your trainer's list (" .. (ns.Window and ns.Window.Ago and ns.Window.Ago(p.at) or "kept") .. "). Visit again after you level to refresh it.|r" }
+		return out
+	end
 	local out = { { kind = "head", text = "Coming next" } }
 	local any = false
 	for _, n in ipairs(type(s.next) == "table" and s.next or {}) do
@@ -580,7 +605,7 @@ function Tabs.spells()
 		out[#out + 1] = { kind = "item", left = ns.Escape(n.name or "?") .. (n.rank and (" (rank " .. n.rank .. ")") or ""),
 			right = "level " .. (n.level or "?"), tag = ready and { "train now", 0.1, 1, 0.1 } or nil }
 	end
-	if not any then out[#out + 1] = { kind = "text", text = "Nothing new in your spellbook yet." } end
+	if not any then out[#out + 1] = { kind = "text", text = "Nothing new in your spellbook yet. Open your class trainer once and Spellmind keeps its list." } end
 	return out
 end
 

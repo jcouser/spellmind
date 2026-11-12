@@ -191,7 +191,8 @@ Each feature lists: **what the player gets**, **triggers**, **UI**, **data** (�
 - **Rotation** (AI, saved): a short priority list from the spells you have, refreshed when a new rank or spell arrives.
 
 **Data:**
-- ✓ `spells` (with `next`).
+- ✓ `spells` (with `next`). On Forever `next` is always empty (seen in game).
+- ✓ `spells.trainer`: the class trainer's list, read when its window opens and kept (docs/milestone-10.md). It feeds the nudge, the Spells tab's Train now and Coming next, and a "what to train" card at the trainer.
 - ✗ Trainer location: from memory (AI, hedged), or by zone from our own data later.
 
 **Local vs AI:**

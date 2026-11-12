@@ -611,7 +611,20 @@ function Build.spells()
 	table.sort(coming, function(a, b) if a[1] ~= b[1] then return a[1] < b[1] end return a[2] < b[2] end)
 	local nextList = {}
 	for i = 1, math.min(#coming, NEXT_MAX) do nextList[i] = coming[i][3] end
-	return O("v", 1, "tabs", tabs, "next", #nextList > 0 and nextList or nil)
+	-- The class trainer's list, kept from its last visit (Trainer.lua): what's due now and what's next.
+	local trainer
+	if ns.Trainer then
+		local known = {}
+		for _, tab in ipairs(tabs) do
+			for _, sp in ipairs(Get(tab, "list") or {}) do
+				local name, rank = Get(sp, "name"), Whole(Get(sp, "rank")) or 0
+				if name then known[name] = math.max(known[name] or 0, rank) end
+			end
+		end
+		local ok, t = pcall(ns.Trainer.ForState, known)
+		if ok then trainer = t end
+	end
+	return O("v", 1, "tabs", tabs, "next", #nextList > 0 and nextList or nil, "trainer", trainer)
 end
 
 function Build.rep()
@@ -716,6 +729,7 @@ local TRIMS = {
 		{ "rewards", function(obj) Set(obj, "choices", nil); Set(obj, "items", nil) end },
 	},
 	spells = {
+		{ "trainer", function(obj) Set(obj, "trainer", nil) end },
 		{ "next", function(obj) Set(obj, "next", nil) end },
 		{ "passive", function(obj)
 			for _, tab in ipairs(Get(obj, "tabs") or {}) do

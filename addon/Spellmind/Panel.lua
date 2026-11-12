@@ -788,10 +788,15 @@ function P.Build()
 	f.fold:SetScript("OnClick", function() P.Fold(not Saved().folded) end)
 	f.compact = ns.Window.SmallButton(f, 20)
 	f.compact:SetPoint("RIGHT", f.fold, "LEFT", -4, 0)
-	f.compact.arrow = f.compact:CreateTexture(nil, "OVERLAY")
-	f.compact.arrow:SetSize(12, 12)
-	f.compact.arrow:SetPoint("CENTER", f.compact, "CENTER", 0, 0)
-	f.compact.arrow:SetTexture(ns.Window.MEDIA .. "Chevron")
+	-- A hamburger: three gold bars (the tabs' menu), drawn, no texture file.
+	f.compact.bars = {}
+	for i = 1, 3 do
+		local bar = f.compact:CreateTexture(nil, "OVERLAY")
+		bar:SetColorTexture(0.85, 0.68, 0.25, 1)
+		bar:SetSize(12, 2)
+		bar:SetPoint("CENTER", f.compact, "CENTER", 0, (2 - i) * 4)
+		f.compact.bars[i] = bar
+	end
 	f.compact:SetScript("OnClick", function() P.SetCompact(not Saved().compact) end)
 	f.rule = f:CreateTexture(nil, "ARTWORK")
 	f.rule:SetColorTexture(0.62, 0.49, 1, 0.35)
@@ -918,8 +923,10 @@ local function Arrange(f)
 	if chat then chat:SetShown(chatTab and not folded) end
 	f.fold.text:SetText(folded and "+" or "-")
 	f.fold.tip = folded and "Unfold the window." or "Fold the window to its header."
-	-- The chevron points down; turned to point left (hide the rail) or right (bring it back).
-	if f.compact.arrow.SetRotation then f.compact.arrow:SetRotation(compact and (math.pi / 2) or (-math.pi / 2)) end
+	-- The hamburger's bars: gold with the tabs showing, grey without (compact).
+	for _, bar in ipairs(f.compact.bars) do
+		if compact then bar:SetColorTexture(0.6, 0.6, 0.6, 1) else bar:SetColorTexture(0.85, 0.68, 0.25, 1) end
+	end
 	f.compact.tip = compact and "Show the tabs again." or "Compact: the chat alone, small, for questing."
 end
 

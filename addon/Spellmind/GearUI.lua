@@ -160,8 +160,10 @@ function U.MarkSlots()
 				d:SetSize(8, 8)
 				d:SetPoint("TOPRIGHT", b, "TOPRIGHT", -2, -2)
 				U.dots[slot] = d
-				-- Its tooltip says why, after the game's own lines.
-				b:HookScript("OnEnter", function(self) U.SlotTip(slot) end)
+				-- Its tooltip says why, after the game's own lines: through the game's own slot function
+				-- when it has one (U.HookSheet), which the sheet calls again while the mouse stays and
+				-- rebuilds the tooltip each time (seen in game: our line showed for a frame, then went).
+				if not U.slotFnHooked then b:HookScript("OnEnter", function(self) U.SlotTip(slot) end) end
 			end
 			local s = U.states[slot]
 			if s and s.up then d:SetColorTexture(0.1, 1, 0.1, 1); d:Show()
@@ -172,16 +174,41 @@ function U.MarkSlots()
 	end
 end
 
-function U.SlotTip(slot)
-	local s = U.states and U.states[slot]
-	local tip = GameTooltip
-	if not s or not tip or not tip.AddLine then return end
-	if s.up then
-		tip:AddLine("|cff9d7dffSpellmind:|r upgrade waiting: " .. ns.Escape(s.up.name) .. " (" .. (s.up.from == "bags" and "in your bags"
-			or ("from " .. ns.Escape(s.up.from))) .. ")", 1, 1, 1, true)
+-- The tooltip already holds this line (two paths add it: the slot function's hook and the item
+-- tooltip's post-call, whichever rebuild comes): its text lines read back.
+local function Has(tip, line)
+	local name = tip.GetName and tip:GetName()
+	for i = 1, (tip.NumLines and tip:NumLines()) or 0 do
+		local fs = name and rawget(_G, name .. "TextLeft" .. i)
+		if fs and fs.GetText and fs:GetText() == line then return true end
 	end
-	if s.dur then tip:AddLine("|cff9d7dffSpellmind:|r durability " .. s.dur .. "%: repair soon", 1, 1, 1, true) end
-	tip:Show()
+	for _, l in ipairs(tip.added or {}) do if l == line then return true end end -- (the tests' tooltip)
+	return false
+end
+
+-- A character sheet slot button's inventory slot, or nil.
+function U.SlotOf(owner)
+	if type(owner) ~= "table" or not owner.GetID then return nil end
+	local id = owner:GetID()
+	if type(id) ~= "number" or id < 1 or id > 19 then return nil end
+	return rawget(_G, "Character" .. (U.SLOT_FRAMES[id] or "") .. "Slot") == owner and id or nil
+end
+
+function U.SlotTip(slot, tip)
+	local s = U.states and U.states[slot]
+	tip = tip or GameTooltip
+	if not s or not tip or not tip.AddLine then return end
+	local lines = {}
+	if s.up then
+		lines[#lines + 1] = "|cff9d7dffSpellmind:|r upgrade waiting: " .. ns.Escape(s.up.name) .. " (" .. (s.up.from == "bags" and "in your bags"
+			or ("from " .. ns.Escape(s.up.from))) .. ")"
+	end
+	if s.dur then lines[#lines + 1] = "|cff9d7dffSpellmind:|r durability " .. s.dur .. "%: repair soon" end
+	local added = false
+	for _, line in ipairs(lines) do
+		if not Has(tip, line) then tip:AddLine(line, 1, 1, 1, true); added = true end
+	end
+	if added then tip:Show() end
 end
 
 function U.HookSheet()
@@ -189,6 +216,15 @@ function U.HookSheet()
 	local pd = rawget(_G, "PaperDollFrame") or rawget(_G, "CharacterFrame")
 	if type(pd) ~= "table" or not pd.HookScript then return end
 	pd:HookScript("OnShow", function() pcall(U.MarkSlots) end)
+	-- The slot tooltip: after every call of the game's own function (its first, and each refresh
+	-- while the mouse stays), the button's id being the inventory slot.
+	if type(rawget(_G, "PaperDollItemSlotButton_OnEnter")) == "function" then
+		hooksecurefunc("PaperDollItemSlotButton_OnEnter", function(button)
+			local id = button and button.GetID and button:GetID()
+			if type(id) == "number" then pcall(U.SlotTip, id) end
+		end)
+		U.slotFnHooked = true
+	end
 	U.sheetHooked = true
 end
 

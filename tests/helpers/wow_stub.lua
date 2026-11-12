@@ -729,3 +729,14 @@ C_TooltipInfo.GetQuestLogItem = function(kind, i, questID)
 	local c = (kind == "choice" and r.choices or r.items or {})[i]
 	if c and c[6] and STUB.items[c[6]] then return { type = 0, id = c[6], hyperlink = STUB.ItemLink(c[6]), lines = {} } end
 end
+-- The slot buttons' ids (their inventory slots), and the game's slot tooltip function as the sheet
+-- calls it: on enter, and again while the mouse stays, each time rebuilding the tooltip.
+do
+	local names = { "Head", "Neck", "Shoulder", "Shirt", "Chest", "Waist", "Legs", "Feet", "Wrist", "Hands", "Finger0", "Finger1",
+		"Trinket0", "Trinket1", "Back", "MainHand", "SecondaryHand", "Ranged", "Tabard" }
+	for i, n in ipairs(names) do _G["Character" .. n .. "Slot"].id = i end
+end
+function PaperDollItemSlotButton_OnEnter(button)
+	GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
+	GameTooltip:SetText(button.id == 11 and "Finger" or "Item")
+end

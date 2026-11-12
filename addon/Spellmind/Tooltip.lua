@@ -162,7 +162,13 @@ function T.Focus(link)
 end
 
 function T.OnTooltip(tooltip, data)
-	if not ns.db or not ns.Marks.On("tooltip") then return end
+	if not ns.db then return end
+	-- A worn item's tooltip on the character sheet, rebuilt from its data: the slot's own line
+	-- (GearUI), whichever way the game refreshed it.
+	local owner = tooltip.GetOwner and tooltip:GetOwner()
+	local slot = ns.GearUI and ns.GearUI.SlotOf(owner)
+	if slot then pcall(ns.GearUI.SlotTip, slot, tooltip) end
+	if not ns.Marks.On("tooltip") then return end
 	if tooltip ~= rawget(_G, "GameTooltip") and tooltip ~= rawget(_G, "ItemRefTooltip") then return end
 	local link
 	if type(tooltip.GetItem) == "function" then

@@ -84,8 +84,16 @@ test('the character sheet: a green dot on a slot with an upgrade waiting, orange
   assert.equal(dot(16).shown, true);
   assert.deepEqual(list(vm, `NS.GearUI.dots[16].color`).slice(0, 3), [1, 0.6, 0.15], 'orange: 33% durability');
   assert.equal(dot(5).shown, false, 'the robe: nothing to say');
-  vm.run('GameTooltip:SetOwner(CharacterBackSlot, "ANCHOR_RIGHT"); for _, fn in ipairs(CharacterBackSlot.hooks.OnEnter or {}) do fn(CharacterBackSlot) end');
+  // The game's slot function, as the sheet calls it: on enter, then again and again while the mouse
+  // stays, each call rebuilding the tooltip. The line must be there after every call (seen in game:
+  // it showed for one frame, then the refresh wiped it).
+  vm.run('PaperDollItemSlotButton_OnEnter(CharacterBackSlot)');
   assert.ok(list(vm, 'GameTooltip.added').some(l => /upgrade waiting: Dirt-stained Cloak \(in your bags\)/.test(l)));
+  vm.run('PaperDollItemSlotButton_OnEnter(CharacterBackSlot); PaperDollItemSlotButton_OnEnter(CharacterBackSlot)');
+  const after = list(vm, 'GameTooltip.added');
+  assert.equal(after.filter(l => /upgrade waiting/.test(l)).length, 1, 'there after the refresh, once');
+  vm.run('PaperDollItemSlotButton_OnEnter(CharacterMainHandSlot)');
+  assert.ok(list(vm, 'GameTooltip.added').some(l => /durability 33%: repair soon/.test(l)));
 });
 
 test('the merchant: "what to sell" beside its window; the card lists grey junk and bound gear you can\'t use, with values; nothing is sold', () => {
@@ -118,4 +126,16 @@ test('the Gear tab says so when nothing within reach beats what you wear', () =>
   const d = list(vm, 'SpellmindPanel.drawn');
   assert.equal(d[0].text, 'Upgrades within reach');
   assert.match(d[1].text, /Nothing in your bags or your quests' rewards beats what you wear/);
+});
+
+test('the slot\'s line also survives a rebuild from the item\'s tooltip data (the other refresh path), and never shows twice', () => {
+  const vm = session();
+  vm.run('STUB.equipped[16].dur = { 15, 45 }');
+  vm.run('PaperDollFrame:Hide(); PaperDollFrame:Show(); for _, fn in ipairs(PaperDollFrame.hooks.OnShow or {}) do fn(PaperDollFrame) end');
+  vm.run('PaperDollItemSlotButton_OnEnter(CharacterMainHandSlot)'); // the slot function: our line
+  vm.run('STUB.ShowItem(GameTooltip, STUB.equipped[16].link); GameTooltip.owner = CharacterMainHandSlot'); // a rebuild from data (clears)
+  vm.run('GameTooltip.added = {}; GameTooltip.owner = CharacterMainHandSlot; for _, c in ipairs(STUB.tipCalls) do c.fn(GameTooltip, { lines = {} }) end');
+  assert.equal(list(vm, 'GameTooltip.added').filter(l => /durability 33%/.test(l)).length, 1, 'added by the post-call');
+  vm.run('for _, c in ipairs(STUB.tipCalls) do c.fn(GameTooltip, { lines = {} }) end');
+  assert.equal(list(vm, 'GameTooltip.added').filter(l => /durability 33%/.test(l)).length, 1, 'not twice');
 });

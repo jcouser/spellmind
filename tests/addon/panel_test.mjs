@@ -20,7 +20,7 @@ test('opens from the minimap button\'s right-click and /sm panel; the header say
   assert.equal(vm.evaluate('tostring(SpellmindPanel.shown)'), 'false', '/sm panel toggles');
   vm.slash('panel');
   assert.equal(vm.evaluate('tostring(SpellmindPanel.shown)'), 'true');
-  assert.equal(vm.num('#SpellmindPanel.tabs'), 9, 'Chat, six, Nudges and Settings');
+  assert.equal(vm.num('#SpellmindPanel.tabs'), 10, 'Chat, Quests, Dungeons, five more, Nudges and Settings');
   assert.equal(vm.evaluate('NS.Panel.tab'), 'quests', 'the right-click opens a tab other than Chat');
 });
 

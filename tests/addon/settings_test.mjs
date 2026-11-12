@@ -15,7 +15,7 @@ const flip = (vm, id) => vm.run(`NS.Settings.Flip("${id}")`);
 test('the tab: last in the rail; its sections, each switch with its On or Off button', () => {
   const vm = session();
   vm.run('NS.Panel.Show("settings")');
-  assert.equal(vm.evaluate('SpellmindPanel.tabs[9].text:GetText()'), 'Settings');
+  assert.equal(vm.evaluate('SpellmindPanel.tabs[10].text:GetText()'), 'Settings');
   const d = list(vm, 'SpellmindPanel.drawn');
   assert.deepEqual(d.filter(x => x.kind === 'head').map(x => x.text),
     ['On the game\'s windows', 'Nudges', 'Game data the AI gets', 'Chat and the minimap']);

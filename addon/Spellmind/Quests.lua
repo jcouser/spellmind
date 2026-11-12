@@ -178,7 +178,12 @@ function Q.LFGText(id)
 	local q = Q.Read(id)
 	if not q then return nil end
 	local dungeon = q.tagName == "Dungeon" or q.tagName == "Raid"
-	local where = tostring((dungeon and q.header) or q.title or "group"):gsub("^[Tt]he%s+", "")
+	return Q.LFGFor((dungeon and q.header) or q.title or "group")
+end
+
+-- The LFG line for a place: a dungeon's name ("The Deadmines" → "LFG Deadmines DPS Rogue").
+function Q.LFGFor(place)
+	local where = tostring(place or "group"):gsub("^[Tt]he%s+", "")
 	local class = ns.Try(UnitClass, "player")
 	local t = ns.State and ns.State.Collect and ns.State.Collect.talents and select(2, pcall(ns.State.Collect.talents))
 	local role

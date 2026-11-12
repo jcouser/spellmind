@@ -21,6 +21,7 @@ ST.MARKS = {
 }
 
 ST.NUDGES = {
+	{ "dungeon", "Entering a dungeon" },
 	{ "talents", "Talent points to spend" },
 	{ "spells", "Spells to train" },
 	{ "durability", "Gear about to break" },

@@ -220,6 +220,46 @@ function ns.ProbeRound5(out, try, g)
 	out["globals round 5"] = kinds
 end
 
+-- Round 6 (dungeon prep, 2026-11-12): which dungeons the game itself knows, with their levels (the
+-- LFG tool's activities, the dungeon finder), the instance you're in, and dungeon entrances on the
+-- map. Forever has its own dungeons (the Hall of Thanes), so a built-in list would be wrong.
+function ns.ProbeRound6(out, try, g)
+	out["GetInstanceInfo()"] = try(g("GetInstanceInfo"))
+	out["IsInInstance()"] = try(g("IsInInstance"))
+	local LL = rawget(_G, "C_LFGList")
+	out["fns:C_LFGList"] = fnList(LL)
+	out["fns:C_LFGInfo"] = fnList(rawget(_G, "C_LFGInfo"))
+	if type(LL) == "table" then
+		out["C_LFGList.GetAvailableCategories()"] = try(LL.GetAvailableCategories)
+		out["C_LFGList.GetAvailableActivities(2)"] = try(LL.GetAvailableActivities, 2)
+		local ok, acts = pcall(LL.GetAvailableActivities, 2)
+		if ok and type(acts) == "table" then
+			local first = {}
+			for i = 1, math.min(#acts, 4) do
+				first["activity " .. tostring(acts[i])] = try(LL.GetActivityInfoTable, acts[i])
+			end
+			out["C_LFGList.GetActivityInfoTable(first 4)"] = first
+		end
+	end
+	local kinds = {}
+	for _, name in ipairs({ "GetLFGDungeonInfo", "GetNumRandomDungeons", "GetLFDChoiceOrder", "GetLFGDungeonNumEncounters",
+		"GetInstanceInfo", "GetNumSavedInstances", "GetSavedInstanceInfo" }) do
+		kinds[name] = type(rawget(_G, name))
+	end
+	out["globals round 6"] = kinds
+	out["GetLFGDungeonInfo(1)"] = try(g("GetLFGDungeonInfo"), 1)
+	local map = tonumber((select(2, pcall(g("C_Map.GetBestMapForUnit"), "player"))))
+	local CEJ = rawget(_G, "C_EncounterJournal")
+	if map then
+		out["C_EncounterJournal.GetDungeonEntrancesForMap(here)"] = try(CEJ and CEJ.GetDungeonEntrancesForMap, map)
+		-- The continent too: entrances are often on the zone's parent map.
+		local okInfo, info = pcall(g("C_Map.GetMapInfo"), map)
+		if okInfo and type(info) == "table" and info.parentMapID then
+			out["C_EncounterJournal.GetDungeonEntrancesForMap(parent)"] = try(CEJ and CEJ.GetDungeonEntrancesForMap, info.parentMapID)
+		end
+	end
+end
+
 function ns.Probe()
 	local link5 = GetInventoryItemLink and GetInventoryItemLink("player", 5)
 	local link16 = GetInventoryItemLink and GetInventoryItemLink("player", 16)
@@ -314,6 +354,7 @@ function ns.Probe()
 	out["IsPlayerSpell(1752)"] = try(g("IsPlayerSpell"), 1752)
 	ns.ProbeRound4(out, try, g)
 	pcall(ns.ProbeRound5, out, try, g)
+	pcall(ns.ProbeRound6, out, try, g)
 	ns.db.probe = out
 	local n = 0
 	for _ in pairs(out) do n = n + 1 end

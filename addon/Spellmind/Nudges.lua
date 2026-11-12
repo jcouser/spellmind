@@ -26,6 +26,7 @@ N.ICONS = {
 	turnin = "Interface\\Icons\\INV_Letter_15",
 	near = "Interface\\Icons\\INV_Misc_Map_01",
 	prof = "Interface\\Icons\\INV_Misc_Note_01",
+	dungeon = "Interface\\Icons\\INV_Misc_Key_03",
 }
 N.SLOT_NAMES = { "head", "neck", "shoulders", "shirt", "chest", "waist", "legs", "feet", "wrists", "hands", "ring", "ring",
 	"trinket", "trinket", "back", "main hand", "off hand", "ranged", "tabard" }
@@ -68,6 +69,25 @@ end
 
 local Detect = {}
 N.Detect = Detect
+
+-- Inside a dungeon (Dungeons.lua): its name, how many of your quests are for it, and Ask for a briefing.
+-- Once a visit: the key is the instance, and leaving drops it so the next visit nudges again.
+function Detect.dungeon()
+	local DG = ns.Dungeons
+	local here = DG and DG.Here()
+	if not here then
+		local seen = Saved().seen
+		seen.dungeon = nil
+		return {}
+	end
+	local n, ready = 0, 0
+	for _, d in ipairs(DG.FromLog()) do
+		if d.name == here.name then n, ready = #d.quests, d.ready end
+	end
+	local text = n > 0 and (n .. " of your quests here" .. (ready > 0 and (", " .. ready .. " ready") or "") .. ". Want a briefing?") or "Want a briefing?"
+	return { { kind = "dungeon", key = here.name, title = "Entering " .. ns.Escape(here.name),
+		text = text, ask = DG.Briefing(here.name) } }
+end
 
 function Detect.talents()
 	local t = Part("talents")
@@ -196,7 +216,7 @@ function Detect.prof()
 	return out
 end
 
-N.ORDER = { "talents", "spells", "durability", "bags", "turnin", "near", "prof" }
+N.ORDER = { "dungeon", "talents", "spells", "durability", "bags", "turnin", "near", "prof" }
 
 ---------------------------------------------------------------------------
 -- The queue
@@ -257,17 +277,27 @@ function N.Check()
 	local q = Queue()
 	local queued = {}
 	for _, n in ipairs(q) do queued[n.kind] = true end
+	local inDungeon = false
 	for _, name in ipairs(N.ORDER) do
 		local ok, list = false, nil
 		if N.KindOn(name) then ok, list = pcall(Detect[name]) end
 		for _, n in ipairs(ok and type(list) == "table" and list or {}) do
 			n.icon = N.ICONS[name]
+			if name == "dungeon" then inDungeon = true end
 			if seen[n.kind] ~= n.key and not queued[n.kind] then
 				q[#q + 1] = n
 				queued[n.kind] = true
 				R.nudgeFaded = nil -- something new: the toast shows again
 			end
 		end
+	end
+	-- Out of the dungeon: its "Entering …" nudge has nothing left to say.
+	if not inDungeon and queued.dungeon then
+		local keep = {}
+		for _, n in ipairs(q) do if n.kind ~= "dungeon" then keep[#keep + 1] = n end end
+		R.nudges = keep
+		if toast and toast.nudge and toast.nudge.kind == "dungeon" then toast.nudge = nil; toast:Hide() end
+		Changed()
 	end
 	N.Next()
 end
@@ -530,12 +560,16 @@ for _, ev in ipairs({ "PLAYER_LEVEL_UP", "BAG_UPDATE_DELAYED", "UPDATE_INVENTORY
 	"SKILL_LINES_CHANGED", "SPELLS_CHANGED", "TRAIT_CONFIG_UPDATED", "PLAYER_TALENT_UPDATE" }) do
 	ns.On(ev, function() N.Soon() end)
 end
+-- Into or out of a dungeon (a loading screen): after the first look only, so login stays quiet.
+for _, ev in ipairs({ "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD" }) do
+	ns.On(ev, function() if R.nudgeLooked then N.Soon() end end)
+end
 -- In combat: hidden; after it, the queue goes on.
 ns.On("PLAYER_REGEN_DISABLED", function() if toast and toast:IsShown() then toast:Hide() end end)
 ns.On("PLAYER_REGEN_ENABLED", function() N.Next() end)
 ns.On("PLAYER_LOGIN", function()
 	-- A few seconds in, once the game's data has settled (the quest log, the spellbook).
-	C_Timer.After(8, function() N.Check() end)
+	C_Timer.After(8, function() R.nudgeLooked = true; N.Check() end)
 	-- Moving fires no event: every 5 s, a look for turn-ins nearby (only while a quest is ready).
 	C_Timer.NewTicker(N.NEAR_EVERY, function()
 		if not N.On() or InCombat() then return end

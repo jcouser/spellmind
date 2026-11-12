@@ -13,7 +13,7 @@ ns.Panel = P
 local R = ns.R
 
 P.W, P.H = 600, 480
-P.MIN_W, P.MIN_H, P.MAX_W, P.MAX_H = 560, 380, 1100, 1000
+P.MIN_W, P.MIN_H, P.MAX_W, P.MAX_H = 560, 400, 1100, 1000 -- the rail's ten tabs fit
 -- Compact: the chat alone.
 P.CW, P.CH = 440, 460
 P.CMIN_W, P.CMIN_H = 406, 366
@@ -26,6 +26,7 @@ P.BAG_ROWS = 8
 P.TABS = {
 	{ id = "chat", name = "Chat", icon = "Interface\\AddOns\\Spellmind\\Media\\Portrait" },
 	{ id = "quests", name = "Quests", icon = "Interface\\Icons\\INV_Letter_15" },
+	{ id = "dungeons", name = "Dungeons", icon = "Interface\\Icons\\INV_Misc_Key_03" },
 	{ id = "gear", name = "Gear", icon = "Interface\\Icons\\INV_Chest_Leather_09" },
 	{ id = "talents", name = "Talents", icon = "Interface\\Icons\\Ability_Marksmanship" },
 	{ id = "spells", name = "Spells", icon = "Interface\\Icons\\Spell_Holy_MagicalSentry" },
@@ -36,6 +37,7 @@ P.TABS = {
 }
 -- Each tab's two Ask buttons: { label, the question }.
 P.ASKS = {
+	dungeons = { { "Which dungeon now?", "DUNGEON_WHICH" }, { "Brief my next one", "DUNGEON_NEXT" } },
 	quests = { { "Plan my next hour", "Plan my next hour of questing: which of my quests to do, in what order, and where." }, { "What's worth skipping?", "Which of my quests are worth skipping or leaving for later, and why?" } },
 	gear = { { "Find my next upgrades", "GEAR_UPGRADES" }, { "What should I sell?", "What in my bags should I sell, keep or put on the auction house?" } },
 	talents = { { "Plan my next points", "Plan my next talent points for how I play now." }, { "Is my build good?", "Is my talent build good for my level and role? What would you change?" } },
@@ -382,7 +384,8 @@ function P.LFG(id, button, anchor)
 end
 
 function P.LFGTo(id, slash)
-	local text = ns.Quests.LFGText(id)
+	-- id: a quest (its dungeon or title), or a dungeon by name (the Dungeons tab).
+	local text = type(id) == "string" and ns.Quests.LFGFor(id) or ns.Quests.LFGText(id)
 	if text and ns.Quests.PutInChat(text, slash) then return text end
 	if text then ns.Chat.System("Your LFG line: " .. ns.Escape(text)) end
 	return text
@@ -463,6 +466,68 @@ function P.UpgradeQuestion()
 	end
 	return "Find my next realistic gear upgrades" .. (#names > 0 and (", starting with my weakest slots: " .. table.concat(names, "; ")) or "")
 		.. ". For each, name one item and exactly how to get it now or soon: a quest near me or in my log, a dungeon at my level (which boss), a vendor, something I can craft with my professions, or the auction house. Skip anything my class can't use. Search the web for item sources and cite them."
+end
+
+-- Dungeons (docs/milestone-13.md): the one you're in, the ones your quest log has quests for, and the
+-- ones at your level that the game's LFG tool lists. Each with Brief (the AI's briefing, in the card
+-- beside the window) and LFG; a quest row has Go and its Break it down mark.
+function Tabs.dungeons()
+	local DG = ns.Dungeons
+	local out = {}
+	local here = DG.Here()
+	local log = DG.FromLog()
+	local shown = {}
+	local function brief(name)
+		return { "Brief", function() P.Ask("Brief me: " .. name, DG.Briefing(name)) end }
+	end
+	if here then
+		out[#out + 1] = { kind = "head", text = "You're in " .. ns.Escape(here.name) }
+		local n = 0
+		for _, d in ipairs(log) do if d.name == here.name then n = #d.quests end end
+		out[#out + 1] = { kind = "item", left = ns.Escape(here.name), sub = "|cff888888" .. (n > 0 and (n .. " of your quests here") or "None of your quests are for it") .. (here.diff and (" · " .. ns.Escape(here.diff)) or "") .. "|r",
+			actions = { brief(here.name) } }
+		shown[here.name] = true
+	end
+	out[#out + 1] = { kind = "head", text = "Your quests are for" }
+	local any = false
+	for _, d in ipairs(log) do
+		any = true
+		local name = d.name
+		local bits = { #d.quests .. " quest" .. (#d.quests > 1 and "s" or "") }
+		local range = DG.Range(d.low, d.high)
+		if range then bits[#bits + 1] = range end
+		if d.ready > 0 then bits[#bits + 1] = "|cff19ff19" .. d.ready .. " ready to turn in|r" end
+		out[#out + 1] = { kind = "item", left = ns.Escape(name), sub = "|cff888888" .. table.concat(bits, " · ") .. "|r",
+			tag = d.raid and { "Raid", 1, 0.5, 0.2 } or nil,
+			actions = { { "LFG", function(_, btn) P.LFGMenu(name, btn) end }, brief(name) } }
+		for _, q in ipairs(d.quests) do
+			out[#out + 1] = { kind = "item", indent = true, quest = q.id,
+				left = ns.Escape(q.title or "?"), right = q.complete and "|cff19ff19ready|r" or (q.level and ("level " .. q.level) or ""),
+				actions = { { "Go", function() P.Go(q.id) end } } }
+		end
+		shown[name] = true
+	end
+	if not any then out[#out + 1] = { kind = "text", text = "No dungeon quests in your log. Brief on a dungeon below, or ask which one fits." } end
+	local near = {}
+	for _, d in ipairs(DG.AtLevel()) do if not shown[d.name] then near[#near + 1] = d end end
+	if #near > 0 then
+		out[#out + 1] = { kind = "head", text = "At your level" }
+		for _, d in ipairs(near) do
+			local name = d.name
+			out[#out + 1] = { kind = "item", left = ns.Escape(name), right = DG.Range(d.low, d.high) or "",
+				actions = { { "LFG", function(_, btn) P.LFGMenu(name, btn) end }, brief(name) } }
+		end
+	end
+	return out
+end
+
+-- "Brief my next one": the dungeon you're in, else the first in your log, else which fits.
+function P.NextDungeonQuestion()
+	local here = ns.Dungeons.Here()
+	if here then return ns.Dungeons.Briefing(here.name) end
+	local log = ns.Dungeons.FromLog()
+	if log[1] then return ns.Dungeons.Briefing(log[1].name) end
+	return ns.Dungeons.WhichQuestion()
 end
 
 function Tabs.gear()
@@ -714,8 +779,8 @@ end
 
 local function TabButton(f, i, tab)
 	local b = CreateFrame("Button", nil, f, "BackdropTemplate")
-	b:SetSize(P.RAIL_W - 16, 30)
-	b:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -58 - (i - 1) * 34)
+	b:SetSize(P.RAIL_W - 16, 28)
+	b:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -58 - (i - 1) * 31)
 	if b.SetBackdrop then b:SetBackdrop(BACKDROP) end
 	b.icon = b:CreateTexture(nil, "ARTWORK")
 	b.icon:SetSize(20, 20)
@@ -743,7 +808,10 @@ local function AskButton(f)
 	b:SetScript("OnLeave", function(self) if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.58, 0.45, 0.98, 1) end end)
 	b:SetScript("OnClick", function(self)
 		if not self.ask then return end
-		local q = self.ask[2] == "GEAR_UPGRADES" and P.UpgradeQuestion() or self.ask[2]
+		local q = self.ask[2]
+		if q == "GEAR_UPGRADES" then q = P.UpgradeQuestion()
+		elseif q == "DUNGEON_WHICH" then q = ns.Dungeons.WhichQuestion()
+		elseif q == "DUNGEON_NEXT" then q = P.NextDungeonQuestion() end
 		P.Ask(self.ask[1], q)
 	end)
 	return b

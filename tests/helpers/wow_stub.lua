@@ -727,6 +727,33 @@ for _, n in ipairs({ "Head", "Neck", "Shoulder", "Shirt", "Chest", "Waist", "Leg
 	CreateFrame("Button", "Character" .. n .. "Slot", PaperDollFrame)
 end
 MerchantFrame = CreateFrame("Frame", "MerchantFrame", UIParent)
+-- Instances: STUB.instance = { name, type ("party", "raid"), diff } while inside one.
+STUB.instance = nil
+function IsInInstance()
+	if STUB.instance then return true, STUB.instance.type end
+	return false, "none"
+end
+function GetInstanceInfo()
+	local i = STUB.instance
+	if not i then return GetRealZoneText(), "none", 0, "" end
+	return i.name, i.type, 1, i.diff or "Normal", 5
+end
+-- The LFG tool's dungeons: none by default (C_LFGList left out); a test sets STUB.lfg to a list of
+-- { id, fullName, minLevelSuggestion, maxLevelSuggestion } and calls STUB.UseLFG().
+function STUB.UseLFG()
+	C_LFGList = {
+		GetAvailableActivities = function(category)
+			local out = {}
+			if category == 2 then for _, a in ipairs(STUB.lfg or {}) do out[#out + 1] = a[1] end end
+			return out
+		end,
+		GetActivityInfoTable = function(id)
+			for _, a in ipairs(STUB.lfg or {}) do
+				if a[1] == id then return { fullName = a[2], minLevelSuggestion = a[3], maxLevelSuggestion = a[4], categoryID = 2 } end
+			end
+		end,
+	}
+end
 -- The class trainer's window (Blizzard_TrainerUI): its services when STUB.trainer is set, each
 -- { name, subText, kind ("available", "unavailable", "used", "header"), cost, level }.
 ClassTrainerFrame = CreateFrame("Frame", "ClassTrainerFrame", UIParent)

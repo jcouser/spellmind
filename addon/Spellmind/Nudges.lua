@@ -224,6 +224,32 @@ local function Changed()
 	if ns.Panel and ns.Panel.NudgesChanged then ns.Panel.NudgesChanged() end
 end
 
+-- One kind of nudge on or off (the Settings tab): SpellmindDB.nudges.kinds[name] = false when off.
+function N.KindOn(name)
+	local k = Saved().kinds
+	return not (type(k) == "table" and k[name] == false)
+end
+
+function N.SetKind(name, on)
+	local saved = Saved()
+	if type(saved.kinds) ~= "table" then saved.kinds = {} end
+	if on then saved.kinds[name] = nil else saved.kinds[name] = false end
+	if not on then
+		-- Its waiting ones go ("turnin:297" is a turnin).
+		local q, keep = Queue(), {}
+		for _, n in ipairs(q) do
+			local base = tostring(n.kind):match("^([^:]+)")
+			if base ~= name then keep[#keep + 1] = n end
+		end
+		R.nudges = keep
+		if toast and toast.nudge and tostring(toast.nudge.kind):match("^([^:]+)") == name then toast.nudge = nil; toast:Hide() end
+		Changed()
+		N.Next()
+	else
+		N.Check()
+	end
+end
+
 -- Every detector, in order; a new situation (kind with a key it hasn't shown) joins the queue.
 function N.Check()
 	if not N.On() then return end
@@ -232,7 +258,8 @@ function N.Check()
 	local queued = {}
 	for _, n in ipairs(q) do queued[n.kind] = true end
 	for _, name in ipairs(N.ORDER) do
-		local ok, list = pcall(Detect[name])
+		local ok, list = false, nil
+		if N.KindOn(name) then ok, list = pcall(Detect[name]) end
 		for _, n in ipairs(ok and type(list) == "table" and list or {}) do
 			n.icon = N.ICONS[name]
 			if seen[n.kind] ~= n.key and not queued[n.kind] then

@@ -4,6 +4,7 @@
 --   /sm            show or hide the window
 --   /sm <words>    ask Spellmind (the window's box does the same)
 --   /sm data       what the app gets of your character; /sm data off and /sm data on
+--   /sm settings   every switch (the Settings tab); /sm panel the last tab other than Chat
 --
 -- Answers arrive through Link.lua (slot records reply, error and aborted) and show in the window
 -- and, shortened, in the chat frame. The app's text comes with every | doubled already; what the
@@ -441,6 +442,21 @@ end
 -- Answers
 ---------------------------------------------------------------------------
 
+-- Answers in the game's chat frame (the Settings tab, SpellmindDB.ui.chatLines): "all" (a short
+-- answer whole, a long one's summary), "first" (the summary or first line only) or "off".
+C.CHAT_LINES = { "all", "first", "off" }
+function C.ChatLines()
+	local v = ns.db and type(ns.db.ui) == "table" and ns.db.ui.chatLines
+	if v == "first" or v == "off" then return v end
+	return "all"
+end
+
+function C.SetChatLines(v)
+	if not ns.db then return end
+	if type(ns.db.ui) ~= "table" then ns.db.ui = {} end
+	ns.db.ui.chatLines = (v == "first" or v == "off") and v or nil
+end
+
 -- A reply, error or aborted record for our chat (Link.ApplyRecords). replay = 1: it was
 -- applied before a client crash rolled the cursor back, so it's shown without the chat frame.
 function C.OnRecord(r, replay)
@@ -476,7 +492,10 @@ function C.OnRecord(r, replay)
 			for line in tostring(text):gmatch("[^\n]+") do
 				if line:match("%S") then lines[#lines + 1] = line end
 			end
-			if #lines > 0 and #lines <= CHAT_LINES_MAX and #text <= CHAT_BYTES_MAX then
+			local mode = C.ChatLines()
+			if mode == "off" then
+				-- Nothing in the chat frame (the Settings tab): the answer is in the Spellmind window.
+			elseif mode == "all" and #lines > 0 and #lines <= CHAT_LINES_MAX and #text <= CHAT_BYTES_MAX then
 				for i, line in ipairs(lines) do ChatFrame((i == 1 and "Spellmind: " or "   ") .. line) end
 			else
 				local summary = type(r.summary) == "string" and r.summary ~= "" and ns.SafeText(r.summary) or nil
@@ -487,12 +506,12 @@ function C.OnRecord(r, replay)
 		text = ns.SafeText(r.text)
 		AddText(ERR, text)
 		AddMsg("err", "|cffff6060" .. text .. "|r", nil, chatId)
-		if not replay then ChatFrame("Spellmind: " .. Short(r.text)) end
+		if not replay and C.ChatLines() ~= "off" then ChatFrame("Spellmind: " .. Short(r.text)) end
 	else
 		text = ns.SafeText(type(r.text) == "string" and r.text ~= "" and r.text or "Stopped.")
 		AddText(WHO, text)
 		AddMsg("sm", text, nil, chatId)
-		if not replay then ChatFrame("Spellmind: " .. Short(text)) end
+		if not replay and C.ChatLines() ~= "off" then ChatFrame("Spellmind: " .. Short(text)) end
 	end
 	C.Refresh()
 end
@@ -552,6 +571,11 @@ SlashCmdList.SPELLMIND = function(msg)
 	-- /sm panel: the Advisor panel.
 	if lower == "panel" and ns.Panel and ns.db then
 		ns.Panel.Toggle()
+		return
+	end
+	-- /sm settings: the Settings tab.
+	if lower == "settings" and ns.Panel and ns.db then
+		ns.Panel.Show("settings")
 		return
 	end
 	-- /sm minimap off and /sm minimap on: the minimap button.

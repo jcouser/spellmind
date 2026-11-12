@@ -246,6 +246,10 @@ function ns.InitDB()
 	end
 	db.chars = chars
 	local share = type(db.share) == "table" and db.share or {}
-	db.share = { state = share.state ~= false, identity = share.identity == true }
+	local parts = {}
+	for k, v in pairs(type(share.parts) == "table" and share.parts or {}) do
+		if type(k) == "string" and v == false then parts[k] = false end
+	end
+	db.share = { state = share.state ~= false, identity = share.identity == true, parts = parts }
 	return db
 end

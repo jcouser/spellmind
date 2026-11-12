@@ -56,7 +56,8 @@ export function partNotes(state) {
     const v = state?.[p];
     if (OPTIONAL_PARTS.includes(p) && isObj(v) && Object.keys(v).length <= 1) continue;
     if (!isObj(v)) continue;
-    if (v.too_large) out.push(`${p}: too large to send this turn.`);
+    if (v.off) out.push(`${p}: the player keeps this back (Spellmind's Settings tab): don't guess it; they can turn it on there.`);
+    else if (v.too_large) out.push(`${p}: too large to send this turn.`);
     else if (Array.isArray(v.omitted) && v.omitted.length) out.push(`${p}: the addon left out ${v.omitted.join(', ')} to fit.`);
   }
   return out;

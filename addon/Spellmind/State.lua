@@ -773,7 +773,27 @@ end
 function S.Part(name, z)
 	local fn = Build[name]
 	if not fn then return nil end
+	-- A part the player turned off (the Settings tab) goes as {"v":1,"off":true}: the app forgets
+	-- what it had, and the AI knows it was kept back rather than empty.
+	if not S.PartOn(name) then return S.Fit(name, O("v", 1, "off", true), z) end
 	return S.Fit(name, fn(), z)
+end
+
+-- The parts a player can keep back. char (class, level, zone) is what every answer starts from, and
+-- focus is only ever what they clicked, so those two always go while game data is on.
+S.OPTIONAL = { "stats", "talents", "spells", "gear", "bags", "skills", "quests", "rep" }
+
+function S.PartOn(name)
+	local p = ns.db and type(ns.db.share) == "table" and ns.db.share.parts
+	return not (type(p) == "table" and p[name] == false)
+end
+
+function S.SetPart(name, on)
+	if not ns.db then return end
+	local share = ns.db.share
+	if type(share.parts) ~= "table" then share.parts = {} end
+	if on then share.parts[name] = nil else share.parts[name] = false end
+	S.Dirty()
 end
 
 ---------------------------------------------------------------------------
@@ -1083,7 +1103,9 @@ function S.Report()
 	for _, p in ipairs(S.PARTS) do
 		local rec = me.parts[p]
 		local line
-		if type(rec) ~= "table" or type(rec.json) ~= "string" then
+		if not S.PartOn(p) then
+			line = p .. ": kept back (Settings)"
+		elseif type(rec) ~= "table" or type(rec.json) ~= "string" then
 			line = p .. ": not read" .. (R.stateErr and R.stateErr[p] and " (the game didn't answer)" or "")
 		else
 			line = p .. ": " .. Bytes(#rec.json) .. " bytes"

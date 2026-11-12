@@ -32,6 +32,7 @@ P.TABS = {
 	{ id = "professions", name = "Professions", icon = "Interface\\Icons\\Trade_BlackSmithing" },
 	{ id = "gold", name = "Gold", icon = "Interface\\Icons\\INV_Misc_Coin_01" },
 	{ id = "nudges", name = "Nudges", icon = "Interface\\AddOns\\Spellmind\\Media\\Mark" },
+	{ id = "settings", name = "Settings", icon = "Interface\\Icons\\INV_Misc_Gear_01" },
 }
 -- Each tab's two Ask buttons: { label, the question }.
 P.ASKS = {
@@ -128,7 +129,8 @@ end
 --   { kind = "head", text }                          a section title, gold, with a rule
 --   { kind = "item", icon, left, right, tag = { text, r, g, b }, quest = id }   a row; quest: a Break it down mark
 --   { kind = "text", text }                          a plain line
-local function Draw(f, specs)
+--   indent = true: the row set in (a setting under its section's main switch)
+local function Draw(f, specs, keepScroll)
 	local y = -2
 	local w = f.content:GetWidth()
 	f.drawn = {}
@@ -178,7 +180,7 @@ local function Draw(f, specs)
 			r:SetHeight(h)
 			r.left:SetFontObject(GameFontHighlight)
 			if s.icon then r.icon:SetTexture(s.icon) end
-			local lx = s.icon and 30 or 8
+			local lx = (s.icon and 30 or 8) + (s.indent and 16 or 0)
 			if s.sub then
 				r.left:SetPoint("TOPLEFT", r, "TOPLEFT", lx, -5)
 				r.sub:ClearAllPoints()
@@ -260,7 +262,7 @@ local function Draw(f, specs)
 	end
 	for i = #specs + 1, #f.rows do f.rows[i]:Hide() end
 	f.content:SetHeight(math.max(10, -y))
-	f.scroll:SetVerticalScroll(0)
+	if not keepScroll then f.scroll:SetVerticalScroll(0) end
 end
 
 ---------------------------------------------------------------------------
@@ -663,6 +665,38 @@ function Tabs.gold()
 	return out
 end
 
+-- Settings: every switch in one place (Settings.lua), each row's button showing On or Off (or its
+-- pick) and flipping it. A setting under a main switch that's off is greyed.
+function Tabs.settings()
+	local ST = ns.Settings
+	local out = {}
+	for _, sec in ipairs(ST.List()) do
+		out[#out + 1] = { kind = "head", text = sec.section }
+		for _, r in ipairs(sec.rows) do
+			local id = r.id
+			local dim = r.dim and r.dim()
+			out[#out + 1] = { kind = "item", indent = r.indent,
+				left = dim and ("|cff888888" .. r.label .. "|r") or r.label,
+				sub = r.sub and ("|cff888888" .. r.sub .. "|r") or nil,
+				actions = { { ST.Label(r), function() ST.Flip(id); P.Show("settings", true) end } } }
+		end
+		if sec.section == "Nudges" then
+			out[#out + 1] = { kind = "item", indent = true, left = "Dismissed nudges", sub = "|cff888888Show the ones you dismissed again, if they still apply.|r",
+				actions = { { "Reset", function()
+					local n = ns.Nudges.Reset()
+					P.Show("settings", true)
+					ns.Marks.ShowText(panel, "Nudges", n > 0 and (n .. " nudge" .. (n > 1 and "s" or "") .. " to show again: see the Nudges tab.") or "Nothing to nudge about right now.", { owner = panel })
+				end } } }
+		elseif sec.section == "Game data the AI gets" then
+			out[#out + 1] = { kind = "item", indent = true, left = "What the app has now", sub = "|cff888888Each part's size, and whether it arrived.|r",
+				actions = { { "Show", function()
+					ns.Marks.ShowText(panel, "Game data", table.concat(ns.State.Report(), "\n"), { owner = panel })
+				end } } }
+		end
+	end
+	return out
+end
+
 ---------------------------------------------------------------------------
 -- The panel
 ---------------------------------------------------------------------------
@@ -932,7 +966,7 @@ end
 
 -- The window on a tab (the last one, by default), its rows read now. The Chat tab draws the chat;
 -- another tab out of compact mode (it needs the rail).
-function P.Show(id)
+function P.Show(id, keepScroll)
 	local f = P.Build()
 	local saved = Saved()
 	id = id or saved.tab or "chat"
@@ -956,7 +990,7 @@ function P.Show(id)
 		f.content:SetWidth(P.ContentWidth(f))
 		P.PlaceAsks(f)
 		local ok, specs = pcall(Tabs[id])
-		Draw(f, ok and specs or { { kind = "text", text = "|cffff6060This tab couldn't read your character just now.|r" } })
+		Draw(f, ok and specs or { { kind = "text", text = "|cffff6060This tab couldn't read your character just now.|r" } }, keepScroll)
 		for i, b in ipairs(f.asks) do
 			local a = P.ASKS[id] and P.ASKS[id][i]
 			b.ask = a

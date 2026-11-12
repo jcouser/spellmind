@@ -359,7 +359,7 @@ test('privacy: the name, realm and guild are never read and never on the strip; 
   const saved = vm.saved();
   assert.ok(!saved.includes('Testchar') && !saved.includes('Player-4372'), 'nor in SpellmindDB');
   assert.match(vm.evaluate('NS.State.Key()'), /^g[0-9a-f]{8}$/);
-  assert.deepEqual(vm.json('SpellmindDB.share'), { state: true, identity: false });
+  assert.deepEqual(vm.json('SpellmindDB.share'), { state: true, identity: false, parts: {} });
 });
 
 test('/sm data shows each part\'s size and whether the app has it; /sm data off makes the app forget (part=all;off=1) and stops; /sm data on sends everything again', () => {

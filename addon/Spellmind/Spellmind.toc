@@ -21,6 +21,7 @@ Gear.lua
 GearUI.lua
 Professions.lua
 Trainer.lua
+Settings.lua
 Panel.lua
 Nudges.lua
 Minimap.lua

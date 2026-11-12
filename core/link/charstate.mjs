@@ -82,7 +82,7 @@ const SHAPES = {
     items: list(REWARD, LIST_MAX.rewards), where: shape(WHERE),
     name: str, q: intIn(0, 8), ilvl: num, req: num, type: str, sub: str, equip: str, st: numMap, usable: bool, why: str, vs: str },
 };
-const COMMON = { v: v => v === 1, omitted: strList(LIST_MAX.omitted), too_large: v => v === true };
+const COMMON = { v: v => v === 1, omitted: strList(LIST_MAX.omitted), too_large: v => v === true, off: v => v === true };
 
 function shape(fields) {
   const check = (v) => {

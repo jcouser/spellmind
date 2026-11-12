@@ -198,3 +198,23 @@ test('the tooltip\'s extra lines: grey junk to sell; a material of your professi
   vm.advance(1.5);
   assert.deepEqual(show(2318), ['|cff9d7dffSpellmind:|r used in your Leatherworking: Handstitched Leather Boots, Light Armor Kit'], 'learned recipes, by name');
 });
+
+test('a crafting reagent: nothing to say until every crafting profession of yours was read; then "not used by your recipes: sell" if none use it; the Gear tab says the same', () => {
+  const vm = newVM().login().advance(3.1);
+  const show = id => lines(vm, `STUB.ShowItem(GameTooltip, STUB.ItemLink(${id}))`);
+  assert.deepEqual(show(1210), [], 'Leatherworking not read yet: no guess');
+  vm.run('table.insert(STUB.bags[2].items, { 1210, 1 }); NS.Panel.Show("gear")');
+  const row = () => vm.json('SpellmindPanel.drawn').find(x => /Shadowgem/.test(x.text || ''));
+  assert.match(row().right, /^\|cff888888vendor .*2s.*50c/, 'the Gear tab: only its value, in grey');
+  assert.doesNotMatch(row().right, /sell/, 'not "sell"');
+  vm.run(`C_TradeSkillUI = {
+    GetBaseProfessionInfo = function() return { professionName = "Leatherworking" } end,
+    GetAllRecipeIDs = function() return { 2152 } end,
+    GetRecipeInfo = function(id) return { name = "Light Armor Kit", learned = true } end,
+    GetRecipeSchematic = function(id) return { reagentSlotSchematics = { { reagents = { { itemID = 2318 } } } } } end,
+  }; STUB.FireEvent("TRADE_SKILL_SHOW")`);
+  vm.advance(1.5);
+  assert.deepEqual(show(1210), ['|cff9d7dffSpellmind:|r not used by your recipes: sell, or the auction house (2s 50c)'], 'Skinning has no recipes; Leatherworking read');
+  vm.run('NS.Panel.Show("gear")');
+  assert.equal(row().right, 'not used by your recipes: sell, or the auction house (2s 50c)', 'the Gear tab and the tooltip agree');
+});

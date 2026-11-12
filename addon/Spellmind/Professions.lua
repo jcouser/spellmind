@@ -30,6 +30,7 @@ function PR.Read()
 	if not prof then return 0 end
 	local ids = ns.Try(T.GetAllRecipeIDs) or {}
 	local store = Store()
+	PR.MarkRead(prof)
 	-- This profession's entries go first, so a recipe no longer listed doesn't linger.
 	for item, list in pairs(store) do
 		local keep = {}
@@ -57,6 +58,34 @@ function PR.Read()
 		end
 	end
 	return n
+end
+
+-- Which of the character's professions have had their recipes read (their window opened once).
+local function ReadSet()
+	local db = ns.db
+	if not db or not ns.State then return {} end
+	if type(db.recipesRead) ~= "table" then db.recipesRead = {} end
+	local key = ns.State.Key()
+	if type(db.recipesRead[key]) ~= "table" then db.recipesRead[key] = {} end
+	return db.recipesRead[key]
+end
+function PR.MarkRead(prof) ReadSet()[prof] = true end
+function PR.WasRead(prof) return ReadSet()[prof] == true end
+
+-- Gathering professions have no recipes; the others (crafting, Cooking, First Aid) do.
+PR.GATHERING = { Skinning = true, Herbalism = true, Mining = true, Fishing = true }
+
+-- Every crafting profession the character has was read: then "none of your recipes use it" is true.
+-- names: the character's professions. Returns true, or false and the first one not read.
+function PR.AllRead(names)
+	local any = false
+	for _, name in ipairs(names or {}) do
+		if not PR.GATHERING[name] then
+			any = true
+			if not PR.WasRead(name) then return false, name end
+		end
+	end
+	return any
 end
 
 -- The recipes of the character's that use an item: { { prof, name, learned } }, learned ones first.

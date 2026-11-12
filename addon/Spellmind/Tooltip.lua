@@ -280,7 +280,7 @@ end
 
 -- What the item is to the character's professions: the recipes of theirs that use it (Professions.lua,
 -- kept as they open a profession's window), else whether it's a material of a profession they have.
-function T.ProfLine(link)
+function T.ProfLine(link, data)
 	if type(link) ~= "string" then return nil end
 	local id = tonumber(link:match("item:(%d+)"))
 	local uses = ns.Professions and ns.Professions.Uses(id) or {}
@@ -294,15 +294,33 @@ function T.ProfLine(link)
 		return T.PREFIX .. "used in " .. ns.Escape(prof) .. " recipes you haven't learned yet"
 	end
 	local info = ItemInfo(link)
-	if not info or tonumber(info.classID) ~= 7 then return nil end -- trade goods only
-	local profs = T.MATERIALS[info.sub or ""]
-	if not profs then return nil end
+	if not info then return nil end
+	-- A crafting reagent: a trade good, or one the game's tooltip calls a "Crafting Reagent".
+	local reagentText = "Crafting Reagent"
+	local reagent = tonumber(info.classID) == 7
+	for _, l in ipairs(type(data) == "table" and type(data.lines) == "table" and data.lines or {}) do
+		if type(l) == "table" and l.leftText == reagentText then reagent = true end
+	end
+	if not reagent then return nil end
 	local mine = MyProfessions()
-	for _, p in ipairs(profs) do
+	local profs = T.MATERIALS[info.sub or ""]
+	for _, p in ipairs(profs or {}) do
 		local m = mine[p]
 		if m then return T.PREFIX .. "a " .. p .. " material (your " .. p .. " " .. (m.rank or 0) .. "/" .. (m.max or 0) .. ")" end
 	end
-	return T.PREFIX .. "a " .. table.concat(profs, " and ") .. " material: not one of your professions (sell, or the auction house)"
+	local price = tonumber(info.sell) or 0
+	local each = price > 0 and (" (" .. Money(price) .. ")") or ""
+	-- None of the character's recipes use it, once every crafting profession of theirs was read
+	-- (Professions.lua): only then is that true (seen in game: a Shadowgem had nothing to say).
+	local names = {}
+	for name in pairs(mine) do names[#names + 1] = name end
+	if ns.Professions and ns.Professions.AllRead(names) then
+		return T.PREFIX .. "not used by your recipes: sell, or the auction house" .. each
+	end
+	if profs then
+		return T.PREFIX .. "a " .. table.concat(profs, " and ") .. " material: not one of your professions (sell, or the auction house)"
+	end
+	return nil
 end
 
 function T.Hook()

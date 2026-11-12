@@ -523,8 +523,19 @@ function Tabs.gear()
 					-- Just the differences: the row names the item, and "vs your …" crowded its name out (seen in game).
 					if ok and type(line) == "string" then right = (line:gsub("^|cff9d7dffSpellmind:|r ", ""):gsub(" vs your .*$", "")) end
 				end
+			elseif type(link) == "string" and ns.Tooltip then
+				-- The tooltip's own advice, so the two never disagree (seen in game: "sell: 2s 50c" here
+				-- read as a recommendation the tooltip didn't make); otherwise just its vendor value.
+				local data = C_TooltipInfo and type(C_TooltipInfo.GetHyperlink) == "function" and select(2, pcall(C_TooltipInfo.GetHyperlink, link)) or nil
+				local ok, advice = pcall(ns.Tooltip.SellLine, link, data)
+				if not (ok and advice) then ok, advice = pcall(ns.Tooltip.ProfLine, link, data) end
+				if ok and type(advice) == "string" then
+					right = advice:gsub("^|cff9d7dffSpellmind:|r ", "")
+				elseif type(sell) == "number" and sell > 0 then
+					right = "|cff888888vendor " .. Money(sell * (it.n or 1)) .. "|r"
+				end
 			elseif type(sell) == "number" and sell > 0 then
-				right = "sell: " .. Money(sell * (it.n or 1))
+				right = "|cff888888vendor " .. Money(sell * (it.n or 1)) .. "|r"
 			end
 			out[#out + 1] = { kind = "item", icon = icon, left = (QUALITY[it.q or 1] or "") .. ns.Escape(it.name or "?") .. "|r" .. ((it.n or 1) > 1 and (" x" .. it.n) or ""), right = right, tag = tag }
 		end

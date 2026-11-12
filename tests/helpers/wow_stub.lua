@@ -740,3 +740,6 @@ function PaperDollItemSlotButton_OnEnter(button)
 	GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
 	GameTooltip:SetText(button.id == 11 and "Finger" or "Item")
 end
+-- A crafting reagent no profession of the rogue's uses (Shadowgem: a green trade good, "Crafting Reagent").
+STUB.items[1210] = { "Shadowgem", 2, 20, 0, "Trade Goods", "Trade Goods", 20, "", 134135, 250, 7, 0 }
+STUB.tooltips[STUB.ItemLink(1210)] = { "Shadowgem", "Crafting Reagent" }

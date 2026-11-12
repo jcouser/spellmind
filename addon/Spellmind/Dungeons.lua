@@ -249,6 +249,34 @@ local function Giver(L, id)
 	return nil
 end
 
+-- The quests a quest needs done first that aren't: every one of its group, or one of its singles.
+local function Missing(L, id)
+	local out = {}
+	local group = ns.Try(L.Quest.preQuestGroup, id)
+	for _, p in ipairs(type(group) == "table" and group or {}) do
+		if not Done(p) then out[#out + 1] = p end
+	end
+	local single = ns.Try(L.Quest.preQuestSingle, id)
+	if type(single) == "table" and #single > 0 then
+		local anyDone = false
+		for _, p in ipairs(single) do if Done(p) then anyDone = true end end
+		if not anyDone then out[#out + 1] = single[1] end
+	end
+	return out
+end
+
+-- Walked back from a quest that's locked: the step to do next, { id, inLog }. A prerequisite in the
+-- log is it (do that one); else the earliest one whose own prerequisites are done (take that one).
+-- nil when nothing's missing. At most 12 steps back.
+local function Chain(L, id, Have, depth)
+	depth = depth or 0
+	local miss = Missing(L, id)
+	if #miss == 0 or depth > 12 then return nil end
+	local p = miss[1]
+	if Have(p) then return { id = p, inLog = true } end
+	return Chain(L, p, Have, depth + 1) or { id = p }
+end
+
 local function Name(L, id)
 	local n = ns.Try(L.Quest.name, id)
 	return type(n) == "string" and n ~= "" and n or nil
@@ -277,6 +305,7 @@ function DG.Quests(name, done)
 	local QL = C_QuestLog
 	local function Have(id) return inLog[id] or (QL and type(QL.IsOnQuest) == "function" and ns.Try(QL.IsOnQuest, id)) and true or false end
 	local out = { area = area, done = {}, log = {}, pickup = {}, total = 0 }
+	local starts = {} -- the first steps of chains that lead to this dungeon's quests, by id
 	for _, id in ipairs(index[area] or {}) do
 		local races = tonumber((ns.Try(L.Quest.requiredRaces, id))) or 0
 		local classes = tonumber((ns.Try(L.Quest.requiredClasses, id))) or 0
@@ -301,23 +330,33 @@ function DG.Quests(name, done)
 				elseif Have(id) then
 					out.log[#out.log + 1] = qname
 				else
-					local after
-					local group = ns.Try(L.Quest.preQuestGroup, id)
-					for _, p in ipairs(type(group) == "table" and group or {}) do
-						if not Done(p) then after = after or Name(L, p) end
-					end
-					local single = ns.Try(L.Quest.preQuestSingle, id)
-					if type(single) == "table" and #single > 0 then
-						local anyDone = false
-						for _, p in ipairs(single) do if Done(p) then anyDone = true end end
-						if not anyDone then after = after or Name(L, single[1]) end
+					-- A quest behind another: the chain walked back to the step that can be taken now (often
+					-- outside the dungeon: The Defias Brotherhood starts in Westfall), or the one in the log.
+					local after, afterLog
+					local step = Chain(L, id, Have)
+					if step then
+						after = Name(L, step.id)
+						afterLog = step.inLog
+						if not step.inLog and not starts[step.id] and after then
+							local sfrom = Giver(L, step.id)
+							local sreq = tonumber((ns.Try(L.Quest.requiredLevel, step.id)))
+							starts[step.id] = { id = step.id, name = after, level = tonumber((ns.Try(L.Quest.questLevel, step.id))), from = sfrom,
+								at = (sreq and sreq > level) and sreq or nil, opens = {}, first = true }
+						end
+						if starts[step.id] then table.insert(starts[step.id].opens, qname) end
 					end
 					local req = tonumber((ns.Try(L.Quest.requiredLevel, id)))
 					out.pickup[#out.pickup + 1] = { id = id, name = qname, level = tonumber((ns.Try(L.Quest.questLevel, id))), from = from,
-						after = after, at = (req and req > level) and req or nil }
+						after = after, afterLog = afterLog, at = (req and req > level) and req or nil }
 				end
 			end
 		end
+	end
+	-- The first steps of those chains are pickups too, unless one is already on the list.
+	local listed = {}
+	for _, q in ipairs(out.pickup) do listed[q.id] = q end
+	for id, s in pairs(starts) do
+		if listed[id] then listed[id].opens = s.opens else out.pickup[#out.pickup + 1] = s end
 	end
 	table.sort(out.pickup, function(a, b)
 		local la, lb = (a.after or a.at) and 1 or 0, (b.after or b.at) and 1 or 0
@@ -361,7 +400,7 @@ function DG.Briefing(name)
 		local pick = {}
 		for i, q in ipairs(qs.pickup) do
 			if i <= 6 then
-				pick[#pick + 1] = q.name .. (q.from and (" (from " .. q.from .. ")") or "") .. (q.after and (" after " .. q.after) or "") .. (q.at and (" at level " .. q.at) or "")
+				pick[#pick + 1] = q.name .. (q.first and " (the first step of a chain" .. ((q.opens and #q.opens > 0) and (" leading to " .. table.concat(q.opens, ", ")) or "") .. ")" or "") .. (q.from and (" (from " .. q.from .. ")") or "") .. (q.after and (" after " .. q.after .. (q.afterLog and ", which is in my log" or "")) or "") .. (q.at and (" at level " .. q.at) or "")
 			end
 		end
 		if #pick > 0 then parts[#parts + 1] = "Quests for it I haven't picked up: " .. table.concat(pick, "; ") .. "." end

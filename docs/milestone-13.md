@@ -35,3 +35,9 @@ The player's ask: "list any missing quests, where to get them … Hall of Thanes
   - an at-your-level dungeon has a **Quests** button that opens its list under it (and **Hide** closes it);
   - without QuestieDB, a grey line says what it would add.
 - **The briefing:** the question names the quests to pick up and their givers, and what's done, so the AI orders the pickups instead of guessing the list.
+
+**Chains (seen in game):** "Red Silk Bandanas: after The Defias Brotherhood" pointed at nothing the player could act on. That quest is a chain of steps with the same name, and its first steps start in Westfall, outside the dungeon, so they weren't listed. Now a locked quest's chain is walked back to the step to do next:
+- a step in the log: "after The Defias Brotherhood (in your log)";
+- otherwise the earliest step whose own prerequisites are done. It's listed as a pickup, "The Defias Brotherhood (first step)", with its giver and "leads to Red Silk Bandanas, The Defias Brotherhood". The later quests say "after The Defias Brotherhood (pick it up first, above)".
+
+The briefing names those first steps too.

@@ -489,9 +489,20 @@ function Tabs.dungeons()
 	local function pickups(qs)
 		for _, q in ipairs(qs and qs.pickup or {}) do
 			local from = q.from and ("from " .. ns.Escape(q.from)) or "giver unknown"
-			local wait = q.after and ("|cffff6060after " .. ns.Escape(q.after) .. "|r · ") or (q.at and ("|cffff6060at level " .. q.at .. "|r · ") or "")
-			out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(q.name), right = q.level and ("level " .. q.level) or "",
-				sub = wait .. "|cff888888" .. from .. "|r", tag = (not q.after and not q.at) and { "pick up", 1, 0.82, 0 } or nil }
+			-- What it waits on: the step in your log, or the chain's first step (listed above, to pick up).
+			local wait = ""
+			if q.after and q.afterLog then wait = "|cffff6060after " .. ns.Escape(q.after) .. " (in your log)|r · "
+			elseif q.after then wait = "|cffff6060after " .. ns.Escape(q.after) .. " (pick it up first, above)|r · "
+			elseif q.at then wait = "|cffff6060at level " .. q.at .. "|r · " end
+			local opens = ""
+			if q.opens and #q.opens > 0 then opens = " · leads to " .. ns.Escape(table.concat(q.opens, ", ")) end
+			-- A chain's first step can share its name with a later one (The Defias Brotherhood).
+			local label = q.name
+			if q.first then
+				for _, o in ipairs(q.opens or {}) do if o == q.name then label = q.name .. " (first step)" end end
+			end
+			out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(label), right = q.level and ("level " .. q.level) or "",
+				sub = wait .. "|cff888888" .. from .. opens .. "|r", tag = (not q.after and not q.at) and { "pick up", 1, 0.82, 0 } or nil }
 		end
 	end
 	-- The status line: QuestieDB's count when it's there (while its first read runs, "reading…").

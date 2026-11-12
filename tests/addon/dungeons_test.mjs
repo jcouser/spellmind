@@ -167,3 +167,49 @@ test('without QuestieDB: a line says what it would add', () => {
   const vm = session();
   assert.ok(drawn(vm).some(x => /With the QuestieDB addon installed/.test(x.text || '')));
 });
+
+// The Deadmines' chain as seen in game: its last step and Red Silk Bandanas wait on The Defias
+// Brotherhood, whose first steps (same name) start in Westfall, outside the dungeon.
+const DEFIAS = `STUB.qdb.npcs[902] = { name = "Gryan Stoutmantle", zone = 40, spawns = { [40] = { { 56, 47.6 } } }, friendly = "A" }
+STUB.qdb.quests[2040] = { name = "The Defias Brotherhood", zone = 40, level = 14, npc = 902 }
+STUB.qdb.quests[2041] = { name = "The Defias Brotherhood", zone = 40, level = 16, npc = 902, single = { 2040 } }
+STUB.qdb.quests[2042] = { name = "The Defias Brotherhood", zone = 1581, level = 22, npc = 902, single = { 2041 } }
+STUB.qdb.quests[2043] = { name = "Red Silk Bandanas", zone = 1581, level = 17, npc = 902, single = { 2041 } }
+STUB.qdb.quests[1001] = nil; STUB.qdb.quests[1002] = nil`;
+
+test('a chain that starts outside the dungeon: its first step is listed to pick up, with what it leads to; the later ones point at it', () => {
+  const vm = newVM();
+  vm.run(DEFIAS);
+  vm.run('STUB.UseQuestieDB(); STUB.lfg = { { 2, "Deadmines", 17, 26 } }; STUB.UseLFG()');
+  vm.login().advance(9);
+  vm.run('NS.Dungeons.Quests("The Deadmines")'); // starts the read of QuestieDB's quests
+  vm.advance(1);
+  const q = vm.json('NS.Dungeons.Quests("The Deadmines")');
+  const pick = Object.values(q.pickup);
+  const first = pick.find(x => x.id === 2040);
+  assert.ok(first, 'the first step, from Westfall');
+  assert.equal(first.first, true);
+  assert.deepEqual(Object.values(first.opens).sort(), ['Red Silk Bandanas', 'The Defias Brotherhood']);
+  assert.equal(pick.find(x => x.id === 2042).after, 'The Defias Brotherhood');
+  assert.equal(pick[0].id, 2040, 'what you can take now comes first');
+  vm.run('NS.Panel.openDungeons = { deadmines = true }; NS.Panel.Show("dungeons")');
+  const d = list(vm, 'SpellmindPanel.drawn');
+  const row = d.find(x => x.text === 'The Defias Brotherhood (first step)');
+  assert.equal(row.tag, 'pick up');
+  assert.match(row.sub, /from Gryan Stoutmantle, Westfall \(56, 48\) · leads to /);
+  assert.ok(d.some(x => x.text === 'Red Silk Bandanas' && /after The Defias Brotherhood \(pick it up first, above\)/.test(x.sub)));
+});
+
+test('a chain whose step is in your log: the later quest says so', () => {
+  const vm = newVM();
+  vm.run(DEFIAS);
+  vm.run('STUB.UseQuestieDB(); STUB.completed[2040] = true; C_QuestLog.IsOnQuest = function(id) return id == 2041 end');
+  vm.login().advance(9);
+  vm.run('NS.Dungeons.Quests("The Deadmines")');
+  vm.advance(1);
+  const pick = Object.values(vm.json('NS.Dungeons.Quests("The Deadmines")').pickup);
+  const bandanas = pick.find(x => x.id === 2043);
+  assert.equal(bandanas.after, 'The Defias Brotherhood');
+  assert.equal(bandanas.afterLog, true);
+  assert.ok(!pick.some(x => x.id === 2041), 'in your log: not a pickup');
+});

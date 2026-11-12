@@ -219,7 +219,9 @@ local function Done(id)
 	return false
 end
 
--- Who gives a quest and where: "Gryan Stoutmantle, Westfall (56, 47)", "an item: Old Map".
+-- Who gives a quest and where: "Gryan Stoutmantle, Westfall (56, 48)", "an item: Old Map", with the
+-- giver's faction ("A", "H", "AH") and spot { zone, x, y } (QuestieDB's coordinates, 0-100, as Questie
+-- shows them) for Go.
 local function Giver(L, id)
 	local ok, by = pcall(L.Quest.startedBy, id)
 	if not ok or type(by) ~= "table" then return nil end
@@ -227,25 +229,43 @@ local function Giver(L, id)
 	local function Place(zone, spawns)
 		local zname = zone and MAP and type(MAP.GetAreaInfo) == "function" and ns.Try(MAP.GetAreaInfo, zone) or nil
 		local at = type(spawns) == "table" and zone and type(spawns[zone]) == "table" and spawns[zone][1]
-		local coords = type(at) == "table" and tonumber(at[1]) and tonumber(at[2]) and (" (" .. math.floor(at[1] + 0.5) .. ", " .. math.floor(at[2] + 0.5) .. ")") or ""
-		return type(zname) == "string" and zname ~= "" and (", " .. zname .. coords) or ""
+		local x, y = type(at) == "table" and tonumber(at[1]), type(at) == "table" and tonumber(at[2])
+		local coords = (x and y and x >= 0 and y >= 0) and (" (" .. math.floor(x + 0.5) .. ", " .. math.floor(y + 0.5) .. ")") or ""
+		local spot = (x and y and x >= 0 and y >= 0) and { zone = zone, x = x, y = y } or nil
+		return type(zname) == "string" and zname ~= "" and (", " .. zname .. coords) or "", spot
 	end
 	for _, npc in ipairs(type(by[1]) == "table" and by[1] or {}) do
 		local n = L.Npc and ns.Try(L.Npc.name, npc)
 		if type(n) == "string" and n ~= "" then
-			local zone = L.Npc and ns.Try(L.Npc.zoneID, npc)
-			local spawns = L.Npc and ns.Try(L.Npc.spawns, npc)
-			return n .. Place(zone, spawns), ns.Try(L.Npc.friendlyToFaction, npc)
+			local where, spot = Place(L.Npc and ns.Try(L.Npc.zoneID, npc), L.Npc and ns.Try(L.Npc.spawns, npc))
+			if spot then spot.name = n end
+			return n .. where, ns.Try(L.Npc.friendlyToFaction, npc), spot
 		end
 	end
 	for _, obj in ipairs(type(by[2]) == "table" and by[2] or {}) do
 		local n = L.Object and ns.Try(L.Object.name, obj)
-		if type(n) == "string" and n ~= "" then return n .. Place(L.Object and ns.Try(L.Object.zoneID, obj), L.Object and ns.Try(L.Object.spawns, obj)) end
+		if type(n) == "string" and n ~= "" then
+			local where, spot = Place(L.Object and ns.Try(L.Object.zoneID, obj), L.Object and ns.Try(L.Object.spawns, obj))
+			if spot then spot.name = n end
+			return n .. where, nil, spot
+		end
 	end
 	for _, item in ipairs(type(by[3]) == "table" and by[3] or {}) do
 		local n = L.Item and ns.Try(L.Item.name, item)
 		if type(n) == "string" and n ~= "" then return "an item: " .. n end
 	end
+	return nil
+end
+
+-- Go to a quest's giver: the game's map pin on the giver's zone (QuestieDB's zone-to-map table).
+-- Returns "pin", or nil when the game can't pin there.
+function DG.Go(spot)
+	local L = DB()
+	if not L or type(spot) ~= "table" then return nil end
+	local support = type(L.Support) == "table" and type(L.Support.Get) == "function" and ns.Try(L.Support.Get, "ZoneDB")
+	local maps = type(support) == "table" and type(support.private) == "table" and support.private.areaIdToUiMapId
+	local map = type(maps) == "table" and maps[spot.zone]
+	if map and ns.Quests.Pin(map, spot.x, spot.y) then return "pin" end
 	return nil
 end
 
@@ -321,7 +341,7 @@ function DG.Quests(name, done)
 		end
 		local qname = fits and Name(L, id)
 		if qname then
-			local from, friendly = Giver(L, id)
+			local from, friendly, spot = Giver(L, id)
 			if friendly and faction and not tostring(friendly):find(faction == "Alliance" and "A" or "H", 1, true) then qname = nil end
 			if qname then
 				out.total = out.total + 1
@@ -338,16 +358,16 @@ function DG.Quests(name, done)
 						after = Name(L, step.id)
 						afterLog = step.inLog
 						if not step.inLog and not starts[step.id] and after then
-							local sfrom = Giver(L, step.id)
+							local sfrom, _, sspot = Giver(L, step.id)
 							local sreq = tonumber((ns.Try(L.Quest.requiredLevel, step.id)))
 							starts[step.id] = { id = step.id, name = after, level = tonumber((ns.Try(L.Quest.questLevel, step.id))), from = sfrom,
-								at = (sreq and sreq > level) and sreq or nil, opens = {}, first = true }
+								at = (sreq and sreq > level) and sreq or nil, opens = {}, first = true, spot = sspot }
 						end
 						if starts[step.id] then table.insert(starts[step.id].opens, qname) end
 					end
 					local req = tonumber((ns.Try(L.Quest.requiredLevel, id)))
 					out.pickup[#out.pickup + 1] = { id = id, name = qname, level = tonumber((ns.Try(L.Quest.questLevel, id))), from = from,
-						after = after, afterLog = afterLog, at = (req and req > level) and req or nil }
+						after = after, afterLog = afterLog, at = (req and req > level) and req or nil, spot = spot }
 				end
 			end
 		end

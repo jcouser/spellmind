@@ -120,7 +120,8 @@ test('QuestieDB: what you haven\'t picked up, who gives it and where; locked one
   const hall = d.find(x => x.text === 'The Hall of Thanes');
   assert.match(hall.sub, /^.cff888888level 16 · .cffffd1001 to pick up.r · 2 later · 1 in your log · 1 done/);
   const oh = d.find(x => x.text === 'Oh Brother...');
-  assert.equal(oh.tag, 'pick up');
+  assert.match(oh.sub, /^.cffffd100Pick up.r · /, 'ready: "Pick up" leads its line');
+  assert.equal(oh.tag, undefined, 'no tag: it read as a button');
   assert.match(oh.sub, /from Thane Ironbelly, Ironforge \(45, 51\)/);
   const under = d.find(x => x.text === 'Underground Assault');
   assert.match(under.sub, /after Oh Brother\.\.\./);
@@ -195,7 +196,7 @@ test('a chain that starts outside the dungeon: its first step is listed to pick 
   vm.run('NS.Panel.openDungeons = { deadmines = true }; NS.Panel.Show("dungeons")');
   const d = list(vm, 'SpellmindPanel.drawn');
   const row = d.find(x => x.text === 'The Defias Brotherhood (first step)');
-  assert.equal(row.tag, 'pick up');
+  assert.match(row.sub, /Pick up/);
   assert.match(row.sub, /from Gryan Stoutmantle, Westfall \(56, 48\) · leads to /);
   assert.ok(d.some(x => x.text === 'Red Silk Bandanas' && /after The Defias Brotherhood \(pick it up first, above\)/.test(x.sub)));
 });
@@ -212,4 +213,16 @@ test('a chain whose step is in your log: the later quest says so', () => {
   assert.equal(bandanas.after, 'The Defias Brotherhood');
   assert.equal(bandanas.afterLog, true);
   assert.ok(!pick.some(x => x.id === 2041), 'in your log: not a pickup');
+});
+
+test('Go on a quest to pick up: the game\'s map pin on its giver (QuestieDB\'s zone to the game\'s map), and a line saying so', () => {
+  const vm = withDB();
+  const d = drawn(vm);
+  const i = d.findIndex(x => x.text === 'Oh Brother...');
+  vm.run(`SpellmindPanel.rows[${i + 1}].actions[1].scripts.OnClick(SpellmindPanel.rows[${i + 1}].actions[1], "LeftButton")`);
+  assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1455, 'Ironforge');
+  assert.equal(vm.evaluate('string.format("%.3f", STUB.waypoints[1].position.x)'), '0.452');
+  assert.ok(vm.savedLines().some(l => /Map pin set for Thane Ironbelly: follow the arrow\./.test(l)));
+  const locked = d.findIndex(x => x.text === 'Underground Assault');
+  assert.notEqual(vm.evaluate(`tostring(SpellmindPanel.rows[${locked + 1}].actions[1] and SpellmindPanel.rows[${locked + 1}].actions[1]:IsShown())`), 'true', 'a locked one has no Go');
 });

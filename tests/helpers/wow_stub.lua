@@ -824,6 +824,7 @@ function STUB.UseQuestieDB()
 			requiredMaxLevel = function() return 0 end, requiredSkill = function() return nil end,
 			startedBy = function(id) local q = Q[id]; if not q then return nil end return { q.npc and { q.npc } or {}, {}, {} } end,
 		},
+		Support = { Get = function(name) if name == "ZoneDB" then return { private = { areaIdToUiMapId = { [1537] = 1455, [40] = 1436 } } } end end },
 		Npc = {
 			name = function(id) return N[id] and N[id].name end, zoneID = function(id) return N[id] and N[id].zone end,
 			spawns = function(id) return N[id] and N[id].spawns end, friendlyToFaction = function(id) return N[id] and N[id].friendly end,

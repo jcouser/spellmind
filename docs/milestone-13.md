@@ -41,3 +41,5 @@ The player's ask: "list any missing quests, where to get them … Hall of Thanes
 - otherwise the earliest step whose own prerequisites are done. It's listed as a pickup, "The Defias Brotherhood (first step)", with its giver and "leads to Red Silk Bandanas, The Defias Brotherhood". The later quests say "after The Defias Brotherhood (pick it up first, above)".
 
 The briefing names those first steps too.
+
+**Go to the giver (seen in game: the "pick up" tag looked like a button that did nothing).** The tag is gone. A quest ready to take now has **Pick up** in gold at the start of its line, and a **Go** button. Go sets the game's map pin and arrow on the giver (`Quests.Pin`, as quest Go does). QuestieDB's coordinates are used as Questie shows them, and QuestieDB's own zone-to-map table (`Support.Get("ZoneDB").private.areaIdToUiMapId`) gives the game's map. Locked quests have no Go.

@@ -501,8 +501,22 @@ function Tabs.dungeons()
 			if q.first then
 				for _, o in ipairs(q.opens or {}) do if o == q.name then label = q.name .. " (first step)" end end
 			end
+			-- Ready to take: "Pick up" in gold leads the line (a label, not a button: seen in game, a tag
+			-- read as one), and Go pins the giver on the map.
+			local ready = not q.after and not q.at
+			local actions
+			if ready and q.spot then
+				local spot, giver = q.spot, q.from
+				actions = { { "Go", function()
+					if ns.Dungeons.Go(spot) then
+						ns.Chat.System("Map pin set for " .. ns.Escape(spot.name or giver or "the quest giver") .. ": follow the arrow.")
+					else
+						ns.Chat.System("The game can't pin " .. ns.Escape(giver or "that spot") .. " on the map.")
+					end
+				end } }
+			end
 			out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(label), right = q.level and ("level " .. q.level) or "",
-				sub = wait .. "|cff888888" .. from .. opens .. "|r", tag = (not q.after and not q.at) and { "pick up", 1, 0.82, 0 } or nil }
+				sub = (ready and "|cffffd100Pick up|r · " or wait) .. "|cff888888" .. from .. opens .. "|r", actions = actions }
 		end
 	end
 	-- The status line: QuestieDB's count when it's there (while its first read runs, "reading…").

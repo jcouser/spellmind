@@ -128,20 +128,26 @@ end
 -- never acts by itself; a waypoint is the game's player-facing feature). The quest's spot on this
 -- map when the game shows one; otherwise the quest itself is super-tracked, which points the
 -- game's arrow wherever it knows to. Returns what it did ("pin", "track") or nil.
+-- The game's map pin at x, y (0-100) on a ui map, with its arrow. True when it was set.
+function Q.Pin(map, x, y)
+	local SM, ST = rawget(_G, "C_Map"), rawget(_G, "C_SuperTrack")
+	local point = rawget(_G, "UiMapPoint")
+	map, x, y = tonumber(map), tonumber(x), tonumber(y)
+	if not (map and x and y) then return false end
+	if not (SM and type(SM.SetUserWaypoint) == "function" and type(point) == "table" and type(point.CreateFromCoordinates) == "function") then return false end
+	if Try(SM.CanSetUserWaypointOnMap, map) == false then return false end
+	return pcall(function()
+		SM.SetUserWaypoint(point.CreateFromCoordinates(map, x / 100, y / 100))
+		if ST and type(ST.SetSuperTrackedUserWaypoint) == "function" then ST.SetSuperTrackedUserWaypoint(true) end
+	end) and true or false
+end
+
 function Q.Go(id)
 	local q = Q.Read(id)
 	if not q then return nil end
 	local w = q.where
-	local SM, ST = rawget(_G, "C_Map"), rawget(_G, "C_SuperTrack")
-	local point = rawget(_G, "UiMapPoint")
-	if w and SM and type(SM.SetUserWaypoint) == "function" and type(point) == "table" and type(point.CreateFromCoordinates) == "function"
-		and Try(SM.CanSetUserWaypointOnMap, w.map) ~= false then
-		local ok = pcall(function()
-			SM.SetUserWaypoint(point.CreateFromCoordinates(w.map, w.x / 100, w.y / 100))
-			if ST and type(ST.SetSuperTrackedUserWaypoint) == "function" then ST.SetSuperTrackedUserWaypoint(true) end
-		end)
-		if ok then return "pin" end
-	end
+	local ST = rawget(_G, "C_SuperTrack")
+	if w and Q.Pin(w.map, w.x, w.y) then return "pin" end
 	if ST and type(ST.SetSuperTrackedQuestID) == "function" and pcall(ST.SetSuperTrackedQuestID, id) then return "track" end
 	return nil
 end

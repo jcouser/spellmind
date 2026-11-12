@@ -147,17 +147,51 @@ test('the minimap button: click opens and closes the chat; /sm minimap off hides
   assert.equal(vm.evaluate('tostring(SpellmindMinimapButton.shown)'), 'true');
 });
 
-test('fold and the saved place: the header only, and the size and spot kept', () => {
+test('one window: the chat is its top tab; fold shows the header only; the spot is kept', () => {
   const vm = newVM().login().advance(3.1);
   vm.slash('');
-  vm.run('SpellmindWindow.mini.scripts.OnClick(SpellmindWindow.mini)');
-  assert.equal(vm.evaluate('tostring(SpellmindDB.ui.folded)'), 'true');
-  assert.equal(vm.evaluate('tostring(SpellmindWindow.input.shown)'), 'false');
-  vm.run('SpellmindWindow.mini.scripts.OnClick(SpellmindWindow.mini)');
-  assert.equal(vm.evaluate('tostring(SpellmindWindow.input.shown)'), 'true');
-  vm.run('SpellmindWindow:SetSize(520, 480); SpellmindWindow.scripts.OnDragStop(SpellmindWindow)');
-  assert.equal(vm.num('SpellmindDB.ui.w'), 520);
-  assert.equal(vm.num('SpellmindDB.ui.h'), 480);
+  assert.equal(vm.evaluate('tostring(SpellmindWindow.parent == SpellmindPanel)'), 'true', 'the chat lives in the Spellmind window');
+  assert.equal(vm.evaluate('NS.Panel.tab'), 'chat');
+  assert.equal(vm.evaluate('SpellmindPanel.tabs[1].text:GetText()'), 'Chat');
+  assert.equal(vm.evaluate('tostring(SpellmindPanel.who.shown)'), 'false', 'the chat\'s status line takes the header\'s second line');
+  assert.equal(vm.evaluate('tostring(SpellmindPanel.scroll.shown)'), 'false', 'no tab rows behind the chat');
+  vm.run('SpellmindPanel.fold.scripts.OnClick(SpellmindPanel.fold)');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.panel.folded)'), 'true');
+  assert.equal(vm.num('SpellmindPanel:GetHeight()'), 52);
+  assert.equal(vm.evaluate('tostring(SpellmindWindow.shown)'), 'false');
+  assert.equal(vm.evaluate('tostring(SpellmindPanel.tabs[2].shown)'), 'false');
+  vm.run('SpellmindPanel.fold.scripts.OnClick(SpellmindPanel.fold)');
+  assert.equal(vm.evaluate('tostring(SpellmindWindow.shown)'), 'true');
+  assert.equal(vm.num('SpellmindPanel:GetHeight()'), 480);
+  vm.run('SpellmindPanel:ClearAllPoints(); SpellmindPanel:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 40, -60); SpellmindPanel.scripts.OnDragStop(SpellmindPanel)');
+  assert.equal(vm.evaluate('SpellmindDB.panel.point'), 'TOPLEFT');
+  assert.equal(vm.num('SpellmindDB.panel.x'), 40);
+});
+
+test('compact: the rail goes and the chat takes the width; each mode keeps its own size; another tab brings the rail back', () => {
+  const vm = newVM().login().advance(3.1);
+  vm.slash('');
+  assert.equal(vm.num('SpellmindWindow.x'), 158, 'right of the rail');
+  vm.run('SpellmindPanel.compact.scripts.OnClick(SpellmindPanel.compact)');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.panel.compact)'), 'true');
+  assert.equal(vm.evaluate('tostring(SpellmindPanel.tabs[1].shown)'), 'false');
+  assert.equal(vm.evaluate('tostring(SpellmindPanel.rail.shown)'), 'false');
+  assert.equal(vm.num('SpellmindPanel:GetWidth()'), 440);
+  assert.equal(vm.num('SpellmindWindow.x'), 8, 'the whole width');
+  assert.equal(vm.num('SpellmindWindow:GetWidth()'), 440 - 16);
+  vm.run('SpellmindPanel:SetSize(500, 400); SpellmindPanel.grip.scripts.OnMouseUp(SpellmindPanel.grip)');
+  assert.equal(vm.num('SpellmindDB.panel.cw'), 500);
+  vm.run('SpellmindMinimapButton.scripts.OnClick(SpellmindMinimapButton, "RightButton")');
+  assert.equal(vm.evaluate('NS.Panel.tab'), 'quests', 'the right-click leaves compact for the last other tab');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.panel.compact)'), 'nil');
+  assert.equal(vm.num('SpellmindPanel:GetWidth()'), 600, 'the full size back');
+  assert.equal(vm.evaluate('tostring(SpellmindPanel.tabs[1].shown)'), 'true');
+  assert.equal(vm.evaluate('tostring(SpellmindWindow.shown)'), 'false', 'the chat hides behind another tab');
+  vm.run('SpellmindMinimapButton.scripts.OnClick(SpellmindMinimapButton, "LeftButton")');
+  assert.equal(vm.evaluate('NS.Panel.tab'), 'chat', 'the click: the Chat tab, the window already open');
+  assert.equal(vm.evaluate('tostring(SpellmindWindow.shown)'), 'true');
+  vm.run('SpellmindPanel.compact.scripts.OnClick(SpellmindPanel.compact)');
+  assert.equal(vm.num('SpellmindPanel:GetWidth()'), 500, 'compact\'s own size kept');
 });
 
 test('an empty conversation: a welcome and three starter chips; a starter asks; the window is solid, not see-through', () => {
@@ -166,7 +200,7 @@ test('an empty conversation: a welcome and three starter chips; a starter asks; 
   assert.equal(vm.evaluate('tostring(SpellmindWindow.welcome.shown)'), 'true');
   assert.match(vm.evaluate('SpellmindWindow.welcome:GetText()'), /^Ask me anything about your character/);
   assert.deepEqual(list(vm, 'SpellmindWindow.chipTexts'), ['What should I train next?', 'Any upgrades in my bags?', 'Which quests should I do now?']);
-  assert.equal(vm.evaluate('tostring(SpellmindWindow.fill.color[4] >= 0.95)'), 'true', 'a solid fill under the window');
+  assert.equal(vm.evaluate('tostring(SpellmindPanel.fill.color[4] >= 0.95)'), 'true', 'a solid fill under the window');
   vm.run('SpellmindWindow.chips[2].scripts.OnClick(SpellmindWindow.chips[2])');
   assert.equal(vm.windowLines()[0], 'Any upgrades in my bags?', 'then, with no app in this test, the note to start it');
   assert.equal(vm.evaluate('tostring(SpellmindWindow.welcome.shown)'), 'false', 'gone once something is said');

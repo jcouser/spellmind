@@ -1,8 +1,8 @@
--- Window.lua: the chat window (docs/milestone-6.md; mockup A of 2026-11-10): the owl and the title,
--- the thinking dropdown and the web search toggle, a status line, the conversation as bubbles (yours
--- on the right in gold, Spellmind's on the left in violet with the owl), the reply's suggestion chips,
--- and an input box that takes shift-clicked item and quest links. Movable and resizable; its place,
--- size and picks are saved (SpellmindDB.ui).
+-- Window.lua: the chat (docs/milestone-6.md; mockup A of 2026-11-10), drawn in the Spellmind window's
+-- Chat tab (Panel.lua, docs/milestone-11.md): the thinking dropdown and the web search toggle, a status
+-- line, the conversation as bubbles (yours on the right in gold, Spellmind's on the left in violet with
+-- the owl), the reply's suggestion chips, and an input box that takes shift-clicked item and quest
+-- links. The picks are saved (SpellmindDB.ui); the window's place and size are the panel's.
 --
 -- Chat.lua keeps the conversation (SpellmindDB.msgs) and the sending; this file only draws.
 
@@ -12,7 +12,7 @@ ns.Window = W
 local R = ns.R
 
 W.PORTRAIT = "Interface\\AddOns\\Spellmind\\Media\\Portrait"
-W.MIN_W, W.MIN_H, W.MAX_W, W.MAX_H = 360, 300, 900, 900
+W.MIN_W, W.MIN_H = 390, 300 -- the chat area at its smallest (compact mode is this plus the borders)
 W.DEF_W, W.DEF_H = 460, 440
 W.PAD = 10 -- inside a bubble
 W.GAP = 8 -- between rows
@@ -136,6 +136,7 @@ local function SmallButton(parent, width)
 	end)
 	return b
 end
+W.SmallButton = SmallButton
 
 -- The thinking menu: one row per level the app's model offers.
 local function BuildMenu(f, name)
@@ -377,62 +378,26 @@ end
 -- The window
 ---------------------------------------------------------------------------
 
-local function SavePlace(f)
-	local ui = UI()
-	local point, _, relPoint, x, y = f:GetPoint()
-	ui.point, ui.relPoint, ui.x, ui.y = point, relPoint, x, y
-	ui.w, ui.h = f:GetWidth(), f:GetHeight()
-end
-
+-- The chat: the Spellmind window's Chat tab (Panel.lua, 2026-11-12: one window, the chat at the top of
+-- its rail). This frame fills the window's content area; the window's header, place, size, fold and
+-- compact mode are the panel's. The status line sits in the window's header while the Chat tab shows.
 function W.Build()
 	if win then return win end
-	local ui = UI()
-	local f = CreateFrame("Frame", "SpellmindWindow", UIParent, "BackdropTemplate")
-	f:SetSize(math.max(W.MIN_W, math.min(W.MAX_W, tonumber(ui.w) or W.DEF_W)), math.max(W.MIN_H, math.min(W.MAX_H, tonumber(ui.h) or W.DEF_H)))
-	if ui.point then f:SetPoint(ui.point, UIParent, ui.relPoint or ui.point, tonumber(ui.x) or 0, tonumber(ui.y) or 0)
-	else f:SetPoint("CENTER", UIParent, "CENTER", 0, 80) end
-	f:SetFrameStrata("DIALOG")
-	f:SetMovable(true)
-	f:SetResizable(true)
-	if f.SetResizeBounds then f:SetResizeBounds(W.MIN_W, W.MIN_H, W.MAX_W, W.MAX_H) end
-	f:EnableMouse(true)
-	f:SetClampedToScreen(true)
-	f:RegisterForDrag("LeftButton")
-	f:SetScript("OnDragStart", function(self) self:StartMoving() end)
-	f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing(); SavePlace(self) end)
-	if f.SetBackdrop then
-		f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-			tile = true, tileSize = 16, edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
-		f:SetBackdropColor(0.04, 0.03, 0.09, 0.94)
-		f:SetBackdropBorderColor(0.62, 0.49, 1, 1)
-	end
-	-- A solid fill under it: the tooltip background is see-through even at full alpha (seen in game).
-	W.Fill(f, 4, 0.035, 0.025, 0.08, 0.97)
-	W.Corners(f)
+	local p = ns.Panel.Build()
+	local f = CreateFrame("Frame", "SpellmindWindow", p)
+	f:SetSize(W.DEF_W, W.DEF_H)
+	f:SetPoint("TOPLEFT", p, "TOPLEFT", 8, -54)
 
-	-- Header: the owl, the title, and at the right close, minimize, web search and thinking.
-	f.portrait = f:CreateTexture(nil, "ARTWORK")
-	f.portrait:SetSize(34, 34)
-	f.portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -6)
-	f.portrait:SetTexture(W.PORTRAIT)
-	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 48, -10)
-	f.title:SetText("Spellmind")
-	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-	f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
-	f.mini = SmallButton(f, 20)
-	f.mini.text:SetText("-")
-	f.mini.tip = "Fold the window to its header."
-	f.mini:SetPoint("RIGHT", f.close, "LEFT", -2, 0)
-	f.mini:SetScript("OnClick", function() W.Fold(not UI().folded) end)
-	f.search = SmallButton(f, 104)
-	f.search:SetPoint("RIGHT", f.mini, "LEFT", -6, 0)
-	f.search:SetScript("OnClick", function()
-		UI().search = not W.Search()
-		W.Refresh()
-	end)
-	f.effort = SmallButton(f, 132)
-	f.effort:SetPoint("RIGHT", f.search, "LEFT", -6, 0)
+	-- Status in the window's header (where the other tabs say who): the link, the AI, what it's about.
+	f.status = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	f.status:SetPoint("TOPLEFT", p, "TOPLEFT", 52, -31)
+	f.status:SetPoint("TOPRIGHT", p, "TOPRIGHT", -84, -31) -- clear of the compact, fold and close buttons
+	f.status:SetJustifyH("LEFT")
+	if f.status.SetWordWrap then f.status:SetWordWrap(false) end
+
+	-- The chat's own row: thinking and web search at the left, Chats and + New at the right.
+	f.effort = SmallButton(f, 120)
+	f.effort:SetPoint("TOPLEFT", f, "TOPLEFT", 2, 0)
 	-- A real dropdown: the label at the left, the gold chevron at the right.
 	f.effort.text:ClearAllPoints()
 	f.effort.text:SetPoint("LEFT", f.effort, "LEFT", 8, 0)
@@ -442,23 +407,21 @@ function W.Build()
 	f.effort.arrow:SetTexture(W.MEDIA .. "Chevron")
 	f.effort.tip = "How hard your AI thinks before it answers. Higher is slower and more careful."
 	f.effort:SetScript("OnClick", function() W.OpenMenu() end)
+	f.search = SmallButton(f, 100)
+	f.search:SetPoint("LEFT", f.effort, "RIGHT", 6, 0)
+	f.search:SetScript("OnClick", function()
+		UI().search = not W.Search()
+		W.Refresh()
+	end)
 	f.menu = BuildMenu(f)
 	f.chatsMenu = BuildMenu(f, "SpellmindChatsMenu")
-
-	f.status = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	f.status:SetPoint("TOPLEFT", f, "TOPLEFT", 48, -30)
-	f.status:SetPoint("TOPRIGHT", f, "TOPRIGHT", -152, -30)
-	f.status:SetJustifyH("LEFT")
-	if f.status.SetWordWrap then f.status:SetWordWrap(false) end
 	-- Chats: the list of recent ones, and a new one.
 	f.new = SmallButton(f, 58)
-	f.new:SetHeight(18)
 	f.new.text:SetText("+ New")
 	f.new.tip = "Start a new chat. This one stays in Chats."
-	f.new:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -25)
+	f.new:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, 0)
 	f.new:SetScript("OnClick", function() ns.Chat.NewChat() end)
 	f.chats = SmallButton(f, 74)
-	f.chats:SetHeight(18)
 	f.chats.text:ClearAllPoints()
 	f.chats.text:SetPoint("LEFT", f.chats, "LEFT", 8, 0)
 	f.chats.text:SetText("Chats")
@@ -469,16 +432,11 @@ function W.Build()
 	f.chats.tip = "Your recent chats: pick one to go back to it."
 	f.chats:SetPoint("RIGHT", f.new, "LEFT", -6, 0)
 	f.chats:SetScript("OnClick", function() W.OpenChats() end)
-	f.rule = f:CreateTexture(nil, "ARTWORK")
-	f.rule:SetColorTexture(0.62, 0.49, 1, 0.35)
-	f.rule:SetHeight(1)
-	f.rule:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -44)
-	f.rule:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -44)
 
 	-- The conversation.
 	f.scroll = CreateFrame("ScrollFrame", nil, f)
-	f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -50)
-	f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 44)
+	f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 2, -28)
+	f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 36)
 	f.content = CreateFrame("Frame", nil, f.scroll)
 	f.content:SetSize(W.DEF_W - 24, 10)
 	f.scroll:SetScrollChild(f.content)
@@ -497,8 +455,8 @@ function W.Build()
 
 	-- The input and the send button.
 	f.input = CreateFrame("EditBox", nil, f, "BackdropTemplate")
-	f.input:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 10)
-	f.input:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -44, 10)
+	f.input:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 2, 4)
+	f.input:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -36, 4)
 	f.input:SetHeight(26)
 	if f.input.SetBackdrop then
 		f.input:SetBackdrop(BUBBLE_BACKDROP)
@@ -519,7 +477,7 @@ function W.Build()
 	f.hint:SetText(W.PLACEHOLDER)
 	f.send = SmallButton(f, 30)
 	f.send:SetHeight(26)
-	f.send:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 10)
+	f.send:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 4)
 	f.send.tip = "Send (Enter)"
 	f.send.arrow = f.send:CreateTexture(nil, "OVERLAY")
 	f.send.arrow:SetSize(16, 16)
@@ -527,22 +485,10 @@ function W.Build()
 	f.send.arrow:SetTexture(W.MEDIA .. "Send")
 	f.send:SetScript("OnClick", function() Send(f.input) end)
 
-	-- The resize grip.
-	f.grip = CreateFrame("Button", nil, f)
-	f.grip:SetSize(16, 16)
-	f.grip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2)
-	f.grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
-	f.grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
-	f.grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-	f.grip:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
-	f.grip:SetScript("OnMouseUp", function() f:StopMovingOrSizing(); SavePlace(f); W.Layout() end)
 	f:SetScript("OnSizeChanged", function() if win then W.Layout() end end)
-
-	if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "SpellmindWindow") end
 	f:Hide()
 	win = f
 	HookLinks()
-	W.Fold(ui.folded)
 	W.Refresh()
 	W.Layout()
 	return f
@@ -600,25 +546,6 @@ function W.OpenChats()
 	m:ClearAllPoints()
 	m:SetPoint("TOPRIGHT", f.chats, "BOTTOMRIGHT", 0, -2)
 	m:Show()
-end
-
--- Folded: the header only.
-function W.Fold(on)
-	local f = win
-	if not f then return end
-	UI().folded = on and true or nil
-	local show = not on
-	f.scroll:SetShown(show)
-	f.input:SetShown(show)
-	f.send:SetShown(show)
-	f.grip:SetShown(show)
-	if on then
-		f.unfoldedH = f:GetHeight()
-		f:SetHeight(52)
-	elseif f.unfoldedH then
-		f:SetHeight(f.unfoldedH)
-	end
-	f.mini.text:SetText(on and "+" or "-")
 end
 
 function W.Placeholder()

@@ -14,13 +14,14 @@ test('opens from the minimap button\'s right-click and /sm panel; the header say
   const vm = session();
   vm.run('SpellmindMinimapButton.scripts.OnClick(SpellmindMinimapButton, "RightButton")');
   assert.equal(vm.evaluate('tostring(SpellmindPanel.shown)'), 'true');
-  assert.equal(vm.evaluate('SpellmindPanel.title:GetText()'), 'Spellmind Advisor');
+  assert.equal(vm.evaluate('SpellmindPanel.title:GetText()'), 'Spellmind');
   assert.equal(vm.evaluate('SpellmindPanel.who:GetText()'), 'Level 15 · Dwarf Rogue');
   vm.slash('panel');
   assert.equal(vm.evaluate('tostring(SpellmindPanel.shown)'), 'false', '/sm panel toggles');
   vm.slash('panel');
   assert.equal(vm.evaluate('tostring(SpellmindPanel.shown)'), 'true');
-  assert.equal(vm.num('#SpellmindPanel.tabs'), 7, 'six, and Nudges');
+  assert.equal(vm.num('#SpellmindPanel.tabs'), 8, 'Chat, six, and Nudges');
+  assert.equal(vm.evaluate('NS.Panel.tab'), 'quests', 'the right-click opens a tab other than Chat');
 });
 
 test('Quests: ready; Do now grouped by the log\'s own headers (the zone you\'re in first); later with its gap; what\'s left, direction and distance; a Dungeon tag', () => {
@@ -135,7 +136,7 @@ test('live: a game event redraws an open panel once, a second later', () => {
 test('resizable: the grip sizes it, the rows and Ask buttons follow, the size is kept for next time', () => {
   const vm = session();
   vm.run('NS.Panel.Show("quests")');
-  assert.equal(vm.num('SpellmindPanel.content:GetWidth()'), 560 - 150 - 24);
+  assert.equal(vm.num('SpellmindPanel.content:GetWidth()'), 600 - 150 - 24);
   vm.run('SpellmindPanel:SetSize(800, 600); SpellmindPanel.grip.scripts.OnMouseUp(SpellmindPanel.grip)');
   assert.equal(vm.num('SpellmindDB.panel.w'), 800);
   assert.equal(vm.num('SpellmindDB.panel.h'), 600);

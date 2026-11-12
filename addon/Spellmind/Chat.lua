@@ -97,19 +97,17 @@ local RESERVED_PATTERN = "^%[" .. ns.RESERVED:sub(2):gsub("%a", function(c) retu
 C.MSGS_MAX = 80 -- messages kept in saved data (SpellmindDB.msgs)
 
 function C.IsOpen()
-	local f = ns.Window.Get()
-	return f ~= nil and f:IsShown() and true or false
+	return ns.Panel.ChatOpen()
 end
 
+-- The window on its Chat tab, or closed when that's what shows.
 function C.Toggle()
-	local f = ns.Window.Build()
-	if f:IsShown() then
-		f:Hide()
+	if ns.Panel.ChatOpen() then
+		ns.Panel.Get():Hide()
 	else
-		f:Show()
+		ns.Panel.Show("chat")
 		C.Refresh()
-		ns.Window.Layout(true)
-		f.input:SetFocus()
+		ns.Window.Get().input:SetFocus()
 	end
 end
 
@@ -282,8 +280,8 @@ end
 
 -- The window open with its box focused; text (when given) put in the box to edit first.
 function C.Open(text)
-	local f = ns.Window.Build()
-	if not f:IsShown() then f:Show() end
+	ns.Panel.Show("chat")
+	local f = ns.Window.Get()
 	if text then f.input:SetText(text) end
 	f.input:SetFocus()
 	ns.Window.Layout(true)

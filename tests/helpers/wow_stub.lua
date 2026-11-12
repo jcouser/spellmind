@@ -61,7 +61,11 @@ function Methods.GetSize(self) return self:GetWidth(), self:GetHeight() end
 function Methods.GetStringHeight(self) return 14 end
 function Methods.GetStringWidth(self) return 100 end
 function Methods.GetFontString(self) return self end
-function Methods.GetPoint(self) return "CENTER", nil, "CENTER", 0, 0 end
+function Methods.GetPoint(self)
+	local a = rawget(self, "anchor")
+	if a then return a.point, a.rel, a.relPoint, self.x or 0, self.y or 0 end
+	return "CENTER", nil, "CENTER", 0, 0
+end
 function Methods.SetPoint(self, point, rel, relPoint, x, y)
 	if type(rel) == "number" then x, y, rel, relPoint = rel, relPoint, nil, nil end
 	self.x, self.y = x or 0, y or 0

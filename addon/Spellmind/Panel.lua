@@ -1,7 +1,9 @@
--- Panel.lua: the Advisor panel (docs/features.md §2, docs/milestone-7.md; mockup B of 2026-11-10): one
--- window with a rail of tabs (Quests, Gear, Talents, Spells, Professions, Gold) showing the character's
--- live facts at a glance, read locally (no AI), with Ask buttons whose answers show in the answer card
--- beside the panel. Opens from the minimap button's right-click or /sm panel.
+-- Panel.lua: the Spellmind window (docs/features.md §2, docs/milestone-7.md, docs/milestone-11.md;
+-- mockup B of 2026-11-10). One window with a rail of tabs: Chat at the top (Window.lua draws it),
+-- then Quests, Gear, Talents, Spells, Professions, Gold and Nudges, the character's live facts at a
+-- glance, read locally (no AI), with Ask buttons whose answers show in the card beside the window, so
+-- the tab stays in view. Compact mode hides the rail: the chat alone, small, for questing. The
+-- minimap button's click opens the Chat tab, its right-click (and /sm panel) the last other tab.
 --
 -- Read only, like the marks: nothing is selected, equipped, sold or set.
 
@@ -10,13 +12,19 @@ local P = {}
 ns.Panel = P
 local R = ns.R
 
-P.W, P.H = 560, 480
-P.MIN_W, P.MIN_H, P.MAX_W, P.MAX_H = 500, 380, 1100, 1000
+P.W, P.H = 600, 480
+P.MIN_W, P.MIN_H, P.MAX_W, P.MAX_H = 560, 380, 1100, 1000
+-- Compact: the chat alone.
+P.CW, P.CH = 440, 460
+P.CMIN_W, P.CMIN_H = 406, 366
+P.HEAD_H = 54 -- the header, to the rule under it
+P.FOLD_H = 52
 P.RAIL_W = 150
 P.ROW_H = 24
 P.ROW_H2 = 38 -- a row with a second line
 P.BAG_ROWS = 8
 P.TABS = {
+	{ id = "chat", name = "Chat", icon = "Interface\\AddOns\\Spellmind\\Media\\Portrait" },
 	{ id = "quests", name = "Quests", icon = "Interface\\Icons\\INV_Letter_15" },
 	{ id = "gear", name = "Gear", icon = "Interface\\Icons\\INV_Chest_Leather_09" },
 	{ id = "talents", name = "Talents", icon = "Interface\\Icons\\Ability_Marksmanship" },
@@ -707,14 +715,39 @@ local function AskButton(f)
 	return b
 end
 
+-- The size kept for a mode: { w, h } within its bounds.
+local function ModeSize(compact)
+	local saved = Saved()
+	if compact then
+		return math.max(P.CMIN_W, math.min(P.MAX_W, tonumber(saved.cw) or P.CW)), math.max(P.CMIN_H, math.min(P.MAX_H, tonumber(saved.ch) or P.CH))
+	end
+	return math.max(P.MIN_W, math.min(P.MAX_W, tonumber(saved.w) or P.W)), math.max(P.MIN_H, math.min(P.MAX_H, tonumber(saved.h) or P.H))
+end
+
+local function KeepSize(f)
+	local saved = Saved()
+	if saved.folded then return end
+	if saved.compact then saved.cw, saved.ch = f:GetWidth(), f:GetHeight()
+	else saved.w, saved.h = f:GetWidth(), f:GetHeight() end
+end
+
+local function Bounds(f)
+	if not f.SetResizeBounds then return end
+	if Saved().compact then f:SetResizeBounds(P.CMIN_W, P.CMIN_H, P.MAX_W, P.MAX_H)
+	else f:SetResizeBounds(P.MIN_W, P.MIN_H, P.MAX_W, P.MAX_H) end
+end
+
 function P.Build()
 	if panel then return panel end
 	local saved = Saved()
+	-- The chat window's place (before the two were one window) is where it opens the first time.
+	local ui = ns.db and type(ns.db.ui) == "table" and ns.db.ui or {}
+	if not saved.point and ui.point then saved.point, saved.relPoint, saved.x, saved.y = ui.point, ui.relPoint, ui.x, ui.y end
 	local f = CreateFrame("Frame", "SpellmindPanel", UIParent, "BackdropTemplate")
-	-- Resizable (the grip at the bottom right), its size kept: quest rows carry a lot.
-	f:SetSize(math.max(P.MIN_W, math.min(P.MAX_W, tonumber(saved.w) or P.W)), math.max(P.MIN_H, math.min(P.MAX_H, tonumber(saved.h) or P.H)))
+	-- Resizable (the grip at the bottom right), its size kept for each mode: quest rows carry a lot.
+	f:SetSize(ModeSize(saved.compact))
 	f:SetResizable(true)
-	if f.SetResizeBounds then f:SetResizeBounds(P.MIN_W, P.MIN_H, P.MAX_W, P.MAX_H) end
+	Bounds(f)
 	if saved.point then f:SetPoint(saved.point, UIParent, saved.relPoint or saved.point, tonumber(saved.x) or 0, tonumber(saved.y) or 0)
 	else f:SetPoint("CENTER", UIParent, "CENTER", -120, 40) end
 	f:SetFrameStrata("DIALOG")
@@ -734,6 +767,7 @@ function P.Build()
 		f:SetBackdropColor(0.04, 0.03, 0.09, 0.94)
 		f:SetBackdropBorderColor(0.62, 0.49, 1, 1)
 	end
+	-- A solid fill under it: the tooltip background is see-through even at full alpha (seen in game).
 	ns.Window.Fill(f, 4, 0.035, 0.025, 0.08, 0.97)
 	ns.Window.Corners(f)
 
@@ -743,11 +777,22 @@ function P.Build()
 	f.portrait:SetTexture(ns.Window.PORTRAIT)
 	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 52, -11)
-	f.title:SetText("Spellmind Advisor")
+	f.title:SetText("Spellmind")
 	f.who = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	f.who:SetPoint("TOPLEFT", f, "TOPLEFT", 52, -31)
 	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
 	f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
+	-- Fold (the header only) and compact (the chat alone), left of the close button.
+	f.fold = ns.Window.SmallButton(f, 20)
+	f.fold:SetPoint("RIGHT", f.close, "LEFT", -2, 0)
+	f.fold:SetScript("OnClick", function() P.Fold(not Saved().folded) end)
+	f.compact = ns.Window.SmallButton(f, 20)
+	f.compact:SetPoint("RIGHT", f.fold, "LEFT", -4, 0)
+	f.compact.arrow = f.compact:CreateTexture(nil, "OVERLAY")
+	f.compact.arrow:SetSize(12, 12)
+	f.compact.arrow:SetPoint("CENTER", f.compact, "CENTER", 0, 0)
+	f.compact.arrow:SetTexture(ns.Window.MEDIA .. "Chevron")
+	f.compact:SetScript("OnClick", function() P.SetCompact(not Saved().compact) end)
 	f.rule = f:CreateTexture(nil, "ARTWORK")
 	f.rule:SetColorTexture(0.62, 0.49, 1, 0.35)
 	f.rule:SetHeight(1)
@@ -788,11 +833,11 @@ function P.Build()
 	f.grip:SetScript("OnMouseDown", function() f:StartSizing("BOTTOMRIGHT") end)
 	f.grip:SetScript("OnMouseUp", function()
 		f:StopMovingOrSizing()
-		saved.w, saved.h = f:GetWidth(), f:GetHeight()
+		KeepSize(f)
 		P.Show(P.tab)
 	end)
-	-- While sizing: the Ask buttons follow at once, the rows when it stops (or a moment after).
-	f:SetScript("OnSizeChanged", function() P.PlaceAsks(f); P.Soon() end)
+	-- While sizing: the Ask buttons and the chat follow at once, the rows when it stops (or a moment after).
+	f:SetScript("OnSizeChanged", function() P.PlaceAsks(f); P.PlaceChat(f); P.Soon() end)
 
 	-- Live while open: the game's own events, at most one redraw a second.
 	f:RegisterEvent("QUEST_LOG_UPDATE")
@@ -805,8 +850,12 @@ function P.Build()
 	f:RegisterEvent("SKILL_LINES_CHANGED")
 	f:SetScript("OnEvent", function() P.Soon() end)
 
-	-- The card beside the panel closes with it.
-	f:HookScript("OnHide", function(self) if ns.Marks and ns.Marks.card and ns.Marks.card.owner == self then ns.Marks.card:Hide() end end)
+	-- The card beside the window, and the chat, close with it.
+	f:HookScript("OnHide", function(self)
+		if ns.Marks and ns.Marks.card and ns.Marks.card.owner == self then ns.Marks.card:Hide() end
+		local chat = ns.Window.Get()
+		if chat then chat:Hide() end
+	end)
 	if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "SpellmindPanel") end
 	f:Hide()
 	panel = f
@@ -815,9 +864,14 @@ end
 
 function P.Get() return panel end
 
+-- The rail's width now: none in compact mode.
+function P.Left()
+	return Saved().compact and 0 or P.RAIL_W
+end
+
 -- The content's width at the panel's size now.
 function P.ContentWidth(f)
-	return math.max(200, (tonumber(f:GetWidth()) or P.W) - P.RAIL_W - 24)
+	return math.max(200, (tonumber(f:GetWidth()) or P.W) - P.Left() - 24)
 end
 
 -- The two Ask buttons, side by side across the content's width.
@@ -826,8 +880,18 @@ function P.PlaceAsks(f)
 	for i, b in ipairs(f.asks or {}) do
 		b:SetWidth(half)
 		b:ClearAllPoints()
-		b:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", P.RAIL_W + 12 + (i - 1) * (half + 12), 14)
+		b:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", P.Left() + 12 + (i - 1) * (half + 12), 14)
 	end
+end
+
+-- The chat in the content area: right of the rail (or the whole width when compact), under the header.
+function P.PlaceChat(f)
+	local chat = ns.Window.Get()
+	if not chat or not f then return end
+	local x = P.Left() + 8
+	chat:ClearAllPoints()
+	chat:SetPoint("TOPLEFT", f, "TOPLEFT", x, -P.HEAD_H)
+	chat:SetSize(math.max(ns.Window.MIN_W, (tonumber(f:GetWidth()) or P.W) - x - 8), math.max(120, (tonumber(f:GetHeight()) or P.H) - P.HEAD_H - 14))
 end
 
 function P.Soon()
@@ -835,16 +899,40 @@ function P.Soon()
 	P.pending = true
 	C_Timer.After(1, function()
 		P.pending = nil
-		if panel and panel:IsShown() then P.Show(P.tab) end
+		if panel and panel:IsShown() and P.tab ~= "chat" then P.Show(P.tab) end
 	end)
 end
 
--- The panel on a tab (the last one, by default), its rows read now.
+-- What shows for the mode, the tab and the fold: the rail and tabs (not compact), the chat (its tab)
+-- or the rows and Ask buttons (the others); the header alone when folded.
+local function Arrange(f)
+	local saved = Saved()
+	local folded, compact, chatTab = saved.folded and true or false, saved.compact and true or false, P.tab == "chat"
+	f.rail:SetShown(not compact and not folded)
+	for _, b in ipairs(f.tabs) do b:SetShown(not compact and not folded) end
+	f.scroll:SetShown(not chatTab and not folded)
+	for i, b in ipairs(f.asks) do b:SetShown(not chatTab and not folded and b.ask ~= nil) end
+	f.grip:SetShown(not folded)
+	f.who:SetShown(not chatTab)
+	local chat = ns.Window.Get()
+	if chat then chat:SetShown(chatTab and not folded) end
+	f.fold.text:SetText(folded and "+" or "-")
+	f.fold.tip = folded and "Unfold the window." or "Fold the window to its header."
+	-- The chevron points down; turned to point left (hide the rail) or right (bring it back).
+	if f.compact.arrow.SetRotation then f.compact.arrow:SetRotation(compact and (math.pi / 2) or (-math.pi / 2)) end
+	f.compact.tip = compact and "Show the tabs again." or "Compact: the chat alone, small, for questing."
+end
+
+-- The window on a tab (the last one, by default), its rows read now. The Chat tab draws the chat;
+-- another tab out of compact mode (it needs the rail).
 function P.Show(id)
 	local f = P.Build()
-	id = id or Saved().tab or "quests"
-	if not Tabs[id] then id = "quests" end
-	P.tab, Saved().tab = id, id
+	local saved = Saved()
+	id = id or saved.tab or "chat"
+	if not Tabs[id] then id = "chat" end
+	if id ~= "chat" and saved.compact then P.SetCompact(false, true) end
+	P.tab, saved.tab = id, id
+	if id ~= "chat" then saved.other = id end
 	for _, b in ipairs(f.tabs) do
 		local on = b.id == id
 		if b.SetBackdropColor then
@@ -854,18 +942,62 @@ function P.Show(id)
 	end
 	f.who:SetText(P.Who())
 	P.CountNudges()
-	f.content:SetWidth(P.ContentWidth(f))
-	P.PlaceAsks(f)
-	local ok, specs = pcall(Tabs[id])
-	Draw(f, ok and specs or { { kind = "text", text = "|cffff6060This tab couldn't read your character just now.|r" } })
-	for i, b in ipairs(f.asks) do
-		local a = P.ASKS[id] and P.ASKS[id][i]
-		b.ask = a
-		b.text:SetText(a and ("Ask: " .. a[1]) or "")
-		b:SetShown(a ~= nil)
+	if id == "chat" then
+		ns.Window.Build()
+		for _, b in ipairs(f.asks) do b.ask = nil end
+	else
+		f.content:SetWidth(P.ContentWidth(f))
+		P.PlaceAsks(f)
+		local ok, specs = pcall(Tabs[id])
+		Draw(f, ok and specs or { { kind = "text", text = "|cffff6060This tab couldn't read your character just now.|r" } })
+		for i, b in ipairs(f.asks) do
+			local a = P.ASKS[id] and P.ASKS[id][i]
+			b.ask = a
+			b.text:SetText(a and ("Ask: " .. a[1]) or "")
+		end
 	end
 	if not f:IsShown() then f:Show() end
+	Arrange(f)
+	if id == "chat" then
+		P.PlaceChat(f)
+		ns.Window.Refresh()
+		ns.Window.Layout(true)
+	end
 	return f
+end
+
+-- The Chat tab's draw (P.Show does it).
+function Tabs.chat() return {} end
+
+-- Compact on or off: each mode keeps its own size. Compact shows the Chat tab. quiet: P.Show is
+-- already switching tabs.
+function P.SetCompact(on, quiet)
+	local f = P.Build()
+	local saved = Saved()
+	if (saved.compact and true or false) == (on and true or false) then return end
+	KeepSize(f)
+	saved.compact = on and true or nil
+	Bounds(f)
+	if not saved.folded then f:SetSize(ModeSize(saved.compact)) end
+	P.PlaceAsks(f)
+	if quiet then return end
+	if on then P.Show("chat") else P.Show(P.tab) end
+end
+
+-- Folded: the header only (the tab and mode kept).
+function P.Fold(on)
+	local f = P.Build()
+	local saved = Saved()
+	if on and not saved.folded then
+		KeepSize(f)
+		saved.folded = true
+		f:SetHeight(P.FOLD_H)
+	elseif not on and saved.folded then
+		saved.folded = nil
+		f:SetSize(ModeSize(saved.compact))
+	end
+	Arrange(f)
+	if not saved.folded then P.Show(P.tab) end
 end
 
 -- The Nudges tab's label with its count, and the tab redrawn when it's the one showing.
@@ -883,12 +1015,18 @@ function P.NudgesChanged()
 	if panel and panel:IsShown() and P.tab == "nudges" then P.Show("nudges") end
 end
 
+-- The minimap button's right-click and /sm panel: the last tab other than Chat, or closed when it shows.
 function P.Toggle()
 	local f = P.Build()
-	if f:IsShown() then f:Hide() else P.Show() end
+	if f:IsShown() and P.tab ~= "chat" then f:Hide() else P.Show(Saved().other or "quests") end
 end
 
--- An Ask button: the question goes to the chat, its answer to the card beside the panel.
+-- Is the chat showing (the window open on its Chat tab)?
+function P.ChatOpen()
+	return panel ~= nil and panel:IsShown() and P.tab == "chat"
+end
+
+-- An Ask button: the question goes to the chat, its answer to the card beside the window.
 function P.Ask(label, text)
 	if not ns.Marks then return end
 	return ns.Marks.Ask(panel, "Advisor: " .. ns.Escape(label), text)

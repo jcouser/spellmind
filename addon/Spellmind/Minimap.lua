@@ -1,4 +1,4 @@
--- Minimap.lua: Spellmind's button on the minimap's rim (docs/features.md §2). Click: the chat window.
+-- Minimap.lua: Spellmind's button on the minimap's rim (docs/features.md §2). Click: the Chat tab; right-click: the last other tab.
 -- Drag: around the rim (its angle saved in SpellmindDB.minimap). /sm minimap off hides it.
 -- Right-click: the Advisor panel. A gold dot shows while a nudge waits.
 
@@ -77,13 +77,13 @@ function MB.Create()
 		if not GameTooltip then return end
 		GameTooltip:SetOwner(self, "ANCHOR_LEFT")
 		GameTooltip:SetText("Spellmind", 0.62, 0.49, 1)
-		GameTooltip:AddLine("Click: the chat window.", 1, 1, 1)
-		GameTooltip:AddLine("Right-click: the Advisor panel.", 1, 1, 1)
+		GameTooltip:AddLine("Click: chat.", 1, 1, 1)
+		GameTooltip:AddLine("Right-click: your last tab (Quests, Gear and the rest).", 1, 1, 1)
 		GameTooltip:AddLine("Drag: move the button around the map.", 0.7, 0.7, 0.7)
 		local waiting = ns.Nudges and ns.Nudges.Waiting() or {}
 		if #waiting > 0 then
 			GameTooltip:AddLine(" ")
-			GameTooltip:AddLine("Waiting (click the gold badge, or the Advisor's Nudges tab):", 1, 0.82, 0)
+			GameTooltip:AddLine("Waiting (click the red badge, or the Nudges tab):", 1, 0.82, 0)
 			for _, t in ipairs(waiting) do GameTooltip:AddLine("  " .. t, 1, 1, 1) end
 		end
 		GameTooltip:Show()

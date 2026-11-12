@@ -168,14 +168,14 @@ test('the Advisor panel\'s Nudges tab: every waiting one (faded too) with Ask an
   vm.advance(3);
   vm.advance(21); // the toast fades; both still wait
   vm.run('NS.Panel.Show("nudges")');
-  const tab = vm.evaluate('SpellmindPanel.tabs[7].text:GetText()');
+  const tab = vm.evaluate('SpellmindPanel.tabs[8].text:GetText()');
   assert.equal(tab, 'Nudges |cffffd100(2)|r');
   const rows = list(vm, 'SpellmindPanel.drawn').filter(x => x.kind === 'item').map(x => x.text);
   assert.equal(rows.length, 2);
   assert.match(rows[0], /^A spell to train/);
   assert.match(rows[1], /^Bags nearly full/);
   vm.run('SpellmindPanel.rows[3].actions[2].scripts.OnClick(SpellmindPanel.rows[3].actions[2])'); // Dismiss the bags one
-  assert.equal(vm.evaluate('SpellmindPanel.tabs[7].text:GetText()'), 'Nudges |cffffd100(1)|r', 'redrawn, counted');
+  assert.equal(vm.evaluate('SpellmindPanel.tabs[8].text:GetText()'), 'Nudges |cffffd100(1)|r', 'redrawn, counted');
   vm.run('SpellmindPanel.rows[2].actions[1].scripts.OnClick(SpellmindPanel.rows[2].actions[1])'); // Ask the spells one
   assert.equal(vm.evaluate('SpellmindCard.title:GetText()'), 'Nudge: A spell to train');
   assert.equal(vm.evaluate('tostring(SpellmindCard.anchor.rel == SpellmindPanel)'), 'true', 'beside the panel');
@@ -183,7 +183,7 @@ test('the Advisor panel\'s Nudges tab: every waiting one (faded too) with Ask an
   const after = list(vm, 'SpellmindPanel.drawn').filter(x => x.kind === 'item');
   assert.equal(after.length, 1, 'still in the list');
   assert.equal(after[0].tag, 'asked');
-  assert.equal(vm.evaluate('SpellmindPanel.tabs[7].text:GetText()'), 'Nudges', 'nothing left to see');
+  assert.equal(vm.evaluate('SpellmindPanel.tabs[8].text:GetText()'), 'Nudges', 'nothing left to see');
   assert.equal(vm.evaluate('tostring(SpellmindMinimapDot.shown)'), 'false');
   vm.advance(4);
   assert.ok(!shown(vm), 'an asked one doesn\'t toast again');

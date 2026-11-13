@@ -108,3 +108,12 @@ test('Gold: Auctionator without prices yet says to scan', () => {
   const ah = drawn(vm, 'gold').find(x => x.text === 'On the auction house');
   assert.match(ah.sub, /Scan at the auction house/);
 });
+
+test('the advisor part stays the same as time passes (seen in game: a per-hour rate made it go again and again, and arrive late)', () => {
+  const vm = session();
+  vm.run('STUB.player.money = STUB.player.money + 500; STUB.FireEvent("PLAYER_MONEY")');
+  const a = vm.evaluate('NS.State.JSON.encode(NS.State.Collect.advisor())');
+  vm.advance(900); // 15 minutes on
+  assert.equal(vm.evaluate('NS.State.JSON.encode(NS.State.Collect.advisor())'), a);
+  assert.match(a, /"sessionNet":500/);
+});

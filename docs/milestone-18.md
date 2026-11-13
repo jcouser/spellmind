@@ -8,3 +8,7 @@ Seen in game, 2026-11-12: the Dungeons tab listed "Testing the Wells" with its g
 | The prompt | `prompts/spellmind.md` | Describes the part. The AI answers from it and names it as the player sees it ("your Dungeons tab lists …"), trusting its quest lists over memory. |
 
 The dungeon quest lists still need the QuestieDB addon. Without it, the part carries only the log's own dungeon quests, as the tab does.
+
+## Fix: arriving in time (2026-11-12)
+
+Seen in game: the first question after the change answered with stale data, without the Dungeons tab's quests. The app's log showed the advisor part arriving 0.6 s after the turn had stopped waiting (8 s). It had been built and sent again and again, because its gold per-hour rate changed every second. The rate is gone from the part (the Gold tab still shows it), a test holds the part still as time passes, and the app now waits up to 12 s (STATE_WAIT_MS) for the parts a question names, since there are twelve of them.

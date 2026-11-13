@@ -104,7 +104,9 @@ local function Gold()
 	local costs, total = GL.Costs()
 	local list = {}
 	for _, c in ipairs(costs) do list[#list + 1] = c.label .. (c.copper and (": " .. c.copper .. "c") or "") end
-	return O("sessionNet", inc.session.net, "perHour", inc.session.perHour, "todayNet", inc.today.net,
+	-- No per-hour rate: it changes every second, so the part would be built and sent again and again
+	-- (seen in game: it came in after the turn had stopped waiting). The Gold tab shows it.
+	return O("sessionNet", inc.session.net, "todayNet", inc.today.net,
 		"costs", #list > 0 and list or nil, "costsTotal", total > 0 and total or nil)
 end
 

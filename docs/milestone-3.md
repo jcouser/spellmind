@@ -2,7 +2,7 @@
 
 Before this, the link to the game was a command (`node tools/spellmind.mjs start`) that ended with the game, the PC or a crash. The game then said "Waiting for the Spellmind app to start…" until someone started it by hand. The app keeps the link running, starts with Windows and gives the settings a window.
 
-Built 2026-11-13, Windows first, run from source. The installer is the next step.
+Built 2026-11-13, Windows first: from source, and as an installer (`Spellmind-Setup-0.1.0.exe`).
 
 ## How it runs (`app/desktop/`, Electron 44)
 
@@ -52,10 +52,32 @@ Built 2026-11-13, Windows first, run from source. The installer is the next step
 - Stop a running `node tools/spellmind.mjs start` first: two links would both answer the game.
 - `--hidden` starts it in the tray. `--shot <file.png>` (from source only) saves a picture of the window, top and bottom, to check the layout.
 
+## The app's switches (config.json "app", all on unless turned off)
+
+- **Start when I log in to Windows.** It's written on every start, so the Run value names the copy that ran last: the installed one after an install.
+- **Minimize to the tray, not the taskbar.**
+- **Notifications** (Windows' own, silent; a click opens the window), each once until it's resolved:
+  - The sign-in is gone or refused (`oauth_expired`, `auth_invalid`, `no_key`). The pill says "Sign in again".
+  - The link stopped three times in a row.
+  - The addon was updated.
+  - An out-of-credit, spend-limit or rate-limit error has no notification; the pill says "Your AI plan's limit is reached".
+- **Keep the addon up to date.** The app's copy goes over the game's when the app starts and when WoW closes. It only happens while WoW is closed, and only once the addon is installed.
+
+A bug found on the way: a turn error's own kind (`oauth_expired`) overwrote the event's kind, so turn errors never showed, in the command line either. It now goes as `what`.
+
+## The installer (`npm run dist` in app/desktop: electron-builder 26, NSIS)
+
+- **One click, per user,** with no admin rights. It installs to `%LOCALAPPDATA%\Programs\Spellmind`, with Start menu and desktop shortcuts. The settings and log in `%APPDATA%\Spellmind` stay on uninstall.
+- **Inside app.asar the repo's layout is kept** (`app/desktop/`, `core/`, `addon/Spellmind/`, `prompts/`, LICENSE and NOTICE), so the imports work the same packed.
+- **Unpacked beside it,** since nothing runs from inside app.asar:
+  - the screen-reading helper (`core/link/capture.mjs` looks under `app.asar.unpacked`);
+  - the keychain binding.
+- **Checked on 2026-11-13 from the packed build:** the worker ran, the helper started from the unpacked folder, the sign-in read from the keychain, and the Run value named `Spellmind.exe`.
+- **Unsigned:** Windows SmartScreen warns on the first run ("More info", then "Run anyway"). A code-signing certificate is for later.
+- **English only:** Chromium's other locale packs stay out. The installer is about 113 MB.
+
 ## Next
 
-- **The Windows installer** (electron-builder, NSIS, per user).
-  - It needs the core, the addon and the screen-reading helper inside the app. The helper sits beside `app.asar`, since nothing runs from inside it.
-  - Unsigned at first: Windows SmartScreen warns on the first run.
+- **Choosing the AI in the window:** the core has Anthropic, OpenAI, Gemini, xAI and an OpenAI-compatible address. The window has only the ChatGPT plan's sign-in.
 - **Updates:** they need a public release feed, which waits until the repository is public.
 - **Usage** (how much of the plan's limit was used) and per-part sharing in the window (the game's Settings tab has the parts today).

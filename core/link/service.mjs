@@ -427,7 +427,7 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
       const rec = record({ t: 'error', chat: c.id, kind: String(res.error.kind || 'error').slice(0, 32), text: systemLine(res.error.text || 'Something went wrong.') });
       store.markRun(runId, rec.seq);
       store.saveState();
-      log('turn-error', { chat: c.id, kind: res.error.kind });
+      log('turn-error', { chat: c.id, kind: res.error.kind, text: String(res.error.text || '').slice(0, 300) });
       return;
     }
     const raw = String(res?.text ?? '');

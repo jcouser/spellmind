@@ -84,7 +84,18 @@ export function splitChips(raw) {
   const lines = String(raw ?? '').replace(/\r\n?/g, '\n').split('\n');
   let i = lines.length - 1;
   while (i >= 0 && !lines[i].trim()) i--;
-  const m = i >= 0 ? lines[i].match(CHIPS_LINE) : null;
+  let m = i >= 0 ? lines[i].match(CHIPS_LINE) : null;
+  // "Next:" at the end of the last paragraph, after a sentence (seen in game: "…the count mismatch.
+  // Next: Where do I get Red Silk Bandanas? / Which Deadmines quests do I have?"): taken when what
+  // follows reads as suggestions (a "/" or a question), so a plain "Next: head to Lakeshire." stays.
+  if (!m && i >= 0) {
+    const inline = lines[i].match(/^(.*?[.!?)])\s+(?:\*\*|__)?Next\s*(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*(.+?)\s*$/i);
+    if (inline && /\s\/\s|\?/.test(inline[2])) {
+      lines.splice(i, 1, inline[1], `Next: ${inline[2]}`);
+      i += 1;
+      m = lines[i].match(CHIPS_LINE);
+    }
+  }
   if (!m) return { body: String(raw ?? ''), chips: [] };
   const chips = m[1].split(/\s+\/\s+|\s*;\s*/)
     .map(c => markdownToWow(c).replace(/^["“']|["”']$/g, '').replace(/\s+/g, ' ').trim())

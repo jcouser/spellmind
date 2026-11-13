@@ -164,7 +164,7 @@ test('egress (fix-102): a stopped guard refuses even the AI\'s own host with EGR
   const c3 = classify(manifest, { networkPhase: 'before_send', networkError: egressError('evil.test', 443) });
   assert.equal(c3.ownHost, undefined);
   assert.equal(needsRestart(c3), false);
-  assert.equal(userLine(c3, { provider: 'Anthropic' }).action.id, 'connections');
+  assert.equal(userLine(c3, { provider: 'Anthropic' }).action.id, 'restart');
 });
 
 test('egress: loopbackOk allows local models by name; a name that resolves to loopback is not loopback', async () => {

@@ -649,6 +649,8 @@ function W.Refresh()
 	f.search.tip = "Lets your AI look up facts on the web (trainers, quest turn-ins, drops). Off answers from its memory."
 	local bits = {}
 	local link = ns.Link.Status()
+	-- Not "Connected" when the app says its AI isn't set up (the audit: the player learned only by asking).
+	if link == "" and hasAI and ai.ready == false then link = "|cffff9933Set up your AI in the Spellmind app|r" end
 	bits[#bits + 1] = (link ~= "" and link) or "Connected"
 	if hasAI then
 		if type(ai.name) == "string" and ai.name ~= "" then bits[#bits + 1] = ns.Escape(ai.name) end

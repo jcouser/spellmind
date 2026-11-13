@@ -209,8 +209,9 @@ test('an egress-guard block is its own kind: never retried, never "check your in
   }
   const l = userLine(classify(getManifest('anthropic'), { networkPhase: 'before_send', networkError: blocked }), NAMES);
   assert.equal(l.headline, 'Spellmind blocked the connection to Anthropic.');
-  assert.equal(l.detail, 'Check Connections in the Spellmind app.');
-  assert.deepEqual(l.action, { id: 'connections', label: 'Open Connections', desktop: true });
+  // The app has no Connections page (the audit): the fix it has is restarting the link.
+  assert.equal(l.detail, "Restart the link from the Spellmind app's tray menu.");
+  assert.deepEqual(l.action, { id: 'restart', label: 'Restart', desktop: true });
   assert.doesNotMatch(l.headline + l.detail, /internet|when it's back/);
 });
 
@@ -319,11 +320,12 @@ test('userLine: the exact §10 lines, with the product and companion names', () 
     [{ kind: 'context_too_long' }, {}, 'This chat is too long for Claude Haiku 4.5.', 'Start a new chat.'],
     [{ kind: 'content_blocked' }, {}, 'Claude Haiku 4.5 declined to answer that.', 'Try asking another way.'],
     [{ kind: 'network_before_send' }, {}, "Can't reach Anthropic. Check your internet.", "Your message will send when it's back."],
+    [{ kind: 'network_before_send' }, { final: true }, "Can't reach Anthropic. Check your internet.", 'Then ask again.'],
     [{ kind: 'network_after_send' }, {}, 'No answer: the connection dropped.', ''],
     [{ kind: 'local_unreachable' }, { provider: 'Ollama' }, "Spellmind can't reach Ollama.", 'Start Ollama, then click Retry.'],
     [{ kind: 'oauth_expired' }, { provider: 'OpenRouter' }, 'Your OpenRouter sign-in ended.', 'Sign in again in the Spellmind app.'],
     [{ kind: 'region_blocked' }, { provider: 'OpenAI' }, "OpenAI isn't available where you are.", 'Pick another AI in the Spellmind app.'],
-    [{ kind: 'identifier_blocked' }, { provider: 'OpenAI' }, 'OpenAI has blocked this install.', 'See the details in the Spellmind app.'],
+    [{ kind: 'identifier_blocked' }, { provider: 'OpenAI' }, 'OpenAI has blocked this install.', 'Pick another AI in the Spellmind app.'],
     [{ kind: 'interrupted' }, {}, 'Spellmind restarted before Spellmind answered.', ''],
     [{ kind: 'timeout', afterMs: 60000 }, {}, 'No answer from Anthropic after 60 seconds.', ''],
     [{ kind: 'timeout', afterMs: 180000 }, {}, 'No answer from Anthropic after 3 minutes.', ''],

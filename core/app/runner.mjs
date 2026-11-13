@@ -16,13 +16,11 @@ import { loadManifests, createProvider, manifestFor, effortLevels, nearestEffort
 import { createKeyStore } from '../ai/security/keystore.mjs';
 import { createEgress } from '../ai/security/egress.mjs';
 import { createSignIns } from '../ai/signin/index.mjs';
-import { userLine } from '../ai/providers/errors.mjs';
 import { createService } from '../link/service.mjs';
 import { createWindowsCapture } from '../link/capture.mjs';
 import { FOREVER_FLAVORS, NOT_GAME } from '../link/install.mjs';
 import { loadPack } from '../ai/pack.mjs';
-import { buildRequest } from '../ai/context.mjs';
-import { needsCheck, checkHistory, CHECK_ASK, pickChecked } from '../ai/check.mjs';
+import { createTurn } from './turn.mjs';
 
 export function dataDir(env = process.env, platform = process.platform) {
   return platform === 'win32'
@@ -85,37 +83,7 @@ export function startSpellmind({ dataDir: DATA, cfg = {}, over = {}, onEvent = (
   const pack = loadPack();
   log('pack', { version: pack.version, tokens: pack.tokens });
 
-  // One request: the text, or { aborted } or { error }.
-  const ask = async ({ history, userText, game, signal, effort: e, search: s }) => {
-    let out = '', searched = false;
-    const { system, messages, meta } = buildRequest({ pack, game, history, userText });
-    log('request', { pack: pack.version, dataChars: meta.dataChars, omitted: meta.omitted.length ? meta.omitted : undefined, stale: game?.stale || undefined });
-    for await (const ev of provider.stream({ model, effort: e, system, messages, webSearch: s }, { signal })) {
-      if (ev.type === 'text') out += ev.delta;
-      else if (ev.type === 'progress' && ev.searching && !searched) { searched = true; log('web-search', {}); }
-      else if (ev.type === 'error') {
-        if (ev.error?.kind === 'interrupted') return { aborted: true };
-        const l = userLine(ev.error, { provider: m.name, product: 'Spellmind' });
-        return { error: { kind: ev.error?.kind || 'error', text: `${l.headline} ${l.detail}`.trim() } };
-      }
-    }
-    return { text: out };
-  };
-  // A turn: the answer, then (docs/milestone-17.md) a double-check of one that names places, people,
-  // routes, items or quest steps, unless the player turned it off. A failed check keeps the draft.
-  const turn = async ({ text, history, signal, game, effort: pickedEffort, search: pickedSearch, check }) => {
-    const e = pickedEffort || effort, s = pickedSearch ?? search;
-    const draft = await ask({ history, userText: text, game, signal, effort: e, search: s });
-    if (!draft.text || check === false || !needsCheck(text, draft.text)) return draft;
-    log('check', {});
-    const checked = await ask({ history: checkHistory(history, text, draft.text), userText: CHECK_ASK, game, signal, effort: e, search: s });
-    if (checked.aborted) return checked;
-    if (!checked.text?.trim()) { log('check-failed', { kind: checked.error?.kind }); return draft; }
-    // A check that came back as a comment, much shorter, or without its "Next:" line doesn't replace a good draft.
-    const chosen = pickChecked(draft.text, checked.text);
-    log('check-done', { used: chosen.used, why: chosen.why });
-    return { text: chosen.text };
-  };
+  const { turn } = createTurn({ m, model, label, provider, pack, log, effort, search });
 
   const addonsDir = path.join(flavorDir, 'Interface', 'AddOns');
   // What the chat window's header shows and lets the player pick: the model's thinking levels and search.
@@ -126,16 +94,26 @@ export function startSpellmind({ dataDir: DATA, cfg = {}, over = {}, onEvent = (
     log(k, d);
     if (k === 'hello') st.hello = new Date().toISOString();
     if (k === 'reply' || k === 'msg') st.lastAt = new Date().toISOString();
-    if (k === 'turn-error') st.error = d?.kind || 'error';
-    else if (k === 'reply') st.error = null;
+    if (k === 'turn-error') { st.error = d?.kind || 'error'; st.errorText = d?.text || null; }
+    else if (k === 'reply') { st.error = null; st.errorText = null; }
     if (SHOWN.has(k)) emit(k, d);
   } });
   svc.start();
+  // Is the AI set up (a sign-in or a key saved; Other may need none)? The game says so in its header
+  // instead of "Connected" (the audit: it said Connected with nothing signed in, and the player learned
+  // only by asking). Checked once here; a sign-in or key from the app restarts the link.
+  (async () => {
+    let ok = true;
+    try { ok = session ? await session.signedIn() : (m.auth?.optional === true || !!(await keystore.get(m.id))); } catch { ok = false; }
+    st.ai.ready = ok;
+    if (!ok) { ai.ready = false; svc.publisher.publish({}); emit('ai-not-ready', {}); }
+  })();
   let lastErr = '';
   const capture = makeCapture({ flavorDirs: FOREVER_FLAVORS, notGame: NOT_GAME, log,
     onPayload: ({ text }) => svc.handlePayload(text),
-    // The game: running, launched, absent or exited (the helper's words).
-    onGame: ({ state }) => { st.wow = state; emit('wow', { state }); },
+    // The game: running, launched, absent or exited (the helper's words). Closed, its link is gone with it
+    // (the audit: "Linked (3 h ago)" stayed green after WoW closed).
+    onGame: ({ state }) => { st.wow = state; if (state === 'exited' || state === 'absent') st.hello = null; emit('wow', { state }); },
     onError: (e) => { const s = String(e?.message || e?.kind || e); if (s !== lastErr) { lastErr = s; emit('reading-error', { error: s }); } },
     // The screen-reading helper up (connected) or gone.
     onStatus: (s) => {

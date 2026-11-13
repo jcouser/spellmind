@@ -62,8 +62,10 @@ test('config.json: read back as written; a missing or broken one reads as empty'
 
 test('the Activity lines: the link\'s events in words; "window not found" kept quiet while WoW is closed', () => {
   assert.equal(eventLine({ kind: 'hello', ver: '0.1.0' }), 'The game said hello (addon 0.1.0).');
-  assert.equal(eventLine({ kind: 'msg', chat: 'c1', bytes: 40, status: { ai: { name: 'ChatGPT' } } }), 'Message in c1 (40 bytes): asking ChatGPT…');
-  assert.equal(eventLine({ kind: 'turn-error', chat: 'c2', what: 'oauth_expired' }), 'Error for c2: oauth_expired');
+  assert.equal(eventLine({ kind: 'msg', chat: 'c1', bytes: 40, status: { ai: { name: 'ChatGPT' } } }), 'Question received: asking ChatGPT…');
+  assert.equal(eventLine({ kind: 'state', part: 'quests', bytes: 900 }), null, 'not a line every few seconds');
+  assert.equal(eventLine({ kind: 'turn-error', chat: 'c2', what: 'oauth_expired', text: 'Your ChatGPT sign-in ended. Sign in again in the Spellmind app.' }), 'Answer failed: Your ChatGPT sign-in ended. Sign in again in the Spellmind app.');
+  assert.equal(eventLine({ kind: 'turn-error', chat: 'c2', what: 'unknown' }), 'Answer failed (unknown).');
   assert.equal(eventLine({ kind: 'wow', state: 'exited' }), 'WoW closed.');
   assert.equal(eventLine({ kind: 'reading-error', error: 'window not found', status: { wow: 'absent' } }), null);
   assert.equal(eventLine({ kind: 'reading-error', error: 'denied', status: { wow: 'running' } }), 'Screen reading: denied');

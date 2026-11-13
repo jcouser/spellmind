@@ -441,3 +441,16 @@ test('the app\'s goodbye (it quit cleanly): "Start the Spellmind app" at once, n
   ring(vm);
   assert.equal(vm.evaluate('tostring(NS.Link.AppGone())'), 'false', 'an old goodbye: older than the beat');
 });
+
+test('the app says its AI isn\'t set up (ai.ready false): the window\'s header says so, not "Connected" (the audit)', () => {
+  const vm = session();
+  vm.run('NS.State.OnBridge({ ai = { name = "Claude", model = "Claude Sonnet 5.5", efforts = {}, ready = false } })');
+  vm.run('NS.Window.Build(); NS.Link.NoteBridge(GetTime())');
+  vm.run('NS.Window.Refresh()');
+  const status = vm.evaluate('SpellmindWindow.status:GetText()');
+  assert.match(status, /Set up your AI in the Spellmind app/);
+  assert.doesNotMatch(status, /Connected/);
+  vm.run('NS.State.OnBridge({ ai = { name = "Claude", model = "Claude Sonnet 5.5", efforts = {} } })');
+  vm.run('NS.Window.Refresh()');
+  assert.match(vm.evaluate('SpellmindWindow.status:GetText()'), /^Connected · Claude/);
+});

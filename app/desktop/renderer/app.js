@@ -97,9 +97,10 @@ function draw(s) {
   fact($('factWow'), w[0], w[1]);
   if (s.link.phase === 'restarting') fact($('factHello'), `Restarting in ${Math.round((s.link.delayMs || 0) / 1000)} s`, 'warn');
   else if (s.link.phase === 'setup') fact($('factHello'), 'Waiting for the setup', 'warn');
-  else if (r.hello) fact($('factHello'), `Linked (${ago(r.hello)})`, 'good');
+  else if (r.hello) fact($('factHello'), `Linked since ${new Date(r.hello).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, 'good');
   else fact($('factHello'), r.wow === 'running' ? 'Waiting for the addon to say hello' : 'Not yet this session', 'muted');
-  if (r.error) fact($('factLast'), `An error: ${r.error}`, 'bad');
+  // The line the game showed (userLine), not the kind (the audit: "An error: oauth_expired").
+  if (r.error) fact($('factLast'), r.errorText || `It failed (${r.error}).`, 'bad');
   else fact($('factLast'), r.lastAt ? ago(r.lastAt) : 'None yet this session', r.lastAt ? '' : 'muted');
 
   // The AI: the picker (the one in use first, marked), the picked one's setup, then the options of

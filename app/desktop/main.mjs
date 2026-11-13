@@ -50,8 +50,22 @@ const activity = []; // { at, line }
 const APP_DEFAULTS = Object.freeze({ startAtLogin: true, minimizeToTray: true, notifications: true, updateAddon: true });
 const appSettings = () => ({ ...APP_DEFAULTS, ...(readConfig(DATA).app || {}) });
 
-// The sign-in is gone or refused (core/ai/providers/errors.mjs kinds): the player has to act.
-const SIGN_IN_KINDS = new Set(['oauth_expired', 'auth_invalid', 'no_key']);
+// The errors the player has to act on (core/ai/providers/errors.mjs kinds), each with the pill's
+// words, its tone, and a notification's title. In the AI's own terms: a key isn't a sign-in, and a
+// slow-down isn't a spent plan (the audit: "Sign in again" for a refused Claude key; "Your AI plan's
+// limit is reached" for every limit). The notification's body is the line the game showed.
+const ACT_ON = Object.freeze({
+  oauth_expired: ['bad', 'Sign in again', 'Your sign-in ended'],
+  auth_invalid: ['bad', 'Your AI key was refused', 'Your AI key was refused'],
+  no_key: ['bad', 'Set up your AI', 'Your AI isn\'t set up'],
+  out_of_credit: ['warn', 'Your AI account is out of credit', 'Out of credit'],
+  spend_limit: ['warn', 'Your AI spend limit is reached', 'Spend limit reached'],
+  rate_limited_daily: ['warn', 'Your AI\'s daily limit is reached', 'Daily limit reached'],
+  model_not_found: ['warn', 'Pick another model', 'That model isn\'t available'],
+  region_blocked: ['warn', 'Pick another AI', 'Your AI isn\'t available where you are'],
+});
+// Passing: shown while it lasts, no notification.
+const PASSING = Object.freeze({ rate_limited: 'Your AI asked to slow down', overloaded: 'Your AI is busy right now' });
 let failStreak = 0; // restarts in a row without the link staying up
 const told = new Set(); // what a notification has said this session
 
@@ -121,9 +135,10 @@ const sup = createSupervisor({
       const k = m.ev?.kind;
       // The link works again: a later failure may say so again.
       if (k === 'hello' || k === 'reply') { failStreak = 0; told.delete('link-failing'); }
-      if (k === 'reply') told.delete('sign-in');
-      if (k === 'turn-error' && SIGN_IN_KINDS.has(m.ev.what)) {
-        notify('sign-in', 'Spellmind needs you to sign in again', 'Your AI refused the sign-in. Open Spellmind and sign in, then ask again in game.');
+      // An answer came: what needed acting on is fixed; a later failure may say so again.
+      if (k === 'reply') for (const key of [...told]) if (key.startsWith('error:')) told.delete(key);
+      if (k === 'turn-error' && Object.hasOwn(ACT_ON, m.ev.what)) {
+        notify(`error:${m.ev.what}`, `Spellmind: ${ACT_ON[m.ev.what][2]}`, m.ev.text || 'Open Spellmind to see what happened.');
       }
       if (k === 'wow' && m.ev.state === 'exited') updateAddonIfOld('WoW closed');
     }
@@ -183,8 +198,8 @@ function summary() {
   if (linkState.phase === 'setup' || setupError || setupNeeded) return { tone: 'warn', text: 'Finish the setup' };
   if (linkState.phase === 'restarting') return { tone: 'warn', text: `Restarting the link in ${Math.round((linkState.delayMs || 0) / 1000)} s` };
   if (linkState.phase !== 'running') return { tone: 'off', text: 'The link is stopped' };
-  if (SIGN_IN_KINDS.has(s?.error)) return { tone: 'bad', text: 'Sign in again' };
-  if (s?.error === 'out_of_credit' || s?.error === 'spend_limit' || s?.error === 'rate_limited') return { tone: 'warn', text: 'Your AI plan\'s limit is reached' };
+  if (s?.error && Object.hasOwn(ACT_ON, s.error)) return { tone: ACT_ON[s.error][0], text: ACT_ON[s.error][1] };
+  if (s?.error && Object.hasOwn(PASSING, s.error)) return { tone: 'warn', text: PASSING[s.error] };
   if (s?.wow === 'running' || s?.wow === 'launched') return { tone: 'good', text: s.hello ? 'Linked to WoW' : 'WoW is running: waiting for the addon' };
   return { tone: 'idle', text: 'Waiting for WoW' };
 }

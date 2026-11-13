@@ -518,7 +518,7 @@ export function userLine(err, names = {}) {
     case 'egress_blocked':
       // Its own guard refusing the AI's own host is the app's fault, never the player's internet (fix-102).
       if (needsRestart(err)) return line(`${product} needs a restart.`, `Quit and reopen ${app}.`, act('restart', 'Quit and Reopen', true));
-      return line(`${product} blocked the connection to ${P}.`, `Check Connections in ${app}.`, act('connections', 'Open Connections', true));
+      return line(`${product} blocked the connection to ${P}.`, `Restart the link from ${app}'s tray menu.`, act('restart', 'Restart', true));
     case 'auth_invalid':
       return line(`Your ${P} key was rejected.`, `Replace it in ${app}.`, act('replace_key', 'Replace Key', true));
     case 'out_of_credit': // D7: another AI one click away (alt), never an automatic switch. The HUD's own words for the state (UX-W31).
@@ -566,7 +566,9 @@ export function userLine(err, names = {}) {
         ? line(`${N} couldn't finish a reply.`, `Ask again, or pick another model in ${app}.`, act('retry', 'Retry'))
         : line(`${N} couldn't finish a reply.`, 'Ask again, or lower Thinking.', act('retry', 'Retry'));
     case 'network_before_send':
-      return line(`Can't reach ${P}. Check your internet.`, "Your message will send when it's back.", act('cancel', 'Cancel'));
+      return final
+        ? line(`Can't reach ${P}. Check your internet.`, 'Then ask again.', act('retry', 'Retry'))
+        : line(`Can't reach ${P}. Check your internet.`, "Your message will send when it's back.", act('cancel', 'Cancel'));
     case 'network_after_send':
       return line('No answer: the connection dropped.', '', act('send_again', 'Retry'));
     case 'local_unreachable':
@@ -576,14 +578,14 @@ export function userLine(err, names = {}) {
     case 'region_blocked':
       return line(`${P} isn't available where you are.`, `Pick another AI in ${app}.`, act('pick_provider', 'Pick Another AI', true));
     case 'identifier_blocked':
-      return line(`${P} has blocked this install.`, `See the details in ${app}.`, act('details', 'Open Diagnostics', true));
+      return line(`${P} has blocked this install.`, `Pick another AI in ${app}.`, act('pick_provider', 'Pick Another AI', true));
     case 'interrupted':
       if (err.aborted) return line('Stopped.', '', act('send_again', 'Retry'));
       return line(`${product} restarted before ${N} answered.`, '', act('send_again', 'Retry'));
     case 'timeout':
       return line(`No answer from ${P} after ${durWords(err.afterMs) ?? '60 seconds'}.`, '', act('retry', 'Retry'));
     case 'bad_request':
-      return line(`${P} couldn't take that message.`, `See the details in ${app}.`, act('details', 'Open Diagnostics', true));
+      return line(`${P} couldn't take that message.`, 'Try asking another way, or start a new chat.', act('rephrase', null));
     case 'tls': // a certificate failure (SY-12): this computer's clock, or something inspecting secure connections
       return TLS_CLOCK_CODES.has(err.code)
         ? line(`Couldn't make a secure connection to ${P}.`, "Check your computer's date and time, then click Retry.", act('retry', 'Retry'))
@@ -593,6 +595,6 @@ export function userLine(err, names = {}) {
         ? line('Your disk is full, so nothing was sent.', 'Free up space, then click Retry.', act('retry', 'Retry'))
         : line(`${product} couldn't save on this computer, so nothing was sent.`, 'Click Retry. Restart your computer if it keeps happening.', act('retry', 'Retry'));
     default:
-      return line(`Something went wrong with ${P}.`, `See the details in ${app}.`, act('details', 'Open Diagnostics', true));
+      return line(`Something went wrong with ${P}.`, `Ask again in a moment. If it keeps happening, restart the link from ${app}'s tray menu.`, act('retry', 'Retry'));
   }
 }

@@ -122,7 +122,13 @@ export function focusFor(state, about) {
  * pack: { text } (loadPack) or the prompt's text; game: { state, stale, about } or null; history:
  * [{ role, content }]; userText: what the player typed; nonce: hex, drawn per turn by default.
  */
-export function buildRequest({ pack, game = null, history = [], userText = '', nonce = crypto.randomBytes(4).toString('hex'), dataMax = DATA_MAX_CHARS } = {}) {
+// Whether this turn has web search (the audit: the prompt said "most turns you also have web search", so an AI
+// without it couldn't tell, and might cite a site it never read). A note with the game data, never in the
+// cached prompt, so a change of search doesn't cost the cache.
+export const SEARCH_ON_NOTE = 'Web search: on this turn.';
+export const SEARCH_OFF_NOTE = 'Web search: off this turn. Answer from the game data and what you know, say plainly when you are not sure, and never cite a site as "(source: …)".';
+
+export function buildRequest({ pack, game = null, history = [], userText = '', nonce = crypto.randomBytes(4).toString('hex'), dataMax = DATA_MAX_CHARS, search } = {}) {
   const packText = typeof pack === 'string' ? pack : pack?.text;
   if (!packText) throw new Error('buildRequest needs the prompt pack');
   if (!/^[0-9a-f]{4,32}$/.test(nonce)) throw new Error('nonce must be hex');
@@ -136,7 +142,8 @@ export function buildRequest({ pack, game = null, history = [], userText = '', n
     messages.push({ role: 'user', content: text });
     return { system, messages, meta: { nonce: null, dataChars: 0, omitted: [] } };
   }
-  const notes = state ? [questNote(state.quests), ...(picked.focused ? [FOCUS_NOTE] : []), ...(stale ? [STALE_NOTE] : []), ...partNotes(state)] : [NO_DATA_NOTE, STALE_NOTE];
+  const searchNote = search === true ? [SEARCH_ON_NOTE] : search === false ? [SEARCH_OFF_NOTE] : [];
+  const notes = state ? [...searchNote, questNote(state.quests), ...(picked.focused ? [FOCUS_NOTE] : []), ...(stale ? [STALE_NOTE] : []), ...partNotes(state)] : [...searchNote, NO_DATA_NOTE, STALE_NOTE];
   const fitted = fitData({ ...(state || {}), notes }, Math.max(1000, Number(dataMax) || DATA_MAX_CHARS));
   const line = encodeData({ source: 'game', game: fitted.game });
   const content = `<${TAG} id="${nonce}">\n${line}\n</${TAG} id="${nonce}">\n${text}`;

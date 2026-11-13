@@ -55,10 +55,12 @@ test('the base URL: https, or http for this computer only; no credentials, query
   // address or an mDNS .local name, never local (it leaves this computer), never a public name that resolves there.
   const lan = [
     ['http://192.168.1.20:11434/v1', 'http://192.168.1.20:11434/v1', '192.168.1.20'], ['http://10.0.0.2/v1', 'http://10.0.0.2/v1', '10.0.0.2'],
-    ['http://172.16.5.4:1234/v1', 'http://172.16.5.4:1234/v1', '172.16.5.4'], ['http://169.254.1.1/v1', 'http://169.254.1.1/v1', '169.254.1.1'],
+    ['http://172.16.5.4:1234/v1', 'http://172.16.5.4:1234/v1', '172.16.5.4'],
     ['http://Gaming-PC.local:1234/v1/', 'http://gaming-pc.local:1234/v1', 'gaming-pc.local'], ['http://[fd12::1]:8080/v1', 'http://[fd12::1]:8080/v1', '[fd12::1]'],
   ];
   for (const [raw, baseUrl, host] of lan) assert.deepEqual(checkCustomUrl(raw), { ok: true, baseUrl, host, local: false, lan: true }, raw);
+  // Link-local isn't a home network (a cloud's metadata service lives there): https only (the security review).
+  assert.deepEqual(checkCustomUrl('http://169.254.169.254/v1'), { ok: false, error: 'https_required' });
 });
 
 test('the template: no base URL, no hosts, an optional Bearer key, no key shape, Chat Completions only', () => {

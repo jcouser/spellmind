@@ -389,7 +389,7 @@ export function checkCustomUrl(raw) {
 
 /**
  * A host on the player's own network, where http is allowed too: only a literal private address (10/8,
- * 172.16/12, 192.168/16, 169.254/16; IPv6 fc00::/7 and fe80::/10) or an mDNS name ending in .local, never a
+ * 172.16/12, 192.168/16; IPv6 fc00::/7 and fe80::/10) or an mDNS name ending in .local, never a
  * public name that merely resolves to one (127.0.0.1.nip.io, localhost.evil.example stay https only).
  */
 export function isPrivateNetworkHost(host) {
@@ -398,7 +398,8 @@ export function isPrivateNetworkHost(host) {
   if (v4) {
     const [a, b, c, d] = v4.slice(1).map(Number);
     if ([a, b, c, d].some(x => x > 255)) return false;
-    return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+    // Not 169.254/16 (link-local: no home server lives there, and a cloud's metadata service does; the security review).
+    return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
   }
   if (h.includes(':')) return /^f[cd][0-9a-f]{0,2}:/.test(h) || /^fe[89ab][0-9a-f]?:/.test(h);
   return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.local$/.test(h);

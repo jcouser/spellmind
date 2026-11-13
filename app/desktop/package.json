@@ -1,7 +1,7 @@
 {
   "name": "spellmind-desktop",
   "productName": "Spellmind",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "description": "Spellmind: AI Companion for World of Warcraft: Forever (the desktop app)",
   "license": "MIT",
@@ -13,7 +13,7 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis && node scripts/hash.mjs"
   },
   "devDependencies": {
     "electron": "44.9.3",

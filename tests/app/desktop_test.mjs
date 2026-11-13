@@ -20,10 +20,10 @@ test('the addon against the installed one: missing, current, then outdated (chan
   assert.equal(addonState({ flavorDir: flavor }).state, 'missing');
   const dst = path.join(flavor, 'Interface', 'AddOns', 'Spellmind');
   fs.cpSync(ADDON_SOURCE, dst, { recursive: true });
-  assert.deepEqual(addonState({ flavorDir: flavor }), { state: 'current', changed: 0, added: 0 });
+  assert.deepEqual(addonState({ flavorDir: flavor }), { state: 'current', changed: 0, added: 0, installedBy: null });
   fs.appendFileSync(path.join(dst, 'Panel.lua'), '\n-- old\n');
   fs.rmSync(path.join(dst, 'Advisor.lua'));
-  assert.deepEqual(addonState({ flavorDir: flavor }), { state: 'outdated', changed: 1, added: 1 });
+  assert.deepEqual(addonState({ flavorDir: flavor }), { state: 'outdated', changed: 1, added: 1, installedBy: null });
   // The game's own files in the folder (the doorbells, the inbox the app writes) aren't the addon's.
   fs.cpSync(ADDON_SOURCE, dst, { recursive: true });
   fs.mkdirSync(path.join(dst, 'sig'), { recursive: true });
@@ -100,4 +100,34 @@ test('the window\'s script parses, and every element it looks up is in the page 
   const html = fs.readFileSync(path.join(DESKTOP, 'renderer', 'index.html'), 'utf8');
   const ids = [...new Set([...js.matchAll(/\$\('([A-Za-z]+)'\)/g)].map(m => m[1]))];
   assert.deepEqual(ids.filter(id => !html.includes(`id="${id}"`)), []);
+});
+
+test('a junction planted at AddOns\Spellmind is replaced by a real folder; what it pointed to is untouched (the security review)', async () => {
+  const { installAddon } = await import('../../core/link/install.mjs');
+  const flavor = tmp();
+  const addons = path.join(flavor, 'Interface', 'AddOns');
+  fs.mkdirSync(addons, { recursive: true });
+  const victim = tmp();
+  fs.writeFileSync(path.join(victim, 'keep.txt'), 'mine');
+  try { fs.symlinkSync(victim, path.join(addons, 'Spellmind'), 'junction'); } catch { return; } // no junctions here: nothing to test
+  const r = installAddon({ flavorDir: flavor, count: 2, running: () => ({ running: false }) });
+  assert.equal(r.ok, true, r.detail);
+  const st = fs.lstatSync(path.join(addons, 'Spellmind'));
+  assert.ok(st.isDirectory() && !st.isSymbolicLink(), 'a real folder now');
+  assert.deepEqual(fs.readdirSync(victim), ['keep.txt'], 'nothing written where the junction pointed');
+  assert.equal(fs.readFileSync(path.join(victim, 'keep.txt'), 'utf8'), 'mine');
+});
+
+test('the addon update goes only forward: each install leaves the app\'s version; an older app sees a newer one (the security review)', async () => {
+  const { installAddon, addonState, olderVersion } = await import('../../core/link/install.mjs');
+  const flavor = tmp();
+  fs.mkdirSync(path.join(flavor, 'Interface', 'AddOns'), { recursive: true });
+  assert.equal(installAddon({ flavorDir: flavor, count: 2, running: () => ({ running: false }), version: '0.2.5' }).ok, true);
+  assert.equal(addonState({ flavorDir: flavor }).installedBy, '0.2.5');
+  assert.equal(olderVersion('0.2.5', '0.2.4'), false, 'an older app may not update over it');
+  assert.equal(olderVersion('0.2.5', '0.2.5'), false);
+  assert.equal(olderVersion('0.2.5', '0.2.10'), true, 'numbers, not text');
+  assert.equal(olderVersion('0.9', '1.0.0'), true);
+  // The marker isn't the addon's: the addon still reads as current.
+  assert.equal(addonState({ flavorDir: flavor }).state, 'current');
 });

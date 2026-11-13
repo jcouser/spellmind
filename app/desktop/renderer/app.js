@@ -95,7 +95,8 @@ function draw(s) {
   const wowWords = { running: ['Running', 'good'], launched: ['Starting', 'good'], absent: ['Not running', 'muted'], exited: ['Closed', 'muted'] };
   const w = wowWords[r.wow] || [s.link.phase === 'running' ? 'Looking for it…' : 'Not looked for yet', 'muted'];
   fact($('factWow'), w[0], w[1]);
-  if (s.link.phase === 'restarting') fact($('factHello'), `Restarting in ${Math.round((s.link.delayMs || 0) / 1000)} s`, 'warn');
+  if (s.link.phase === 'gave-up') fact($('factHello'), 'It kept stopping: click Restart the link below', 'bad');
+  else if (s.link.phase === 'restarting') fact($('factHello'), `Restarting in ${Math.round((s.link.delayMs || 0) / 1000)} s`, 'warn');
   else if (s.link.phase === 'setup') fact($('factHello'), 'Waiting for the setup', 'warn');
   else if (r.hello) fact($('factHello'), `Linked since ${new Date(r.hello).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, 'good');
   else fact($('factHello'), r.wow === 'running' ? 'Waiting for the addon to say hello' : 'Not yet this session', 'muted');
@@ -206,7 +207,7 @@ $('aiPick').addEventListener('change', (e) => {
   if (x && x.ready && !x.current) act(null, () => sm.chooseAI(viewing), `Now using ${x.card}.`);
   else if (last) draw(last);
 });
-$('pasteKey').addEventListener('click', () => act($('pasteKey'), () => sm.pasteKey(), (r) => `${r.card}: key saved and working. Your clipboard was cleared.`));
+$('pasteKey').addEventListener('click', () => act($('pasteKey'), () => sm.pasteKey(), (r) => `${r.card}: key saved and working. Your clipboard was cleared (clipboard history, Win+V, keeps its own copy: clear it there too).`));
 $('removeKey').addEventListener('click', () => act($('removeKey'), () => sm.removeKey(viewing), 'Key removed.'));
 $('openKeys').addEventListener('click', () => act(null, () => sm.openKeysPage(viewing)));
 $('connectCustom').addEventListener('click', () => act($('connectCustom'),

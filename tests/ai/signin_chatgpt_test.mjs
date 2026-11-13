@@ -320,3 +320,20 @@ test('the provider layer: an ended sign-in is oauth_expired (Sign in again), a r
   assert.equal(shown.originator, 'neverquestalone');
   assert.doesNotMatch(shown.authorization, /abcdefghijklmnop/);
 });
+
+test('the listener answers only to its own address: another Host (DNS rebinding) is refused, and its code not taken (the security review)', async () => {
+  const http = await import('node:http');
+  const l = await listenForCode({ state: 's', ports: [0], timeoutMs: 5000 });
+  try {
+    const u = new URL(l.redirectUri);
+    const status = await new Promise((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port: u.port, path: `${u.pathname}?code=c&state=s`, headers: { host: `evil.example:${u.port}` } }, (res) => { res.resume(); resolve(res.statusCode); });
+      req.on('error', reject);
+      req.end();
+    });
+    assert.equal(status, 421);
+    const ok = await fetch(`${l.redirectUri}?code=c9&state=s`, { redirect: 'manual' });
+    assert.equal(ok.status, 303, 'its own address still works');
+    assert.deepEqual(await l.result, { code: 'c9' }, 'the refused one\'s code wasn\'t taken');
+  } finally { l.close(); }
+});

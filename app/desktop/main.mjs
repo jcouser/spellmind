@@ -9,17 +9,17 @@
 //   - One copy runs: a second launch opens the first one's window.
 //   - The window (renderer/): status, the AI and its sign-in, the WoW folder and the addon, the app.
 //     Closing it keeps Spellmind in the tray; Quit in the tray's menu ends it.
-import { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, dialog, ipcMain, shell, utilityProcess, Notification, clipboard } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, dialog, ipcMain, shell, utilityProcess, Notification, clipboard, session } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dataDir, readConfig, writeConfig } from '../../core/app/runner.mjs';
 import { createSupervisor } from '../../core/app/supervisor.mjs';
 import { aiChoices, applyAI } from '../../core/app/settings.mjs';
 import { createAISetup } from '../../core/app/ai.mjs';
 import { eventLine } from '../../core/app/lines.mjs';
-import { installAddon, addonState, looksLikeFlavor, flavorIn, findFlavorDirs, wowRunning, RUNNING_LINE } from '../../core/link/install.mjs';
-import { loadManifests } from '../../core/ai/providers/index.mjs';
+import { installAddon, addonState, looksLikeFlavor, flavorIn, findFlavorDirs, wowRunning, olderVersion, RUNNING_LINE } from '../../core/link/install.mjs';
+import { loadManifests, checkCustomUrl } from '../../core/ai/providers/index.mjs';
 import { createKeyStore } from '../../core/ai/security/keystore.mjs';
 import { createEgress } from '../../core/ai/security/egress.mjs';
 import { createSignIns } from '../../core/ai/signin/index.mjs';
@@ -85,8 +85,11 @@ function updateAddonIfOld(why) {
   if (!appSettings().updateAddon || !cfg.wow) return;
   const st = addonState({ flavorDir: cfg.wow });
   if (st.state !== 'outdated') return;
+  // Only forward: never over an addon a newer app put there, nor one this app put there and someone
+  // changed since (the security review: an older copy of the app wrote its older addon back).
+  if (st.installedBy && !olderVersion(st.installedBy, app.getVersion())) { note("The addon differs from this app's, but a same or newer app installed it: left as it is. Update in the window to replace it."); return; }
   if (wowRunning().running) { note('An addon update is ready: it goes in when WoW closes.'); return; }
-  const r = installAddon({ flavorDir: cfg.wow });
+  const r = installAddon({ flavorDir: cfg.wow, version: app.getVersion() });
   if (r.ok) {
     note(`Addon updated (${why}).`);
     told.delete('addon-updated');
@@ -154,7 +157,7 @@ const sup = createSupervisor({
 const manifests = loadManifests();
 const keystore = createKeyStore({ backend: 'os' });
 // Each AI's own egress (only its hosts) and, for a plan, its sign-in session, made once.
-const fetchFor = (m) => createEgress({ allowHosts: () => new Set(m.hosts), loopbackOk: true }).fetch;
+const fetchFor = (m) => createEgress({ allowHosts: () => new Set(m.hosts), loopbackOk: m.custom === true }).fetch;
 const sessions = new Map();
 function sessionFor(m) {
   if (!m) return null;
@@ -196,6 +199,7 @@ function summary() {
   const s = runStatus;
   // The setup card says which step; the pill only that there's one (the review: a long sentence in it).
   if (linkState.phase === 'setup' || setupError || setupNeeded) return { tone: 'warn', text: 'Finish the setup' };
+  if (linkState.phase === 'gave-up') return { tone: 'bad', text: 'The link keeps stopping: restart it' };
   if (linkState.phase === 'restarting') return { tone: 'warn', text: `Restarting the link in ${Math.round((linkState.delayMs || 0) / 1000)} s` };
   if (linkState.phase !== 'running') return { tone: 'off', text: 'The link is stopped' };
   if (s?.error && Object.hasOwn(ACT_ON, s.error)) return { tone: ACT_ON[s.error][0], text: ACT_ON[s.error][1] };
@@ -281,25 +285,8 @@ function openWindow() {
   win.on('minimize', (e) => { if (appSettings().minimizeToTray) { e.preventDefault(); win.hide(); } });
   win.once('ready-to-show', () => {
     win.show();
-    // --shot <file.png>, from source only: a picture of the window once it's drawn (to check the layout).
-    const at = process.argv.indexOf('--shot');
-    if (!app.isPackaged && at > 0 && process.argv[at + 1]) {
-      setTimeout(async () => {
-        try {
-          const file = process.argv[at + 1];
-          // --shot-ai <id>: the picker on that AI first (its setup shown; nothing is switched).
-          const ai = process.argv[process.argv.indexOf('--shot-ai') + 1];
-          if (process.argv.includes('--shot-ai') && /^[a-z]+$/.test(ai || '')) {
-            await win.webContents.executeJavaScript(`(() => { const s = document.getElementById('aiPick'); s.value = '${ai}'; viewing = '${ai}'; draw(last); })()`);
-            await new Promise(r => setTimeout(r, 300));
-          }
-          fs.writeFileSync(file, (await win.webContents.capturePage()).toPNG());
-          await win.webContents.executeJavaScript('window.scrollTo(0, document.body.scrollHeight)');
-          await new Promise(r => setTimeout(r, 300));
-          fs.writeFileSync(file.replace(/\.png$/, '-end.png'), (await win.webContents.capturePage()).toPNG());
-        } catch { /* a check only */ }
-      }, 2500);
-    }
+    // --shot (from source only): app/desktop/dev-shot.mjs, which the installed app doesn't have.
+    if (!app.isPackaged && process.argv.includes('--shot')) import('./dev-shot.mjs').then(d => d.shoot(win, process.argv)).catch(() => {});
   });
   win.loadFile(path.join(HERE, 'renderer', 'index.html'));
 }
@@ -361,6 +348,25 @@ const CALLS = {
   // Other: an OpenAI-compatible address and model, with the key from the clipboard when asked.
   connectCustom: async (p) => {
     const keyText = p?.withKey ? clipboard.readText() : null;
+    // A new address: the player says yes in a dialog of the app's own before anything goes there (the
+    // security review: one call sent the clipboard and every later question to any address typed in).
+    const c = checkCustomUrl(String(p?.baseUrl || ''));
+    if (c.ok) {
+      const cfg = readConfig(DATA);
+      let known = null;
+      try { known = cfg.custom?.baseUrl ? new URL(cfg.custom.baseUrl).host : null; } catch { known = null; }
+      if (c.host !== known) {
+        const clear = keyText && c.baseUrl.startsWith('http:') && !c.local;
+        const r = await dialog.showMessageBox(win, {
+          type: clear ? 'warning' : 'question', buttons: ['Connect', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true,
+          title: 'Spellmind', message: `Send your questions and game data to ${c.host}?`,
+          detail: (c.local ? 'A server on this computer: nothing leaves it.' : 'Everything you ask Spellmind from now on goes to this service, with your character\'s data.')
+            + (keyText ? ' The key on your clipboard goes with it.' : '')
+            + (clear ? '\n\nThis address is http: the key travels unencrypted over your network.' : ''),
+        });
+        if (r.response !== 0) return { ok: false, error: 'cancelled' };
+      }
+    }
     const r = await aiSetup.connectCustom(readConfig(DATA), { baseUrl: String(p?.baseUrl || ''), model: String(p?.model || '') }, keyText);
     if (!r.ok) return r;
     if (keyText && clipboard.readText() === keyText) clipboard.clear();
@@ -402,7 +408,7 @@ const CALLS = {
     const before = addonState({ flavorDir: cfg.wow });
     const running = wowRunning().running;
     if (running && (before.state === 'missing' || before.added > 0)) return { ok: false, error: 'wow_running', detail: RUNNING_LINE };
-    const r = installAddon({ flavorDir: cfg.wow, force: running });
+    const r = installAddon({ flavorDir: cfg.wow, force: running, version: app.getVersion() });
     if (!r.ok) return r;
     note(running ? 'Addon updated: type /reload in game.' : 'Addon installed.');
     await sup.restart();
@@ -429,7 +435,7 @@ const CALLS = {
 for (const [name, fn] of Object.entries(CALLS)) {
   ipcMain.handle(`spellmind:${name}`, async (e, payload) => {
     // Only this app's own page may call.
-    if (!win || e.sender !== win.webContents) return { ok: false, error: 'refused' };
+    if (!win || e.sender !== win.webContents || e.senderFrame?.url !== PAGE_URL) return { ok: false, error: 'refused' };
     try { return await fn(payload); } catch (err) { return { ok: false, error: 'failed', detail: String(err?.message || err).slice(0, 200) }; }
   });
 }
@@ -449,7 +455,21 @@ app.on('will-quit', (e) => {
   sup.stop().finally(() => { linkState = { phase: 'stopped', restarts: 0 }; app.quit(); });
 });
 
+// The window's page, and nothing else, may call (its frame's address checked, not only its window).
+const PAGE_URL = pathToFileURL(path.join(HERE, 'renderer', 'index.html')).href;
+
+// Any web contents at all (the window's, or one that should never exist): no webviews, no new
+// windows, no navigation away (the security review: defence in depth behind the page's own policy).
+app.on('web-contents-created', (_e, wc) => {
+  wc.on('will-attach-webview', (ev) => ev.preventDefault());
+  wc.on('will-navigate', (ev) => ev.preventDefault());
+  wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+});
+
 app.whenReady().then(() => {
+  // The page asks for nothing: camera, microphone, notifications, clipboard, all refused.
+  session.defaultSession.setPermissionRequestHandler((_wc, _perm, done) => done(false));
+  session.defaultSession.setPermissionCheckHandler(() => false);
   fs.mkdirSync(DATA, { recursive: true });
   // No WoW folder yet: the one WoW: Forever folder on this computer, when there's exactly one.
   if (!readConfig(DATA).wow) {

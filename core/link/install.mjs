@@ -102,17 +102,46 @@ export function findFlavorDirs({ platform = process.platform, env = process.env,
   return found;
 }
 
+// A real folder at dir: a link or junction there is removed (never written through), then made.
+// The security review: on a shared PC the WoW folder is often writable by every user, and a junction
+// planted at AddOns\Spellmind sent the copy, at every app start, into another folder.
+const lstat = p => { try { return fs.lstatSync(p); } catch { return null; } };
+function realDirAt(dir) {
+  const st = lstat(dir);
+  if (st && st.isDirectory() && !st.isSymbolicLink()) return;
+  if (st) fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+}
+
 // Copy the addon's own files; keep sig/ (live doorbells) and an Inbox.lua the service wrote.
 function copyAddon(src, dst) {
-  fs.mkdirSync(dst, { recursive: true });
+  realDirAt(dst);
   let files = 0;
   for (const e of fs.readdirSync(src, { withFileTypes: true })) {
-    if (e.name === 'sig' || (e.name === 'Inbox.lua' && fs.existsSync(path.join(dst, 'Inbox.lua')))) continue;
+    if (e.name === 'sig' || (e.name === 'Inbox.lua' && lstat(path.join(dst, 'Inbox.lua'))?.isFile())) continue;
     const from = path.join(src, e.name);
     const to = path.join(dst, e.name);
-    if (e.isDirectory()) { fs.rmSync(to, { recursive: true, force: true }); files += copyAddon(from, to); } else if (e.isFile()) { fs.copyFileSync(from, to); files += 1; }
+    if (e.isDirectory()) { fs.rmSync(to, { recursive: true, force: true }); files += copyAddon(from, to); } else if (e.isFile()) {
+      // A file that's a link: removed, not copied through.
+      if (lstat(to)?.isSymbolicLink()) fs.rmSync(to, { force: true });
+      fs.copyFileSync(from, to);
+      files += 1;
+    }
   }
   return files;
+}
+
+// The installed addon's marker: the app version that last installed it.
+export const INSTALLED_BY = '.installed-by';
+export function installedBy(flavorDir) {
+  try { return fs.readFileSync(path.join(flavorDir, 'Interface', 'AddOns', ADDON_NAME, INSTALLED_BY), 'utf8').trim().slice(0, 32) || null; } catch { return null; }
+}
+
+/** a < b for versions like 0.2.10 (numbers compared part by part). */
+export function olderVersion(a, b) {
+  const pa = String(a || '0').split('.').map(n => parseInt(n, 10) || 0), pb = String(b || '0').split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const x = pa[i] || 0, y = pb[i] || 0; if (x !== y) return x < y; }
+  return false;
 }
 
 /**
@@ -139,19 +168,22 @@ export function addonState({ flavorDir, source = ADDON_SOURCE } = {}) {
     }
   };
   try { walk(source, dst); } catch { return { state: 'missing', changed: 0, added: 0 }; }
-  return { state: changed + added > 0 ? 'outdated' : 'current', changed, added };
+  return { state: changed + added > 0 ? 'outdated' : 'current', changed, added, installedBy: installedBy(flavorDir) };
 }
 
 /**
  * Install into flavorDir (…/World of Warcraft/_forever_). Refuses while the game runs.
  * → { ok, addonsDir, files, slots, bells } | { ok: false, error, detail }
  */
-export function installAddon({ flavorDir, source = ADDON_SOURCE, count = SLOT_COUNT, running = wowRunning, force = false } = {}) {
+export function installAddon({ flavorDir, source = ADDON_SOURCE, count = SLOT_COUNT, running = wowRunning, force = false, version = null } = {}) {
   if (!flavorDir || !looksLikeFlavor(flavorDir)) return { ok: false, error: 'not_a_wow_folder', detail: `${flavorDir} doesn't look like a WoW: Forever folder (the one with Interface and WTF in it, like _forever_).` };
   if (!fs.existsSync(path.join(source, `${ADDON_NAME}.toc`))) return { ok: false, error: 'no_addon', detail: `No addon at ${source}.` };
   if (!force && running().running) return { ok: false, error: 'wow_running', detail: RUNNING_LINE };
   const addonsDir = path.join(flavorDir, 'Interface', 'AddOns');
   const files = copyAddon(source, path.join(addonsDir, ADDON_NAME));
+  // Which app put it there, so an older app never writes its older addon over this one (the marker
+  // isn't one of the addon's files: the game never reads it, and copyAddon leaves it).
+  if (version) { try { fs.writeFileSync(path.join(addonsDir, ADDON_NAME, INSTALLED_BY), String(version)); } catch { /* the addon works without it */ } }
   const slots = installSlots(addonsDir, { count, iface: addonInterface(source) });
   const sig = signalPaths(addonsDir);
   const bells = [sig.present(), ...BELLS.map(sig.bell)].filter(f => fs.existsSync(f)).length;

@@ -116,3 +116,17 @@ test('a spawn that throws counts as a stop: it\'s tried again', () => {
   r.advance(1000);
   assert.equal(n, 2);
 });
+
+test('20 stops in a row: it gives up until a restart (the security review: every 30 s forever)', async () => {
+  const r = rig();
+  r.sup.start();
+  for (let i = 0; i < 20; i++) { r.last().exit(1); r.advance(30000); }
+  r.last().exit(1);
+  assert.equal(r.sup.state().phase, 'gave-up');
+  const n = r.kids.length;
+  r.advance(600000);
+  assert.equal(r.kids.length, n, 'no more tries');
+  await r.sup.restart();
+  assert.equal(r.sup.state().phase, 'running');
+  assert.equal(r.kids.length, n + 1);
+});

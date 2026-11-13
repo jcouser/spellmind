@@ -126,10 +126,19 @@ export function createAISetup({ manifests, keystore, signInFor = () => null, fet
     if (!v.ok) return { ok: false, error: v.error?.kind || 'failed', detail: errorWords(m, v.error) };
     // The model has to be one the service lists (when it lists any).
     if (v.models.length && !modelAvailable(id, v.models)) {
-      return { ok: false, error: 'model_not_found', detail: `The service doesn't list ${id}. It has: ${v.models.slice(0, 8).join(', ')}${v.models.length > 8 ? '…' : ''}`, models: v.models.slice(0, 50) };
+      // Only names shaped like model names, as the service sends them (the security review: any text, any length).
+      const names = v.models.filter(x => typeof x === 'string' && CUSTOM_MODEL_RE.test(x));
+      return { ok: false, error: 'model_not_found', detail: `The service doesn't list ${id}. It has: ${names.slice(0, 8).join(', ') || 'no models Spellmind can name'}${names.length > 8 ? '…' : ''}`, models: names.slice(0, 50) };
     }
-    if (key) await keystore.set(m.id, key);
-    return { ok: true, cfg: switchTo({ ...cfg, custom: { baseUrl: c.baseUrl, model: id } }, m) };
+    // The key belongs to the address it was given for (the security review: kept under "custom" alone,
+    // it went to the next address typed in, in the clear over a home network's http). A new key is kept
+    // with its host; a new host without one drops the old key.
+    const oldHost = (() => { try { return cfg.custom?.baseUrl ? new URL(cfg.custom.baseUrl).host : null; } catch { return null; } })();
+    const newHost = new URL(c.baseUrl).host;
+    let keyHost = cfg.custom?.keyHost || null;
+    if (key) { await keystore.set(m.id, key); keyHost = newHost; }
+    else if (oldHost !== newHost || keyHost !== newHost) { await keystore.delete(m.id); keyHost = null; }
+    return { ok: true, cfg: switchTo({ ...cfg, custom: { baseUrl: c.baseUrl, model: id, ...(keyHost ? { keyHost } : {}) } }, m) };
   }
 
   async function choose(cfg = {}, id) {

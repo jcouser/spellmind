@@ -162,6 +162,9 @@ export async function listenForCode({ state, ports = PORTS, timeoutMs = SIGN_IN_
   let landed = null; // closes the server once the browser has landed on DONE_PATH
   const finish = (v) => { if (!done) { done = true; settle(v); } };
   const server = createServer((req, res) => {
+    // Only a request to the address the redirect names (the security review: a page on another name
+    // that resolves here, by DNS rebinding, reached it too). 421: not this server's name.
+    if (port !== null && req.headers?.host !== `127.0.0.1:${port}`) { res.writeHead(421).end(); return; }
     let u;
     try { u = new URL(req.url, 'http://127.0.0.1'); } catch { res.writeHead(400).end(); return; }
     const send = (status, title, line) => { res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }); res.end(PAGE(title, line)); };

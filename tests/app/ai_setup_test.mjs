@@ -127,3 +127,18 @@ test('the link with a saved setting another AI had: the model falls back, the th
   assert.ok(aiChoices({ provider: 'xai' }).efforts.includes(p.effort));
   assert.equal(pickAI({ provider: 'custom' }).error, 'unknown_ai', 'Other without its settings');
 });
+
+test('Other\'s key belongs to its address: a new address without a key drops the old one; the link sends it only there (the security review)', async () => {
+  const { setup, store } = rig({ models: ['llama3.3'] });
+  const first = await setup.connectCustom({}, { baseUrl: 'https://openrouter.ai/api/v1', model: 'llama3.3' }, 'sk-or-v1-' + 'c'.repeat(64));
+  assert.equal(first.cfg.custom.keyHost, 'openrouter.ai');
+  assert.ok(store.get('custom'));
+  // The same address again without a key keeps it.
+  const same = await setup.connectCustom(first.cfg, { baseUrl: 'https://openrouter.ai/api/v1', model: 'llama3.3' }, null);
+  assert.equal(same.cfg.custom.keyHost, 'openrouter.ai');
+  assert.ok(store.get('custom'));
+  // Another address without a key: the old key is gone, not sent there.
+  const other = await setup.connectCustom(same.cfg, { baseUrl: 'http://192.168.1.20:11434/v1', model: 'llama3.3' }, null);
+  assert.equal(other.cfg.custom.keyHost, undefined);
+  assert.equal(store.get('custom'), undefined);
+});

@@ -24,6 +24,16 @@ extraMetadata:
   main: app/desktop/main.mjs
 
 asar: true
+
+# Electron's fuses, flipped in the exe at build time (the security review; NeverQuestAlone's
+# scripts/fuses.cjs flips the same): no running as plain Node, no NODE_OPTIONS or --inspect, the app only
+# from app.asar, and app.asar checked against the hash built into the exe.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  onlyLoadAppFromAsar: true
+  enableEmbeddedAsarIntegrityValidation: true
 asarUnpack:
   - "**/spellmind-capture.exe"
   - "**/*.node"

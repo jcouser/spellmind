@@ -21,6 +21,7 @@ import { createWindowsCapture } from '../link/capture.mjs';
 import { FOREVER_FLAVORS, NOT_GAME } from '../link/install.mjs';
 import { loadPack } from '../ai/pack.mjs';
 import { createTurn } from './turn.mjs';
+import { createLogger } from '../log.mjs';
 
 export function dataDir(env = process.env, platform = process.platform) {
   return platform === 'win32'
@@ -28,11 +29,23 @@ export function dataDir(env = process.env, platform = process.platform) {
     : path.join(os.homedir(), '.config', 'spellmind');
 }
 export const configFile = dir => path.join(dir, 'config.json');
-// A byte-order mark (Notepad's, PowerShell's) is skipped: JSON.parse refuses it, and the settings read as none.
-export function readConfig(dir) { try { return JSON.parse(fs.readFileSync(configFile(dir), 'utf8').replace(/^﻿/, '')); } catch { return {}; } }
+// The settings. A byte-order mark (Notepad's, PowerShell's) is skipped: JSON.parse refuses it. A file
+// that still can't be read is kept aside as config.json.bad (once), and reads as no settings.
+export function readConfig(dir) {
+  let text;
+  try { text = fs.readFileSync(configFile(dir), 'utf8'); } catch { return {}; }
+  try { return JSON.parse(text.replace(/^\uFEFF/, '')); } catch {
+    try { if (!fs.existsSync(`${configFile(dir)}.bad`)) fs.copyFileSync(configFile(dir), `${configFile(dir)}.bad`); } catch { /* kept or not */ }
+    return {};
+  }
+}
+// Written whole (a temp file, then renamed over), so a crash mid-write never leaves half a file that
+// reads as no settings (the security review: the start-at-login switch came back on that way).
 export function writeConfig(dir, cfg) {
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(configFile(dir), JSON.stringify(cfg, null, 2) + '\n');
+  const tmp = `${configFile(dir)}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(cfg, null, 2) + '\n');
+  fs.renameSync(tmp, configFile(dir));
 }
 
 /** The AI the settings name, and what the app shows of it: { m, model, effort, search } or { error }. */
@@ -63,12 +76,23 @@ export function startSpellmind({ dataDir: DATA, cfg = {}, over = {}, onEvent = (
   if (pick.error) return { ok: false, error: pick.error, detail: 'Unknown AI.' };
   const { m, model, effort, search } = pick;
   const keystore = createKeyStore({ backend: 'os' });
-  const egress = createEgress({ allowHosts: () => new Set(m.hosts), loopbackOk: true });
+  // Only Other may reach this computer (a server here); every other AI only its own hosts (the security review).
+  const egress = createEgress({ allowHosts: () => new Set(m.hosts), loopbackOk: m.custom === true });
   const session = createSignIns({ keystore, fetch: egress.fetch }).for(m);
-  const provider = createProvider(m, { getKey: async () => (session ? session.credentials() : keystore.get(m.id)), fetch: egress.fetch });
-  const logFile = path.join(DATA, 'spellmind.log');
+  // Other's key goes only to the host it was given for (cfg.custom.keyHost, core/app/ai.mjs).
+  const customKeyOK = () => !m.custom || (cfg.custom?.keyHost && cfg.custom.keyHost === new URL(m.baseUrl).host);
+  const provider = createProvider(m, { getKey: async () => (session ? session.credentials() : (customKeyOK() ? keystore.get(m.id) : null)), fetch: egress.fetch });
+  // The log (the security review: one file that grew forever, unscrubbed, with the link's session
+  // token and nonce): core/log.mjs's, a file a day in <data>/logs kept 7 days, every line through the
+  // key redactor. The token and nonce fields are left out, and a publish is logged only when it failed.
   fs.mkdirSync(DATA, { recursive: true });
-  const log = (k, d) => { try { fs.appendFileSync(logFile, `${new Date().toISOString()} ${k} ${JSON.stringify(d ?? {})}\n`); } catch { /* logging never stops the link */ } };
+  try { fs.rmSync(path.join(DATA, 'spellmind.log'), { force: true }); } catch { /* the old log, gone or not */ }
+  const logger = createLogger(path.join(DATA, 'logs'));
+  const log = (k, d) => {
+    if (k === 'publish' && !(d && (d.errors || d.error))) return;
+    const { token, nonce, ...rest } = d && typeof d === 'object' ? d : {};
+    try { logger(k, rest); } catch { /* logging never stops the link */ }
+  };
 
   const label = m.models.list.find(x => x.id === model)?.label || model;
   const st = { ai: { name: m.name, model: label, effort, search }, wow: null, reading: false, hello: null, lastAt: null, error: null };

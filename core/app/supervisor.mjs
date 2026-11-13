@@ -8,13 +8,17 @@
 //
 //   createSupervisor({ spawn, onState, onMessage }) → { start(), stop() → Promise, restart() → Promise, state() }
 //   spawn() → { onExit(cb(code)), onMessage(cb(msg)), kill() }
-//   state(): { phase: 'running' | 'restarting' | 'setup' | 'stopped', restarts, delayMs?, code? }
+//   state(): { phase: 'running' | 'restarting' | 'setup' | 'stopped' | 'gave-up', restarts, delayMs?, code? }
+//
+// After MAX_STREAK stops in a row (none up two minutes) it gives up until restart() (the security
+// review: every 30 s forever, a helper started and a log line each time).
 export const NEEDS_SETUP = 2;
 export const DELAYS_MS = Object.freeze([1000, 2000, 5000, 15000, 30000]);
 // Up this long, a stop starts the count again from the shortest wait.
 export const STABLE_MS = 120000;
+export const MAX_STREAK = 20;
 
-export function createSupervisor({ spawn, onState = () => {}, onMessage = () => {}, delays = DELAYS_MS, stableMs = STABLE_MS,
+export function createSupervisor({ spawn, onState = () => {}, onMessage = () => {}, delays = DELAYS_MS, stableMs = STABLE_MS, maxStreak = MAX_STREAK,
   now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout, killWaitMs = 5000 } = {}) {
   let child = null, timer = null, stopping = false, tries = 0, startedAt = 0, waiters = [];
   let st = { phase: 'stopped', restarts: 0 };
@@ -41,6 +45,7 @@ export function createSupervisor({ spawn, onState = () => {}, onMessage = () => 
     if (stopping) { set({ phase: 'stopped', code }); return; }
     if (code === NEEDS_SETUP) { set({ phase: 'setup', code }); return; }
     if (now() - startedAt >= stableMs) tries = 0;
+    if (tries >= maxStreak) { set({ phase: 'gave-up', code }); return; }
     const delayMs = delays[Math.min(tries, delays.length - 1)];
     tries += 1;
     set({ phase: 'restarting', code, delayMs });

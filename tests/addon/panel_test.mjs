@@ -33,7 +33,7 @@ test('Quests: ready; Do now grouped by the log\'s own headers (the zone you\'re 
   vm.run('NS.Panel.Show("quests")');
   const d = drawn(vm);
   const heads = d.filter(x => x.kind === 'head').map(x => x.text);
-  assert.deepEqual(heads, ['Ready to turn in', 'Do now: Loch Modan', 'Dungeon: Ironforge', 'Later'], 'the zone you\'re in (Loch Modan) first');
+  assert.deepEqual(heads, ['Ready to turn in', 'Do now: Loch Modan', 'Dungeons', 'Later'], 'the zone you\'re in (Loch Modan) first');
   const section = h => { const i = d.findIndex(x => x.text === h); const j = d.findIndex((x, k) => k > i && x.kind === 'head'); return d.slice(i + 1, j < 0 ? d.length : j); };
   const ready = section('Ready to turn in');
   assert.ok(ready.filter(x => x.kind === 'item').every(x => /Ready to turn in/.test(x.sub)));
@@ -48,13 +48,13 @@ test('Quests: ready; Do now grouped by the log\'s own headers (the zone you\'re 
   assert.equal(here[0].sub, "|cffbbbbbb0/1 Bingles' Wrench, 0/1 Bingles' Screwdriver|r", 'what\'s left');
   assert.equal(here[0].right, 'SW · 200 yd', 'direction and distance');
   assert.match(here[1].text, /Snowbound/);
-  const dungeon = section('Dungeon: Ironforge');
-  assert.match(dungeon[0].text, /Old Ironforge Incursion/, 'with its header\'s group, though no marker is on this map');
-  assert.equal(dungeon[0].tag, undefined, 'no "Dungeon" label under a Dungeon heading (the review)');
+  const dungeon = section('Dungeons');
+  assert.match(dungeon[0].text, /\]\|r Ironforge$/, 'one row for the dungeon, by its header, though no marker is on this map');
+  assert.match(dungeon[0].sub, /1 quest: Old Ironforge Incursion/);
   const later = section('Later');
   assert.match(later[0].text, /\[18\]\|r Gathering Idols/);
   assert.equal(later[0].right, 'NE · 560 yd');
-  assert.ok(d.filter(x => x.kind === 'item').every(x => typeof x.quest === 'number'), 'every quest row has its mark');
+  assert.ok(d.filter(x => x.kind === 'item' && x !== dungeon[0]).every(x => typeof x.quest === 'number'), 'every quest row has its mark');
   assert.equal(vm.evaluate('SpellmindPanel.asks[1].text:GetText()'), 'Ask: Plan my next hour');
 });
 
@@ -167,13 +167,17 @@ test('LFG: every click asks where (the current chat channel, the joined channels
   vm.run('SpellmindLFGMenu.rows[1].scripts.OnClick(SpellmindLFGMenu.rows[1])'); // the current chat channel
   assert.equal(vm.evaluate('STUB.openedChat'), 'LFG Ironforge DPS Rogue', "any of the dungeon's quests: the same line; no prefix: the chat box's own channel");
 });
-test('the LFG button: only on group, elite or dungeon quests that aren\'t done', () => {
+test('the LFG button: only on group or elite quests that aren\'t done, and on a dungeon\'s row', () => {
   const vm = session();
-  vm.run('C_QuestLog.GetQuestTagInfo = function(id) if id == 96393 then return { tagID = 81, tagName = "Dungeon" } end end');
+  vm.run('C_QuestLog.IsEliteQuest = function(id) return id == 96393 end');
   vm.run('NS.Panel.Show("quests")');
   const labels = vm.json('(function() local out = {} for _, r in ipairs(SpellmindPanel.rows) do if r:IsShown() and r.mark and r.mark.questID then local t = {} for _, a in ipairs(r.actions or {}) do if a:IsShown() then t[#t + 1] = a.text:GetText() end end out[tostring(r.mark.questID)] = table.concat(t, ",") end end return out end)()');
   assert.equal(labels['96393'], 'LFG,Go');
   assert.equal(labels['2038'], 'Go');
+  vm.run('C_QuestLog.IsEliteQuest = function() return false end; C_QuestLog.GetQuestTagInfo = function(id) if id == 96393 then return { tagID = 81, tagName = "Dungeon" } end end');
+  vm.run('NS.Panel.Show("quests")');
+  const row = vm.evaluate('(function() for _, r in ipairs(SpellmindPanel.rows) do if r:IsShown() and tostring(r.left:GetText()):match("%]|r Ironforge$") then local t = {} for _, a in ipairs(r.actions or {}) do if a:IsShown() then t[#t + 1] = a.text:GetText() end end return table.concat(t, ",") end end end)()');
+  assert.equal(row, 'LFG,Open', 'the dungeon\'s one row');
 });
 
 test('LFG on a group quest that isn\'t a dungeon: its own title; a leading "The" goes', () => {
@@ -192,11 +196,15 @@ table.insert(STUB.quests, { title = "Underground Assault", questID = 2040, level
 C_QuestLog.GetQuestTagInfo = function(id) if id == 168 or id == 167 or id == 2040 then return { tagID = 81, tagName = "Dungeon" } end end`);
   vm.run('NS.Panel.Show("quests")');
   const d = drawn(vm);
-  const i = d.findIndex(x => x.text === 'Dungeon: The Deadmines');
-  assert.ok(i >= 0);
-  const rows = d.slice(i + 1, i + 4).map(x => x.text);
-  assert.ok(/Collecting Memories/.test(rows[0]) && /Oh Brother/.test(rows[1]) && /Underground Assault/.test(rows[2]), JSON.stringify(rows));
-  assert.match(d[i + 2].right, /\+5 levels/, 'the gap still shows');
+  // One row for the dungeon (the player's call: the Dungeons tab has the details), its quests named.
+  const row = d.find(x => /\]\|r The Deadmines$/.test(x.text || ''));
+  assert.ok(row);
+  assert.match(row.text, /\[18\]/, 'its lowest quest\'s level');
+  assert.match(row.sub, /3 quests: Collecting Memories, Oh Brother\.\.\., Underground Assault/);
+  assert.equal(row.right, '|cffff9933+3 levels|r', 'its lowest quest\'s gap (the rogue is 15)');
+  assert.ok(!d.some(x => /^\|c\w+\[20\]\|r (Oh Brother|Underground Assault)/.test(x.text || '')), 'its quests aren\'t listed one by one');
+  vm.run('SpellmindPanel.rows[' + (d.indexOf(row) + 1) + '].actions[2].scripts.OnClick(SpellmindPanel.rows[' + (d.indexOf(row) + 1) + '].actions[2])');
+  assert.equal(vm.evaluate('NS.Panel.tab'), 'dungeons', 'Open: the Dungeons tab');
   const later = d.findIndex(x => x.text === 'Later');
   assert.ok(!d.slice(later + 1).some(x => /Oh Brother|Underground Assault/.test(x.text || '')), 'not under Later');
 });

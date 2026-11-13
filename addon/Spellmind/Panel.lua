@@ -403,6 +403,7 @@ function Tabs.quests()
 			local id = it.id
 			local row = { kind = "item", left = color .. "[" .. level .. plus .. "]|r " .. ns.Escape(info.title or it.title or "?"),
 				sub = sub, right = right, tag = tag, quest = id, dist = info.dist or P.FAR, order = info.logIndex or 999, xp = xp or 0,
+				name = info.title or it.title or "?", color = color,
 				actions = { { "Go", function() P.Go(id) end } } }
 			-- A group, elite or dungeon quest: LFG puts a ready message in the chat box.
 			if not info.complete and (info.elite or info.group or dungeon) then
@@ -420,7 +421,7 @@ function Tabs.quests()
 				end
 				local g = byDungeon[h]
 				g.rows[#g.rows + 1] = row
-				if level < g.low then g.low = level end
+				if level <= g.low then g.low, g.color = level, color end
 			elseif (info.elite or info.group) and not dungeon then groups.group[#groups.group + 1] = row
 			elseif info.diff == "VeryDifficult" or info.diff == "Impossible" then groups.later[#groups.later + 1] = row
 			else
@@ -458,11 +459,20 @@ function Tabs.quests()
 	local line = #groups.ready > 0 and ns.Quests.XpLine(total) or nil
 	if line then table.insert(out, 2, { kind = "text", text = line }) end
 	for _, g in ipairs(now) do Section("Do now: " .. ns.Escape(g.title), g.rows) end
-	-- Dungeons, the lowest first: their quests together, level by level.
+	-- Dungeons, the lowest first: one row each, its quests named, Open for the Dungeons tab, which has
+	-- their givers, chains and hand-ins (the review, and the player's call: a dungeon's quests in
+	-- full here repeated that tab). Ready ones are still under Ready to turn in.
 	table.sort(dungeons, function(a, b) if a.low ~= b.low then return a.low < b.low end return a.order < b.order end)
+	if #dungeons > 0 then out[#out + 1] = { kind = "head", text = "Dungeons" } end
 	for _, g in ipairs(dungeons) do
 		table.sort(g.rows, function(a, b) return a.order < b.order end)
-		Section("Dungeon: " .. ns.Escape(g.title), g.rows)
+		local names = {}
+		for _, r in ipairs(g.rows) do names[#names + 1] = r.name end
+		local gap, place = g.low - you, g.title
+		out[#out + 1] = { kind = "item", left = (g.color or "|cffffffff") .. "[" .. g.low .. "]|r " .. ns.Escape(place),
+			sub = "|cff888888" .. #g.rows .. (#g.rows == 1 and " quest: " or " quests: ") .. ns.Escape(table.concat(names, ", ")) .. "|r",
+			right = gap >= 3 and ("|cffff9933+" .. gap .. " levels|r") or nil,
+			actions = { { "LFG", function(button, b) P.LFGMenu(place, b) end }, { "Open", function() P.Show("dungeons") end } } }
 	end
 	Section("Group", groups.group)
 	Section("Later", groups.later)

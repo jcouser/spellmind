@@ -51,7 +51,7 @@ The UX reviewer's findings (2026-11-12), checked against the code. Each is fixed
 - **Spells to train** is keyed on the level, so buying one of three spells doesn't nudge again.
 
 ## Not done (needs the player's say or a screenshot)
-- **The Quests tab vs the Questie tracker.** The reviewer suggested a "Next up" section, and collapsing each dungeon to one row that points to the Dungeons tab. The player asked earlier for a dungeon's quests together in the Quests tab, so this waits for their call.
+- **A "Next up" section on the Quests tab** (the reviewer). Collapsing each dungeon to one row is done, below.
 - **Splitting Gold's "Coming up" into guide spells and everything.**
 - **Visual checks:** the window at its minimum size, compact mode, and first-run states.
 
@@ -81,3 +81,11 @@ Each quest's details were one long grey line ("Pick up · from X · leads to Y")
   - Spells: Spells. Talents: Talents. Bags and repairs: Gear. Turn-ins: Quests. Professions: Professions. Entering a dungeon: Dungeons.
 - **Open** is a button on each row of the Nudges tab too.
 - **An opened nudge counts as seen, like an asked one:** it doesn't toast again or count on the badge. It stays in the list until it's dismissed or no longer applies, and it toasts again if the situation changes.
+
+## The Quests tab: one row per dungeon (the player's call, 2026-11-13)
+
+A dungeon's quests in full on the Quests tab repeated the Dungeons tab, which has their givers, chains and hand-ins.
+
+- **Under one Dungeons heading, each dungeon is one row.** Its lowest quest's level is in that quest's colour, with "+N levels" when it's 3 or more up. Its quests are named on the line below ("3 quests: Collecting Memories, Oh Brother..., Underground Assault").
+- **LFG** writes the dungeon's line. **Open** shows the Dungeons tab.
+- **Ready ones are still under Ready to turn in, and grey ones under Skip?**

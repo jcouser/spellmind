@@ -60,6 +60,48 @@ export function looksLikeFlavor(dir) {
   } catch { return false; }
 }
 
+/**
+ * A picked folder as WoW: Forever's (the desktop app's picker): the flavor folder itself, or one of
+ * the flavors inside a picked "World of Warcraft" folder. → the flavor folder, or null.
+ */
+export function flavorIn(dir, flavors = FOREVER_FLAVORS) {
+  if (!dir) return null;
+  const base = path.basename(dir);
+  if (flavors.includes(base) && looksLikeFlavor(dir)) return dir;
+  for (const f of flavors) { const inside = path.join(dir, f); if (looksLikeFlavor(inside)) return inside; }
+  return looksLikeFlavor(dir) && fs.existsSync(path.join(dir, 'Interface')) ? dir : null;
+}
+
+/**
+ * Where WoW: Forever may be installed on this computer (the app's first run, the review: the player
+ * had to find the folder by hand). Battle.net's own record of WoW's folder first (the registry), then
+ * "World of Warcraft" under Program Files and at each drive's root. → the flavor folders found.
+ */
+export function findFlavorDirs({ platform = process.platform, env = process.env, run = spawnSync, drives = ['C', 'D', 'E', 'F', 'G'] } = {}) {
+  if (platform !== 'win32') return [];
+  const roots = [];
+  try {
+    const reg = path.join(env.SystemRoot || env.windir || 'C:\\Windows', 'System32', 'reg.exe');
+    for (const key of ['HKLM\\SOFTWARE\\WOW6432Node\\Blizzard Entertainment\\World of Warcraft', 'HKLM\\SOFTWARE\\Blizzard Entertainment\\World of Warcraft']) {
+      const r = run(reg, ['query', key, '/v', 'InstallPath'], { encoding: 'utf8', timeout: 5000, windowsHide: true });
+      const m = /InstallPath\s+REG_SZ\s+(.+)/i.exec(String(r?.stdout || ''));
+      // It names a flavor folder (…\World of Warcraft\_retail_\): its parent holds the others.
+      if (m) roots.push(path.dirname(m[1].trim().replace(/[\\/]+$/, '')));
+    }
+  } catch { /* no registry: the usual places */ }
+  for (const d of drives) {
+    roots.push(`${d}:\\Program Files (x86)\\World of Warcraft`, `${d}:\\Program Files\\World of Warcraft`, `${d}:\\World of Warcraft`, `${d}:\\Games\\World of Warcraft`);
+  }
+  const found = [];
+  for (const root of [...new Set(roots)]) {
+    for (const f of FOREVER_FLAVORS) {
+      const dir = path.join(root, f);
+      if (!found.some(x => x.toLowerCase() === dir.toLowerCase()) && looksLikeFlavor(dir)) found.push(dir);
+    }
+  }
+  return found;
+}
+
 // Copy the addon's own files; keep sig/ (live doorbells) and an Inbox.lua the service wrote.
 function copyAddon(src, dst) {
   fs.mkdirSync(dst, { recursive: true });

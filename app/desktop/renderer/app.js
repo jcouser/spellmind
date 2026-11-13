@@ -60,16 +60,35 @@ function draw(s) {
   $('pillText').textContent = s.summary.text;
 
   // Setup: what's still to do, in order.
+  // Each step with its own button, so nothing says "below" (the review: the folder's button was under
+  // the fold). Only the next step to do has one.
   const steps = [
-    { done: s.wow.ok, text: 'Pick your WoW: Forever folder (below).' },
-    { done: s.wow.addon.state !== 'missing', text: 'Install the addon, with WoW closed.' },
-    { done: !!s.ai.ready, text: 'Set up your AI: sign in with your ChatGPT plan, or paste an API key (below).' },
+    { done: s.wow.ok, text: s.wow.ok ? `WoW folder: ${s.wow.folder}` : 'Pick your WoW: Forever folder.', button: ['Pick the folder', () => $('chooseWow').click()] },
+    { done: s.wow.addon.state !== 'missing', text: 'Install the addon (with WoW closed).', button: ['Install', () => $('installAddon').click()] },
+    { done: !!s.ai.ready, text: 'Set up your AI: sign in with your ChatGPT plan, or paste an API key.', button: ['Set it up', () => $('aiPick').closest('section').scrollIntoView({ behavior: 'smooth' })] },
     { done: !!s.run?.hello, text: 'Start WoW and log in: the game says hello here.' },
   ];
   // Shown until the first three are done; the hello is the status card's after that.
   const todo = steps.slice(0, 3).some(x => !x.done);
   $('setupCard').hidden = !todo;
-  $('steps').replaceChildren(...steps.map(x => { const li = document.createElement('li'); li.textContent = x.text; if (x.done) li.className = 'done'; return li; }));
+  $('statusCard').hidden = todo;
+  const next = steps.find(x => !x.done);
+  $('steps').replaceChildren(...steps.map(x => {
+    const li = document.createElement('li');
+    const span = document.createElement('span');
+    span.textContent = x.text;
+    li.append(span);
+    if (x.done) li.className = 'done';
+    if (x === next && x.button) {
+      const b = document.createElement('button');
+      b.textContent = x.button[0];
+      b.addEventListener('click', x.button[1]);
+      // Install waits for a folder.
+      if (x.button[0] === 'Install') b.disabled = !s.wow.ok;
+      li.append(b);
+    }
+    return li;
+  }));
 
   // Status.
   const r = s.run || {};

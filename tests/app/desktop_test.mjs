@@ -54,6 +54,8 @@ test('config.json: read back as written; a missing or broken one reads as empty'
   assert.deepEqual(readConfig(dir), {});
   writeConfig(dir, { wow: 'C:\\WoW\\_forever_', effort: 'high' });
   assert.deepEqual(readConfig(dir), { wow: 'C:\\WoW\\_forever_', effort: 'high' });
+  fs.writeFileSync(path.join(dir, 'config.json'), '﻿{ "wow": "X" }');
+  assert.deepEqual(readConfig(dir), { wow: 'X' }, 'saved by Notepad, with a byte-order mark');
   fs.writeFileSync(path.join(dir, 'config.json'), '{ not json');
   assert.deepEqual(readConfig(dir), {});
 });

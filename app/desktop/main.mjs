@@ -18,7 +18,7 @@ import { createSupervisor } from '../../core/app/supervisor.mjs';
 import { aiChoices, applyAI } from '../../core/app/settings.mjs';
 import { createAISetup } from '../../core/app/ai.mjs';
 import { eventLine } from '../../core/app/lines.mjs';
-import { installAddon, addonState, looksLikeFlavor, wowRunning, RUNNING_LINE } from '../../core/link/install.mjs';
+import { installAddon, addonState, looksLikeFlavor, flavorIn, findFlavorDirs, wowRunning, RUNNING_LINE } from '../../core/link/install.mjs';
 import { loadManifests } from '../../core/ai/providers/index.mjs';
 import { createKeyStore } from '../../core/ai/security/keystore.mjs';
 import { createEgress } from '../../core/ai/security/egress.mjs';
@@ -26,7 +26,8 @@ import { createSignIns } from '../../core/ai/signin/index.mjs';
 import { IDENTITY } from '../../core/identity.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DATA = dataDir();
+// SPELLMIND_DATA: another data folder (a first run seen from source, the tests); the player's is dataDir().
+const DATA = (!app.isPackaged && process.env.SPELLMIND_DATA) || dataDir();
 const HIDDEN = process.argv.includes('--hidden');
 const ACTIVITY_MAX = 40;
 
@@ -39,6 +40,7 @@ let win = null, tray = null, quitting = false;
 let linkState = { phase: 'stopped', restarts: 0 };
 let runStatus = null; // the worker's last status: { ai, wow, reading, hello, lastAt, error }
 let setupError = null; // what the worker needs before it can start
+let setupNeeded = false; // a setup step undone (fullStatus works it out)
 const activity = []; // { at, line }
 
 // The app's own switches, in config.json under "app" (all on unless turned off).
@@ -174,7 +176,8 @@ const loginItem = {
 
 function summary() {
   const s = runStatus;
-  if (linkState.phase === 'setup' || setupError) return { tone: 'warn', text: setupError || 'Finish the setup' };
+  // The setup card says which step; the pill only that there's one (the review: a long sentence in it).
+  if (linkState.phase === 'setup' || setupError || setupNeeded) return { tone: 'warn', text: 'Finish the setup' };
   if (linkState.phase === 'restarting') return { tone: 'warn', text: `Restarting the link in ${Math.round((linkState.delayMs || 0) / 1000)} s` };
   if (linkState.phase !== 'running') return { tone: 'off', text: 'The link is stopped' };
   if (SIGN_IN_KINDS.has(s?.error)) return { tone: 'bad', text: 'Sign in again' };
@@ -186,14 +189,20 @@ function summary() {
 async function fullStatus() {
   const cfg = readConfig(DATA);
   const wow = cfg.wow || null;
+  const ai = await aiStatus(cfg);
+  const wowState = { folder: wow, ok: !!wow && looksLikeFlavor(wow), addon: wow ? addonState({ flavorDir: wow }) : { state: 'missing' } };
+  // Kept for the tray and the pill: any of the first three setup steps undone.
+  const was = setupNeeded;
+  setupNeeded = !wowState.ok || wowState.addon.state === 'missing' || !ai.ready;
+  if (was !== setupNeeded) refreshTray();
   return {
     version: app.getVersion(),
     packaged: app.isPackaged,
     summary: summary(),
     link: linkState,
     run: runStatus,
-    ai: await aiStatus(cfg),
-    wow: { folder: wow, ok: !!wow && looksLikeFlavor(wow), addon: wow ? addonState({ flavorDir: wow }) : { state: 'missing' } },
+    ai,
+    wow: wowState,
     loginItem: loginItem.get(),
     app: appSettings(),
     activity: activity.slice().reverse(),
@@ -355,10 +364,13 @@ const CALLS = {
   },
 
   chooseWow: async () => {
-    const r = await dialog.showOpenDialog(win, { title: 'Your WoW: Forever folder (_forever_)', properties: ['openDirectory'] });
+    // It opens where WoW is (the saved folder, or one found on this computer).
+    const near = readConfig(DATA).wow || findFlavorDirs()[0] || null;
+    const r = await dialog.showOpenDialog(win, { title: 'Your WoW: Forever folder (_forever_)', properties: ['openDirectory'], ...(near ? { defaultPath: near } : {}) });
     if (r.canceled || !r.filePaths[0]) return { ok: false, error: 'cancelled' };
-    const dir = r.filePaths[0];
-    if (!looksLikeFlavor(dir)) return { ok: false, error: 'not_a_wow_folder', detail: 'That folder doesn\'t look like WoW: Forever\'s. Pick the _forever_ folder (the one with Interface and WTF in it).' };
+    // The _forever_ folder, or the "World of Warcraft" folder above it.
+    const dir = flavorIn(r.filePaths[0]);
+    if (!dir) return { ok: false, error: 'not_a_wow_folder', detail: 'That folder doesn\'t look like WoW: Forever\'s. Pick the _forever_ folder (the one with Interface and WTF in it), or the World of Warcraft folder above it.' };
     writeConfig(DATA, { ...readConfig(DATA), wow: dir });
     await sup.restart();
     return { ok: true, folder: dir };
@@ -418,7 +430,11 @@ app.on('will-quit', (e) => {
 
 app.whenReady().then(() => {
   fs.mkdirSync(DATA, { recursive: true });
-  const cfg = readConfig(DATA);
+  // No WoW folder yet: the one WoW: Forever folder on this computer, when there's exactly one.
+  if (!readConfig(DATA).wow) {
+    const found = findFlavorDirs();
+    if (found.length === 1) { writeConfig(DATA, { ...readConfig(DATA), wow: found[0] }); note(`Found your WoW folder: ${found[0]}`); }
+  }
   // Start at login is on unless the player turned it off (the point of the app: the link is there
   // when the game is). Written on every start, so the Run value names this copy: the installed one
   // after an install, not a run from source before it.
@@ -426,6 +442,7 @@ app.whenReady().then(() => {
   createTray();
   updateAddonIfOld('Spellmind started');
   sup.start();
-  // A login start stays in the tray; a start by hand, or one that still needs setup, opens the window.
-  if (!HIDDEN || !cfg.wow) openWindow();
+  // A login start stays in the tray; a start by hand, or one with any setup step undone, opens the window.
+  if (!HIDDEN) openWindow();
+  else fullStatus().then((s) => { if (!s.wow.ok || s.wow.addon.state === 'missing' || !s.ai.ready) openWindow(); }).catch(() => openWindow());
 });

@@ -30,7 +30,8 @@ export function dataDir(env = process.env, platform = process.platform) {
     : path.join(os.homedir(), '.config', 'spellmind');
 }
 export const configFile = dir => path.join(dir, 'config.json');
-export function readConfig(dir) { try { return JSON.parse(fs.readFileSync(configFile(dir), 'utf8')); } catch { return {}; } }
+// A byte-order mark (Notepad's, PowerShell's) is skipped: JSON.parse refuses it, and the settings read as none.
+export function readConfig(dir) { try { return JSON.parse(fs.readFileSync(configFile(dir), 'utf8').replace(/^﻿/, '')); } catch { return {}; } }
 export function writeConfig(dir, cfg) {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(configFile(dir), JSON.stringify(cfg, null, 2) + '\n');

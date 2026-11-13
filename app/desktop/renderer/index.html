@@ -73,7 +73,12 @@
 
     <section class="card">
       <h2>The app</h2>
-      <label class="switch"><input type="checkbox" id="loginItem"><span>Start Spellmind when I log in to Windows</span></label>
+      <div class="switches">
+        <label class="switch"><input type="checkbox" id="loginItem"><span>Start Spellmind when I log in to Windows</span></label>
+        <label class="switch"><input type="checkbox" id="minimizeToTray" data-app="minimizeToTray"><span>Minimize to the tray, not the taskbar</span></label>
+        <label class="switch"><input type="checkbox" id="notifications" data-app="notifications"><span>Tell me when something needs me (sign-in, the link stopping, an addon update)</span></label>
+        <label class="switch"><input type="checkbox" id="updateAddon" data-app="updateAddon"><span>Keep the addon up to date (only while WoW is closed)</span></label>
+      </div>
       <p class="note" id="loginNote">It waits in the tray, by the clock, so the game finds it. Closing this window keeps it there; Quit is in the tray icon's menu.</p>
       <div class="row buttons">
         <button id="restartLink" class="quiet">Restart the link</button>

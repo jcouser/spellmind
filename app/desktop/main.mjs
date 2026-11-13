@@ -9,7 +9,7 @@
 //   - One copy runs: a second launch opens the first one's window.
 //   - The window (renderer/): status, the AI and its sign-in, the WoW folder and the addon, the app.
 //     Closing it keeps Spellmind in the tray; Quit in the tray's menu ends it.
-import { app, BrowserWindow, Tray, Menu, nativeImage, dialog, ipcMain, shell, utilityProcess } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, dialog, ipcMain, shell, utilityProcess, Notification } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +38,41 @@ let runStatus = null; // the worker's last status: { ai, wow, reading, hello, la
 let setupError = null; // what the worker needs before it can start
 const activity = []; // { at, line }
 
+// The app's own switches, in config.json under "app" (all on unless turned off).
+const APP_DEFAULTS = Object.freeze({ minimizeToTray: true, notifications: true, updateAddon: true });
+const appSettings = () => ({ ...APP_DEFAULTS, ...(readConfig(DATA).app || {}) });
+
+// The sign-in is gone or refused (core/ai/providers/errors.mjs kinds): the player has to act.
+const SIGN_IN_KINDS = new Set(['oauth_expired', 'auth_invalid', 'no_key']);
+let failStreak = 0; // restarts in a row without the link staying up
+const told = new Set(); // what a notification has said this session
+
+// A desktop notification, once per thing until it's resolved; a click opens the window.
+function notify(key, title, body) {
+  if (told.has(key) || !appSettings().notifications || !Notification.isSupported()) return;
+  told.add(key);
+  const n = new Notification({ title, body, icon: path.join(HERE, 'assets', 'icon.png'), silent: true });
+  n.on('click', () => openWindow());
+  n.show();
+}
+
+// The addon kept up to date: the app's copy over the game's, only while WoW is closed (new files load
+// only when the game starts). At start and when WoW closes; nothing when it isn't installed yet.
+function updateAddonIfOld(why) {
+  const cfg = readConfig(DATA);
+  if (!appSettings().updateAddon || !cfg.wow) return;
+  const st = addonState({ flavorDir: cfg.wow });
+  if (st.state !== 'outdated') return;
+  if (wowRunning().running) { note('An addon update is ready: it goes in when WoW closes.'); return; }
+  const r = installAddon({ flavorDir: cfg.wow });
+  if (r.ok) {
+    note(`Addon updated (${why}).`);
+    told.delete('addon-updated');
+    notify('addon-updated', 'Spellmind\'s addon is up to date', 'The new version loads the next time you start WoW.');
+  } else note(`The addon couldn't be updated: ${r.detail || r.error}`);
+  pushStatus();
+}
+
 // ---------------------------------------------------------------------------
 // The link's worker, kept running.
 
@@ -63,11 +98,27 @@ const sup = createSupervisor({
   onState: (s) => {
     linkState = s;
     if (s.phase === 'running') setupError = null;
-    if (s.phase === 'restarting') note(`The link stopped; starting it again in ${Math.round(s.delayMs / 1000)} s.`);
+    if (s.phase === 'restarting') {
+      note(`The link stopped; starting it again in ${Math.round(s.delayMs / 1000)} s.`);
+      failStreak += 1;
+      // Three in a row: something's wrong that a restart doesn't fix.
+      if (failStreak >= 3) notify('link-failing', 'Spellmind\'s link keeps stopping', 'It keeps trying. Open Spellmind to see what happened, or restart it from the tray.');
+    }
     pushStatus();
   },
   onMessage: (m) => {
-    if (m?.type === 'event') { runStatus = m.ev?.status || runStatus; note(eventLine(m.ev)); }
+    if (m?.type === 'event') {
+      runStatus = m.ev?.status || runStatus;
+      note(eventLine(m.ev));
+      const k = m.ev?.kind;
+      // The link works again: a later failure may say so again.
+      if (k === 'hello' || k === 'reply') { failStreak = 0; told.delete('link-failing'); }
+      if (k === 'reply') told.delete('sign-in');
+      if (k === 'turn-error' && SIGN_IN_KINDS.has(m.ev.what)) {
+        notify('sign-in', 'Spellmind needs you to sign in again', 'Your AI refused the sign-in. Open Spellmind and sign in, then ask again in game.');
+      }
+      if (k === 'wow' && m.ev.state === 'exited') updateAddonIfOld('WoW closed');
+    }
     else if (m?.type === 'status') runStatus = m.status;
     else if (m?.type === 'setup') setupError = m.detail || m.error;
     pushStatus();
@@ -112,7 +163,8 @@ function summary() {
   if (linkState.phase === 'setup' || setupError) return { tone: 'warn', text: setupError || 'Finish the setup' };
   if (linkState.phase === 'restarting') return { tone: 'warn', text: `Restarting the link in ${Math.round((linkState.delayMs || 0) / 1000)} s` };
   if (linkState.phase !== 'running') return { tone: 'off', text: 'The link is stopped' };
-  if (s?.error === 'auth' || s?.error === 'expired') return { tone: 'bad', text: 'Sign in again' };
+  if (SIGN_IN_KINDS.has(s?.error)) return { tone: 'bad', text: 'Sign in again' };
+  if (s?.error === 'out_of_credit' || s?.error === 'spend_limit' || s?.error === 'rate_limited') return { tone: 'warn', text: 'Your AI plan\'s limit is reached' };
   if (s?.wow === 'running' || s?.wow === 'launched') return { tone: 'good', text: s.hello ? 'Linked to WoW' : 'WoW is running: waiting for the addon' };
   return { tone: 'idle', text: 'Waiting for WoW' };
 }
@@ -129,6 +181,7 @@ async function fullStatus() {
     ai: await aiStatus(cfg),
     wow: { folder: wow, ok: !!wow && looksLikeFlavor(wow), addon: wow ? addonState({ flavorDir: wow }) : { state: 'missing' } },
     loginItem: loginItem.get(),
+    app: appSettings(),
     activity: activity.slice().reverse(),
   };
 }
@@ -183,6 +236,8 @@ function openWindow() {
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.on('close', (e) => { if (!quitting) { e.preventDefault(); win.hide(); } });
+  // Minimized: into the tray, off the taskbar (a switch in the window).
+  win.on('minimize', (e) => { if (appSettings().minimizeToTray) { e.preventDefault(); win.hide(); } });
   win.once('ready-to-show', () => {
     win.show();
     // --shot <file.png>, from source only: a picture of the window once it's drawn (to check the layout).
@@ -264,6 +319,17 @@ const CALLS = {
   },
 
   setLoginItem: (on) => { loginItem.set(!!on); refreshTray(); return { ok: true, on: loginItem.get() }; },
+  // The app's switches: only the known ones, only true or false.
+  setApp: (change) => {
+    const next = { ...appSettings() };
+    for (const [k, v] of Object.entries(change || {})) {
+      if (!Object.hasOwn(APP_DEFAULTS, k) || typeof v !== 'boolean') return { ok: false, error: 'bad_setting' };
+      next[k] = v;
+    }
+    writeConfig(DATA, { ...readConfig(DATA), app: next });
+    if (change?.updateAddon === true) updateAddonIfOld('turned on');
+    return { ok: true };
+  },
   restartLink: async () => { note('Restarting the link.'); await sup.restart(); return { ok: true }; },
   openLogs: async () => { await shell.openPath(DATA); return { ok: true }; },
 };
@@ -295,6 +361,7 @@ app.whenReady().then(() => {
   // when the game is).
   if (!cfg.loginItemSet) { loginItem.set(true); writeConfig(DATA, { ...cfg, loginItemSet: true }); }
   createTray();
+  updateAddonIfOld('Spellmind started');
   sup.start();
   // A login start stays in the tray; a start by hand, or one that still needs setup, opens the window.
   if (!HIDDEN || !cfg.wow) openWindow();

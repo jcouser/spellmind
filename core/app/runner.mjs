@@ -67,7 +67,11 @@ export function startSpellmind({ dataDir: DATA, cfg = {}, over = {}, onEvent = (
   const label = m.models.list.find(x => x.id === model)?.label || model;
   const st = { ai: { name: m.name, model: label, effort, search }, wow: null, reading: false, hello: null, lastAt: null, error: null };
   const status = () => JSON.parse(JSON.stringify(st));
-  const emit = (kind, data = {}) => { try { onEvent({ kind, ...data, status: status() }); } catch { /* a listener's trouble isn't the link's */ } };
+  // An event's own "kind" (a turn error's: oauth_expired…) goes as "what", so it never hides the event's.
+  const emit = (kind, data = {}) => {
+    const { kind: what, ...rest } = data || {};
+    try { onEvent({ ...rest, ...(what !== undefined ? { what } : {}), kind, status: status() }); } catch { /* a listener's trouble isn't the link's */ }
+  };
 
   // The prompt (prompts/spellmind.md), read once: its version goes in the log.
   const pack = loadPack();

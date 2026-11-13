@@ -110,6 +110,7 @@ function draw(s) {
 
   // The app.
   $('loginItem').checked = !!s.loginItem;
+  for (const el of document.querySelectorAll('[data-app]')) el.checked = !!s.app?.[el.dataset.app];
 
   // Activity.
   const list = s.activity.length ? s.activity.map(x => {
@@ -156,6 +157,9 @@ $('search').addEventListener('change', (e) => act(null, () => sm.setAI({ search:
 $('chooseWow').addEventListener('click', () => act($('chooseWow'), () => sm.chooseWow(), 'Folder saved.'));
 $('installAddon').addEventListener('click', () => act($('installAddon'), () => sm.installAddon(), (r) => r.note || 'Done.'));
 $('loginItem').addEventListener('change', (e) => act(null, () => sm.setLoginItem(e.target.checked)));
+for (const el of document.querySelectorAll('[data-app]')) {
+  el.addEventListener('change', (e) => act(null, () => sm.setApp({ [e.target.dataset.app]: e.target.checked })));
+}
 $('restartLink').addEventListener('click', () => act($('restartLink'), () => sm.restartLink(), 'Restarting the link.'));
 $('openLogs').addEventListener('click', () => act(null, () => sm.openLogs()));
 

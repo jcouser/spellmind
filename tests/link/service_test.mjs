@@ -260,3 +260,14 @@ test('the security review: a session that never said hello isn\'t heard; a flood
   const refused = toArr(r.slot().records).filter(x => x.t === 'error' && /too many messages/.test(x.text));
   assert.equal(refused.length, 2);
 });
+
+test('bye: a last slot says the app is going (bridge.closing), rung, before it stops', async (t) => {
+  const r = rig(t);
+  r.hello();
+  assert.equal(r.slot().bridge.closing, undefined);
+  const push = r.slot().bridge.push;
+  await r.svc.bye(10);
+  const s = r.slot();
+  assert.equal(s.bridge.closing, true);
+  assert.ok(s.bridge.push > push, 'rung');
+});

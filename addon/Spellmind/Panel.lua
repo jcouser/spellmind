@@ -1412,6 +1412,8 @@ function P.Build()
 		self:SetVerticalScroll(math.max(0, math.min(range, y)))
 	end)
 	f.rows = {}
+	-- In the 12 px right margin: the rows fill the scroll frame's width.
+	f.bar = ns.Window.ScrollBar(f.scroll, 8)
 
 	f.asks = { AskButton(f), AskButton(f) }
 	P.PlaceAsks(f)

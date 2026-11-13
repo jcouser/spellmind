@@ -152,5 +152,7 @@ export function startSpellmind({ dataDir: DATA, cfg = {}, over = {}, onEvent = (
     try { capture.stop(); } catch { /* stopping */ }
     try { svc.stop(); } catch { /* stopping */ }
   };
-  return { ok: true, stop, status, log };
+  // A clean stop says goodbye to the game first (service.bye), then stops.
+  const close = async () => { if (!stopped) { try { await svc.bye(); } catch { /* stopping anyway */ } } stop(); };
+  return { ok: true, stop, close, status, log };
 }

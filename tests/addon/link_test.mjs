@@ -45,8 +45,8 @@ function ring(vm, bell = null) {
 }
 
 // A slot file as the app writes it (luaenc slotTable), for this session's token unless given.
-function slotFor(vm, { push = 1, acked = [], records = [], nonce = vm.evaluate('NS.R.nonce'), token = vm.evaluate('SpellmindDB.token'), v = 2, ver = '0.1.0' } = {}) {
-  const slot = { ts: '2026-11-10T12:00:00Z', now: vm.num('time()'), token, bridge: { ver, push, nonce, acked, caps: [] },
+function slotFor(vm, { push = 1, acked = [], records = [], nonce = vm.evaluate('NS.R.nonce'), token = vm.evaluate('SpellmindDB.token'), v = 2, ver = '0.1.0', closing = false } = {}) {
+  const slot = { ts: '2026-11-10T12:00:00Z', now: vm.num('time()'), token, bridge: { ver, push, nonce, acked, caps: [], ...(closing ? { closing: true } : {}) },
     gw: { state: 'ready', since: 0, queued: 0 }, agents: [{ id: 'main', name: 'Spellmind' }], chats: [], records };
   const text = slotTable('SpellmindSlotData', slot).text;
   return v === 2 ? text : text.replace('v = 2,', `v = ${v},`);
@@ -417,4 +417,27 @@ test('seen in game: a quest named in plain words goes with its details (its goal
   const q = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.State.Collect.quests())'));
   assert.equal(q.list.find(x => x.id === 1338).goal, 'Gryan Stoutmantle wants you to talk to Wiley in Lakeshire.');
   assert.equal(vm.evaluate('tostring(NS.Chat.QuestNamed("what about the order?"))'), 'nil', 'a word or two isn\'t a title');
+});
+
+test('the app\'s goodbye (it quit cleanly): "Start the Spellmind app" at once, not "Thinking…"; back when it\'s heard again (the player, 2026-11-13)', () => {
+  const vm = session();
+  vm.slotText(slotFor(vm, { push: 1 }));
+  ring(vm);
+  assert.equal(vm.evaluate('tostring(NS.Link.AppGone())'), 'false', 'heard');
+  vm.advance(2);
+  vm.slotText(slotFor(vm, { push: 2, closing: true }));
+  ring(vm);
+  assert.equal(vm.evaluate('tostring(NS.Link.AppGone())'), 'true', 'said goodbye');
+  assert.equal(vm.evaluate('NS.Link.Status()'), 'Start the Spellmind app to get answers.');
+  vm.slash('Where is the rogue trainer?');
+  assert.match(JSON.stringify(vm.json('NS.Window.Messages and NS.Window.Messages() or {}')) + vm.savedLines().join('\n'), /Start the Spellmind app/);
+  // The app's next beat says it's back; a goodbye slot written before it, loaded after, says nothing new.
+  const old = slotFor(vm, { push: 3, closing: true });
+  vm.advance(3);
+  vm.run('NS.Link.Beat()');
+  assert.equal(vm.evaluate('tostring(NS.Link.AppGone())'), 'false', 'back');
+  vm.advance(3);
+  vm.slotText(old);
+  ring(vm);
+  assert.equal(vm.evaluate('tostring(NS.Link.AppGone())'), 'false', 'an old goodbye: older than the beat');
 });

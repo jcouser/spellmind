@@ -23,7 +23,7 @@ M.PORTRAIT = "Interface\\AddOns\\Spellmind\\Media\\Portrait"
 M.HINT = "|cff888888Click: Break it down (asks your AI). Shift-click: edit the question first.|r"
 M.NO_DATA = "Break it down needs your game data. Turn it on in Settings, then click again."
 M.THINKING = "|cff888888Thinking…|r"
-M.NO_APP = "|cff9d7dffThe Spellmind app isn't running, so there's no answer yet.|r\n\nStart it on your computer (node tools/spellmind.mjs start in the Spellmind folder). Your question is waiting: its answer will show here."
+M.NO_APP = "|cff9d7dffThe Spellmind app isn't running, so there's no answer yet.|r\n\nStart it from the Start menu, or its icon by the clock. Your question is waiting: its answer will show here."
 M.CARD_W, M.CARD_MIN_H, M.CARD_MAX_H = 360, 120, 420
 
 -- Marks on or off (/sm marks off): the saved switch, on unless set off.
@@ -173,6 +173,7 @@ local function BuildCard()
 		local y = (tonumber(self:GetVerticalScroll()) or 0) - delta * 28
 		self:SetVerticalScroll(math.max(0, math.min(range, y)))
 	end)
+	f.bar = ns.Window.ScrollBar(f.scroll, 8)
 	-- Ask more, in the chat window's own button style (the game's red one clashed, seen in game).
 	f.more = CreateFrame("Button", nil, f, "BackdropTemplate")
 	f.more:SetSize(96, 22)
@@ -219,7 +220,7 @@ function M.ShowCard(b, req, key)
 	card.title:SetText(req.label)
 	-- With no app heard, "Thinking…" would wait forever (seen in game): say so. The question stays
 	-- queued, and its answer still comes here when the app starts.
-	if ns.Link and ns.Link.BridgeAlive and not ns.Link.BridgeAlive() then Fill(card, M.NO_APP) else Fill(card, M.THINKING) end
+	if ns.Link and ns.Link.AppGone and ns.Link.AppGone() then Fill(card, M.NO_APP) else Fill(card, M.THINKING) end
 	card:ClearAllPoints()
 	local anchor = req.anchor or b
 	-- side "left": the card opens to the anchor's left (a nudge by the minimap, at the screen's right edge).

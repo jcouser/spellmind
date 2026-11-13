@@ -105,7 +105,7 @@ function ST.List()
 	out[#out + 1] = data
 
 	local other = { section = "Chat and the minimap", rows = {} }
-	other.rows[1] = { id = "chatLines", label = "Answers in the game's chat", sub = "Whole: a short answer in full. First line: a summary. Off: only in this window.",
+	other.rows[1] = { id = "chatLines", label = "Answers in the game's chat", sub = "Full answer: a short one whole. First line: a summary. Off: only in this window.",
 		choices = ns.Chat.CHAT_LINES, names = ST.CHAT_NAMES,
 		get = function() return ns.Chat.ChatLines() end, set = function(v) ns.Chat.SetChatLines(v) end }
 	other.rows[2] = { id = "minimap", label = "Minimap button", sub = "Off: /sm opens the chat.",

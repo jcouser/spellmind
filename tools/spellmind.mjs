@@ -57,7 +57,8 @@ switch (a._[0]) {
     process.on('unhandledRejection', (e) => run.log('unhandled', { error: String(e?.message || e).slice(0, 200) }));
     const s = run.status();
     say(`Spellmind is running with ${s.ai.name} (${s.ai.model}, thinking ${s.ai.effort}${s.ai.search ? ', web search on' : ''}). In game: /sm <question>. Ctrl+C stops it.`);
-    const stop = () => { say('Stopping…'); run.stop(); process.exit(0); };
+    let stopping = false;
+    const stop = () => { if (stopping) return; stopping = true; say('Stopping…'); run.close().finally(() => process.exit(0)); };
     process.on('SIGINT', stop);
     process.on('SIGTERM', stop);
     break;

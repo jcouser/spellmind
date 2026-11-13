@@ -90,6 +90,7 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
   let rering = { push: -1, count: 0, next: 0 };
   let intervals = [];
   let stopped = false;
+  let closing = false; // bye(): the next slots say the app is going
 
   // ---- the character's state per token (charstate.json in the state folder)
   const chars = loadCharState(stateDir);
@@ -124,7 +125,7 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
     });
     return {
       v: 2, ts: new Date(now()).toISOString(), now: Math.floor(now() / 1000), token: token || '',
-      bridge: { ver: SERVICE_VERSION, push: S.push, epoch: S.epoch, nonce: t?.nonce || '', acked: t?.acked || [], caps: [...CAPS], state: slotState(token), ...(AI ? { ai: AI } : {}) },
+      bridge: { ver: SERVICE_VERSION, push: S.push, epoch: S.epoch, nonce: t?.nonce || '', acked: t?.acked || [], caps: [...CAPS], state: slotState(token), ...(AI ? { ai: AI } : {}), ...(closing ? { closing: true } : {}) },
       gw: { state: 'ready', since: Math.floor((S.startedAt || now()) / 1000), queued: store.outbox.length },
       agents: [AGENT],
       chats,
@@ -492,6 +493,18 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
     reRing,
     flushNow: () => publisher.flushNow(),
     stats: () => ({ tokens: Object.keys(S.tokens).length, chats: Object.keys(S.chats).length, outbox: store.outbox.length, seq: S.seq, push: S.push, publisher: publisher.stats() }),
+    /**
+     * Goodbye before a clean stop (docs/milestone-3.md): a last slot with bridge.closing, rung, so the
+     * game says "Waiting for the Spellmind app to start…" at once instead of "Thinking…" until its
+     * silence timers run out (the player, 2026-11-13). Resolves after waitMs, time for the addon's
+     * poll to hear the ring and load the slot; stop() follows.
+     */
+    bye(waitMs = 1200) {
+      if (stopped) return Promise.resolve();
+      closing = true;
+      publisher.publish({ push: true });
+      return new Promise(r => setTimeout(r, waitMs));
+    },
     start() {
       S.startedAt = now();
       signals.ensure(); // the bells the addon probes for, made before anything rings

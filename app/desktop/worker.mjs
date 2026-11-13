@@ -20,6 +20,7 @@ if (!run.ok) {
   // A promise nobody caught is logged, never the end of the link (the review).
   process.on('unhandledRejection', (e) => run.log('unhandled', { error: String(e?.message || e).slice(0, 200) }));
   port?.on('message', (e) => {
-    if (e?.data === 'stop') { run.stop(); setTimeout(() => process.exit(0), 50); }
+    // Goodbye to the game, then out: the app's hard kill comes 2 s after its "stop".
+    if (e?.data === 'stop') run.close().finally(() => setTimeout(() => process.exit(0), 50));
   });
 }

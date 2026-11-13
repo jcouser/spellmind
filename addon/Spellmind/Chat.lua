@@ -473,7 +473,7 @@ function C.Send(text, opts)
 	local shown = opts.shown or ns.Escape(text)
 	AddText(YOU, shown)
 	AddMsg("you", shown)
-	if not ns.Link.BridgeAlive() and not R.toldStart then
+	if ns.Link.AppGone() and not R.toldStart then
 		R.toldStart = true
 		C.System(C.NOT_HEARD)
 	end

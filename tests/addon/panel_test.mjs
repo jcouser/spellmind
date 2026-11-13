@@ -223,3 +223,25 @@ test('a live redraw keeps the scroll (the review: the list jumped to the top a s
   vm.run('NS.Panel.Show("gear")');
   assert.equal(vm.num('SpellmindPanel.scroll:GetVerticalScroll()'), 0, 'a tab switch starts at the top');
 });
+
+test('a scrollbar shows on a list that\'s longer than its view, follows the scroll, and drags (the player, 2026-11-13)', () => {
+  const vm = session();
+  vm.run('NS.Panel.Show("settings")');
+  vm.run('SpellmindPanel.scroll.range = 0; SpellmindPanel.bar.Update()');
+  assert.equal(vm.evaluate('tostring(SpellmindPanel.bar:IsShown())'), 'false', 'all in view: no bar');
+  vm.run('SpellmindPanel.scroll.range = 600; SpellmindPanel.bar.Update()');
+  assert.equal(vm.evaluate('tostring(SpellmindPanel.bar:IsShown())'), 'true');
+  const h = vm.num('SpellmindPanel.scroll:GetHeight()');
+  assert.ok(h > 0);
+  assert.equal(Math.round(vm.num('SpellmindPanel.bar.thumb:GetHeight()')), Math.round(Math.max(20, h * h / (h + 600))), 'its size is the share in view');
+  // Dragging the thumb down scrolls down, never past the end.
+  vm.run('STUB.cursor = { 100, 500 }; SpellmindPanel.bar.scripts.OnMouseDown(SpellmindPanel.bar)');
+  vm.run('STUB.cursor = { 100, 300 }; SpellmindPanel.bar.scripts.OnUpdate(SpellmindPanel.bar, 0.02)');
+  assert.ok(vm.num('SpellmindPanel.scroll:GetVerticalScroll()') > 0);
+  vm.run('STUB.cursor = { 100, -5000 }; SpellmindPanel.bar.scripts.OnUpdate(SpellmindPanel.bar, 0.02)');
+  assert.equal(vm.num('SpellmindPanel.scroll:GetVerticalScroll()'), 600);
+  vm.run('SpellmindPanel.bar.scripts.OnMouseUp(SpellmindPanel.bar)');
+  // The chat and the answer card have one too.
+  vm.run('NS.Panel.Show("chat")');
+  assert.equal(vm.evaluate('tostring(NS.Window.Get and NS.Window.Get() and NS.Window.Get().bar ~= nil)'), 'true');
+});

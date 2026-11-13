@@ -61,6 +61,73 @@ function W.Corners(frame, size, inset)
 	end
 end
 
+-- A thin scrollbar on a scroll frame's right edge (the review and the player, 2026-11-13: no list
+-- showed that it scrolls; the Settings tab "could use a scrollbar"). Shown only while there's more
+-- than fits. The thumb's size is the share in view, its place the scroll; drag it to scroll. It
+-- reads the scroll ten times a second while shown, so no caller has to tell it of a change.
+-- x: its offset from the scroll frame's right edge (outside it when the content fills the width).
+W.BAR_W = 4
+function W.ScrollBar(scroll, x)
+	local bar = CreateFrame("Button", nil, scroll:GetParent())
+	bar:SetWidth(W.BAR_W + 4)
+	bar:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", (x or 0) + 2, 0)
+	bar:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", (x or 0) + 2, 0)
+	bar:SetFrameLevel((scroll:GetFrameLevel() or 1) + 5)
+	local track = bar:CreateTexture(nil, "BACKGROUND")
+	track:SetColorTexture(0.35, 0.28, 0.6, 0.18)
+	track:SetPoint("TOP", bar, "TOP", 0, 0)
+	track:SetPoint("BOTTOM", bar, "BOTTOM", 0, 0)
+	track:SetWidth(W.BAR_W)
+	local thumb = bar:CreateTexture(nil, "ARTWORK")
+	thumb:SetColorTexture(0.62, 0.49, 1, 0.55)
+	thumb:SetWidth(W.BAR_W)
+	bar.thumb, bar.track = thumb, track
+	local function Range() return tonumber((scroll:GetVerticalScrollRange())) or 0 end
+	local function ViewH() return tonumber((scroll:GetHeight())) or 0 end
+	function bar.Update()
+		local range, h = Range(), ViewH()
+		if range <= 1 or h <= 0 then bar:Hide() return end
+		bar:Show()
+		local th = math.max(20, h * h / (h + range))
+		local at = (tonumber((scroll:GetVerticalScroll())) or 0) / range
+		thumb:SetHeight(th)
+		thumb:ClearAllPoints()
+		thumb:SetPoint("TOP", bar, "TOP", 0, -at * (h - th))
+		bar.th = th
+	end
+	-- Dragging: the cursor's travel over the track's free length is the scroll's over its range.
+	local function CursorY()
+		local _, y = GetCursorPosition()
+		local s = (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+		return (tonumber(y) or 0) / s
+	end
+	bar:SetScript("OnMouseDown", function(self)
+		self.drag = { y = CursorY(), from = tonumber((scroll:GetVerticalScroll())) or 0 }
+	end)
+	bar:SetScript("OnMouseUp", function(self) self.drag = nil end)
+	bar:SetScript("OnEnter", function() thumb:SetColorTexture(0.85, 0.68, 0.25, 0.9) end)
+	bar:SetScript("OnLeave", function(self) if not self.drag then thumb:SetColorTexture(0.62, 0.49, 1, 0.55) end end)
+	local wait = 0
+	bar:SetScript("OnUpdate", function(self, elapsed)
+		if self.drag then
+			local range, h = Range(), ViewH()
+			local free = math.max(1, h - (self.th or 20))
+			local y = self.drag.from + (self.drag.y - CursorY()) * range / free
+			scroll:SetVerticalScroll(math.max(0, math.min(range, y)))
+			self.Update()
+			return
+		end
+		wait = wait - (elapsed or 0)
+		if wait > 0 then return end
+		wait = 0.1
+		self.Update()
+	end)
+	-- Hidden, its OnUpdate stops: a timer keeps it in step until there's something to show.
+	if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(0.5, function() if not bar:IsShown() and scroll:IsVisible() then bar.Update() end end) end
+	bar.Update()
+	return bar
+end
+
 -- A solid colour under a backdrop frame, inset past its border.
 function W.Fill(frame, inset, r, g, b, a)
 	local t = frame.fill or frame:CreateTexture(nil, "BACKGROUND", nil, -8)
@@ -241,14 +308,15 @@ function W.Layout(stick)
 	if ns.Chat.WaitingIn and ns.db and ns.Chat.WaitingIn(ns.db.chat) then
 		local copy = {}
 		for i, m in ipairs(msgs) do copy[i] = m end
-		local away = ns.Link and ns.Link.AppAway and ns.Link.AppAway()
+		local away = ns.Link and ns.Link.AppGone and ns.Link.AppGone()
 		copy[#copy + 1] = { w = "sm", t = away and "|cff888888Waiting for the Spellmind app to start…|r" or "|cff888888Thinking…|r", pending = true }
 		msgs = copy
 	end
 	-- Where the player is before the rows change: at the bottom (within a few pixels) or reading.
 	local range0 = tonumber(f.scroll:GetVerticalScrollRange()) or 0
 	local atBottom = (tonumber(f.scroll:GetVerticalScroll()) or 0) >= range0 - 12
-	local listW = math.max(200, (tonumber(f.scroll:GetWidth()) or (W.DEF_W - 24)) - 4)
+	-- 12 px off the right edge: the scrollbar sits there (W.ScrollBar).
+	local listW = math.max(200, (tonumber(f.scroll:GetWidth()) or (W.DEF_W - 24)) - 12)
 	local maxText = math.floor(listW * W.BUBBLE) - 2 * W.PAD
 	f.content:SetWidth(listW)
 	local y = -4
@@ -456,6 +524,7 @@ function W.Build()
 		self:SetVerticalScroll(math.max(0, math.min(range, y)))
 	end)
 	f.rows, f.chips = {}, {}
+	f.bar = W.ScrollBar(f.scroll, -2)
 	f.welcome = f.content:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	f.welcome:SetJustifyH("CENTER")
 	f.welcome:SetJustifyV("TOP")

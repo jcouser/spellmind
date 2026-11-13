@@ -385,7 +385,13 @@ end
 -- draws it again. Without working doorbells (slot-only mode) the app can't be told away, so the
 -- strip is drawn as before.
 L.AWAY_AFTER = 25
+-- The app said goodbye (bridge.closing) and nothing of it came since.
+function L.AppClosed()
+	return R.appClosedAt ~= nil and (R.bridgeSeenAt or 0) <= R.appClosedAt
+end
+
 function L.AppAway()
+	if L.AppClosed() then return true end
 	if not L.SignalsOK() then return false end
 	local now = GetTime()
 	local since = R.bridgeSeenAt or R.linkStartAt or now
@@ -488,6 +494,14 @@ end
 function L.BridgeAlive()
 	local age = L.BridgeAge()
 	return age ~= nil and age < (L.SlotOnly() and (IDLE_CHECK + RED_AFTER) or RED_AFTER)
+end
+
+-- What the player is told (the chat's bubble, the answer card, the status line): the app is gone when
+-- it said goodbye, when it's known away (AppAway), when it hasn't been heard this session, or when
+-- nothing of it came for RED_AFTER (more in slot-only mode). One rule for all three (the player,
+-- 2026-11-13: with the app quit, the chat and the card both said "Thinking…").
+function L.AppGone()
+	return L.AppAway() or not L.BridgeAlive()
 end
 
 function L.Beat()
@@ -844,9 +858,17 @@ function L.HandleSlotData(data, source)
 	end
 	R.protoMismatch = nil
 	local now = tonumber(data.now)
-	if now then L.NoteBridge(GetTime() - math.max(0, time() - now)) end
+	local slotAt = now and (GetTime() - math.max(0, time() - now)) or nil
+	if slotAt then L.NoteBridge(slotAt) end
 	local bridge = type(data.bridge) == "table" and data.bridge or {}
 	R.bridge = bridge
+	-- The app's goodbye (it quit cleanly): gone from now, until it's heard from again. Only when this
+	-- slot is the newest word from it (an old slot loaded again later says nothing new); time() is
+	-- whole seconds, hence the second's slack.
+	if bridge.closing == true and slotAt and slotAt >= (R.bridgeSeenAt or 0) - 1 then
+		R.appClosedAt = R.bridgeSeenAt or GetTime()
+		if ns.Window and ns.Window.Refresh then ns.Window.Refresh() end
+	end
 	-- The app's and the addon's major versions must match: said once, and everything still applies.
 	local theirs = type(bridge.ver) == "string" and tonumber(bridge.ver:match("^(%d+)%.")) or nil
 	if theirs and theirs ~= tonumber(ns.VERSION:match("^(%d+)")) then
@@ -1015,7 +1037,7 @@ function L.Status()
 	if R.slots.out then return "Type /reload to keep getting answers." end
 	if R.slots.broken then return "Answers can't come in: see the note above." end
 	if R.protoMismatch then return "Update the Spellmind app: it updates the addon too." end
-	if not L.BridgeAlive() then return "Start the Spellmind app to get answers." end
+	if L.AppGone() then return "Start the Spellmind app to get answers." end
 	if ns.Chat.Waiting() then return "Spellmind is thinking..." end
 	return ""
 end

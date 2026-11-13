@@ -43,3 +43,5 @@ The player's ask: "list any missing quests, where to get them â€¦ Hall of Thanes
 The briefing names those first steps too.
 
 **Go to the giver (seen in game: the "pick up" tag looked like a button that did nothing).** The tag is gone. A quest ready to take now has **Pick up** in gold at the start of its line, and a **Go** button. Go sets the game's map pin and arrow on the giver (`Quests.Pin`, as quest Go does). QuestieDB's coordinates are used as Questie shows them, and QuestieDB's own zone-to-map table (`Support.Get("ZoneDB").private.areaIdToUiMapId`) gives the game's map. Locked quests have no Go.
+
+**Fix: Go couldn't pin (seen in game, 2026-11-12).** In Westfall, Go on Alba Fairmoon and Gryan Stoutmantle said 'The game can't pin … on the map'. QuestieDB keeps its zone-to-map table as Lua source text, not a table, so no map was ever found. Spellmind doesn't run another addon's text: it finds the map by the zone's name in the game's own map list instead (`Dungeons.MapNamed`: the player's map, then each continent's zones; kept for the session), which needs no other addon. `World.lua`'s QuestieDB NPCs had the same flaw and use the same lookup by name.

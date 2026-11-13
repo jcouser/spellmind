@@ -214,10 +214,14 @@ function WD.Index()
 end
 
 -- The zone's area ID for a ui map (QuestieDB's own table), or nil.
+-- By the map's name (QuestieDB's own table is Lua source text, not a table: seen in game), through
+-- the area lookup Dungeons.lua already does by name.
 local function AreaOf(L, map)
-	local support = type(L.Support) == "table" and type(L.Support.Get) == "function" and ns.Try(L.Support.Get, "ZoneDB")
-	local t = type(support) == "table" and type(support.private) == "table" and support.private.uiMapIdToAreaId
-	return type(t) == "table" and t[map] or nil
+	local M = rawget(_G, "C_Map")
+	local info = M and ns.Try(M.GetMapInfo, map)
+	local name = type(info) == "table" and info.name
+	if type(name) ~= "string" or name == "" or not ns.Dungeons then return nil end
+	return ns.Dungeons.AreaOf(name)
 end
 
 -- QuestieDB's service NPCs in the player's zone: { name, sub, does, x, y } (not the remembered ones).

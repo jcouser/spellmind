@@ -260,12 +260,47 @@ end
 -- Go to a quest's giver: the game's map pin on the giver's zone (QuestieDB's zone-to-map table).
 -- Returns "pin", or nil when the game can't pin there.
 function DG.Go(spot)
-	local L = DB()
-	if not L or type(spot) ~= "table" then return nil end
-	local support = type(L.Support) == "table" and type(L.Support.Get) == "function" and ns.Try(L.Support.Get, "ZoneDB")
-	local maps = type(support) == "table" and type(support.private) == "table" and support.private.areaIdToUiMapId
-	local map = type(maps) == "table" and maps[spot.zone]
+	if type(spot) ~= "table" then return nil end
+	local map = DG.MapForArea(spot.zone)
 	if map and ns.Quests.Pin(map, spot.x, spot.y) then return "pin" end
+	return nil
+end
+
+-- The game's map for an area (a zone) by its name, from the game's own map list (seen in game:
+-- QuestieDB keeps its zone-to-map table as Lua source text, so nothing came of it and every Go failed;
+-- the game's list needs no other addon). The player's own map first, then each continent's zones.
+-- Kept for the session.
+DG.maps = {}
+function DG.MapForArea(area)
+	if not area then return nil end
+	if DG.maps[area] ~= nil then return DG.maps[area] or nil end
+	local M = rawget(_G, "C_Map")
+	local name = M and type(M.GetAreaInfo) == "function" and ns.Try(M.GetAreaInfo, area)
+	local found
+	if type(name) == "string" and name ~= "" then found = DG.MapNamed(name) end
+	DG.maps[area] = found or false
+	return found
+end
+
+-- A zone map's id by its name, or nil.
+function DG.MapNamed(name)
+	local M = rawget(_G, "C_Map")
+	if not M then return nil end
+	local want = DG.Norm(name)
+	local function named(id)
+		local info = ns.Try(M.GetMapInfo, id)
+		return type(info) == "table" and type(info.name) == "string" and DG.Norm(info.name) == want
+	end
+	local here = ns.Try(M.GetBestMapForUnit, "player")
+	if type(here) == "number" and named(here) then return here end
+	if type(M.GetMapChildrenInfo) ~= "function" then return nil end
+	local E = type(Enum) == "table" and Enum.UIMapType or {}
+	local CONTINENT, ZONE = E.Continent or 2, E.Zone or 3
+	for _, c in ipairs(ns.Try(M.GetMapChildrenInfo, 947, CONTINENT, true) or {}) do -- 947: Azeroth
+		for _, z in ipairs(ns.Try(M.GetMapChildrenInfo, c.mapID, ZONE, true) or {}) do
+			if type(z) == "table" and type(z.name) == "string" and DG.Norm(z.name) == want then return z.mapID end
+		end
+	end
 	return nil
 end
 

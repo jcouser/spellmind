@@ -263,13 +263,21 @@ function GetZoneText() return P.zone end
 function GetRealZoneText() return P.zone end
 function GetSubZoneText() return P.subzone end
 function GetBindLocation() return "Thelsamar" end
+STUB.mapNames = { [1455] = "Ironforge", [1436] = "Westfall", [1432] = "Loch Modan", [1415] = "Eastern Kingdoms" }
 C_Map = {
 	GetBestMapForUnit = function(unit) return P.map end,
 	-- A Vector2D in the game: GetXY gives both.
 	GetPlayerMapPosition = function(mapId, unit)
 		return { x = P.x, y = P.y, GetXY = function(self) return self.x, self.y end }
 	end,
-	GetMapInfo = function(mapId) return { name = P.zone, mapID = mapId } end,
+	-- The player's own map is their zone; others by the stub's map list.
+	GetMapInfo = function(mapId) if mapId == P.map then return { name = P.zone, mapID = mapId } end return { name = STUB.mapNames[mapId] or P.zone, mapID = mapId } end,
+	-- The game's map list: continents under Azeroth (947), zones under a continent.
+	GetMapChildrenInfo = function(parent, kind)
+		if parent == 947 then return { { mapID = 1415, name = "Eastern Kingdoms" } } end
+		if parent == 1415 then return { { mapID = 1455, name = "Ironforge" }, { mapID = 1436, name = "Westfall" }, { mapID = 1432, name = "Loch Modan" } } end
+		return {}
+	end,
 }
 function UnitHealthMax(unit) return P.hp end
 function UnitPowerMax(unit, kind) return P.power[kind or 0] or 0 end
@@ -815,7 +823,7 @@ function STUB.UseQuestieDB()
 	LibQuestieDB = {
 		contractVersion = 4,
 		RequireContract = function(n) return n <= 4 end,
-		Enum = { zoneIDs = { THE_HALL_OF_THANES = 16919, THE_DEADMINES = 1581, IRONFORGE = 1537 },
+		Enum = { zoneIDs = { THE_HALL_OF_THANES = 16919, THE_DEADMINES = 1581, IRONFORGE = 1537, WESTFALL = 40, LOCH_MODAN = 38 },
 			classKeys = { WARRIOR = 1, ROGUE = 8 }, raceMaskById = { [1] = 1, [2] = 2, [3] = 4 } },
 		Quest = {
 			GetAllIds = function() local ids = {} for id in pairs(Q) do ids[#ids + 1] = id end table.sort(ids) return ids end,
@@ -825,7 +833,8 @@ function STUB.UseQuestieDB()
 			requiredMaxLevel = function() return 0 end, requiredSkill = function() return nil end,
 			startedBy = function(id) local q = Q[id]; if not q then return nil end return { q.npc and { q.npc } or {}, {}, {} } end,
 		},
-		Support = { Get = function(name) if name == "ZoneDB" then return { private = { areaIdToUiMapId = { [1537] = 1455, [40] = 1436 } } } end end },
+		-- As the real QuestieDB keeps it: the zone tables are Lua source text (seen in game), not tables.
+		Support = { Get = function(name) if name == "ZoneDB" then return { private = { areaIdToUiMapId = "return { [1537] = 1455, [40] = 1436 }" } } end end },
 		Npc = {
 			name = function(id) return N[id] and N[id].name end, zoneID = function(id) return N[id] and N[id].zone end,
 			spawns = function(id) return N[id] and N[id].spawns end, friendlyToFaction = function(id) return N[id] and N[id].friendly end,

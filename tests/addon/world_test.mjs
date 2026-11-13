@@ -71,7 +71,7 @@ Npc.zoneID = function(id) return extra[id] and extra[id].zone or zone(id) end
 Npc.spawns = function(id) return extra[id] and extra[id].spawns or spawns(id) end
 Npc.friendlyToFaction = function(id) return extra[id] and extra[id].friendly or friendly(id) end
 local get = LibQuestieDB.Support.Get
-LibQuestieDB.Support.Get = function(n) local t = get(n); if t then t.private.uiMapIdToAreaId = { [1432] = 38 } end return t end`);
+`);
   vm.login().advance(3.1);
   part(vm); // starts QuestieDB's read
   vm.advance(1);

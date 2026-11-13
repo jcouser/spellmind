@@ -17,6 +17,11 @@ const ERRORS = {
   cancelled: null,
   network: 'The sign-in couldn\'t reach OpenAI. Check your connection and try again.',
   sign_in_failed: 'OpenAI didn\'t accept the sign-in. Try again.',
+  // The sign-in's other endings (the review: shown as raw codes).
+  timeout: 'The sign-in timed out. Click Sign in again.',
+  no_account: 'That account has no ChatGPT plan Spellmind can use.',
+  no_refresh: 'OpenAI didn\'t give Spellmind a lasting sign-in. Sign in again.',
+  keystore_error: 'Windows couldn\'t save the sign-in in its credential store.',
 };
 
 function ago(iso) {
@@ -113,8 +118,14 @@ function draw(s) {
   const shown = ais.find(x => x.id === viewing) || using;
   // "ChatGPT plan (sign in)", "Claude (Anthropic API key)", "Other (OpenAI-compatible)": the plan and
   // OpenAI's API key both say ChatGPT, so each says how it connects.
-  const how = (x) => (x.kind === 'signin' ? 'sign in' : x.kind === 'custom' ? 'OpenAI-compatible' : `${x.maker || x.card} API key`);
-  options($('aiPick'), ais.map(x => ({ value: x.id, label: `${x.card} (${how(x)})${x.current ? ' · in use' : x.ready ? '' : ' · not set up'}` })), shown?.id);
+  const how = (x) => (x.kind === 'signin' ? 'sign in' : x.kind === 'custom' ? 'advanced' : `${x.maker || x.card} API key`);
+  // The one in use that isn't ready says so (the review: "in use" beside "Not signed in").
+  const mark = (x) => (x.current ? (x.ready ? ' · in use' : ` · in use, ${x.kind === 'signin' ? 'not signed in' : 'not set up'}`) : x.ready ? '' : ' · not set up');
+  options($('aiPick'), ais.map(x => ({ value: x.id, label: `${x.card} (${how(x)})${mark(x)}` })), shown?.id);
+  // Setting up another AI: the one in use still answers until this one works (the review).
+  const still = shown && !shown.current && using?.ready ? `Still using ${using.card} until this one works.` : '';
+  for (const id of ['planStill', 'keyStill', 'customStill']) { $(id).textContent = still; $(id).hidden = !still; }
+  showBoxErrors();
 
   $('setupPlan').hidden = shown?.kind !== 'signin';
   $('setupKey').hidden = shown?.kind !== 'key';
@@ -129,9 +140,19 @@ function draw(s) {
     $('pasteKey').textContent = shown.ready ? 'Replace key' : 'Paste key';
     $('removeKey').hidden = !shown.ready;
     $('openKeys').hidden = !shown.keysUrl;
-  } else if (shown?.kind === 'custom' && shown.custom && document.activeElement?.tagName !== 'INPUT') {
-    if (!$('customUrl').value) $('customUrl').value = shown.custom.baseUrl || '';
-    if (!$('customModel').value) $('customModel').value = shown.custom.model || '';
+  } else if (shown?.kind === 'custom') {
+    // What it's connected to, and the way out (the review: after Connect only the two boxes stayed).
+    const c = shown.custom;
+    $('customNow').hidden = !c;
+    if (c) {
+      let host = c.baseUrl;
+      try { host = new URL(c.baseUrl).host; } catch { /* as written */ }
+      $('customState').textContent = `Connected to ${c.model} at ${host}${c.keyHost ? ', key saved' : ''}.`;
+      if (document.activeElement?.tagName !== 'INPUT') {
+        if (!$('customUrl').value) $('customUrl').value = c.baseUrl || '';
+        if (!$('customModel').value) $('customModel').value = c.model || '';
+      }
+    }
   }
 
   // The options belong to the AI in use.
@@ -150,12 +171,14 @@ function draw(s) {
   const a = s.wow.addon;
   const addonWords = {
     missing: ['Not installed.', 'bad', 'Install'],
-    current: ['Installed and up to date.', 'good', 'Reinstall'],
+    current: ['Installed and up to date.', 'good', 'Reinstall', true],
     outdated: [`An update is ready (${a.changed || 0} changed, ${a.added || 0} new file${a.added === 1 ? '' : 's'}).`, 'warn', 'Update'],
   };
   const aw = addonWords[a.state] || addonWords.missing;
   fact($('addonState'), aw[0], aw[1]);
   $('installAddon').textContent = aw[2];
+  // Nothing to do: a quiet button, not the main action (the review).
+  $('installAddon').className = aw[3] ? 'quiet' : '';
   $('installAddon').disabled = !s.wow.ok;
 
   // The app.
@@ -175,26 +198,51 @@ function draw(s) {
   $('activity').replaceChildren(...list);
 }
 
-async function act(button, fn, done) {
+// The last failure of each setup box, shown in it until the next try (the review: a toast gone in 9 s
+// left nothing to reread). Cleared on success and when the picker moves.
+const boxErr = {};
+function showBoxErrors() {
+  for (const id of ['planErr', 'keyErr', 'customErr', 'wowErr']) {
+    const el = $(id);
+    el.textContent = boxErr[id] || '';
+    el.hidden = !boxErr[id];
+  }
+}
+
+// One action at a time: its button says what's happening ("Testing…"), the other controls wait (the
+// review: a click made meanwhile was dropped and the switch flipped back). A failure's words go in its
+// box when it has one, else a toast.
+async function act(button, fn, done, { box = null, busyText = null } = {}) {
   if (busy) return;
   busy = true;
-  if (button) button.disabled = true;
+  const controls = [...document.querySelectorAll('main button, main select, main input')].filter(el => !el.disabled);
+  for (const el of controls) el.disabled = true;
+  const label = button ? button.textContent : null;
+  if (button && busyText) button.textContent = busyText;
   try {
     const r = await fn();
-    if (r && r.ok === false) { const words = r.detail || (r.error in ERRORS ? ERRORS[r.error] : `That didn't work (${r.error}).`); if (words) toast(words, true); }
-    else if (done) toast(typeof done === 'function' ? done(r) : done);
+    if (r && r.ok === false) {
+      const words = r.detail || (r.error in ERRORS ? ERRORS[r.error] : `That didn't work (${r.error}).`);
+      if (words && box) boxErr[box] = words;
+      else if (words) toast(words, true);
+    } else {
+      if (box) delete boxErr[box];
+      if (done) toast(typeof done === 'function' ? done(r) : done);
+    }
   } finally {
     busy = false;
-    if (button) button.disabled = false;
+    for (const el of controls) el.disabled = false;
+    if (button && busyText) button.textContent = label;
     draw(await sm.status());
   }
 }
 
 $('signIn').addEventListener('click', () => {
   // The sign-in waits on the browser; the window stays usable meanwhile (Cancel).
+  delete boxErr.planErr;
   sm.signIn().then((r) => {
     if (r && r.ok) toast(`Signed in${r.plan ? ` with your ChatGPT ${r.plan} plan` : ''}.`);
-    else if (r && r.error && ERRORS[r.error] !== null) toast(ERRORS[r.error] || `The sign-in didn't finish (${r.error}).`, true);
+    else if (r && r.error && ERRORS[r.error] !== null) boxErr.planErr = ERRORS[r.error] || `The sign-in didn't finish (${r.error}).`;
     sm.status().then(draw);
   });
   setTimeout(() => sm.status().then(draw), 300);
@@ -203,22 +251,37 @@ $('cancelSignIn').addEventListener('click', () => act(null, () => sm.cancelSignI
 // Picking an AI: one that's set up is used at once; another shows how to set it up.
 $('aiPick').addEventListener('change', (e) => {
   viewing = e.target.value;
+  for (const k of ['planErr', 'keyErr', 'customErr']) delete boxErr[k];
   const x = (last?.ai?.list || []).find(a => a.id === viewing);
   if (x && x.ready && !x.current) act(null, () => sm.chooseAI(viewing), `Now using ${x.card}.`);
   else if (last) draw(last);
 });
-$('pasteKey').addEventListener('click', () => act($('pasteKey'), () => sm.pasteKey(), (r) => `${r.card}: key saved and working. Your clipboard was cleared (clipboard history, Win+V, keeps its own copy: clear it there too).`));
-$('removeKey').addEventListener('click', () => act($('removeKey'), () => sm.removeKey(viewing), 'Key removed.'));
+// A key is for the AI its shape says, which may not be the one on screen: the picker follows it, and
+// says so (the review: a ChatGPT key pasted while Grok showed left Grok's box saying "No key yet").
+$('pasteKey').addEventListener('click', () => {
+  const was = viewing;
+  act($('pasteKey'), () => sm.pasteKey(), (r) => {
+    viewing = r.id || viewing;
+    const other = r.id && r.id !== was ? `That's a ${r.card} key: now using ${r.card}. ` : '';
+    return `${other}${r.card}: key saved and working. Your clipboard was cleared (clipboard history, Win+V, keeps its own copy: clear it there too).`;
+  }, { box: 'keyErr', busyText: 'Testing…' });
+});
+$('removeKey').addEventListener('click', () => act($('removeKey'), () => sm.removeKey(viewing), 'Key removed.', { box: 'keyErr' }));
 $('openKeys').addEventListener('click', () => act(null, () => sm.openKeysPage(viewing)));
 $('connectCustom').addEventListener('click', () => act($('connectCustom'),
   () => sm.connectCustom({ baseUrl: $('customUrl').value, model: $('customModel').value, withKey: $('customWithKey').checked }),
-  'Connected and working.'));
-$('signOut').addEventListener('click', () => act($('signOut'), () => sm.signOut(), 'Signed out.'));
+  'Connected and working.', { box: 'customErr', busyText: 'Testing…' }));
+$('disconnectCustom').addEventListener('click', () => act($('disconnectCustom'), () => sm.disconnectCustom(), 'Disconnected.', { box: 'customErr' }));
+$('signOut').addEventListener('click', () => act($('signOut'), () => sm.signOut(), 'Signed out.', { box: 'planErr' }));
 $('model').addEventListener('change', (e) => act(null, () => sm.setAI({ model: e.target.value }), 'Saved.'));
 $('effort').addEventListener('change', (e) => act(null, () => sm.setAI({ effort: e.target.value }), 'Saved.'));
 $('search').addEventListener('change', (e) => act(null, () => sm.setAI({ search: e.target.checked }), 'Saved.'));
-$('chooseWow').addEventListener('click', () => act($('chooseWow'), () => sm.chooseWow(), 'Folder saved.'));
-$('installAddon').addEventListener('click', () => act($('installAddon'), () => sm.installAddon(), (r) => r.note || 'Done.'));
+$('chooseWow').addEventListener('click', () => act($('chooseWow'), () => sm.chooseWow(), 'Folder saved.', { box: 'wowErr' }));
+// A first install says what's next; an update with WoW open says /reload (r.note).
+$('installAddon').addEventListener('click', () => {
+  const first = last?.wow?.addon?.state === 'missing';
+  act($('installAddon'), () => sm.installAddon(), (r) => (first && !r.reload ? 'Addon installed. Start WoW and log in.' : r.note || 'Done.'), { box: 'wowErr', busyText: 'Installing…' });
+});
 $('loginItem').addEventListener('change', (e) => act(null, () => sm.setLoginItem(e.target.checked)));
 for (const el of document.querySelectorAll('[data-app]')) {
   el.addEventListener('change', (e) => act(null, () => sm.setApp({ [e.target.dataset.app]: e.target.checked })));

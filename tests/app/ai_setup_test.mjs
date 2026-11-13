@@ -142,3 +142,15 @@ test('Other\'s key belongs to its address: a new address without a key drops the
   assert.equal(other.cfg.custom.keyHost, undefined);
   assert.equal(store.get('custom'), undefined);
 });
+
+test('Disconnect Other: its key and address gone; the ChatGPT plan answers if Other did', async () => {
+  const { setup, store } = rig({ models: ['llama3.3'] });
+  const on = await setup.connectCustom({}, { baseUrl: 'https://openrouter.ai/api/v1', model: 'llama3.3' }, 'sk-or-v1-' + 'd'.repeat(64));
+  assert.equal(on.cfg.provider, 'custom');
+  const off = await setup.disconnectCustom(on.cfg);
+  assert.equal(off.cfg.custom, undefined);
+  assert.equal(off.cfg.provider, 'chatgpt');
+  assert.equal(store.get('custom'), undefined);
+  const list = await setup.list(off.cfg);
+  assert.equal(list.find(x => x.id === 'custom').ready, false);
+});

@@ -276,7 +276,9 @@ function openWindow() {
     title: 'Spellmind', icon: path.join(HERE, 'assets', 'icon.png'), backgroundColor: '#120b2e', show: false, autoHideMenuBar: true,
     webPreferences: { preload: path.join(HERE, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false },
   });
-  win.removeMenu();
+  // No menu bar, but a hidden menu that keeps zoom (Ctrl + and Ctrl -; the review: removing the menu took it).
+  win.setMenu(Menu.buildFromTemplate([{ label: 'View', submenu: [{ role: 'zoomIn' }, { role: 'zoomIn', accelerator: 'CommandOrControl+=', visible: false }, { role: 'zoomOut' }, { role: 'resetZoom' }] }]));
+  win.setMenuBarVisibility(false);
   // Nothing navigates away or opens a window of its own; links go to the browser through openLink.
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -373,6 +375,11 @@ const CALLS = {
     await useCfg(r.cfg, `Connected to ${r.cfg.custom.model} at ${new URL(r.cfg.custom.baseUrl).host}.`);
     return { ok: true };
   },
+  disconnectCustom: async () => {
+    const r = await aiSetup.disconnectCustom(readConfig(DATA));
+    await useCfg(r.cfg, 'Other disconnected: its key and address are gone.');
+    return { ok: true };
+  },
   chooseAI: async (id) => {
     const r = await aiSetup.choose(readConfig(DATA), String(id || ''));
     if (!r.ok) return r;
@@ -432,11 +439,16 @@ const CALLS = {
   openLogs: async () => { await shell.openPath(DATA); return { ok: true }; },
 };
 
+const SETUP_WORDS = { signIn: 'Signing in', pasteKey: 'Pasting the key', connectCustom: 'Connecting to Other', chooseWow: 'Picking the WoW folder', installAddon: 'Installing the addon' };
 for (const [name, fn] of Object.entries(CALLS)) {
   ipcMain.handle(`spellmind:${name}`, async (e, payload) => {
     // Only this app's own page may call.
     if (!win || e.sender !== win.webContents || e.senderFrame?.url !== PAGE_URL) return { ok: false, error: 'refused' };
-    try { return await fn(payload); } catch (err) { return { ok: false, error: 'failed', detail: String(err?.message || err).slice(0, 200) }; }
+    let r;
+    try { r = await fn(payload); } catch (err) { r = { ok: false, error: 'failed', detail: String(err?.message || err).slice(0, 200) }; }
+    // A setup step that failed goes in Activity too, so it can be read again (the review).
+    if (r && r.ok === false && SETUP_WORDS[name] && r.error !== 'cancelled') { note(`${SETUP_WORDS[name]} didn't work: ${r.detail || r.error}`); pushStatus(); }
+    return r;
   });
 }
 

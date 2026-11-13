@@ -5,7 +5,7 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
-const CALLS = ['status', 'setAI', 'signIn', 'cancelSignIn', 'signOut', 'pasteKey', 'removeKey', 'connectCustom', 'chooseAI', 'openKeysPage', 'chooseWow', 'installAddon', 'setLoginItem', 'setApp', 'restartLink', 'openLogs'];
+const CALLS = ['status', 'setAI', 'signIn', 'cancelSignIn', 'signOut', 'pasteKey', 'removeKey', 'connectCustom', 'disconnectCustom', 'chooseAI', 'openKeysPage', 'chooseWow', 'installAddon', 'setLoginItem', 'setApp', 'restartLink', 'openLogs'];
 
 const api = {};
 for (const name of CALLS) api[name] = (payload) => ipcRenderer.invoke(`spellmind:${name}`, payload);

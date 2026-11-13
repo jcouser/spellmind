@@ -64,7 +64,7 @@ export function createAISetup({ manifests, keystore, signInFor = () => null, fet
         current: m.id === current,
         keyExample: m.keyExample || null,
         keysUrl: m.links?.keys || null,
-        ...(m.custom && cfg.custom ? { custom: { baseUrl: cfg.custom.baseUrl, model: cfg.custom.model } } : {}),
+        ...(m.custom && cfg.custom ? { custom: { baseUrl: cfg.custom.baseUrl, model: cfg.custom.model, ...(cfg.custom.keyHost ? { keyHost: cfg.custom.keyHost } : {}) } } : {}),
       });
     }
     return out;
@@ -141,6 +141,15 @@ export function createAISetup({ manifests, keystore, signInFor = () => null, fet
     return { ok: true, cfg: switchTo({ ...cfg, custom: { baseUrl: c.baseUrl, model: id, ...(keyHost ? { keyHost } : {}) } }, m) };
   }
 
+  // Other, undone: its key gone, its address and model forgotten; the ChatGPT plan answers if Other did.
+  async function disconnectCustom(cfg = {}) {
+    await keystore.delete('custom');
+    const next = { ...cfg };
+    delete next.custom;
+    if (next.provider === 'custom') { next.provider = 'chatgpt'; delete next.model; }
+    return { ok: true, cfg: next };
+  }
+
   async function choose(cfg = {}, id) {
     const m = byId(id);
     if (!m || m.hidden) return { ok: false, error: 'unknown_ai' };
@@ -148,5 +157,5 @@ export function createAISetup({ manifests, keystore, signInFor = () => null, fet
     return { ok: true, cfg: switchTo(cfg, m.custom ? customManifest(template, cfg.custom) : m) };
   }
 
-  return { list, pasteKey, removeKey, connectCustom, choose };
+  return { list, pasteKey, removeKey, connectCustom, disconnectCustom, choose };
 }

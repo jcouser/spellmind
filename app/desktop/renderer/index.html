@@ -13,7 +13,7 @@
       <h1>Spellmind</h1>
       <div class="sub" id="version"></div>
     </div>
-    <div class="pill" id="pill"><span class="dot"></span><span id="pillText">Starting…</span></div>
+    <div class="pill" id="pill" role="status" aria-live="polite"><span class="dot"></span><span id="pillText">Starting…</span></div>
   </header>
 
   <main>
@@ -46,6 +46,8 @@
           <button id="signOut" class="quiet" hidden>Sign out</button>
         </div>
         <p class="note">Uses your ChatGPT plan (Plus or Pro), with no API key: you sign in in your browser.</p>
+        <p class="note err" id="planErr" hidden></p>
+        <p class="note" id="planStill" hidden></p>
       </div>
 
       <div class="setup" id="setupKey" hidden>
@@ -56,9 +58,17 @@
           <button id="removeKey" class="quiet" hidden>Remove key</button>
         </div>
         <p class="note" id="keyHelp">Copy your API key, then click Paste key. Spellmind reads it from your clipboard, tests it with your AI, keeps it in Windows' credential store and clears your clipboard. It never shows it again.</p>
+        <p class="note" id="keyBilled">An API key is billed by use at its company, apart from any subscription you have. No key? The ChatGPT plan sign-in needs none.</p>
+        <p class="note err" id="keyErr" hidden></p>
+        <p class="note" id="keyStill" hidden></p>
       </div>
 
       <div class="setup" id="setupCustom" hidden>
+        <p class="note">Skip this unless your service gave you an address (OpenRouter, Groq, or a model on your own computer with Ollama or LM Studio).</p>
+        <div class="row" id="customNow" hidden>
+          <div class="grow"><div class="note good" id="customState"></div></div>
+          <button id="disconnectCustom" class="quiet">Disconnect</button>
+        </div>
         <div class="grid">
           <label for="customUrl">Address</label>
           <input id="customUrl" type="text" spellcheck="false" autocomplete="off" placeholder="https://openrouter.ai/api/v1 or http://localhost:11434/v1">
@@ -69,7 +79,9 @@
           <label class="switch grow"><input type="checkbox" id="customWithKey"><span>Use the key on my clipboard (not needed for a server on this computer)</span></label>
           <button id="connectCustom">Connect</button>
         </div>
-        <p class="note">Any OpenAI-compatible service: OpenRouter, Groq, Together, or a model on your own computer with Ollama or LM Studio.</p>
+        <p class="note">A model on your own computer needs room for Spellmind's instructions: in Ollama, set the context to 16K or more (OLLAMA_CONTEXT_LENGTH=16384). Without web search, its facts come from memory.</p>
+        <p class="note err" id="customErr" hidden></p>
+        <p class="note" id="customStill" hidden></p>
       </div>
 
       <div class="grid" id="aiOptions">
@@ -99,6 +111,7 @@
         </div>
         <button id="installAddon">Install</button>
       </div>
+      <p class="note err" id="wowErr" hidden></p>
     </section>
 
     <section class="card">
@@ -122,7 +135,7 @@
     </section>
   </main>
 
-  <div class="toast" id="toast" hidden></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <script src="app.js"></script>
 </body>
 </html>

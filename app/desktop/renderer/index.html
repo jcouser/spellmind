@@ -54,10 +54,13 @@
         <div class="row">
           <div class="grow"><div class="note" id="keyState">…</div></div>
           <button id="openKeys" class="quiet">Get a key</button>
-          <button id="pasteKey">Paste key</button>
           <button id="removeKey" class="quiet" hidden>Remove key</button>
         </div>
-        <p class="note" id="keyHelp">Copy your API key, then click Paste key. Spellmind reads it from your clipboard, tests it with your AI, keeps it in Windows' credential store and clears your clipboard. It never shows it again.</p>
+        <div class="row">
+          <input id="keyInput" type="password" class="grow" spellcheck="false" autocomplete="off" placeholder="Paste your API key here">
+          <button id="saveKey">Save key</button>
+        </div>
+        <p class="note" id="keyHelp">Paste your API key in the box and click Save key. Spellmind tests it with your AI and keeps it in Windows' credential store. It never shows it again.</p>
         <p class="note" id="keyBilled">An API key is billed by use at its company, apart from any subscription you have. No key? The ChatGPT plan sign-in needs none.</p>
         <p class="note err" id="keyErr" hidden></p>
         <p class="note" id="keyStill" hidden></p>
@@ -76,7 +79,7 @@
           <input id="customModel" type="text" spellcheck="false" autocomplete="off" placeholder="llama3.3, openai/gpt-oss-120b…">
         </div>
         <div class="row">
-          <label class="switch grow"><input type="checkbox" id="customWithKey"><span>Use the key on my clipboard (not needed for a server on this computer)</span></label>
+          <input id="customKey" type="password" class="grow" spellcheck="false" autocomplete="off" placeholder="API key (only if the service needs one)">
           <button id="connectCustom">Connect</button>
         </div>
         <p class="note">A model on your own computer needs room for Spellmind's instructions: in Ollama, set the context to 16K or more (OLLAMA_CONTEXT_LENGTH=16384). Without web search, its facts come from memory.</p>

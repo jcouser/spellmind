@@ -9,7 +9,7 @@
 //   - One copy runs: a second launch opens the first one's window.
 //   - The window (renderer/): status, the AI and its sign-in, the WoW folder and the addon, the app.
 //     Closing it keeps Spellmind in the tray; Quit in the tray's menu ends it.
-import { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, dialog, ipcMain, shell, utilityProcess, Notification, clipboard, session } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, dialog, ipcMain, shell, utilityProcess, Notification, session } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -277,8 +277,16 @@ function openWindow() {
     webPreferences: { preload: path.join(HERE, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false },
   });
   // No menu bar, but a hidden menu that keeps zoom (Ctrl + and Ctrl -; the review: removing the menu took it).
-  win.setMenu(Menu.buildFromTemplate([{ label: 'View', submenu: [{ role: 'zoomIn' }, { role: 'zoomIn', accelerator: 'CommandOrControl+=', visible: false }, { role: 'zoomOut' }, { role: 'resetZoom' }] }]));
+  win.setMenu(Menu.buildFromTemplate([
+    { label: 'Edit', submenu: [{ role: 'undo' }, { role: 'redo' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
+    { label: 'View', submenu: [{ role: 'zoomIn' }, { role: 'zoomIn', accelerator: 'CommandOrControl+=', visible: false }, { role: 'zoomOut' }, { role: 'resetZoom' }] },
+  ]));
   win.setMenuBarVisibility(false);
+  // A right-click in a field: Cut, Copy, Paste, Select all (pasting a key or an address by mouse).
+  win.webContents.on('context-menu', (_e, params) => {
+    if (!params.isEditable) return;
+    Menu.buildFromTemplate([{ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { type: 'separator' }, { role: 'selectAll' }]).popup({ window: win });
+  });
   // Nothing navigates away or opens a window of its own; links go to the browser through openLink.
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -295,6 +303,8 @@ function openWindow() {
 
 // ---------------------------------------------------------------------------
 // The window's calls (preload.cjs lists them).
+
+const keyText = (p) => (typeof p?.key === 'string' && p.key.length <= 4096 ? p.key : '');
 
 const CALLS = {
   status: () => fullStatus(),
@@ -332,13 +342,12 @@ const CALLS = {
     return { ok: true };
   },
 
-  // An API key from the clipboard, read here (the window never sees it): which AI it's for, a live
-  // test, then the OS credential store. The clipboard is cleared once it's kept.
-  pasteKey: async () => {
-    const text = clipboard.readText();
-    const r = await aiSetup.pasteKey(readConfig(DATA), text);
+  // An API key from the window's field (the player, 2026-11-13: reading the clipboard said it was empty
+  // when it wasn't): which AI it's for by its shape, a live test, then the OS credential store. It's never
+  // sent back to the window, logged, or shown again.
+  saveKey: async (p) => {
+    const r = await aiSetup.pasteKey(readConfig(DATA), keyText(p));
     if (!r.ok) return { ok: false, error: r.error, detail: r.detail };
-    if (clipboard.readText() === text) clipboard.clear();
     await useCfg(r.cfg, `${r.card}: key saved and working.`);
     return { ok: true, card: r.card };
   },
@@ -347,9 +356,9 @@ const CALLS = {
     if (r.ok) { note('Key removed.'); await sup.restart(); }
     return r;
   },
-  // Other: an OpenAI-compatible address and model, with the key from the clipboard when asked.
+  // Other: an OpenAI-compatible address and model, with a key from the window's field when one's given.
   connectCustom: async (p) => {
-    const keyText = p?.withKey ? clipboard.readText() : null;
+    const key = keyText(p).trim() || null;
     // A new address: the player says yes in a dialog of the app's own before anything goes there (the
     // security review: one call sent the clipboard and every later question to any address typed in).
     const c = checkCustomUrl(String(p?.baseUrl || ''));
@@ -358,20 +367,19 @@ const CALLS = {
       let known = null;
       try { known = cfg.custom?.baseUrl ? new URL(cfg.custom.baseUrl).host : null; } catch { known = null; }
       if (c.host !== known) {
-        const clear = keyText && c.baseUrl.startsWith('http:') && !c.local;
+        const clear = key && c.baseUrl.startsWith('http:') && !c.local;
         const r = await dialog.showMessageBox(win, {
           type: clear ? 'warning' : 'question', buttons: ['Connect', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true,
           title: 'Spellmind', message: `Send your questions and game data to ${c.host}?`,
           detail: (c.local ? 'A server on this computer: nothing leaves it.' : 'Everything you ask Spellmind from now on goes to this service, with your character\'s data.')
-            + (keyText ? ' The key on your clipboard goes with it.' : '')
+            + (key ? ' Your key goes with it.' : '')
             + (clear ? '\n\nThis address is http: the key travels unencrypted over your network.' : ''),
         });
         if (r.response !== 0) return { ok: false, error: 'cancelled' };
       }
     }
-    const r = await aiSetup.connectCustom(readConfig(DATA), { baseUrl: String(p?.baseUrl || ''), model: String(p?.model || '') }, keyText);
+    const r = await aiSetup.connectCustom(readConfig(DATA), { baseUrl: String(p?.baseUrl || ''), model: String(p?.model || '') }, key);
     if (!r.ok) return r;
-    if (keyText && clipboard.readText() === keyText) clipboard.clear();
     await useCfg(r.cfg, `Connected to ${r.cfg.custom.model} at ${new URL(r.cfg.custom.baseUrl).host}.`);
     return { ok: true };
   },
@@ -439,7 +447,7 @@ const CALLS = {
   openLogs: async () => { await shell.openPath(DATA); return { ok: true }; },
 };
 
-const SETUP_WORDS = { signIn: 'Signing in', pasteKey: 'Pasting the key', connectCustom: 'Connecting to Other', chooseWow: 'Picking the WoW folder', installAddon: 'Installing the addon' };
+const SETUP_WORDS = { signIn: 'Signing in', saveKey: 'Saving the key', connectCustom: 'Connecting to Other', chooseWow: 'Picking the WoW folder', installAddon: 'Installing the addon' };
 for (const [name, fn] of Object.entries(CALLS)) {
   ipcMain.handle(`spellmind:${name}`, async (e, payload) => {
     // Only this app's own page may call.

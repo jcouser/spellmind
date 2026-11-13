@@ -157,6 +157,15 @@ The turn moved to `core/app/turn.mjs` (`createTurn`), tested against a stand-in 
 - **Local models:** 3 minutes for the first word (they may load from disk first), and Ollama's context note in the window.
 - **A guide import needs web search:** on an AI without it, it's refused in words instead of a made-up build.
 
+### The key goes in a field (the player, 2026-11-13)
+"Paste key" said the clipboard was empty while pasting elsewhere worked: the app's read of the clipboard
+didn't see what was on it (a password manager or a browser can put text there in a form it misses). And a
+field is what players expect.
+- **API keys:** a password field ("Paste your API key here") and Save key, or Enter. The key is sent to the app once, tested, kept in Windows' credential store, and the field is cleared, whatever happens.
+- **Other:** an optional key field ("API key (only if the service needs one)") in place of the clipboard switch.
+- **The app reads no clipboard at all now.** The hidden menu has the edit commands (Ctrl+V), and a right-click in a field gives Cut, Copy, Paste and Select all.
+- **The words:** "The box is empty. Paste your API key in it first.", "That isn't an API key…".
+
 ## Still to do
 
 - **Live tests per AI** (the player's keys; nothing here was run against Claude, Grok, Gemini or a local model). For each, with the double-check on and off:

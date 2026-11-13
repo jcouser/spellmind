@@ -137,7 +137,8 @@ function draw(s) {
     $('signOut').hidden = !shown.ready;
   } else if (shown?.kind === 'key') {
     fact($('keyState'), shown.ready ? `Key saved${shown.current ? ' and in use' : ''}.` : `No key yet. ${shown.card}'s keys start like ${(shown.keyExample || 'a long code').replace(/…$/, '')}…`, shown.ready ? 'good' : 'muted');
-    $('pasteKey').textContent = shown.ready ? 'Replace key' : 'Paste key';
+    $('saveKey').textContent = shown.ready ? 'Replace key' : 'Save key';
+    $('keyInput').placeholder = shown.ready ? 'Paste a new key to replace the saved one' : 'Paste your API key here';
     $('removeKey').hidden = !shown.ready;
     $('openKeys').hidden = !shown.keysUrl;
   } else if (shown?.kind === 'custom') {
@@ -258,18 +259,26 @@ $('aiPick').addEventListener('change', (e) => {
 });
 // A key is for the AI its shape says, which may not be the one on screen: the picker follows it, and
 // says so (the review: a ChatGPT key pasted while Grok showed left Grok's box saying "No key yet").
-$('pasteKey').addEventListener('click', () => {
+// The key from its field (the player, 2026-11-13: reading the clipboard failed): sent once, the field
+// cleared whatever happens. A key is for the AI its shape says, which may not be the one on screen: the
+// picker follows it, and says so.
+function saveKey() {
+  const key = $('keyInput').value;
+  $('keyInput').value = '';
+  if (!key.trim()) { boxErr.keyErr = 'Paste your API key in the box first.'; showBoxErrors(); return; }
   const was = viewing;
-  act($('pasteKey'), () => sm.pasteKey(), (r) => {
+  act($('saveKey'), () => sm.saveKey({ key }), (r) => {
     viewing = r.id || viewing;
     const other = r.id && r.id !== was ? `That's a ${r.card} key: now using ${r.card}. ` : '';
-    return `${other}${r.card}: key saved and working. Your clipboard was cleared (clipboard history, Win+V, keeps its own copy: clear it there too).`;
+    return `${other}${r.card}: key saved and working.`;
   }, { box: 'keyErr', busyText: 'Testing…' });
-});
+}
+$('saveKey').addEventListener('click', saveKey);
+$('keyInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveKey(); });
 $('removeKey').addEventListener('click', () => act($('removeKey'), () => sm.removeKey(viewing), 'Key removed.', { box: 'keyErr' }));
 $('openKeys').addEventListener('click', () => act(null, () => sm.openKeysPage(viewing)));
 $('connectCustom').addEventListener('click', () => act($('connectCustom'),
-  () => sm.connectCustom({ baseUrl: $('customUrl').value, model: $('customModel').value, withKey: $('customWithKey').checked }),
+  () => { const key = $('customKey').value; $('customKey').value = ''; return sm.connectCustom({ baseUrl: $('customUrl').value, model: $('customModel').value, key }); },
   'Connected and working.', { box: 'customErr', busyText: 'Testing…' }));
 $('disconnectCustom').addEventListener('click', () => act($('disconnectCustom'), () => sm.disconnectCustom(), 'Disconnected.', { box: 'customErr' }));
 $('signOut').addEventListener('click', () => act($('signOut'), () => sm.signOut(), 'Signed out.', { box: 'planErr' }));

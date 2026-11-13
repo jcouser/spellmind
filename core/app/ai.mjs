@@ -1,9 +1,9 @@
 // Choosing the AI in the desktop app (docs/milestone-3.md): every AI the core can talk to, each set
 // up its own way, and the one the link uses.
 //   - The ChatGPT plan: the browser sign-in (main.mjs, core/ai/signin).
-//   - Anthropic, OpenAI, xAI, Google: an API key. Paste key reads the clipboard in the app (never the
-//     window), tells the AI from the key's shape (providers/keytext.mjs), tests it with a live call
-//     (the models list), and only then keeps it in the OS credential store.
+//   - Anthropic, OpenAI, xAI, Google: an API key, pasted into the window's field and sent once (reading
+//     the clipboard failed for the player, 2026-11-13). Its shape tells the AI (providers/keytext.mjs); a
+//     live call tests it (the models list); only then is it kept in the OS credential store.
 //   - Other: any OpenAI-compatible address (OpenRouter, Groq, Ollama, LM Studio…), with a model and
 //     an optional key, tested the same way.
 // Nothing here logs a key; a result never carries one.
@@ -74,8 +74,8 @@ export function createAISetup({ manifests, keystore, signInFor = () => null, fet
     const shape = pasteShape(text, manifests);
     if (!shape.key) {
       const detail = {
-        clipboard_empty: 'Your clipboard is empty. Copy your API key first, then click Paste key.',
-        not_a_key: 'What\'s on your clipboard isn\'t an API key. Copy the key itself from your AI\'s site.',
+        clipboard_empty: 'The box is empty. Paste your API key in it first.',
+        not_a_key: 'That isn\'t an API key. Copy the key itself from your AI\'s site and paste it in the box.',
         subscription_token: 'That\'s a Claude sign-in token, which other apps can\'t use. Make an API key on Claude\'s console instead.',
         admin_key: 'That\'s an admin key, which can\'t send messages. Make a regular API key.',
         custom_key: 'That\'s an OpenRouter key: set it up under Other, with OpenRouter\'s address.',
@@ -125,11 +125,11 @@ export function createAISetup({ manifests, keystore, signInFor = () => null, fet
     if (!CUSTOM_MODEL_RE.test(id)) return { ok: false, error: 'bad_model', detail: 'Type the model\'s name as the service writes it (like llama3.3 or openai/gpt-oss-120b).' };
     const m = customManifest(template, { baseUrl: c.baseUrl, model: id });
     if (!m) return { ok: false, error: 'bad_settings', detail: 'Those settings didn\'t make a working connection.' };
-    // An optional key, from the clipboard: any key-looking text (services' keys have many shapes).
+    // An optional key, from the window's field: any key-looking text (services' keys have many shapes).
     let key = null;
     if (keyText != null) {
       key = String(keyText).trim();
-      if (!key || key.length > 512 || /\s/.test(key)) return { ok: false, error: 'not_a_key', detail: 'What\'s on your clipboard isn\'t a key. Copy it again, or connect without one.' };
+      if (!key || key.length > 512 || /\s/.test(key)) return { ok: false, error: 'not_a_key', detail: 'That isn\'t a key (no spaces, at most 512 characters). Paste it again, or connect without one.' };
     }
     const v = await test(m, key);
     if (!v.ok) return { ok: false, error: v.error?.kind || 'failed', detail: errorWords(m, v.error) };

@@ -32,7 +32,7 @@ local function Dungeons()
 			pickup = {}
 			for i, q in ipairs(qs.pickup) do
 				if i > AV.PICKUP_MAX then break end
-				pickup[#pickup + 1] = O("name", q.name, "from", q.from, "after", q.after, "afterInLog", q.afterLog and true or nil,
+				pickup[#pickup + 1] = O("name", q.name, "from", q.from, "after", q.after, "afterStep", q.afterStep, "afterInLog", q.afterLog and true or nil, "afterTo", q.afterTo,
 					"at", q.at, "first", q.first and true or nil)
 			end
 		end

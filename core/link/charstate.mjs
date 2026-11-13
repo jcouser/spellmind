@@ -70,7 +70,7 @@ const REP = { id: int, name: str, r: intIn(1, 8), v: num, max: num, watched: boo
 // world (World.lua, milestone 17): NPCs nearby, from the character's own visits or QuestieDB.
 const WORLD_NPC = { name: str, sub: str, does: strList(6), x: num, y: num, sells: strList(LIST_MAX.sells), seen: bool };
 // advisor (Advisor.lua, milestone 18): what the addon's tabs work out.
-const ADV_PICKUP = { name: str, from: str, after: str, afterInLog: bool, at: int, first: bool };
+const ADV_PICKUP = { name: str, from: str, after: str, afterStep: int, afterInLog: bool, afterTo: str, at: int, first: bool };
 const ADV_DUNGEON = { name: str, range: str, questLevels: str, inLog: int, done: int, toPickUp: int, total: int, pickup: list(ADV_PICKUP, 5) };
 const ADV_UPGRADE = { slot: str, name: str, from: str };
 const ADV_SKILLUP = { name: str, color: str, makes: int };

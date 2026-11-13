@@ -347,6 +347,35 @@ local function Chain(L, id, Have, depth)
 	return Chain(L, p, Have, depth + 1) or { id = p }
 end
 
+-- A quest's place in its chain: 1 for the first, 2 for the one after it… (seen in game: "after The
+-- Defias Brotherhood (in your log)" read as the step just finished, when it was the next step, of the
+-- same name). The prerequisite walked back regardless of what's done, 12 steps at most.
+local function StepOf(L, id, depth)
+	depth = depth or 0
+	if depth > 12 then return 1 end
+	local single = ns.Try(L.Quest.preQuestSingle, id)
+	local group = ns.Try(L.Quest.preQuestGroup, id)
+	local pre = (type(single) == "table" and single[1]) or (type(group) == "table" and group[1])
+	if not pre then return 1 end
+	return 1 + StepOf(L, pre, depth + 1)
+end
+
+-- Where a quest is handed in: "Wiley the Black, Stormwind City", or nil.
+local function Finisher(L, id)
+	local ok, by = pcall(L.Quest.finishedBy, id)
+	if not ok or type(by) ~= "table" then return nil end
+	local MAP = rawget(_G, "C_Map")
+	for _, npc in ipairs(type(by[1]) == "table" and by[1] or {}) do
+		local n = L.Npc and ns.Try(L.Npc.name, npc)
+		if type(n) == "string" and n ~= "" then
+			local zone = L.Npc and ns.Try(L.Npc.zoneID, npc)
+			local zname = zone and MAP and type(MAP.GetAreaInfo) == "function" and ns.Try(MAP.GetAreaInfo, zone) or nil
+			return n .. ((type(zname) == "string" and zname ~= "") and (", " .. zname) or "")
+		end
+	end
+	return nil
+end
+
 local function Name(L, id)
 	local n = ns.Try(L.Quest.name, id)
 	return type(n) == "string" and n ~= "" and n or nil
@@ -402,11 +431,15 @@ function DG.Quests(name, done)
 				else
 					-- A quest behind another: the chain walked back to the step that can be taken now (often
 					-- outside the dungeon: The Defias Brotherhood starts in Westfall), or the one in the log.
-					local after, afterLog
+					local after, afterLog, afterStep, afterTo
 					local step = Chain(L, id, Have)
 					if step then
 						after = Name(L, step.id)
 						afterLog = step.inLog
+						-- Which step of a chain, when there's more than one; and for one in the log, who takes it.
+						afterStep = StepOf(L, step.id)
+						if afterStep < 2 and Name(L, id) ~= after then afterStep = nil end
+						if step.inLog then afterTo = Finisher(L, step.id) end
 						if not step.inLog and not starts[step.id] and after then
 							local sfrom, _, sspot = Giver(L, step.id)
 							local sreq = tonumber((ns.Try(L.Quest.requiredLevel, step.id)))
@@ -417,7 +450,7 @@ function DG.Quests(name, done)
 					end
 					local req = tonumber((ns.Try(L.Quest.requiredLevel, id)))
 					out.pickup[#out.pickup + 1] = { id = id, name = qname, level = tonumber((ns.Try(L.Quest.questLevel, id))), from = from,
-						after = after, afterLog = afterLog, at = (req and req > level) and req or nil, spot = spot }
+						after = after, afterLog = afterLog, afterStep = afterStep, afterTo = afterTo, at = (req and req > level) and req or nil, spot = spot }
 				end
 			end
 		end
@@ -470,7 +503,7 @@ function DG.Briefing(name)
 		local pick = {}
 		for i, q in ipairs(qs.pickup) do
 			if i <= 6 then
-				pick[#pick + 1] = q.name .. (q.first and " (the first step of a chain" .. ((q.opens and #q.opens > 0) and (" leading to " .. table.concat(q.opens, ", ")) or "") .. ")" or "") .. (q.from and (" (from " .. q.from .. ")") or "") .. (q.after and (" after " .. q.after .. (q.afterLog and ", which is in my log" or "")) or "") .. (q.at and (" at level " .. q.at) or "")
+				pick[#pick + 1] = q.name .. (q.first and " (the first step of a chain" .. ((q.opens and #q.opens > 0) and (" leading to " .. table.concat(q.opens, ", ")) or "") .. ")" or "") .. (q.from and (" (from " .. q.from .. ")") or "") .. (q.after and (" after " .. q.after .. (q.afterStep and (" (step " .. q.afterStep .. ")") or "") .. (q.afterLog and (", which is in my log" .. (q.afterTo and (", handed in to " .. q.afterTo) or "")) or "")) or "") .. (q.at and (" at level " .. q.at) or "")
 			end
 		end
 		if #pick > 0 then parts[#parts + 1] = "Quests for it I haven't picked up: " .. table.concat(pick, "; ") .. "." end

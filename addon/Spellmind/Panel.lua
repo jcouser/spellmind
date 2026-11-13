@@ -515,9 +515,12 @@ function Tabs.dungeons()
 			local from = q.from and ("from " .. ns.Escape(q.from)) or "giver unknown"
 			-- What it waits on: the step in your log, or the chain's first step (listed above, to pick up).
 			local wait = ""
-			if q.after and q.afterLog then wait = "|cffff6060after " .. ns.Escape(q.after) .. " (in your log)|r · "
-			elseif q.after then wait = "|cffff6060after " .. ns.Escape(q.after) .. " (pick it up first, above)|r · "
-			elseif q.at then wait = "|cffff6060at level " .. q.at .. "|r · " end
+			-- Which step, when a chain repeats its name (seen in game: "The Defias Brotherhood" read as the
+			-- step just finished); for one in the log, who takes it. Orange: not yet, nothing wrong.
+			local waitName = q.after and (ns.Escape(q.after) .. (q.afterStep and (", step " .. q.afterStep) or ""))
+			if q.after and q.afterLog then wait = "|cffff9933after " .. waitName .. " (in your log" .. (q.afterTo and (": hand it in to " .. ns.Escape(q.afterTo)) or "") .. ")|r · "
+			elseif q.after then wait = "|cffff9933after " .. waitName .. " (pick it up first, above)|r · "
+			elseif q.at then wait = "|cffff9933at level " .. q.at .. "|r · " end
 			local opens = ""
 			if q.opens and #q.opens > 0 then opens = " · leads to " .. ns.Escape(table.concat(q.opens, ", ")) end
 			-- A chain's first step can share its name with a later one (The Defias Brotherhood).

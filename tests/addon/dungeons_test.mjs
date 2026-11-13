@@ -252,3 +252,19 @@ test('the dungeon\'s own range and its quests\' levels are told apart (seen in g
   assert.equal(d.range, '13–20');
   assert.equal(d.questLevels, 'level 16');
 });
+
+test('seen in game: a chain whose steps share a name says which step is in the log, and who takes it', () => {
+  const vm = newVM();
+  vm.run(DEFIAS);
+  vm.run('STUB.UseQuestieDB(); STUB.completed[2040] = true; C_QuestLog.IsOnQuest = function(id) return id == 2041 end');
+  vm.run('LibQuestieDB.Quest.finishedBy = function(id) if id == 2041 then return { { 902 } } end end');
+  vm.run('STUB.lfg = { { 2, "Deadmines", 17, 26 } }; STUB.UseLFG()');
+  vm.login().advance(9);
+  vm.run('NS.Dungeons.Quests("The Deadmines")');
+  vm.advance(1);
+  vm.run('NS.Panel.openDungeons = { deadmines = true }; NS.Panel.Show("dungeons")');
+  const d = list(vm, 'SpellmindPanel.drawn');
+  const row = d.find(x => x.text === 'Red Silk Bandanas');
+  assert.match(row.sub, /after The Defias Brotherhood, step 2 \(in your log: hand it in to Gryan Stoutmantle, Westfall\)/);
+  assert.match(vm.evaluate('NS.Dungeons.Briefing("The Deadmines")'), /Red Silk Bandanas .* after The Defias Brotherhood \(step 2\), which is in my log, handed in to Gryan Stoutmantle, Westfall/);
+});

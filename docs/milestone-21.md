@@ -89,7 +89,7 @@ The turn moved to `core/app/turn.mjs` (`createTurn`), tested against a stand-in 
   - The calls check the frame's address, not only the window.
   - The `--shot` code (the only executeJavaScript) is in dev-shot.mjs, which the installer doesn't take.
 - **The log:**
-  - core/log.mjs: a file a day in `%APPDATA%Spellmindlogs`, kept 7 days, through the key redactor.
+  - core/log.mjs: a file a day in `%APPDATA%\Spellmind\logs`, kept 7 days, through the key redactor.
   - The token and nonce fields are left out, and publishes are logged only when they fail.
   - The old `spellmind.log` (with tokens) is deleted.
 - **The addon copy refuses links:** a junction or link at AddOns\Spellmind (or a file that's a link) is removed, never written through. Tested with a real junction.

@@ -178,7 +178,10 @@ function T.OnTooltip(tooltip, data)
 	local ok, line = pcall(T.Line, link, data)
 	if ok and line then
 		-- An upgrade (Gear.Upgrade: usable, clearly ahead) says so first.
-		local up = ns.Gear and select(2, pcall(ns.Gear.Upgrade, link))
+		-- pcall's first return checked: on an error the second is the message, which isn't "an upgrade" (the review).
+		local okUp, up = false, nil
+		if ns.Gear then okUp, up = pcall(ns.Gear.Upgrade, link) end
+		up = okUp and up or nil
 		if up and not line:find("can't use") and not line:find("needs level") and not line:find("skill yet") then
 			line = line:gsub("^(|cff9d7dffSpellmind:|r )", "%1|cff19ff19upgrade:|r ")
 		end

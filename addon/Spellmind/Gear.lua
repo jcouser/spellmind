@@ -43,10 +43,27 @@ local function Info(link)
 		sub = r[8], equipLoc = r[10], icon = r[11], sell = r[12], classID = r[13] }
 end
 
+-- Answers kept per item link (the review: every bag item's tooltip data was built again and again,
+-- by each tab draw, state build and tooltip refresh). Dropped when anything they depend on changes:
+-- gear worn, skills, level, spells, the guide; and after CACHE_FOR seconds whatever happens.
+G.CACHE_FOR = 30
+local cache = { usable = {}, upgrade = {}, at = 0 }
+function G.Forget()
+	cache.usable, cache.upgrade, cache.at = {}, {}, GetTime()
+end
+local function Cached()
+	if GetTime() - cache.at > G.CACHE_FOR then G.Forget() end
+	return cache
+end
+
 -- Usable now: no requirement in red in the game's own tooltip data (skill, level, armour, class).
 function G.Usable(link)
+	local c = Cached().usable
+	if c[link] ~= nil then return c[link] end
 	local data = C_TooltipInfo and type(C_TooltipInfo.GetHyperlink) == "function" and select(2, pcall(C_TooltipInfo.GetHyperlink, link)) or nil
-	return #ns.Tooltip.RedTexts(type(data) == "table" and data or nil) == 0
+	local usable = #ns.Tooltip.RedTexts(type(data) == "table" and data or nil) == 0
+	if type(link) == "string" then c[link] = usable end
+	return usable
 end
 
 -- The worn item of a slot: { link, info, stats } or nil.
@@ -169,10 +186,25 @@ end
 
 -- Is link an upgrade for this character? Returns slot, a short reason ("empty slot", "+3 Agi, +4 ilvl").
 function G.Upgrade(link)
+	if type(link) ~= "string" then return nil end
+	local c = Cached().upgrade
+	local hit = c[link]
+	if hit ~= nil then
+		if hit then return hit[1], hit[2] end
+		return nil
+	end
+	local slot, reason = G.UpgradeNow(link)
+	c[link] = slot and { slot, reason } or false
+	return slot, reason
+end
+
+function G.UpgradeNow(link)
 	local info = Info(link)
-	if not info or not G.Usable(link) then return nil end
+	if not info then return nil end
+	-- Wearable at all first: the cheap check before the tooltip data (the review).
 	local slot = SlotFor(info)
 	if not slot or G.COSMETIC[slot] then return nil end
+	if not G.Usable(link) then return nil end
 	local worn = Worn(slot)
 	if not worn then return slot, "fills an empty slot" end
 	if worn.info and worn.info.link and tonumber(link:match("item:(%d+)")) == tonumber(worn.link:match("item:(%d+)")) then return nil end
@@ -237,6 +269,8 @@ function G.ReadLog()
 						if not link and tonumber(data.id) then
 							local r = { pcall(C_Item.GetItemInfo, data.id) }
 							link = r[1] and r[3] or nil
+							-- Not loaded yet: read again when the client says this item has come in.
+							if not link then G.wanted[tonumber(data.id)] = true end
 						end
 						if type(link) == "string" then links[#links + 1] = link end
 					end
@@ -385,7 +419,19 @@ function G.Soon()
 	C_Timer.After(2, function() G.pending = nil; pcall(G.ReadLog) end)
 end
 ns.On("QUEST_LOG_UPDATE", function() G.Soon() end)
-ns.On("GET_ITEM_INFO_RECEIVED", function() G.Soon() end)
+-- Only for an item a reward read was waiting on (the review: the event fires for every item the
+-- client loads, and an auction scan meant a full reward read every 2 s).
+G.wanted = {}
+ns.On("GET_ITEM_INFO_RECEIVED", function(_, itemID)
+	if G.wanted[tonumber(itemID) or 0] then
+		G.wanted[tonumber(itemID)] = nil
+		G.Soon()
+	end
+end)
+-- What upgrade answers depend on changed: the kept ones go (G.Forget).
+for _, ev in ipairs({ "PLAYER_EQUIPMENT_CHANGED", "SKILL_LINES_CHANGED", "PLAYER_LEVEL_UP", "SPELLS_CHANGED", "CHARACTER_POINTS_CHANGED" }) do
+	ns.On(ev, function() G.Forget() end)
+end
 
 ns.On("PLAYER_LOGIN", function()
 	C_Timer.After(6, function() pcall(G.ReadLog) end)

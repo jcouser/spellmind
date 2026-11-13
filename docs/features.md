@@ -18,6 +18,7 @@ Spellmind is one companion with a few surfaces, not a set of separate tools. Thi
 4. **The data is the truth.** Every verdict names the fact behind it ("+3 agility over your robe"). A missing fact is said, never guessed. *This is what the prompt already enforces.*
 5. **One question away.** Every panel and nudge has an **Ask** that opens the chat with the question and its context already in place (the item, the quest, the talent). The player edits it or just presses Enter.
 6. **Advice only.** No automation, ever: Spellmind never clicks, casts, buys or equips. It can set a map waypoint, which is the game's own player-facing feature, and only when the player clicks for one.
+7. **Private.** The character's name, realm and guild never leave the game. The name is read in one place only (`ns.Redact`), to blank it out of quest text the game wrote it into; it's never kept, stored or sent. Other addons are optional extras: every feature works without them.
 
 ## 2. Shared surfaces
 

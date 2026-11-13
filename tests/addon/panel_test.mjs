@@ -198,3 +198,18 @@ C_QuestLog.GetQuestTagInfo = function(id) if id == 168 or id == 167 or id == 204
   const later = d.findIndex(x => x.text === 'Later');
   assert.ok(!d.slice(later + 1).some(x => /Oh Brother|Underground Assault/.test(x.text || '')), 'not under Later');
 });
+
+test('a live redraw keeps the scroll (the review: the list jumped to the top a second after every loot)', () => {
+  const vm = session();
+  vm.run('NS.Panel.Show("quests")');
+  vm.run('SpellmindPanel.scroll:SetVerticalScroll(40)');
+  vm.run('STUB.FireEvent("QUEST_LOG_UPDATE")');
+  vm.advance(1.2);
+  assert.equal(vm.num('SpellmindPanel.scroll:GetVerticalScroll()'), 0, 'the stub\'s range is 0: clamped, as a shorter list would be');
+  vm.run('SpellmindPanel.scroll.GetVerticalScrollRange = function() return 100 end; SpellmindPanel.scroll:SetVerticalScroll(40)');
+  vm.run('STUB.FireEvent("QUEST_LOG_UPDATE")');
+  vm.advance(1.2);
+  assert.equal(vm.num('SpellmindPanel.scroll:GetVerticalScroll()'), 40, 'kept');
+  vm.run('NS.Panel.Show("gear")');
+  assert.equal(vm.num('SpellmindPanel.scroll:GetVerticalScroll()'), 0, 'a tab switch starts at the top');
+});

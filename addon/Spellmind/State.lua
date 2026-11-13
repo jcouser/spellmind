@@ -22,8 +22,10 @@
 --                              { sid, parts = { [part] = { json, seq, z, ok } }, off }
 --   SpellmindDB.share          { state = true, identity = false }
 --
--- Never read: the character's name, realm and guild (UnitName, GetRealmName, GetGuildInfo), or
--- any other player's. Every client function is called guarded; one that's missing leaves its key out.
+-- Never read: the character's realm and guild (GetRealmName, GetGuildInfo), or any other player's name.
+-- The character's name is read in one place only, ns.Redact (Core.lua), to blank it out of quest text;
+-- it's never kept, stored or sent (the privacy review, 2026-11-12; a test holds it).
+-- Every client function is called guarded; one that's missing leaves its key out.
 
 local _, ns = ...
 local S = {}
@@ -856,12 +858,18 @@ end
 
 -- One part as it goes: its JSON, its body and whether that's deflated.
 function S.Part(name, z)
+	local obj = S.PartObj(name)
+	if not obj then return nil end
+	return S.Fit(name, obj, z)
+end
+
+-- A part's object before fitting. A part the player turned off (the Settings tab) goes as
+-- {"v":1,"off":true}: the app forgets what it had, and the AI knows it was kept back rather than empty.
+function S.PartObj(name)
 	local fn = Build[name]
 	if not fn then return nil end
-	-- A part the player turned off (the Settings tab) goes as {"v":1,"off":true}: the app forgets
-	-- what it had, and the AI knows it was kept back rather than empty.
-	if not S.PartOn(name) then return S.Fit(name, O("v", 1, "off", true), z) end
-	return S.Fit(name, fn(), z)
+	if not S.PartOn(name) then return O("v", 1, "off", true) end
+	return fn()
 end
 
 -- The parts a player can keep back. char (class, level, zone) is what every answer starts from, and
@@ -965,12 +973,25 @@ function S.Build(noDraw)
 	local z = R.caps.z == true
 	local changed = {}
 	for _, p in ipairs(S.PARTS) do
-		local ok, json, body, deflated = pcall(S.Part, p, z)
+		-- The part's own JSON compared first with the last build's (kept in memory only): unchanged,
+		-- nothing more is done. Fitting and deflating only for a changed part (the review: all
+		-- twelve were deflated on every build).
+		local ok, obj = pcall(S.PartObj, p)
 		if not ok then
-			R.stateErr[p] = tostring(json)
-		elseif json then
+			R.stateErr[p] = tostring(obj)
+		elseif obj then
 			local rec = me.parts[p]
-			if type(rec) ~= "table" or rec.json ~= json then changed[#changed + 1] = { p, json, body, deflated } end
+			R.partRaw = R.partRaw or {}
+			local raw = J.encode(obj) .. (z and "z" or "")
+			if type(rec) ~= "table" or not rec.json or R.partRaw[p] ~= raw then
+				local okFit, json, body, deflated = pcall(S.Fit, p, obj, z)
+				if not okFit then
+					R.stateErr[p] = tostring(json)
+				else
+					R.partRaw[p] = raw
+					if type(rec) ~= "table" or rec.json ~= json then changed[#changed + 1] = { p, json, body, deflated } end
+				end
+			end
 		end
 	end
 	if #changed == 0 then return 0 end
@@ -997,12 +1018,13 @@ function S.Dirty()
 			R.stateCombat = true
 			return
 		end
-		S.Build()
+		-- Only when a question waits for parts: otherwise the next question builds (S.BeforeSend).
+		if R.stateWanted or S.EAGER then S.Build() end
 	end)
 end
 
 function S.OnCombatEnd()
-	if R.stateCombat and R.stateDirty then S.Build() end
+	if R.stateCombat and R.stateDirty and (R.stateWanted or S.EAGER) then S.Build() end
 end
 
 -- C.Send, before the message's record: the state built, then st= for the message, the parts the
@@ -1113,7 +1135,9 @@ function S.OnBridge(bridge)
 				if type(rec) == "table" and rec.z and not rec.ok then rec.json, R.stateDirty = nil, true end
 			end
 		end
-		if not R.stateBuilt or R.stateDirty then S.Build(true) end
+		-- Built again only when a question waits for parts (the review: every slot load and event rebuilt
+		-- all twelve while nothing would be sent); the first time always.
+		if not R.stateBuilt or (R.stateDirty and (R.stateWanted or S.EAGER)) then S.Build(true) end
 		local answered = R.helloAnswered and R.stateHello ~= R.nonce
 		if answered then R.stateHello = R.nonce end
 		for p, rec in pairs(me.parts) do

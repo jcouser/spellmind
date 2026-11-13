@@ -21,7 +21,7 @@ import { createWindowsCapture } from '../core/link/capture.mjs';
 import { installAddon, FOREVER_FLAVORS, NOT_GAME, wowRunning } from '../core/link/install.mjs';
 import { loadPack } from '../core/ai/pack.mjs';
 import { buildRequest } from '../core/ai/context.mjs';
-import { needsCheck, checkHistory, CHECK_ASK } from '../core/ai/check.mjs';
+import { needsCheck, checkHistory, CHECK_ASK, pickChecked } from '../core/ai/check.mjs';
 
 const DATA = process.platform === 'win32' ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Spellmind') : path.join(os.homedir(), '.config', 'spellmind');
 const CONFIG = path.join(DATA, 'config.json');
@@ -113,7 +113,10 @@ switch (a._[0]) {
       const checked = await ask({ history: checkHistory(history, text, draft.text), userText: CHECK_ASK, game, signal, effort: e, search: s });
       if (checked.aborted) return checked;
       if (!checked.text?.trim()) { log('check-failed', { kind: checked.error?.kind }); return draft; }
-      return checked;
+      // A check that came back as a comment, much shorter, or without its "Next:" line doesn't replace a good draft.
+      const pick = pickChecked(draft.text, checked.text);
+      log('check-done', { used: pick.used, why: pick.why });
+      return { text: pick.text };
     };
 
     const addonsDir = path.join(flavorDir, 'Interface', 'AddOns');

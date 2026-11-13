@@ -264,7 +264,13 @@ local function Draw(f, specs, keepScroll)
 	end
 	for i = #specs + 1, #f.rows do f.rows[i]:Hide() end
 	f.content:SetHeight(math.max(10, -y))
-	if not keepScroll then f.scroll:SetVerticalScroll(0) end
+	if not keepScroll then
+		f.scroll:SetVerticalScroll(0)
+	else
+		-- Kept, but never past the end when the list got shorter.
+		local range = tonumber(f.scroll:GetVerticalScrollRange()) or 0
+		if (tonumber(f.scroll:GetVerticalScroll()) or 0) > range then f.scroll:SetVerticalScroll(range) end
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -1231,7 +1237,7 @@ function P.Build()
 	f.grip:SetScript("OnMouseUp", function()
 		f:StopMovingOrSizing()
 		KeepSize(f)
-		P.Show(P.tab)
+		P.Show(P.tab, true)
 	end)
 	-- While sizing: the Ask buttons and the chat follow at once, the rows when it stops (or a moment after).
 	f:SetScript("OnSizeChanged", function() P.PlaceAsks(f); P.PlaceChat(f); P.Soon() end)
@@ -1296,7 +1302,7 @@ function P.Soon()
 	P.pending = true
 	C_Timer.After(1, function()
 		P.pending = nil
-		if panel and panel:IsShown() and P.tab ~= "chat" then P.Show(P.tab) end
+		if panel and panel:IsShown() and P.tab ~= "chat" then P.Show(P.tab, true) end -- a live redraw keeps the scroll (the review)
 	end)
 end
 
@@ -1411,7 +1417,7 @@ end
 
 function P.NudgesChanged()
 	P.CountNudges()
-	if panel and panel:IsShown() and P.tab == "nudges" then P.Show("nudges") end
+	if panel and panel:IsShown() and P.tab == "nudges" then P.Show("nudges", true) end
 end
 
 -- The minimap button's right-click and /sm panel: the last tab other than Chat, or closed when it shows.

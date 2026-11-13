@@ -309,3 +309,46 @@ ns.On("TAXIMAP_OPENED", function() pcall(WD.OnTaxi) end)
 ns.On("TRAINER_SHOW", function() pcall(WD.Note, "trainer") end)
 ns.On("BANKFRAME_OPENED", function() pcall(WD.Note, "banker") end)
 ns.On("GOSSIP_SHOW", function() pcall(WD.OnGossip) end)
+
+---------------------------------------------------------------------------
+-- Saved data kept in bounds (the review: it only ever grew)
+---------------------------------------------------------------------------
+
+WD.NPCS_KEEP = 400 -- NPCs remembered, the most recently used kept
+WD.NPC_DAYS = 180 -- an NPC not used in this long is forgotten
+WD.CHAR_DAYS = 365 -- a character not logged in this long: its Spellmind data goes
+WD.PROBE_DAYS = 7 -- /sm probe's results, kept for a week
+
+function WD.Prune()
+	local db = ns.db
+	if not db then return end
+	local now = time()
+	-- NPCs: the old ones, then the least recently used past NPCS_KEEP.
+	local list = {}
+	for id, e in pairs(Store()) do
+		if type(e) ~= "table" or now - (tonumber(e.at) or 0) > WD.NPC_DAYS * 86400 then Store()[id] = nil
+		else list[#list + 1] = { id, tonumber(e.at) or 0 } end
+	end
+	if #list > WD.NPCS_KEEP then
+		table.sort(list, function(a, b) return a[2] > b[2] end)
+		for i = WD.NPCS_KEEP + 1, #list do Store()[list[i][1]] = nil end
+	end
+	-- Characters: this one marked seen; one unseen for a year has its data dropped everywhere.
+	local me = ns.State and ns.State.Me and ns.State.Me()
+	if me then me.seenAt = now end
+	for key, c in pairs(type(db.chars) == "table" and db.chars or {}) do
+		if type(c) == "table" then
+			if not c.seenAt then c.seenAt = now end
+			if now - c.seenAt > WD.CHAR_DAYS * 86400 then
+				db.chars[key] = nil
+				for _, t in ipairs({ "gold", "recipes", "crafts", "recipesRead" }) do
+					if type(db[t]) == "table" then db[t][key] = nil end
+				end
+			end
+		end
+	end
+	-- The probe's results: a week.
+	if db.probe and now - (tonumber(db.probeAt) or 0) > WD.PROBE_DAYS * 86400 then db.probe, db.probeAt = nil, nil end
+end
+
+ns.On("PLAYER_LOGIN", function() C_Timer.After(10, function() pcall(WD.Prune) end) end)

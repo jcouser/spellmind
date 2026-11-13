@@ -82,6 +82,8 @@ function GD.OnPlan(plan)
 	me.guide.plan = { title = plan.title, build = plan.build, builds = strings(plan.builds), talents = talents,
 		rotation = strings(plan.rotation), stats = strings(plan.stats), weapons = type(plan.weapons) == "string" and plan.weapons or nil,
 		source = plan.source }
+	-- Its stat priority weighs gear: the kept upgrade answers go.
+	if ns.Gear and ns.Gear.Forget then ns.Gear.Forget() end
 	if ns.State and ns.State.Dirty then ns.State.Dirty() end
 	if ns.Nudges and ns.Nudges.Soon then ns.Nudges.Soon() end
 	if ns.Panel and ns.Panel.Get() and ns.Panel.Get():IsShown() and (ns.Panel.tab == "talents" or ns.Panel.tab == "spells") then ns.Panel.Show(ns.Panel.tab, true) end

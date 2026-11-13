@@ -28,7 +28,16 @@ end
 
 -- The quest log's dungeon quests by dungeon (the log's header for a quest the game tags Dungeon or
 -- Raid), in log order: { { name, quests = { { id, title, level, complete } }, low, high, ready } }.
+-- Kept for the frame it was read in (the review: one state build read the whole log five or six
+-- times, through the Dungeons and Advisor parts).
 function DG.FromLog()
+	local now = GetTime()
+	if DG.logAt == now and DG.log then return DG.log end
+	DG.log, DG.logAt = DG.ReadLog(), now
+	return DG.log
+end
+
+function DG.ReadLog()
 	local out, by = {}, {}
 	local q = ns.State and ns.State.Collect and ns.State.Collect.quests and select(2, pcall(ns.State.Collect.quests))
 	local ids = {}
@@ -181,8 +190,14 @@ end
 function DG.AreaOf(name)
 	DG.areas = DG.areas or {}
 	local key = DG.Norm(name)
-	if DG.areas[key] == nil then DG.areas[key] = DG.FindArea(name) or false end
-	return DG.areas[key] or nil
+	-- A hit kept for the session; a miss tried again a minute on (the review: a dungeon not found
+	-- before its quest was in the log stayed unfound until /reload).
+	local hit = DG.areas[key]
+	if type(hit) == "number" then return hit end
+	if type(hit) == "table" and GetTime() < hit.retry then return nil end
+	local found = DG.FindArea(name)
+	DG.areas[key] = found or { retry = GetTime() + 60 }
+	return found
 end
 
 function DG.FindArea(name)

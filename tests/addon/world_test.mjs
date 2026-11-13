@@ -84,3 +84,23 @@ test('without QuestieDB or any visit: the hearth and where you are, nothing made
   const w = part(session());
   assert.deepEqual(w, { v: 1, zone: 'Loch Modan', sub: 'Stoutlager Inn', hearth: 'Thelsamar' });
 });
+
+test('saved data kept in bounds: old NPCs forgotten, at most 400 kept; a character unseen for a year dropped; old probe results cleared', () => {
+  const vm = session();
+  vm.run(`local now = time()
+SpellmindDB.npcs = SpellmindDB.npcs or {}
+for i = 1, 450 do SpellmindDB.npcs[i] = { name = "N" .. i, at = now - i } end
+SpellmindDB.npcs[9999] = { name = "Old", at = now - 200 * 86400 }
+SpellmindDB.chars.gold1 = { seenAt = now - 400 * 86400, parts = {} }
+SpellmindDB.gold = SpellmindDB.gold or {}; SpellmindDB.gold.gold1 = { day = "x" }
+SpellmindDB.probe = { x = 1 }; SpellmindDB.probeAt = now - 8 * 86400
+NS.World.Prune()`);
+  const n = Object.keys(vm.json('SpellmindDB.npcs')).length;
+  assert.equal(n, 400);
+  assert.equal(vm.evaluate('tostring(SpellmindDB.npcs[9999])'), 'nil');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.npcs[1] ~= nil)'), 'true', 'the most recent kept');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.chars.gold1)'), 'nil');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.gold.gold1)'), 'nil');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.probe)'), 'nil');
+  assert.equal(vm.evaluate('tostring(NS.State.Me().seenAt ~= nil)'), 'true');
+});

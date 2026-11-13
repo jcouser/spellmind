@@ -61,7 +61,7 @@ test('never in combat: a nudge waits, hidden, and shows when the fight ends', ()
   vm.run('for b = 0, 4 do STUB.bags[b].free = 0 end; STUB.FireEvent("BAG_UPDATE_DELAYED")');
   vm.advance(3);
   assert.ok(!shown(vm), 'not in combat');
-  assert.equal(vm.evaluate('tostring(SpellmindMinimapButton.dot.shown)'), 'true', 'the dot says one waits');
+  assert.equal(vm.evaluate('tostring(SpellmindMinimapButton.dot.shown)'), 'false', 'no look in the fight at all (the review): it runs when it ends');
   vm.run('STUB.combat = false; STUB.FireEvent("PLAYER_REGEN_ENABLED")');
   assert.ok(shown(vm));
   assert.equal(title(vm), 'Bags nearly full');
@@ -239,4 +239,49 @@ test('a turn-in nearby: a nudge within 150 yd of a ready quest\'s hand-in; again
   vm.run('STUB.questDist[1338] = 900'); vm.advance(6);
   vm.run('STUB.questDist[1338] = 100'); vm.advance(6);
   assert.ok(shown(vm), 'away and back: again');
+});
+
+// The review (2026-11-12): nudges that outlived their situation, came back after every fight, or went
+// silent for good once dismissed.
+test('resolved: the bags cleared, the nudge goes from the toast, the badge and the list', () => {
+  const vm = session();
+  vm.run('SpellmindNudge.dismiss.scripts.OnClick(SpellmindNudge.dismiss)'); // the spells one
+  vm.run('for b = 0, 4 do STUB.bags[b].free = 0 end; STUB.FireEvent("BAG_UPDATE_DELAYED")');
+  vm.advance(4);
+  assert.ok(list(vm, 'NS.Nudges.List()').some(n => n.kind === 'bags'));
+  vm.run('for b = 0, 4 do STUB.bags[b].free = 5 end; STUB.FireEvent("BAG_UPDATE_DELAYED")');
+  vm.advance(4);
+  assert.ok(!list(vm, 'NS.Nudges.List()').some(n => n.kind === 'bags'), 'gone once cleared');
+  assert.ok(!shown(vm));
+});
+
+test('gear about to break: dismissed, then repaired, then worn down again: it nudges again', () => {
+  const vm = session();
+  vm.run('SpellmindNudge.dismiss.scripts.OnClick(SpellmindNudge.dismiss)');
+  vm.run('STUB.equipped[5].dur = { 5, 50 }; STUB.FireEvent("UPDATE_INVENTORY_DURABILITY")');
+  vm.advance(4);
+  assert.equal(title(vm), 'Gear about to break');
+  vm.run('SpellmindNudge.dismiss.scripts.OnClick(SpellmindNudge.dismiss)');
+  vm.run('STUB.equipped[5].dur = { 50, 50 }; STUB.FireEvent("UPDATE_INVENTORY_DURABILITY")');
+  vm.advance(4);
+  vm.run('STUB.equipped[5].dur = { 5, 50 }; STUB.FireEvent("UPDATE_INVENTORY_DURABILITY")');
+  vm.advance(4);
+  assert.ok(list(vm, 'NS.Nudges.List()').some(n => n.kind === 'durability'), 'back after the repair');
+});
+
+test('a toast that showed 5 s before a fight waits behind the badge after it, instead of coming back each kill', () => {
+  const vm = session();
+  assert.ok(shown(vm));
+  vm.advance(6);
+  vm.run('STUB.combat = true; STUB.FireEvent("PLAYER_REGEN_DISABLED")');
+  vm.run('STUB.combat = false; STUB.FireEvent("PLAYER_REGEN_ENABLED")');
+  assert.ok(!shown(vm), 'not again');
+  assert.equal(vm.evaluate('tostring(SpellmindMinimapButton.dot.shown)'), 'true', 'still waiting on the badge');
+});
+
+test('dismissed situations are per character, not account-wide', () => {
+  const vm = session();
+  vm.run('SpellmindNudge.dismiss.scripts.OnClick(SpellmindNudge.dismiss)');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.nudges.seen)'), 'nil');
+  assert.ok(Object.keys(vm.json('NS.State.Me().nudgeSeen')).length > 0);
 });

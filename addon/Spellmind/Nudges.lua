@@ -37,12 +37,26 @@ local function Saved()
 	local db = ns.db
 	if not db then return { seen = {} } end
 	if type(db.nudges) ~= "table" then db.nudges = {} end
-	if type(db.nudges.seen) ~= "table" then db.nudges.seen = {} end
+	db.nudges.seen = nil -- per character now (Seen)
 	return db.nudges
 end
 
 function N.On()
 	return ns.db ~= nil and Saved().off ~= true
+end
+
+-- The situations shown and dismissed or asked, per character (the review: account-wide, a nudge
+-- dismissed on one character was silent on its alts): SpellmindDB.chars[key].nudgeSeen.
+local function Seen()
+	local me = ns.State and ns.State.Me and ns.db and ns.State.Me()
+	if not me then return {} end
+	if type(me.nudgeSeen) ~= "table" then me.nudgeSeen = {} end
+	return me.nudgeSeen
+end
+N.Seen = Seen
+
+local function Fighting()
+	return type(InCombatLockdown) == "function" and InCombatLockdown() and true or false
 end
 
 local function Plain(o)
@@ -76,7 +90,7 @@ function Detect.dungeon()
 	local DG = ns.Dungeons
 	local here = DG and DG.Here()
 	if not here then
-		local seen = Saved().seen
+		local seen = Seen()
 		seen.dungeon = nil
 		return {}
 	end
@@ -154,7 +168,7 @@ function Detect.bags()
 	local b = Part("bags")
 	local free = tonumber(b.free)
 	if not free or not b.slots then return {} end
-	if free > N.BAGS_OK then Saved().seen.bags = nil end -- cleared: it may nudge again when they fill
+	if free > N.BAGS_OK then Seen().bags = nil end -- cleared: it may nudge again when they fill
 	if free > N.BAGS_LOW then return {} end
 	local junk = type(b.junk) == "table" and (b.junk.n or 0) > 0 and (" " .. b.junk.n .. " grey item" .. (b.junk.n > 1 and "s" or "") .. " to sell.") or ""
 	return { { kind = "bags", key = "bags", title = "Bags nearly full",
@@ -189,8 +203,10 @@ N.NEAR_EVERY = 5 -- seconds
 function Detect.near()
 	local q = Part("quests")
 	local out = {}
-	local seen = Saved().seen
+	local seen = Seen()
+	local ready = false
 	for _, it in ipairs(type(q.list) == "table" and q.list or {}) do
+		if it.complete then ready = true end
 		if it.complete and ns.Quests then
 			local info = ns.Quests.Read(it.id)
 			local dist = info and info.dist
@@ -204,6 +220,7 @@ function Detect.near()
 			end
 		end
 	end
+	R.nudgeHasReady = ready -- the 5 s look runs only while one is ready
 	return out
 end
 
@@ -291,32 +308,58 @@ function N.SetKind(name, on)
 end
 
 -- Every detector, in order; a new situation (kind with a key it hasn't shown) joins the queue.
-function N.Check()
+-- only: one kind's detector alone (the 5 s turn-in look); else every kind that's on. Not in combat
+-- (the review: a full scan two seconds after every loot): it runs when the fight ends.
+function N.Check(only)
 	if not N.On() then return end
-	local seen = Saved().seen
+	if Fighting() then R.nudgeCheckLater = true; return end
+	local seen = Seen()
 	local q = Queue()
-	local queued = {}
-	for _, n in ipairs(q) do queued[n.kind] = true end
-	local inDungeon = false
+	local byKind = {}
+	for _, n in ipairs(q) do byKind[n.kind] = n end
+	local present, ran = {}, {}
 	for _, name in ipairs(N.ORDER) do
-		local ok, list = false, nil
-		if N.KindOn(name) then ok, list = pcall(Detect[name]) end
-		for _, n in ipairs(ok and type(list) == "table" and list or {}) do
-			n.icon = N.ICONS[name]
-			if name == "dungeon" then inDungeon = true end
-			if seen[n.kind] ~= n.key and not queued[n.kind] then
-				q[#q + 1] = n
-				queued[n.kind] = true
-				R.nudgeFaded = nil -- something new: the toast shows again
+		if (not only or only == name) and N.KindOn(name) then
+			ran[name] = true
+			local ok, list = pcall(Detect[name])
+			for _, n in ipairs(ok and type(list) == "table" and list or {}) do
+				n.icon = N.ICONS[name]
+				present[n.kind] = true
+				local had = byKind[n.kind]
+				if had then
+					-- The situation changed while it waited (two points to spend now, not one): it says so.
+					if had.key ~= n.key and seen[n.kind] ~= n.key then
+						had.key, had.title, had.text, had.ask, had.asked = n.key, n.title, n.text, n.ask, nil
+						R.nudgeFaded = nil
+					end
+				elseif seen[n.kind] ~= n.key then
+					q[#q + 1] = n
+					byKind[n.kind] = n
+					R.nudgeFaded = nil -- something new: the toast shows again
+				end
 			end
 		end
 	end
-	-- Out of the dungeon: its "Entering …" nudge has nothing left to say.
-	if not inDungeon and queued.dungeon then
-		local keep = {}
-		for _, n in ipairs(q) do if n.kind ~= "dungeon" then keep[#keep + 1] = n end end
+	-- Resolved (the review: the point spent, the gear repaired, the dungeon left, yet the toast, the
+	-- badge and the list kept it): a kind whose detector ran and no longer reports it goes. And its
+	-- "seen" is forgotten, so when it comes back it nudges again (gear about to break, next week).
+	local keep, removed = {}, false
+	for _, n in ipairs(q) do
+		local base = tostring(n.kind):match("^([^:]+)")
+		if ran[base] and not present[n.kind] then
+			removed = true
+			if toast and toast.nudge == n then toast.nudge = nil; toast:Hide() end
+		else
+			keep[#keep + 1] = n
+		end
+	end
+	for kind in pairs(seen) do
+		local base = tostring(kind):match("^([^:]+)")
+		-- "near" keeps its own rule: forgotten only once you're far away (Detect.near), not as you step out.
+		if ran[base] and not present[kind] and base ~= "near" then seen[kind] = nil end
+	end
+	if removed then
 		R.nudges = keep
-		if toast and toast.nudge and toast.nudge.kind == "dungeon" then toast.nudge = nil; toast:Hide() end
 		Changed()
 	end
 	N.Next()
@@ -355,6 +398,7 @@ function N.Next()
 	f.count:SetText(#pending > 1 and ("+" .. (#pending - 1) .. " more") or "")
 	f:SetAlpha(1)
 	f:Show()
+	f.shownAt = GetTime()
 	N.ArmFade()
 end
 
@@ -425,7 +469,7 @@ end
 function N.DoneKind(kind)
 	local i, n = Find(kind)
 	if not i then return nil end
-	Saved().seen[n.kind] = n.key
+	Seen()[n.kind] = n.key
 	table.remove(Queue(), i)
 	ToastOff(n)
 	N.Next()
@@ -438,7 +482,7 @@ function N.AskKind(kind, anchor, opts)
 	local _, n = Find(kind)
 	if not n then return end
 	n.asked = true
-	Saved().seen[n.kind] = n.key
+	Seen()[n.kind] = n.key
 	ToastOff(n)
 	N.Next()
 	if ns.Marks then ns.Marks.Ask(anchor, "Nudge: " .. n.title, n.ask, opts) end
@@ -551,7 +595,8 @@ end
 
 -- /sm nudges reset: every dismissed situation forgotten, and a look now. Returns how many wait.
 function N.Reset()
-	Saved().seen = {}
+	local me = ns.State and ns.State.Me and ns.State.Me()
+	if me then me.nudgeSeen = {} end
 	Saved().off = nil
 	R.nudges = {}
 	R.nudgeGap = nil
@@ -585,17 +630,29 @@ for _, ev in ipairs({ "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD" }) do
 	ns.On(ev, function() if R.nudgeLooked then N.Soon() end end)
 end
 -- In combat: hidden; after it, the queue goes on.
-ns.On("PLAYER_REGEN_DISABLED", function() if toast and toast:IsShown() then toast:Hide() end end)
-ns.On("PLAYER_REGEN_ENABLED", function() N.Next() end)
+-- A fight hides the toast. One that had shown 5 s or more counts as seen: it waits behind the badge
+-- instead of coming back after every kill (the review). A look skipped in the fight runs after it.
+N.SEEN_AFTER = 5
+ns.On("PLAYER_REGEN_DISABLED", function()
+	if toast and toast:IsShown() then
+		if toast.nudge and GetTime() - (toast.shownAt or 0) >= N.SEEN_AFTER then
+			R.nudgeFaded = true
+			toast.nudge = nil
+		end
+		toast:Hide()
+	end
+end)
+ns.On("PLAYER_REGEN_ENABLED", function()
+	if R.nudgeCheckLater then R.nudgeCheckLater = nil; N.Check() else N.Next() end
+end)
 ns.On("PLAYER_LOGIN", function()
 	-- A few seconds in, once the game's data has settled (the quest log, the spellbook).
 	C_Timer.After(8, function() R.nudgeLooked = true; N.Check() end)
 	-- Moving fires no event: every 5 s, a look for turn-ins nearby (only while a quest is ready).
+	-- Only that kind's own look, only when it's on and a quest is ready (the review: a full scan every
+	-- 5 s for the whole session, even with it off).
 	C_Timer.NewTicker(N.NEAR_EVERY, function()
-		if not N.On() or InCombat() then return end
-		local q = Part("quests")
-		for _, it in ipairs(type(q.list) == "table" and q.list or {}) do
-			if it.complete then N.Check() return end
-		end
+		if not N.On() or InCombat() or not N.KindOn("near") or not R.nudgeHasReady then return end
+		N.Check("near")
 	end)
 end)

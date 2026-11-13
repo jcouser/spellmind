@@ -55,6 +55,9 @@ export function sanitizeGameString(s, max = GAME_STRING_MAX) {
 export const LIST_MAX = Object.freeze({ 'gear.items': 19, 'gear.empty': 19, 'bags.items': 40, 'quests.list': 100, obj: 5, 'rep.list': 40, nodes: 60, 'spells.tabs': 8, list: 100, 'spells.next': 10, 'world.npcs': 20, 'world.flights': 40, omitted: 16, 'focus.obj': 8, 'focus.choices': 6, 'focus.items': 6 });
 // Strings longer than GAME_STRING_MAX, by "<part>.<key>": the quest text an Explain click sends.
 export const LONG_STRINGS = Object.freeze({ 'focus.text': 1200, 'focus.goal': 400 });
+// Longer strings deeper in a part, by "<part>.<key>": the player's guide's steps and weapon advice
+// (talents.guide), cut at 60 they lost their meaning (the review).
+export const NESTED_LONG = Object.freeze({ 'talents.rotation': 120, 'talents.weapons': 200, 'talents.stats': 80 });
 const KEY_RE = /^[A-Za-z_][A-Za-z0-9_]{0,23}$/;
 // Keys that an object literal treats specially: `out.__proto__ = x` sets the prototype instead of
 // adding a key, so attacker data would be reachable by property access and hidden from JSON.
@@ -70,7 +73,7 @@ const okKey = k => KEY_RE.test(k) && !UNSAFE_KEYS.has(k);
 export function sanitizeState(value, { max = GAME_STRING_MAX, depth = 7 } = {}) {
   const walk = (v, d, key, part) => {
     if (v === null) return null;
-    if (typeof v === 'string') return sanitizeGameString(v, d === depth - 2 ? (LONG_STRINGS[`${part}.${key}`] ?? max) : max);
+    if (typeof v === 'string') return sanitizeGameString(v, (d === depth - 2 ? LONG_STRINGS[`${part}.${key}`] : undefined) ?? NESTED_LONG[`${part}.${key}`] ?? max);
     if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
     if (typeof v === 'boolean') return v;
     if (d <= 0 || typeof v !== 'object') return undefined;

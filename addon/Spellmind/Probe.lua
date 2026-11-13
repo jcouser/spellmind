@@ -356,6 +356,7 @@ function ns.Probe()
 	pcall(ns.ProbeRound5, out, try, g)
 	pcall(ns.ProbeRound6, out, try, g)
 	ns.db.probe = out
+	ns.db.probeAt = time()
 	local n = 0
 	for _ in pairs(out) do n = n + 1 end
 	return n

@@ -87,7 +87,16 @@ export function createAISetup({ manifests, keystore, signInFor = () => null, fet
     const v = await test(m, shape.key);
     if (!v.ok) return { ok: false, error: v.error?.kind || 'failed', detail: errorWords(m, v.error) };
     await keystore.set(m.id, shape.key);
-    return { ok: true, cfg: switchTo(cfg, m), id: m.id, card: m.display?.card || m.name };
+    // The default model, if this key can use it; else the first listed one it can (the audit: a model
+    // retired since the list was written answered every message with "This model was retired").
+    const next = switchTo(cfg, m);
+    const usable = (id) => !v.models?.length || modelAvailable(id, v.models);
+    const model = next.model || m.models.default;
+    if (!usable(model)) {
+      const alt = m.models.list.find(x => !x.retiresAfter && usable(x.id));
+      if (alt) next.model = alt.id;
+    }
+    return { ok: true, cfg: next, id: m.id, card: m.display?.card || m.name };
   }
 
   async function removeKey(cfg, id) {

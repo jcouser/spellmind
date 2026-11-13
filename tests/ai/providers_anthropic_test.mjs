@@ -266,3 +266,39 @@ test('no key in the keychain → no_key (missing_key), never auth_invalid, and n
     assert.equal(mock.requests.length, 0);
   } finally { await mock.close(); }
 });
+
+test('web search (the audit\'s batch E): the server tool only when the turn asks; a search goes on to the turn; citations become "(source: site)", once', async () => {
+  const { chatRequest, parse } = await import('../../core/ai/providers/adapters/anthropic.mjs');
+  const { loadManifests } = await import('../../core/ai/providers/index.mjs');
+  const m = loadManifests().find(x => x.id === 'anthropic');
+  const base = { model: 'claude-sonnet-5-5', system: [{ text: 'sys', cache: true }], messages: [{ role: 'user', content: 'Where is the rogue trainer?' }], maxTokens: 5296, effort: 'medium' };
+  assert.equal(chatRequest(m, base).body.tools, undefined, 'no search asked: no tool');
+  assert.deepEqual(chatRequest(m, { ...base, webSearch: true }).body.tools, [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }]);
+  const ev = (o) => `event: ${o.type}\ndata: ${JSON.stringify(o)}\n\n`;
+  const cite = url => ({ type: 'web_search_result_location', url, title: 't', encrypted_index: 'x', cited_text: 'c' });
+  const sse = [
+    ev({ type: 'message_start', message: { usage: { input_tokens: 10 } } }),
+    ev({ type: 'content_block_start', index: 0, content_block: { type: 'server_tool_use', id: 'srvtoolu_1', name: 'web_search' } }),
+    ev({ type: 'ping' }),
+    ev({ type: 'content_block_stop', index: 0 }),
+    ev({ type: 'content_block_start', index: 1, content_block: { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_1', content: [] } }),
+    ev({ type: 'content_block_stop', index: 1 }),
+    ev({ type: 'content_block_start', index: 2, content_block: { type: 'text', text: '' } }),
+    ev({ type: 'content_block_delta', index: 2, delta: { type: 'citations_delta', citation: cite('https://www.wowhead.com/classic/npc=1') } }),
+    ev({ type: 'content_block_delta', index: 2, delta: { type: 'text_delta', text: 'Osborne the Night Man trains rogues in Stormwind' } }),
+    ev({ type: 'content_block_stop', index: 2 }),
+    ev({ type: 'content_block_start', index: 3, content_block: { type: 'text', text: ', in the Old Town', citations: [cite('https://wowhead.com/x')] } }),
+    ev({ type: 'content_block_stop', index: 3 }),
+    ev({ type: 'content_block_start', index: 4, content_block: { type: 'text', text: '.' } }),
+    ev({ type: 'content_block_stop', index: 4 }),
+    ev({ type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 30 } }),
+    ev({ type: 'message_stop' }),
+  ].join('');
+  const out = [];
+  const ctx = { fail: () => ({ kind: 'unknown' }), truncated: () => ({ kind: 'network_after_send' }), error: f => f };
+  for await (const e of parse(new Response(sse), ctx)) out.push(e);
+  assert.ok(out.some(e => e.type === 'progress' && e.searching === true), 'the search');
+  assert.ok(out.filter(e => e.type === 'progress').length >= 3, 'the ping and the result keep it alive');
+  assert.equal(out.filter(e => e.type === 'text').map(e => e.delta).join(''), 'Osborne the Night Man trains rogues in Stormwind (source: wowhead.com), in the Old Town.', 'the same site isn\'t said twice in a row');
+  assert.deepEqual(out.at(-1), { type: 'done', finish: 'stop' });
+});

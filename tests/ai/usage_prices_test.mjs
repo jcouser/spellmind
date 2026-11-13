@@ -37,8 +37,9 @@ test('prices per 1M tokens match each AI company\'s pricing page (fix-102, 2026-
   const at = '2026-09-26T12:00:00Z';
   const want = {
     anthropic: {
-      'claude-sonnet-5-5': [2, 10, 0.2, 2.5, 4], 'claude-opus-5-5': [4, 20, 0.2, 5, 8], 'claude-fable-5-1': [10, 50, 0.25, 12.5, 20],
-      'claude-sonnet-5': [2, 10, 0.2, 2.5, 4], 'claude-haiku-4-5': [1, 5, 0.1, 1.25, 2],
+      // Sonnet 5.5's cache reads are $0.10 (the claude-api reference, 2026-11-03), Fable 5.2 and Haiku 5.5 new.
+      'claude-sonnet-5-5': [2, 10, 0.1, 2.5, 4], 'claude-opus-5-5': [4, 20, 0.2, 5, 8], 'claude-fable-5-2': [8, 40, 0.2, 10, 16], 'claude-fable-5-1': [10, 50, 0.25, 12.5, 20],
+      'claude-sonnet-5': [2, 10, 0.2, 2.5, 4], 'claude-haiku-5-5': [0.1, 0.5, 0.01, 0.125, 0.2], 'claude-haiku-4-5': [1, 5, 0.1, 1.25, 2],
     },
     openai: {
       'gpt-6.1-sol': [2, 10, 0.1, 2.5, 2.5], 'gpt-6-sol': [2, 10, 0.2, 2.5, 2.5], 'gpt-6-luna': [0.1, 0.5, 0.01, 0.125, 0.125], 'gpt-6-astra': [10, 50, 1, 12.5, 12.5],
@@ -103,8 +104,8 @@ test('an unknown model counts at its provider\'s most expensive listed model, ma
   assert.deepEqual(pick(worstPriceFor('anthropic')), pick(priceFor('anthropic', 'claude-fable-5-1')));
   assert.deepEqual([priceFor('openai', 'gpt-7').input, priceFor('openai', 'gpt-7').output], [10, 50]);
   assert.deepEqual([priceFor('xai', 'grok-9').input, priceFor('xai', 'grok-9').output], [2, 6]);
-  // Google's worst is Gemini 3.1 Pro Preview's, dearer than 3.8 Flash before and after its date switch.
-  assert.deepEqual([priceFor('google', 'gemini-9', '2026-10-01').output, priceFor('google', 'gemini-9', '2027-02-01').output], [12, 12]);
+  // Google's worst: Gemini 3.1 Pro Preview's until Gemini 4 Carbon's rise on 2026-12-01, then Carbon's.
+  assert.deepEqual([priceFor('google', 'gemini-9', '2026-10-01').output, priceFor('google', 'gemini-9', '2027-02-01').output], [12, 20]);
   const g = priceFor('google', 'gemini-9', '2027-02-01');
   assert.ok(g.output >= priceFor('google', 'gemini-3.8-flash', '2027-02-01').output && g.input >= priceFor('google', 'gemini-3.8-flash', '2027-02-01').input, 'never below the switched price');
   // An unknown provider counts at the most expensive cloud price we know, field by field.
@@ -188,9 +189,9 @@ test('a refreshed table can raise a price but never lower the one the cap uses',
   const nu = bookA.priceFor('anthropic', 'claude-haiku-5');
   assert.equal(nu.known, true);
   assert.deepEqual([nu.input, nu.output], [1.5, 7]);
-  // A model only the refresh lists is priced no lower than the provider's cheapest bundled model (Haiku 4.5).
+  // A model only the refresh lists is priced no lower than the provider's cheapest bundled model (Haiku 5.5).
   const typo = bookA.priceFor('anthropic', 'claude-typo-5');
-  assert.deepEqual([typo.input, typo.output, typo.cacheRead, typo.cacheWrite, typo.cacheWrite1h], [1, 5, 0.1, 1.25, 2]);
+  assert.deepEqual([typo.input, typo.output, typo.cacheRead, typo.cacheWrite, typo.cacheWrite1h], [0.1, 0.5, 0.01, 0.125, 0.2]);
   assert.equal(bookA.worstPriceFor('anthropic').output, 50, 'Fable 5.1 stays the dearest');
   const risen = structuredClone(bundled);
   risen.date = '2026-10-15';

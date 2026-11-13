@@ -842,6 +842,8 @@ export function createProvider(manifest, opts = {}) {
           if (ev.type === 'thinking') reasoning = ev.active !== false;
           touch();
           if (!reasoned && (ev.type === 'thinking' ? reasoning : ev.reasoning === true)) { reasoned = true; yield { type: 'reasoning' }; }
+          // A web search starting goes on (the turn logs it); other progress only keeps the timers alive.
+          if (ev.searching === true) yield { type: 'progress', searching: true };
           continue;
         }
         if (ev.type === 'text') { reasoning = false; touch(); }

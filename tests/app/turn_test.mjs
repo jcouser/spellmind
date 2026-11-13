@@ -87,7 +87,7 @@ test('the search note goes with the game data each turn; without search the chec
   const on = rig('chatgpt', [reply('Hi.')]);
   await on.turn({ chatId: 'c', text: 'hi', history: [], game: GAME, check: false });
   assert.ok(JSON.stringify(on.calls[0].messages).includes(SEARCH_ON_NOTE));
-  const off = rig('anthropic', [reply('Thor sells it at (52, 53).'), reply('OK')]);
+  const off = rig('google', [reply('Thor sells it at (52, 53).'), reply('OK')]);
   await off.turn({ chatId: 'c', text: 'Who sells arrows?', history: [], game: GAME });
   const sent = JSON.stringify(off.calls[0].messages);
   assert.ok(sent.includes('Web search: off this turn'));

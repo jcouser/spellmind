@@ -61,6 +61,10 @@ export function chatRequest(manifest, req, { authHeaders = {}, requestOptions = 
   if (Number.isInteger(budget) && Number.isInteger(body.max_tokens) && body.max_tokens <= budget) body.max_tokens = budget + body.max_tokens;
   body.stream = true;
   for (const k of SAMPLING) delete body[k];
+  // Web search (manifest webSearch: Anthropic's server tool, run on its side, results and citations
+  // in the same reply; the audit's batch E): offered when the turn asks for it.
+  if (req.webSearch && manifest.webSearch && typeof manifest.webSearch === 'object') body.tools = [{ ...manifest.webSearch }];
+  else delete body.tools;
   return {
     url: joinUrl(manifest.baseUrl, path || manifest.paths.chat),
     method: 'POST',
@@ -97,6 +101,11 @@ export function partialUsage(u, streamedChars = 0) {
   return { ...n, output: Math.max(n.output, Math.ceil(Math.max(0, streamedChars) / 4)), exact: false, partial: true };
 }
 
+// A web search citation's site, for "(source: wowhead.com)": the game can't show a link.
+export function citedHost(c) {
+  try { return new URL(String(c?.url || '')).hostname.replace(/^www\./, '') || null; } catch { return null; }
+}
+
 export async function* parse(res, ctx) {
   const usage = {};
   let stop = null;
@@ -104,6 +113,16 @@ export async function* parse(res, ctx) {
   let started = false; // message_start seen: the input is being billed
   let chars = 0; // text and thinking streamed so far (the output count arrives only at the end)
   let thinkingIndex = null;
+  // Web search citations: the sites each text block cites, said after the block ends, unless the
+  // block before said the same ones (Claude splits its answer into blocks around each claim).
+  const cites = new Map(); // block index -> Set of hosts
+  let lastSaid = '';
+  const cite = (index, c) => {
+    const h = citedHost(c);
+    if (!h) return;
+    if (!cites.has(index)) cites.set(index, new Set());
+    cites.get(index).add(h);
+  };
   const soFar = () => ({ type: 'usage', usage: partialUsage(usage, chars) });
   try {
     for await (const ev of readSSE(res.body)) {
@@ -114,12 +133,25 @@ export async function* parse(res, ctx) {
       else if (type === 'content_block_start') {
         const block = data.content_block || {};
         if (THINKING_BLOCKS.has(block.type)) { thinkingIndex = data.index ?? -1; yield { type: 'thinking', active: true }; }
-        else if (block.type === 'text' && block.text) { chars += block.text.length; yield { type: 'text', delta: block.text }; }
+        else if (block.type === 'text') {
+          for (const c of Array.isArray(block.citations) ? block.citations : []) cite(data.index ?? -1, c);
+          if (block.text) { chars += block.text.length; yield { type: 'text', delta: block.text }; }
+        }
+        // A search starting (the stream pauses while it runs), and its results: the turn is alive.
+        else if (block.type === 'server_tool_use' && block.name === 'web_search') yield { type: 'progress', searching: true };
+        else yield { type: 'progress' };
       } else if (type === 'content_block_stop') {
         if (thinkingIndex !== null && (data.index ?? -1) === thinkingIndex) { thinkingIndex = null; yield { type: 'thinking', active: false }; }
+        const hosts = cites.get(data.index ?? -1);
+        if (hosts && hosts.size) {
+          const said = [...hosts].slice(0, 2).join('; ');
+          cites.delete(data.index ?? -1);
+          if (said !== lastSaid) { lastSaid = said; const t = ` (source: ${said})`; chars += t.length; yield { type: 'text', delta: t }; }
+        }
       } else if (type === 'content_block_delta') {
         const d = data.delta || {};
         if (d.type === 'text_delta') { if (d.text) { chars += d.text.length; yield { type: 'text', delta: d.text }; } }
+        else if (d.type === 'citations_delta') { cite(data.index ?? -1, d.citation); yield { type: 'progress' }; }
         else {
           if (typeof d.thinking === 'string') chars += d.thinking.length;
           yield { type: 'progress' }; // thinking, signature, tool input
@@ -135,7 +167,9 @@ export async function* parse(res, ctx) {
         yield { type: 'error', error: ctx.fail(data) };
         return;
       }
-      // ping and unknown event types are ignored
+      // A ping while a search runs keeps the turn alive (the audit: the stream pauses for the search,
+      // and an ignored ping let the idle timer end it). Unknown event types are ignored.
+      else if (type === 'ping') yield { type: 'progress' };
     }
   } catch (e) {
     // A cut connection, a stall or a stop mid-stream: what was used so far, then the failure.

@@ -106,18 +106,73 @@ The turn moved to `core/app/turn.mjs` (`createTurn`), tested against a stand-in 
   - [docs/install.md](install.md): one download place, checking the hash, SmartScreen's warning, never admin, what it installs, what an uninstall leaves.
   - `npm audit --omit=dev`: 0 vulnerabilities (2026-11-13).
 
-### Words
-- **Settings:** "Full answer: a short one whole…" (it said "Whole").
+### Batch C: the app's window
+- **A setup failure stays in its box** (the plan's, the key's, Other's, WoW's) until the next try, in red, and goes in Activity ("Pasting the key didn't work: …").
+- **One action at a time:** its button says "Testing…" or "Installing…", and the other controls wait. A click made meanwhile was dropped before.
+- **API keys:** "billed by use at its company, apart from any subscription. No key? The ChatGPT plan sign-in needs none."
+- **Paste key follows the key's AI:** the picker moves to it, and says "That's a ChatGPT key: now using ChatGPT" when it wasn't the one on screen.
+- **Other:**
+  - It's called "advanced", with "Skip this unless your service gave you an address".
+  - Once connected it says what to ("Connected to llama3.3 at localhost:11434, key saved") and has Disconnect: the key and the address go, and the plan answers again.
+  - A note: local models need Ollama's context at 16K or more, and answer from memory.
+- **The picker:** the AI in use that isn't ready says "in use, not signed in". Setting up another says "Still using ChatGPT plan until this one works".
+- **More sign-in endings in words:** timed out, no plan on that account, no lasting sign-in, the credential store.
+- **A first install says** "Addon installed. Start WoW and log in.". Reinstall is a quiet button when nothing needs doing.
+- **Accessibility:** the pill and toasts announce changes (`role="status"`), placeholders are readable, and zoom works (a hidden menu keeps Ctrl + and Ctrl −).
+
+### Batch D: the addon
+- **Stop:**
+  - While a question waits, the send button is Stop (`Chat.Stop`).
+  - One the app hasn't taken yet is taken back from the outbox (`Link.Drop`), with "Stopped before it was sent".
+  - One it has gets a stop record, which the app answers "Stopped.".
+  - Enter still sends.
+- **Settings opens with "The Spellmind app":** running or not (and when it was last heard), the AI and model ("Not set up" when it isn't), the addon's version. Read only: the AI is chosen in the app.
+- **The app's defaults win:** a Thinking or Web search pick made in the game holds while the app's own default stays what it was, and gives way when it changes.
+- **Words:**
+  - "Close WoW, open the Spellmind app and click Reinstall" (it said "run the app's setup").
+  - "(cut short: ask for the rest)".
+  - The toast's X hides it for now (still in the list), and Dismiss dismisses.
+  - Thinking hints say "plan or credit", and Minimal has one.
+  - The app says "Connected" as the game does.
+
+### Batch E: each AI
+- **Claude:**
+  - Web search through Anthropic's server tool (`web_search_20250305`, at most 3 searches an answer, $10 per 1,000; platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool, read 2026-11-13).
+  - The adapter reports a search starting, counts pings as life while a search runs, and writes each block's citations as "(source: site)", never the same site twice in a row.
+  - Models: Claude Fable 5.2 ($8/$40, the "smarter" one) and Haiku 5.5 ($0.10/$0.50; Haiku 4.5 moves to it). Fable 5.1 is replaced by 5.2. Sonnet 5.5 stays the default, and its cache reads are $0.10.
+- **Grok:** web search (xAI takes the Responses API's tool). Its inline citations, `[[1]](url)`, read "(source: site)".
+- **OpenAI's API:** Luna by default, as on the plan (Sol cost 20x for no tested gain).
+- **Gemini** (Google's models, thinking and pricing pages, read 2026-11-13):
+  - 3.7 Flash and 3.5 Flash are gone (not listed any more); a saved choice of either falls back to the default.
+  - Gemini 4 Hydrogen, Argon and Carbon are in, Carbon the "smarter" one. Argon's and Carbon's prices double on 2026-12-01.
+  - Low to High through the OpenAI-compatible endpoint: Hydrogen's Extra high isn't documented there.
+  - No web search yet: Google's needs a native adapter.
+- **Every AI:**
+  - Medium thinking by default (it was High without search).
+  - The game's menu stops at High: Extra high and Max can pass the turn's 3 minutes, doubled by the check. The app's window still offers them.
+  - A pasted key's default model is checked against the key's list (`resolveModel`'s job): one it can't use gives way to the first listed one it can.
+  - Each request's usage, cached tokens included, goes in the log ("usage"): it shows whether the ChatGPT plan's cache key works.
+  - Searches reach the turn's log ("web-search"): the provider layer used to swallow them.
+- **Writing the game can't show** (`render.mjs`): tables become "•" lines, `<think>…</think>` goes, and so do strike marks.
+- **Local models:** 3 minutes for the first word (they may load from disk first), and Ollama's context note in the window.
+- **A guide import needs web search:** on an AI without it, it's refused in words instead of a made-up build.
 
 ## Still to do
 
+- **Live tests per AI** (the player's keys; nothing here was run against Claude, Grok, Gemini or a local model). For each, with the double-check on and off:
+  - "Which weapon master teaches Bows?" (the 2026-11-10 question; the answer named a wrong one from memory);
+  - "Where do I buy arrows in Sentinel Hill?";
+  - "Who takes The Defias Brotherhood?" with it in the log;
+  - a guide import;
+  - one long answer.
+  
+  Watch for: "(source: …)" on Claude and Grok answers; no cut-off replies; usage lines in the log with cacheRead above 0 from the second question on.
 - **B:** a code-signing certificate (then the helper's and the keyring's own signatures checked); a public download place for the installer and its checksum.
-- **C:** errors that stay on screen, API keys billed by use, Other's state and Disconnect, Paste key following the key's AI, accessibility basics.
-- **D:** Stop on a waiting question, a "Spellmind app" section in Settings, the game's thinking pick overriding the app's, small wording.
-- **E:**
-  - Grok's web search;
-  - Claude's search and models (Fable 5.2, Haiku 5.5);
-  - OpenAI's default to Luna;
-  - Gemini's models, then a native adapter;
-  - guardrails for local models;
-  - live tests per AI.
+- **E, later:**
+  - Gemini's web search (a native adapter for Google Search grounding);
+  - Ollama's context checked when connecting;
+  - thinking options for the common Other gateways.
+- **The player's call:** OpenAI's and Anthropic's terms ask that sources be shown to players. The game shows "(source: site)"; the app could list the last answer's links.
+
+### Words
+- **Settings:** "Full answer: a short one whole…" (it said "Whole").

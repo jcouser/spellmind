@@ -119,8 +119,8 @@ test('OpenAI validate() lists models; testCall uses the manifest\'s floor of 16 
     const t = await provider.testCall();
     assert.equal(t.ok, true);
     assert.equal(mock.requests[1].body.max_output_tokens, 16);
-    assert.equal(mock.requests[1].body.model, 'gpt-6.1-sol', 'the default model (fix-102)');
-    assert.deepEqual(mock.requests[1].body.reasoning, { effort: 'low' }, 'its lowest level: GPT-6.1 Sol takes no none');
+    assert.equal(mock.requests[1].body.model, 'gpt-6-luna', 'the default model (the audit: Luna, as on the ChatGPT plan)');
+    assert.deepEqual(mock.requests[1].body.reasoning, { effort: 'none' }, 'its lowest level: GPT-6 Luna, the default now, takes none');
     await provider.testCall({ model: 'gpt-6-luna' });
     assert.deepEqual(mock.requests[2].body.reasoning, { effort: 'none' }, 'Luna\'s lowest is Off: the key test doesn\'t reason');
   } finally { await mock.close(); }

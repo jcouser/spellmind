@@ -34,6 +34,8 @@ export function createTurn({ m, model, label = model, provider, pack, log = () =
     for await (const ev of provider.stream({ model, effort: e, system, messages, webSearch: s, maxTokens: maxTokensFor(e), cacheKey }, { signal })) {
       if (ev.type === 'text') out += ev.delta;
       else if (ev.type === 'done') finish = ev.finish || null;
+      // What the request used, cached part included: whether a chat's prompt cache is reused shows here.
+      else if (ev.type === 'usage' && ev.usage && !ev.usage.partial) log('usage', { input: ev.usage.input, cacheRead: ev.usage.cacheRead, output: ev.usage.output });
       else if (ev.type === 'progress' && ev.searching && !searched) { searched = true; log('web-search', {}); }
       else if (ev.type === 'error') {
         if (ev.error?.kind === 'interrupted') return { aborted: true };

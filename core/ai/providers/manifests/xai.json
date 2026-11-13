@@ -16,6 +16,7 @@
   "keyMatchOrder": 20,
   "keyExample": "xai-…",
   "requestIdHeader": "x-request-id",
+  "webSearch": { "type": "web_search" },
   "paths": { "chat": "/responses", "chatAlt": "/chat/completions", "models": "/models" },
   "keyCheck": { "path": "/api-key", "blockedFields": ["api_key_blocked", "api_key_disabled", "team_blocked"] },
   "models": {

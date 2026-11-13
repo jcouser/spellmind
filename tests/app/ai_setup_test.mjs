@@ -154,3 +154,13 @@ test('Disconnect Other: its key and address gone; the ChatGPT plan answers if Ot
   const list = await setup.list(off.cfg);
   assert.equal(list.find(x => x.id === 'custom').ready, false);
 });
+
+test('a pasted key: the default model if the key can use it, else the first listed one it can (the audit)', async () => {
+  // This key's account lists only Opus 5.5 (Sonnet 5.5, the default, isn't there).
+  const { setup } = rig({ models: ['claude-opus-5-5'] });
+  const r = await setup.pasteKey({}, ANTHROPIC_KEY);
+  assert.equal(r.ok, true);
+  assert.equal(r.cfg.model, 'claude-opus-5-5');
+  const all = rig();
+  assert.equal((await all.setup.pasteKey({}, ANTHROPIC_KEY)).cfg.model, undefined, 'the default works: nothing saved');
+});

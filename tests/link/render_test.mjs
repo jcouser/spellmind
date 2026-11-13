@@ -19,3 +19,12 @@ test('a "Next:" line at the end of the last paragraph still makes chips (seen in
   assert.deepEqual(plain.chips, []);
   assert.equal(plain.body, 'Turn it in to Wiley. Next: head to Lakeshire.');
 });
+
+test('other AIs\' writing (the audit): Grok\'s [[1]](url) citations, tables, thinking tags and strike marks', async () => {
+  const { markdownToWow } = await import('../../core/link/render.mjs');
+  assert.equal(markdownToWow('Thor sells arrows [[1]](https://www.wowhead.com/classic/npc=1).'), 'Thor sells arrows (source: wowhead.com).');
+  assert.equal(markdownToWow('Here:\n\n| Quest | Level |\n|---|---|\n| Red Silk | 17 |\n\nDone.'), 'Here:\n\n• Quest · Level\n• Red Silk · 17\n\nDone.');
+  assert.equal(markdownToWow('<think>Let me recall the trainers…</think>\nGo north.'), 'Go north.');
+  assert.equal(markdownToWow('~~Thor~~ Kelsey sells it.'), 'Thor Kelsey sells it.');
+  assert.equal(markdownToWow('a | b is no table'), 'a | b is no table');
+});

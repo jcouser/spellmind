@@ -64,7 +64,10 @@ test('web search: offered on the Responses request only when the turn asks and t
   const chatgpt = ms.find(m => m.id === 'chatgpt');
   assert.deepEqual(chatgpt.webSearch, { type: 'web_search' });
   assert.deepEqual(ms.find(m => m.id === 'openai').webSearch, { type: 'web_search' });
-  for (const id of ['anthropic', 'google', 'xai']) assert.equal(ms.find(m => m.id === id).webSearch, undefined, `${id}: no adapter for it yet`);
+  // Claude's server tool and Grok's Responses tool (the audit's batch E); Gemini's needs its own adapter.
+  assert.deepEqual(ms.find(m => m.id === 'anthropic').webSearch, { type: 'web_search_20250305', name: 'web_search', max_uses: 3 });
+  assert.deepEqual(ms.find(m => m.id === 'xai').webSearch, { type: 'web_search' });
+  assert.equal(ms.find(m => m.id === 'google').webSearch, undefined, 'google: no adapter for it yet');
   const req = { model: chatgpt.models.default, effort: 'medium', system: [{ text: 'S' }], messages: [{ role: 'user', content: 'hi' }] };
   const body = t => { const b = t.body ?? t.init?.body; return typeof b === 'string' ? JSON.parse(b) : b; };
   assert.deepEqual(body(responsesRequest(chatgpt, { ...req, webSearch: true })).tools, [{ type: 'web_search' }]);

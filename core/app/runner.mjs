@@ -64,7 +64,9 @@ export function pickAI(cfg = {}, over = {}, manifests = loadManifests()) {
   const search = !!m.webSearch && (over.search || cfg.search || 'on') !== 'off';
   // A level this model hasn't (one saved for another AI) goes to its nearest; a model with no levels
   // (Other) keeps the word, which its requests don't use.
-  const wantEffort = over.effort || cfg.effort || (search ? 'medium' : 'high');
+  // Medium by default, search or not (the audit: without search it was High, the slowest, on the AIs
+  // that already answer from memory).
+  const wantEffort = over.effort || cfg.effort || 'medium';
   const effort = nearestEffort(effortLevels(m, model), wantEffort) || wantEffort;
   return { m, model, effort, search };
 }
@@ -81,7 +83,9 @@ export function startSpellmind({ dataDir: DATA, cfg = {}, over = {}, onEvent = (
   const session = createSignIns({ keystore, fetch: egress.fetch }).for(m);
   // Other's key goes only to the host it was given for (cfg.custom.keyHost, core/app/ai.mjs).
   const customKeyOK = () => !m.custom || (cfg.custom?.keyHost && cfg.custom.keyHost === new URL(m.baseUrl).host);
-  const provider = createProvider(m, { getKey: async () => (session ? session.credentials() : (customKeyOK() ? keystore.get(m.id) : null)), fetch: egress.fetch });
+  // A model on this computer may load from disk first: 3 minutes for its first word, not 1 (the audit).
+  const timeouts = m.local ? { firstTokenMs: 180000 } : {};
+  const provider = createProvider(m, { getKey: async () => (session ? session.credentials() : (customKeyOK() ? keystore.get(m.id) : null)), fetch: egress.fetch, timeouts });
   // The log (the security review: one file that grew forever, unscrubbed, with the link's session
   // token and nonce): core/log.mjs's, a file a day in <data>/logs kept 7 days, every line through the
   // key redactor. The token and nonce fields are left out, and a publish is logged only when it failed.
@@ -111,7 +115,9 @@ export function startSpellmind({ dataDir: DATA, cfg = {}, over = {}, onEvent = (
 
   const addonsDir = path.join(flavorDir, 'Interface', 'AddOns');
   // What the chat window's header shows and lets the player pick: the model's thinking levels and search.
-  const efforts = Object.keys(m.effort?.[model] || {});
+  // The game's menu stops at High: Extra high and Max can pass the turn's 3 minutes, doubled by the
+  // double-check (the audit). The app's window still offers them.
+  const efforts = effortLevels(m, model).filter(l => l !== 'xhigh' && l !== 'max');
   const ai = { name: m.name, model: label, efforts, effort, search: !!m.webSearch, searchOn: search };
   const SHOWN = new Set(['hello', 'msg', 'reply', 'turn-error', 'msg-refused', 'state', 'state-rejected', 'state-wait-over']);
   const svc = createService({ addonsDir, stateDir: path.join(DATA, 'link'), turn, ai, log: (k, d) => {

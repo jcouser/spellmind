@@ -8,6 +8,7 @@
   "adapter": "anthropic-messages",
   "baseUrl": "https://api.anthropic.com/v1",
   "hosts": ["api.anthropic.com"],
+  "webSearch": { "type": "web_search_20250305", "name": "web_search", "max_uses": 3 },
   "auth": { "header": "x-api-key", "scheme": null },
   "headers": { "anthropic-version": "2023-06-01" },
   "keyPattern": "^sk-ant-[a-z]{2,8}\\d{0,3}-[A-Za-z0-9_-]{20,}$",
@@ -19,19 +20,23 @@
   "keyCheck": null,
   "models": {
     "default": "claude-sonnet-5-5",
-    "smarter": "claude-opus-5-5",
+    "smarter": "claude-fable-5-2",
     "allowAny": false,
     "list": [
       { "id": "claude-sonnet-5-5", "label": "Claude Sonnet 5.5", "costRank": 2, "effort": true, "contextTokens": 1000000, "outputTokens": 128000, "cacheMinTokens": 512,
         "source": "Anthropic's models overview (https://platform.claude.com/docs/en/about-claude/models/overview, read 2026-09-30): Claude API ID claude-sonnet-5-5, adaptive thinking, default effort high, 1M context, 128K output. Price (https://platform.claude.com/docs/en/about-claude/pricing): $2 input, $10 output, $0.20 cache hits, $2.50 and $4 cache writes (5 minutes, 1 hour). Effort low to max (https://platform.claude.com/docs/en/build-with-claude/effort); thinking type between_tools turns up-front thinking off at effort high or below, and disabled is refused (https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting)." },
       { "id": "claude-opus-5-5", "label": "Claude Opus 5.5", "costRank": 3, "effort": true, "contextTokens": 1000000, "outputTokens": 128000, "cacheMinTokens": 512,
         "source": "Anthropic's models overview (https://platform.claude.com/docs/en/about-claude/models/overview, read 2026-09-30): claude-opus-5-5, adaptive thinking always on (disabled is refused), default effort medium, 1M context, 128K output (read 2026-10-02). Price (https://platform.claude.com/docs/en/about-claude/pricing): $4 input, $20 output, $0.20 cache hits (0.05x), $5 and $8 cache writes. Effort low to max (https://platform.claude.com/docs/en/build-with-claude/effort)." },
-      { "id": "claude-fable-5-1", "label": "Claude Fable 5.1", "costRank": 4, "effort": true, "contextTokens": 1000000, "outputTokens": 128000, "cacheMinTokens": 512,
+      { "id": "claude-fable-5-2", "label": "Claude Fable 5.2", "costRank": 4, "effort": true, "contextTokens": 1000000, "outputTokens": 128000, "cacheMinTokens": 512,
+        "source": "The claude-api reference (models table cached 2026-11-03; https://platform.claude.com/docs/en/about-claude/models/overview): claude-fable-5-2, Anthropic's most capable widely released model, 1M context, 128K output, thinking always on (omit thinking: disabled and budget_tokens return 400), effort low to max (start at high). $8 input, $40 output, $0.20 cache reads; the successor to Claude Fable 5.1 at a lower price." },
+      { "id": "claude-fable-5-1", "label": "Claude Fable 5.1", "costRank": 4, "effort": true, "replacedBy": "claude-fable-5-2", "contextTokens": 1000000, "outputTokens": 128000, "cacheMinTokens": 512,
         "source": "Anthropic's models overview (https://platform.claude.com/docs/en/about-claude/models/overview, read 2026-09-30): claude-fable-5-1, adaptive thinking always on (disabled is refused), default effort high, 1M context, 128K output (read 2026-10-02); one of the Covered Models kept at least 30 days. Price (https://platform.claude.com/docs/en/about-claude/pricing): $10 input, $50 output, $0.25 cache hits (0.025x), $12.50 and $20 cache writes. Effort low to max (https://platform.claude.com/docs/en/build-with-claude/effort)." },
       { "id": "claude-sonnet-5", "label": "Claude Sonnet 5", "costRank": 2, "effort": true, "contextTokens": 1000000, "outputTokens": 128000, "cacheMinTokens": 1024, "replacedBy": "claude-sonnet-5-5",
         "source": "A legacy model, still available (https://platform.claude.com/docs/en/about-claude/models/overview, read 2026-09-30; 128K output, https://platform.claude.com/docs/en/models/sonnet-5/overview, read 2026-10-02): adaptive thinking on by default, thinking type disabled accepted (https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting), effort low to max. Price (https://platform.claude.com/docs/en/about-claude/pricing): $2 input, $10 output, now the standard price (the step to $3 and $15 on 2026-09-01 didn't happen)." },
+      { "id": "claude-haiku-5-5", "label": "Claude Haiku 5.5", "costRank": 1, "effort": true, "contextTokens": 1000000, "outputTokens": 128000, "cacheMinTokens": 512,
+        "source": "The claude-api reference (models table cached 2026-11-03; https://platform.claude.com/docs/en/about-claude/models/overview): claude-haiku-5-5, the current Haiku, 1M context, 128K output, adaptive thinking on by default (disabled only at effort high or below; budget_tokens returns 400), effort low to max, default medium. $0.10 input, $0.50 output for prompts up to 100K tokens ($0.50 / $2.50 beyond)." },
       { "id": "claude-haiku-4-5", "label": "Claude Haiku 4.5", "costRank": 1, "effort": true, "contextTokens": 200000, "outputTokens": 64000, "cacheMinTokens": 4096,
-        "retiresAfter": "2026-10-15", "moveTo": "claude-sonnet-5-5",
+        "retiresAfter": "2026-10-15", "moveTo": "claude-haiku-5-5",
         "source": "Anthropic's models overview (https://platform.claude.com/docs/en/about-claude/models/overview, read 2026-09-30): alias claude-haiku-4-5 (claude-haiku-4-5-20251001), extended thinking only (thinking type enabled with budget_tokens of at least 1,024, below max_tokens), off by default, no effort parameter, 200K context, 64K output. Price (https://platform.claude.com/docs/en/about-claude/pricing): $1 input, $5 output, $0.10 cache hits. Retirement (https://platform.claude.com/docs/en/about-claude/model-deprecations, read 2026-10-02): active, tentative retirement date not sooner than October 15, 2026 (retiresAfter); no cheaper Claude replaces it, so the window offers the default, Claude Sonnet 5.5 (moveTo)." }
     ]
   },
@@ -59,6 +64,21 @@
       "max": { "output_config": { "effort": "max" } }
     },
     "claude-sonnet-5": {
+      "off": { "thinking": { "type": "disabled" }, "output_config": { "effort": "low" } },
+      "low": { "output_config": { "effort": "low" } },
+      "medium": { "output_config": { "effort": "medium" } },
+      "high": { "output_config": { "effort": "high" } },
+      "xhigh": { "output_config": { "effort": "xhigh" } },
+      "max": { "output_config": { "effort": "max" } }
+    },
+    "claude-fable-5-2": {
+      "low": { "output_config": { "effort": "low" } },
+      "medium": { "output_config": { "effort": "medium" } },
+      "high": { "output_config": { "effort": "high" } },
+      "xhigh": { "output_config": { "effort": "xhigh" } },
+      "max": { "output_config": { "effort": "max" } }
+    },
+    "claude-haiku-5-5": {
       "off": { "thinking": { "type": "disabled" }, "output_config": { "effort": "low" } },
       "low": { "output_config": { "effort": "low" } },
       "medium": { "output_config": { "effort": "medium" } },

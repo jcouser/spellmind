@@ -399,6 +399,10 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
       if (item.st !== null && item.st !== undefined) log('turn-game', { chat: item.chat, parts: game.state ? Object.keys(game.state) : [], stale: game.stale || undefined });
       // An import reads the page with web search, whatever the header's pick, and starts from no history.
       // No game data with it: reading a page needs none (the privacy review).
+      // An AI without web search can't open the page: it would make a build up (the audit). Said instead.
+      if (item.guide && !(AI && AI.search)) {
+        return { error: { kind: 'guide', text: `Importing a guide reads its page with web search, which ${AI?.name || 'this AI'} doesn't have in Spellmind. Pick the ChatGPT plan, OpenAI, Claude or Grok in the Spellmind app, then import again.` } };
+      }
       if (item.guide) return turn({ chatId: item.chat, text: guideAsk(item.guide.url, item.guide.build), history: [], signal, game: { state: null, stale: false }, effort: item.effort, search: AI && AI.search ? true : item.search, check: false });
       return turn({ chatId: item.chat, text: item.text, history: prior, signal, game, effort: item.effort, search: item.search, check: item.check });
     }).then((res) => finish(runId, item, res), (err) => finish(runId, item, err?.name === 'AbortError' ? { aborted: true } : { error: { kind: 'error', text: String(err?.message || err) } }));

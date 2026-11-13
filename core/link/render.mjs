@@ -46,7 +46,16 @@ export function mergeSources(s) {
 /** Markdown to the plain text the window shows: headings, emphasis, code and links flattened; lists kept. */
 export function markdownToWow(md) {
   let s = String(md ?? '').replace(/\r\n?/g, '\n').replace(CONTROL, '');
+  // A model's thinking written into its reply (local models: "<think>…</think>"), never shown.
+  s = s.replace(/<think>[\s\S]*?<\/think>\s*/gi, '').replace(/^[\s\S]*?<\/think>\s*/i, '');
   s = s.replace(/```[a-z0-9_-]*\n?([\s\S]*?)```/gi, (_, code) => code.replace(/\n+$/, ''));
+  // Tables (Gemini, Grok, local models): the game can't draw them. A row becomes "• a · b · c"; the
+  // "|---|" line under the header goes.
+  s = s.replace(/^[ \t]*\|?([ \t]*:?-{2,}:?[ \t]*\|)+[ \t]*:?-{0,}:?[ \t]*\n?/gm, '');
+  s = s.replace(/^[ \t]*\|(.+)\|[ \t]*$/gm, (_, row) => `• ${row.split('|').map(c => c.trim()).filter(Boolean).join(' · ')}`);
+  s = s.replace(/~~(.+?)~~/g, '$1');
+  // Grok's inline citations, "[[1]](https://…)": a source like any other.
+  s = s.replace(/\s*\[\[(\d+)\]\]\((https?:[^)\s]+)\)/g, (_, n, url) => ` (source: ${sourceName('', url)})`);
   s = s.replace(/^#{1,6}\s+(.+?)\s*#*\s*$/gm, '$1');
   s = s.replace(/^\s*[-*+]\s+/gm, '• ');
   s = s.replace(/^\s*>\s?/gm, '');

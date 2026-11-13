@@ -94,24 +94,27 @@ test('defaults (fix-102): each AI\'s newest mid-tier model, and its whole curren
   const d = (id) => [getManifest(id).models.default, getManifest(id).models.smarter];
   // The most capable model is named, so the full list tags it Smartest (clarity r4, CL-words-35); xAI's
   // default is its top model.
-  assert.deepEqual(d('anthropic'), ['claude-sonnet-5-5', 'claude-opus-5-5']);
-  assert.deepEqual(d('openai'), ['gpt-6.1-sol', 'gpt-6-astra']);
+  assert.deepEqual(d('anthropic'), ['claude-sonnet-5-5', 'claude-fable-5-2']);
+  // OpenAI's API defaults to Luna, the model Spellmind is tuned on (the audit: Sol cost 20x for no tested gain).
+  assert.deepEqual(d('openai'), ['gpt-6-luna', 'gpt-6-astra']);
   // The ChatGPT plan's default is its fastest (the reply's 1.5 s at low), its smarter the top model.
   assert.deepEqual(d('chatgpt'), ['gpt-6-luna', 'gpt-6-astra']);
   assert.deepEqual(d('xai'), ['grok-4.7', null]);
-  assert.deepEqual(d('google'), ['gemini-3.8-flash', 'gemini-3.1-pro-preview']);
+  // Gemini 4 Carbon, Google's strongest reasoning model (its models page, read 2026-11-13).
+  assert.deepEqual(d('google'), ['gemini-3.8-flash', 'gemini-4-carbon']);
   assert.equal(getManifest('custom').models.default, null, 'Other\'s model is the player\'s');
   const ids = id => getManifest(id).models.list.map(e => e.id);
-  assert.deepEqual(ids('anthropic'), ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-fable-5-1', 'claude-sonnet-5', 'claude-haiku-4-5']);
-  assert.deepEqual(ids('openai'), ['gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']);
+  assert.deepEqual(ids('anthropic'), ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-fable-5-2', 'claude-fable-5-1', 'claude-sonnet-5', 'claude-haiku-5-5', 'claude-haiku-4-5']);
+  assert.deepEqual(ids('openai'), ['gpt-6-luna', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-astra', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']);
   assert.deepEqual(ids('xai'), ['grok-4.7', 'grok-4.6', 'grok-4.5', 'grok-4.3', 'grok-4.20-0309-reasoning', 'grok-4.20-0309-non-reasoning']);
-  assert.deepEqual(ids('google'), ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview', 'gemini-3-flash-preview']);
+  // Not 3.7 Flash or 3.5 Flash: the models page no longer lists them (read 2026-11-13).
+  assert.deepEqual(ids('google'), ['gemini-3.8-flash', 'gemini-4-hydrogen', 'gemini-4-argon', 'gemini-4-carbon', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview', 'gemini-3-flash-preview']);
   for (const id of IDS) {
     const list = getManifest(id).models.list;
     assert.equal(list[0].id, getManifest(id).models.default, `${id}: the default comes first`);
     for (const e of list) {
       assert.match(e.source ?? '', /https:\/\/\S+/, `${id} ${e.id}: where its facts come from`);
-      assert.match(e.source, id === 'chatgpt' ? /2026-11-09/ : /2026-09-(24|30)/, `${id} ${e.id}: when they were read`);
+      assert.match(e.source, id === 'chatgpt' ? /2026-11-09/ : /2026-09-(24|30)|2026-11-\d\d/, `${id} ${e.id}: when they were read`);
     }
   }
   // Older models stay selectable: every model 1.0.1 offered is still listed, so a saved choice keeps working.
@@ -119,10 +122,11 @@ test('defaults (fix-102): each AI\'s newest mid-tier model, and its whole curren
     for (const m of old) assert.ok(ids(id).includes(m), `${id} keeps ${m}`);
   }
   // A replaced model names its successor, so a retirement moves to it rather than down a tier.
+  assert.equal(getManifest('anthropic').models.list.find(e => e.id === 'claude-fable-5-1').replacedBy, 'claude-fable-5-2');
   assert.equal(getManifest('anthropic').models.list.find(e => e.id === 'claude-sonnet-5').replacedBy, 'claude-sonnet-5-5');
   assert.equal(getManifest('openai').models.list.find(e => e.id === 'gpt-6-sol').replacedBy, 'gpt-6.1-sol');
   assert.equal(getManifest('xai').models.list.find(e => e.id === 'grok-4.6').replacedBy, 'grok-4.7');
-  for (const old of ['gemini-3.7-flash', 'gemini-3.6-flash']) assert.equal(getManifest('google').models.list.find(e => e.id === old).replacedBy, 'gemini-3.8-flash');
+  for (const old of ['gemini-3.6-flash']) assert.equal(getManifest('google').models.list.find(e => e.id === old).replacedBy, 'gemini-3.8-flash');
 });
 
 // Every model gets every thinking level its company documents for it, with honest names: Off only
@@ -227,10 +231,10 @@ test('a retiring model names its earliest day and the model offered in its place
   const a = getManifest('anthropic');
   const haiku = a.models.list.find(e => e.id === 'claude-haiku-4-5');
   assert.equal(haiku.retiresAfter, '2026-10-15');
-  assert.equal(haiku.moveTo, 'claude-sonnet-5-5', 'the default: no cheaper Claude replaces it');
-  assert.equal(haiku.replacedBy, undefined, 'no automatic move: Sonnet 5.5 ranks dearer');
+  assert.equal(haiku.moveTo, 'claude-haiku-5-5', 'Haiku 5.5, the current Haiku, cheaper still (the audit)');
+  assert.equal(haiku.replacedBy, undefined, 'offered, never switched to by itself');
   assert.match(haiku.source, /model-deprecations, read 2026-10-02\): active, tentative retirement date not sooner than October 15, 2026/);
-  assert.deepEqual(retiringOf(a, 'claude-haiku-4-5'), { model: 'claude-haiku-4-5', after: '2026-10-15', to: 'claude-sonnet-5-5' });
+  assert.deepEqual(retiringOf(a, 'claude-haiku-4-5'), { model: 'claude-haiku-4-5', after: '2026-10-15', to: 'claude-haiku-5-5' });
   assert.equal(retiringOf(a, 'claude-sonnet-5-5'), null);
   assert.equal(retiringOf(a, 'claude-old-1'), null);
   assert.equal(retiringOf(null, 'claude-haiku-4-5'), null);
@@ -243,8 +247,9 @@ test('a retiring model names its earliest day and the model offered in its place
   assert.ok(set({ moveTo: 'claude-haiku-4-5' }).some(p => /names another model to move to/.test(p)));
   assert.ok(set({ moveTo: 'claude-nope' }).some(p => /moveTo claude-nope must be a listed model that isn't retiring/.test(p)));
   assert.ok(set({ retiresAfter: undefined }).some(p => /retiresAfter is a day/.test(p)), 'moveTo needs the day');
-  const both = { ...structuredClone(a), models: { ...a.models, list: a.models.list.map(e => (e.id === 'claude-sonnet-5-5' ? { ...e, retiresAfter: '2027-09-28', moveTo: 'claude-opus-5-5' } : e)) } };
-  assert.ok(validateManifest(both).some(p => /moveTo claude-sonnet-5-5 must be a listed model that isn't retiring/.test(p)));
+  // Haiku 4.5 moves to Haiku 5.5: were that retiring too, the move is refused.
+  const both = { ...structuredClone(a), models: { ...a.models, list: a.models.list.map(e => (e.id === 'claude-haiku-5-5' ? { ...e, retiresAfter: '2027-09-28', moveTo: 'claude-sonnet-5-5' } : e)) } };
+  assert.ok(validateManifest(both).some(p => /moveTo claude-haiku-5-5 must be a listed model that isn't retiring/.test(p)));
 });
 
 test('privacy cards carry the §13.3 fields', () => {
@@ -331,7 +336,8 @@ test('an effort map can\'t change privacy defaults: data_collection, store and n
 });
 
 test('an effort map that stays within the adapter\'s effort fields passes the schema', () => {
-  const { m, warnings } = override('google', { effort: { 'gemini-3': { low: { reasoning_effort: 'minimal' }, medium: { reasoning_effort: 'low' }, high: { reasoning_effort: 'high' } } } });
+  const three = { low: { reasoning_effort: 'minimal' }, medium: { reasoning_effort: 'low' }, high: { reasoning_effort: 'high' } };
+  const { m, warnings } = override('google', { effort: { 'gemini-3': three, 'gemini-4': three } });
   assert.deepEqual(warnings, []);
   assert.equal(effortFragment(m, 'gemini-3.8-flash', 'low').reasoning_effort, 'minimal');
   assert.deepEqual(Object.keys(EFFORT_FIELDS).sort(), Object.keys(ADAPTERS).sort(), 'every adapter lists its effort fields');

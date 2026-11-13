@@ -325,6 +325,37 @@ end
 
 -- What the window's box sends: the first linked item or quest goes as the focus part (about=), so
 -- the AI gets its stats or its text; otherwise the card's thread (Ask more) when there is one.
+-- The quest in the log a question names, by its title (a leading "The" optional, any case), the
+-- longest match; titles under 5 letters are too easily found by chance. nil when none.
+function C.QuestNamed(text)
+	local QL = C_QuestLog
+	if type(QL) ~= "table" then return nil end
+	local low = " " .. tostring(text or ""):lower():gsub("[^%w' ]", " "):gsub("%s+", " ") .. " "
+	local best, bestLen
+	for i = 1, tonumber((ns.Try(QL.GetNumQuestLogEntries))) or 0 do
+		local info = ns.Try(QL.GetInfo, i)
+		if type(info) == "table" and not info.isHeader and type(info.title) == "string" and (info.questID or 0) > 0 then
+			local t = info.title:lower():gsub("[^%w' ]", " "):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", ""):gsub("^the ", "")
+			if #t >= 5 and low:find(" " .. t .. " ", 1, true) and (not bestLen or #t > bestLen) then best, bestLen = info.questID, #t end
+		end
+	end
+	return best
+end
+
+-- A quest named in plain words ("how do I turn in the defias brotherhood") goes with its details, as a
+-- shift-clicked one does (seen in game: without its text the AI sent the player back to the giver of a
+-- "talk to Wiley in Lakeshire" quest). Sets the focus and opts.about; returns opts.
+function C.NamedFocus(text, opts)
+	if opts.about or not (ns.State and ns.State.Sharing() and ns.Quests) then return opts end
+	local id = C.QuestNamed(text)
+	local focus = id and ns.Quests.Focus(id)
+	if focus then
+		ns.State.SetFocus(focus)
+		opts.about = "quest:" .. id
+	end
+	return opts
+end
+
 function C.SendTyped(text)
 	local opts = { about = R.ask and R.ask.about or nil, shown = C.ShownText(text) }
 	local sharing = ns.State and ns.State.Sharing()
@@ -343,6 +374,8 @@ function C.SendTyped(text)
 			ns.State.SetFocus(focus)
 			opts.about = "quest:" .. quest
 		end
+	else
+		C.NamedFocus(text, opts)
 	end
 	return C.Send(C.PlainText(text), opts)
 end
@@ -679,7 +712,8 @@ SlashCmdList.SPELLMIND = function(msg)
 		end
 		return
 	end
-	C.Send(msg)
+	-- A quest named in the words goes with its details, as from the chat box.
+	C.Send(msg, C.NamedFocus(msg, {}))
 end
 
 ns.On("ADDON_LOADED", function(_, name)

@@ -229,7 +229,7 @@ test('a part over its limit runs its own trims, named in omitted: quests drop ob
   const part = (p, z) => JSON.parse(vm.evaluate(`(NS.State.Part("${p}", ${z}))`));
   const body = (p, z) => vm.evaluate(`(select(2, NS.State.Part("${p}", ${z})))`);
   let q = part('quests', false);
-  assert.deepEqual(q.omitted, ['obj.text', 'obj']);
+  assert.deepEqual(q.omitted, ['obj.text', 'goal', 'obj'], 'objective text, then goal lines, then objectives');
   assert.equal(q.list.length, 25);
   assert.ok(q.list.every(x => x.obj === undefined));
   assert.ok(body('quests', false).length <= 2900);

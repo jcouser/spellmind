@@ -376,6 +376,15 @@ local function Finisher(L, id)
 	return nil
 end
 
+-- Who takes a quest back, for the quests part: QuestieDB's finisher, kept per quest (it never changes).
+DG.turnIns = {}
+function DG.TurnIn(id)
+	local L = DB()
+	if not L or type(id) ~= "number" then return nil end
+	if DG.turnIns[id] == nil then DG.turnIns[id] = Finisher(L, id) or false end
+	return DG.turnIns[id] or nil
+end
+
 local function Name(L, id)
 	local n = ns.Try(L.Quest.name, id)
 	return type(n) == "string" and n ~= "" and n or nil

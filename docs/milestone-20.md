@@ -54,3 +54,11 @@ The UX reviewer's findings (2026-11-12), checked against the code. Each is fixed
 - **The Quests tab vs the Questie tracker.** The reviewer suggested a "Next up" section, and collapsing each dungeon to one row that points to the Dungeons tab. The player asked earlier for a dungeon's quests together in the Quests tab, so this waits for their call.
 - **Splitting Gold's "Coming up" into guide spells and everything.**
 - **Visual checks:** the window at its minimum size, compact mode, and first-run states.
+
+## Fix: quest details (seen in game, 2026-11-13)
+
+Asked how to turn in The Defias Brotherhood, the AI said Gryan Stoutmantle at Sentinel Hill, twice, until the player said the quest's text says Lakeshire. The quests part had no quest text, and a quest with no objectives ('talk to Wiley in Lakeshire') is complete from the start, so the AI took 'complete' to mean 'back to the giver'.
+
+- **Each log quest carries its one-line goal** (the game's own words, the name blanked, 120 characters), and `turnIn`, who takes it, from QuestieDB when it's installed (`Dungeons.TurnIn`). Over the size limit, goals go after objective text and before objectives.
+- **A quest named in a question** (by its title, a leading 'The' optional, 5 letters at least, the longest match) goes as `focus` with its full text, as a shift-clicked link does: `Chat.NamedFocus`, for the chat box and `/sm`.
+- **The prompt:** who takes a quest is in its `goal` or `turnIn`, never assumed to be its giver, and a quest with no objectives is complete from the start.

@@ -406,3 +406,15 @@ test('/sm help lists the commands and asks the AI nothing; /sm gear opens that t
   assert.equal(vm.evaluate('NS.Panel.tab'), 'gear');
   assert.equal(vm.outbox().length, before);
 });
+
+test('seen in game: a quest named in plain words goes with its details (its goal: talk to Wiley in Lakeshire), and the log part carries every quest\'s goal', () => {
+  const vm = session();
+  vm.run('STUB.questText[1338] = { "Take this to Furen.", "Gryan Stoutmantle wants you to talk to Wiley in Lakeshire." }');
+  vm.slash('How do I turn in stormpike\'s order from here?');
+  assert.equal(vm.evaluate('NS.State.Collect.focus() and NS.State.JSON.encode(NS.State.Collect.focus()):match("Wiley") or "none"'), 'Wiley');
+  const wire = vm.outbox().at(-1).wire.split('\u001f');
+  assert.match(wire[5], /(^|;)about=quest:1338(;|$)/);
+  const q = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.State.Collect.quests())'));
+  assert.equal(q.list.find(x => x.id === 1338).goal, 'Gryan Stoutmantle wants you to talk to Wiley in Lakeshire.');
+  assert.equal(vm.evaluate('tostring(NS.Chat.QuestNamed("what about the order?"))'), 'nil', 'a word or two isn\'t a title');
+});

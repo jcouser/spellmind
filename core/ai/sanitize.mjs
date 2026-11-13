@@ -57,7 +57,7 @@ export const LIST_MAX = Object.freeze({ 'gear.items': 19, 'gear.empty': 19, 'bag
 export const LONG_STRINGS = Object.freeze({ 'focus.text': 1200, 'focus.goal': 400 });
 // Longer strings deeper in a part, by "<part>.<key>": the player's guide's steps and weapon advice
 // (talents.guide), cut at 60 they lost their meaning (the review).
-export const NESTED_LONG = Object.freeze({ 'talents.rotation': 120, 'talents.weapons': 200, 'talents.stats': 80 });
+export const NESTED_LONG = Object.freeze({ 'talents.rotation': 120, 'talents.weapons': 200, 'talents.stats': 80, 'quests.goal': 120, 'quests.turnIn': 90 });
 const KEY_RE = /^[A-Za-z_][A-Za-z0-9_]{0,23}$/;
 // Keys that an object literal treats specially: `out.__proto__ = x` sets the prototype instead of
 // adding a key, so attacker data would be reachable by property access and hidden from JSON.

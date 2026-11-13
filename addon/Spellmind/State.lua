@@ -41,6 +41,7 @@ local NODES_MAX = 60
 local BAG_ITEMS_MAX = 40
 local OBJ_MAX = 8 -- objectives a quest in focus (the app's focusObj)
 local LOG_OBJ_MAX = 5 -- objectives a quest in the log part (the app's obj: more and the whole part was refused)
+local QUEST_GOAL_MAX = 120 -- characters of a log quest's goal line
 local REP_MAX = 40 -- factions in the rep part (the app's rep)
 local OFF_WAIT = 60 -- seconds the forget record waits for the app to take it
 
@@ -589,7 +590,13 @@ function Build.quests()
 			local id = info.questID
 			if type(id) == "number" and id > 0 then
 				local done = Complete(id)
-				list[#list + 1] = O("id", id, "title", Text(info.title), "level", Whole(info.level), "complete", done, "obj", Objectives(id, LOG_OBJ_MAX))
+				-- Its goal in a line (the name blanked), and who takes it when the quest database knows (seen in
+				-- game: "talk to Wiley in Lakeshire" has no objectives, so it's "complete" from the start, and
+				-- without its goal the AI sent the player back to the giver).
+				local _, goal = ns.Try(GetQuestLogQuestText, i)
+				local turnIn = ns.Dungeons and ns.Dungeons.TurnIn and ns.Dungeons.TurnIn(id) or nil
+				list[#list + 1] = O("id", id, "title", Text(info.title), "level", Whole(info.level), "complete", done,
+					"goal", Text(ns.Redact(goal), QUEST_GOAL_MAX), "turnIn", Text(turnIn), "obj", Objectives(id, LOG_OBJ_MAX))
 			else
 				unread = unread + 1
 			end
@@ -764,6 +771,9 @@ local TRIMS = {
 			for _, q in ipairs(Get(obj, "list") or {}) do
 				for _, o in ipairs(Get(q, "obj") or {}) do Set(o, "text", nil) end
 			end
+		end },
+		{ "goal", function(obj)
+			for _, q in ipairs(Get(obj, "list") or {}) do Set(q, "goal", nil) end
 		end },
 		{ "obj", function(obj)
 			for _, q in ipairs(Get(obj, "list") or {}) do Set(q, "obj", nil) end

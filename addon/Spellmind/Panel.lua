@@ -190,6 +190,15 @@ local function Draw(f, specs, keepScroll)
 			r.left:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 2, 4)
 			r.left:SetText(s.text)
 			y = y - 30
+		elseif s.kind == "label" then
+			-- A small heading inside a section ("To pick up", "Not yet"), set in like its rows.
+			r:SetHeight(16)
+			r.left:SetFontObject(GameFontNormalSmall)
+			if r.left.SetWordWrap then r.left:SetWordWrap(false) end
+			r.left:SetWidth(0)
+			r.left:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 20, 1)
+			r.left:SetText(s.text)
+			y = y - 18
 		elseif s.kind == "text" then
 			-- Wrapped to the width, as tall as it needs (the review: hints and empty states ended in "…").
 			r.left:SetFontObject(GameFontHighlightSmall)
@@ -299,12 +308,16 @@ local function Draw(f, specs, keepScroll)
 				rightEdge = rightEdge - (tonumber(r.tag:GetWidth()) or 60) - 6
 			end
 			r.right:SetPoint("RIGHT", r, "RIGHT", rightEdge, 0)
-			-- The second line stops short of the row's buttons and tags (seen in game: it ran under Go), and
-			-- wraps to a second line when it needs one (the review: long ones ended in "…").
+			-- The second line stops short of the row's buttons and tags (seen in game: it ran under Go) and
+			-- of the right text (seen in game: it ran under "level 17"), and wraps; lines of its own (a newline)
+			-- stack, up to four (the player asked for the room, 2026-11-13).
 			if s.sub then
-				r.sub:SetWidth(math.max(40, w - lx - 2 + rightEdge - 8))
+				r.right:SetText(s.right or "")
+				local rw = tonumber(r.right:GetStringWidth()) or 0
+				if (s.right or "") == "" then rw = 0 end
+				r.sub:SetWidth(math.max(40, w - lx - 2 + rightEdge - 8 - (rw > 0 and rw + 8 or 0)))
 				if r.sub.SetWordWrap then r.sub:SetWordWrap(true) end
-				if r.sub.SetMaxLines then r.sub:SetMaxLines(2) end
+				if r.sub.SetMaxLines then r.sub:SetMaxLines(4) end
 				local sh = math.max(12, tonumber(r.sub:GetStringHeight()) or 12)
 				if sh > 16 then
 					h = 21 + sh + 5
@@ -576,29 +589,41 @@ function Tabs.dungeons()
 		return { "LFG", function(_, btn) P.LFGMenu(name, btn) end }
 	end
 	-- The quests still to pick up (QuestieDB's list): who gives each and where, or what opens it.
+	-- The quests still to pick up (QuestieDB's list), in two groups under small labels: the ones you can
+	-- take now, then the ones not yet open. Each says its parts on lines of their own (the player asked,
+	-- 2026-11-13: one crowded line ran under the level, with half the window empty below).
 	local function pickups(qs)
+		local ready, later = {}, {}
 		for _, q in ipairs(qs and qs.pickup or {}) do
-			local from = q.from and ("from " .. ns.Escape(q.from)) or "giver unknown"
-			-- What it waits on: the step in your log, or the chain's first step (listed above, to pick up).
-			local wait = ""
-			-- Which step, when a chain repeats its name (seen in game: "The Defias Brotherhood" read as the
-			-- step just finished); for one in the log, who takes it. Orange: not yet, nothing wrong.
-			local waitName = q.after and (ns.Escape(q.after) .. (q.afterStep and (", step " .. q.afterStep) or ""))
-			if q.after and q.afterLog then wait = "|cffff9933after " .. waitName .. " (in your log" .. (q.afterTo and (": hand it in to " .. ns.Escape(q.afterTo)) or "") .. ")|r · "
-			elseif q.after then wait = "|cffff9933after " .. waitName .. " (pick it up first, above)|r · "
-			elseif q.at then wait = "|cffff9933at level " .. q.at .. "|r · " end
-			local opens = ""
-			if q.opens and #q.opens > 0 then opens = " · leads to " .. ns.Escape(table.concat(q.opens, ", ")) end
+			if not q.after and not q.at then ready[#ready + 1] = q else later[#later + 1] = q end
+		end
+		local function Row(q)
 			-- A chain's first step can share its name with a later one (The Defias Brotherhood).
 			local label = q.name
 			if q.first then
 				for _, o in ipairs(q.opens or {}) do if o == q.name then label = q.name .. " (first step)" end end
 			end
-			-- Ready to take: "Pick up" in gold leads the line (a label, not a button: seen in game, a tag
-			-- read as one), and Go pins the giver on the map.
-			local ready = not q.after and not q.at
+			local lines = {}
+			if not q.after and not q.at then
+				lines[#lines + 1] = "|cffffd100Pick up|r |cff888888from " .. ns.Escape(q.from or "a giver Spellmind doesn't know") .. "|r"
+				if q.opens and #q.opens > 0 then lines[#lines + 1] = "|cff888888Leads to " .. ns.Escape(table.concat(q.opens, ", ")) .. "|r" end
+			else
+				-- What it waits on, and which step when a chain repeats its name; for one in the log, who takes it.
+				if q.after then
+					local waitName = ns.Escape(q.after) .. (q.afterStep and (", step " .. q.afterStep) or "")
+					if q.afterLog then
+						lines[#lines + 1] = "|cffff9933First: " .. waitName .. " (in your log)|r"
+						if q.afterTo then lines[#lines + 1] = "|cff888888Hand that in to " .. ns.Escape(q.afterTo) .. "|r" end
+					else
+						lines[#lines + 1] = "|cffff9933First: " .. waitName .. " (to pick up, above)|r"
+					end
+				end
+				if q.at then lines[#lines + 1] = "|cffff9933Opens at level " .. q.at .. "|r" end
+				lines[#lines + 1] = "|cff888888Then from " .. ns.Escape(q.from or "a giver Spellmind doesn't know") .. "|r"
+			end
+			-- Ready to take: Go pins the giver on the map.
 			local actions
-			if ready and q.spot then
+			if not q.after and not q.at and q.spot then
 				local spot, giver = q.spot, q.from
 				actions = { { "Go", function()
 					if ns.Dungeons.Go(spot) then
@@ -609,8 +634,12 @@ function Tabs.dungeons()
 				end } }
 			end
 			out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(label), right = q.level and ("level " .. q.level) or "",
-				sub = (ready and "|cffffd100Pick up|r · " or wait) .. "|cff888888" .. from .. opens .. "|r", actions = actions }
+				sub = table.concat(lines, "\n"), actions = actions }
 		end
+		if #ready > 0 then out[#out + 1] = { kind = "label", text = "To pick up" } end
+		for _, q in ipairs(ready) do Row(q) end
+		if #later > 0 then out[#out + 1] = { kind = "label", text = "Not yet" } end
+		for _, q in ipairs(later) do Row(q) end
 	end
 	-- The status line: QuestieDB's count when it's there (while its first read runs, "reading…").
 	local function status(name, fallback)

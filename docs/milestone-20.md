@@ -62,3 +62,13 @@ Asked how to turn in The Defias Brotherhood, the AI said Gryan Stoutmantle at Se
 - **Each log quest carries its one-line goal** (the game's own words, the name blanked, 120 characters), and `turnIn`, who takes it, from QuestieDB when it's installed (`Dungeons.TurnIn`). Over the size limit, goals go after objective text and before objectives.
 - **A quest named in a question** (by its title, a leading 'The' optional, 5 letters at least, the longest match) goes as `focus` with its full text, as a shift-clicked link does: `Chat.NamedFocus`, for the chat box and `/sm`.
 - **The prompt:** who takes a quest is in its `goal` or `turnIn`, never assumed to be its giver, and a quest with no objectives is complete from the start.
+
+## Fix: the Dungeons tab uses its height (seen in game, 2026-11-13)
+
+Each quest's details were one long grey line ("Pick up · from X · leads to Y"), which ran under the "level 17" on the right and left the space below empty.
+
+- **Quests are grouped** under small labels: **To pick up** (with Go when the giver's spot is known) and **Not yet**.
+- **Each detail has a line of its own**, up to four:
+  - To pick up: "Pick up from X", then "Leads to Y".
+  - Not yet: "First: NAME, step N (in your log)", then "Hand that in to Z"; or "First: NAME (to pick up, above)"; "Opens at level N"; then "Then from X".
+- **A row's second lines stop short of its right-hand text** instead of running under it.

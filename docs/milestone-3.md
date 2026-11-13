@@ -54,7 +54,7 @@ Built 2026-11-13, Windows first: from source, and as an installer (`Spellmind-Se
 
 ## The app's switches (config.json "app", all on unless turned off)
 
-- **Start when I log in to Windows.** It's written on every start, so the Run value names the copy that ran last: the installed one after an install.
+- **Start when I log in to Windows.** The installed app writes it on every start, naming its own exe. A run from source never writes it, and has its own app id (`gg.spellmind.app.dev`): sharing the installed app's let Windows show Electron's atom as Spellmind's taskbar icon (2026-11-13).
 - **Minimize to the tray, not the taskbar.**
 - **Notifications** (Windows' own, silent; a click opens the window), each once until it's resolved:
   - The sign-in is gone or refused (`oauth_expired`, `auth_invalid`, `no_key`). The pill says "Sign in again".

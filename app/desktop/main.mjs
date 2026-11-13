@@ -31,7 +31,9 @@ const DATA = (!app.isPackaged && process.env.SPELLMIND_DATA) || dataDir();
 const HIDDEN = process.argv.includes('--hidden');
 const ACTIVITY_MAX = 40;
 
-app.setAppUserModelId(IDENTITY.appId);
+// A run from source is Electron's own exe: its own app id, so Windows never gives the installed app its
+// icon (the player, 2026-11-13: the taskbar showed Electron's atom after a run from source).
+app.setAppUserModelId(app.isPackaged ? IDENTITY.appId : `${IDENTITY.appId}.dev`);
 // The window's title bar and menus dark, like the page.
 nativeTheme.themeSource = 'dark';
 // --quit (the installer, closing it for an update): the running copy hears it (second-instance) and
@@ -187,9 +189,11 @@ async function useCfg(cfg, line) {
 // Start at login: the HKCU Run value, with --hidden. A run from source names Electron and this folder.
 
 const loginArgs = () => (app.isPackaged ? ['--hidden'] : [app.getAppPath(), '--hidden']);
+// Only the installed app writes it: a run from source would point Windows at Electron's exe and this
+// folder (the security review), and take the installed app's entry.
 const loginItem = {
   get: () => !!app.getLoginItemSettings({ path: process.execPath, args: loginArgs() }).openAtLogin,
-  set: (on) => app.setLoginItemSettings({ openAtLogin: !!on, path: process.execPath, args: loginArgs() }),
+  set: (on) => { if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: !!on, path: process.execPath, args: loginArgs() }); },
 };
 
 // ---------------------------------------------------------------------------

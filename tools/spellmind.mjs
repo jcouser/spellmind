@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Spellmind from the command line (milestone 2: no app window yet).
+// Spellmind from the command line (the desktop app, app/desktop, runs the same link: core/app/runner.mjs).
 //
 //   node tools/spellmind.mjs install --wow "C:\Program Files (x86)\World of Warcraft\_forever_"
 //        the addon, its 200 slot addons and its doorbells, with WoW closed (saves the folder)
@@ -8,25 +8,12 @@
 //   node tools/spellmind.mjs status
 //
 // Sign in or save a key first with tools/chat.mjs (signin, or key <provider>).
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { loadManifests, createProvider } from '../core/ai/providers/index.mjs';
-import { createKeyStore } from '../core/ai/security/keystore.mjs';
-import { createEgress } from '../core/ai/security/egress.mjs';
-import { createSignIns } from '../core/ai/signin/index.mjs';
-import { userLine } from '../core/ai/providers/errors.mjs';
-import { createService } from '../core/link/service.mjs';
-import { createWindowsCapture } from '../core/link/capture.mjs';
-import { installAddon, FOREVER_FLAVORS, NOT_GAME, wowRunning } from '../core/link/install.mjs';
-import { loadPack } from '../core/ai/pack.mjs';
-import { buildRequest } from '../core/ai/context.mjs';
-import { needsCheck, checkHistory, CHECK_ASK, pickChecked } from '../core/ai/check.mjs';
+import { installAddon, wowRunning } from '../core/link/install.mjs';
+import { dataDir, readConfig as readCfg, writeConfig as writeCfg, startSpellmind } from '../core/app/runner.mjs';
 
-const DATA = process.platform === 'win32' ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Spellmind') : path.join(os.homedir(), '.config', 'spellmind');
-const CONFIG = path.join(DATA, 'config.json');
-const readConfig = () => { try { return JSON.parse(fs.readFileSync(CONFIG, 'utf8')); } catch { return {}; } };
-const writeConfig = (c) => { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(CONFIG, JSON.stringify(c, null, 2) + '\n'); };
+const DATA = dataDir();
+const readConfig = () => readCfg(DATA);
+const writeConfig = (c) => writeCfg(DATA, c);
 
 function args(argv) {
   const out = { _: [] };
@@ -57,95 +44,32 @@ switch (a._[0]) {
     break;
   }
   case 'start': {
-    const flavorDir = cfg.wow;
-    if (!flavorDir) { console.error('Install first: node tools/spellmind.mjs install --wow <your _forever_ folder>'); process.exit(2); }
-    const manifests = loadManifests();
-    const m = manifests.find(x => x.id === (a.provider || cfg.provider || 'chatgpt'));
-    if (!m || m.custom) { console.error('Unknown AI.'); process.exit(2); }
-    const model = a.model || cfg.model || m.models.default;
-    // Web search on by default where the AI has it (manifest webSearch): without it, low and medium
-    // thinking got game facts (which weapon master teaches Bows) wrong most of the time in a test on
-    // 2026-11-10, and high was right only at about 10 s an answer. With it, low was right 3 of 3 at
-    // 6 to 10 s; medium is the default, so plain chat stays quick and facts come from the web.
-    const search = !!m.webSearch && (a.search || cfg.search || 'on') !== 'off';
-    const effort = a.effort || cfg.effort || (search ? 'medium' : 'high');
-    const keystore = createKeyStore({ backend: 'os' });
-    const egress = createEgress({ allowHosts: () => new Set(m.hosts), loopbackOk: true });
-    const session = createSignIns({ keystore, fetch: egress.fetch }).for(m);
-    const provider = createProvider(m, { getKey: async () => (session ? session.credentials() : keystore.get(m.id)), fetch: egress.fetch });
-    const logFile = path.join(DATA, 'spellmind.log');
-    fs.mkdirSync(DATA, { recursive: true });
-    const log = (k, d) => { try { fs.appendFileSync(logFile, `${new Date().toISOString()} ${k} ${JSON.stringify(d ?? {})}\n`); } catch { /* logging never stops the link */ } };
-
+    // The link itself is core/app/runner.mjs, the desktop app's too; here its events become lines.
+    const LINES = {
+      hello: d => `The game said hello (addon ${d.ver}).`,
+      msg: d => `Message in ${d.chat} (${d.bytes} bytes): asking ${d.status.ai.name}…`,
+      reply: d => `Reply out ${d.chat} (${d.chars} characters).`,
+      'turn-error': d => `Error for ${d.chat}: ${d.kind}`,
+      'msg-refused': d => `Refused a message: ${d.reason}`,
+      state: d => `Character data in: ${d.part} (${d.bytes} bytes)`,
+      'state-rejected': d => `Character data refused: ${d.part || '?'} ${d.reason}`,
+      'state-wait-over': d => `Character data late for ${d.chat}: answering with what is there.`,
+      wow: d => `WoW: ${d.state}`,
+      'reading-error': d => `Screen reading: ${d.error}`,
+      reading: d => (d.status.reading ? 'Screen reading started.' : null),
+    };
+    const run = startSpellmind({ dataDir: DATA, cfg, over: { provider: a.provider, model: a.model, effort: a.effort, search: a.search },
+      onEvent: (ev) => { const line = LINES[ev.kind]?.(ev); if (line) say(line); } });
+    if (!run.ok) {
+      console.error(run.error === 'not_installed' ? 'Install first: node tools/spellmind.mjs install --wow <your _forever_ folder>' : run.detail);
+      process.exit(2);
+    }
     // A promise nobody caught is logged, never the end of the app (the review: one could stop it and
     // lose the replies in flight).
-    process.on('unhandledRejection', (e) => log('unhandled', { error: String(e?.message || e).slice(0, 200) }));
-
-    // The prompt (prompts/spellmind.md), read once: its version goes in the log.
-    const pack = loadPack();
-    log('pack', { version: pack.version, tokens: pack.tokens });
-
-    // One turn: the prompt, the chat's history, then the game data and the message; the reply's
-    // text, or the error's words.
-    // One request: the text, or { aborted } or { error }.
-    const ask = async ({ history, userText, game, signal, effort: e, search: s }) => {
-      let out = '', searched = false;
-      const { system, messages, meta } = buildRequest({ pack, game, history, userText });
-      log('request', { pack: pack.version, dataChars: meta.dataChars, omitted: meta.omitted.length ? meta.omitted : undefined, stale: game?.stale || undefined });
-      for await (const ev of provider.stream({ model, effort: e, system, messages, webSearch: s }, { signal })) {
-        if (ev.type === 'text') out += ev.delta;
-        else if (ev.type === 'progress' && ev.searching && !searched) { searched = true; log('web-search', {}); }
-        else if (ev.type === 'error') {
-          if (ev.error?.kind === 'interrupted') return { aborted: true };
-          const l = userLine(ev.error, { provider: m.name, product: 'Spellmind' });
-          return { error: { kind: ev.error?.kind || 'error', text: `${l.headline} ${l.detail}`.trim() } };
-        }
-      }
-      return { text: out };
-    };
-    // A turn: the answer, then (docs/milestone-17.md) a double-check of one that names places, people,
-    // routes, items or quest steps, unless the player turned it off. A failed check keeps the draft.
-    const turn = async ({ text, history, signal, game, effort: pickedEffort, search: pickedSearch, check }) => {
-      const e = pickedEffort || effort, s = pickedSearch ?? search;
-      const draft = await ask({ history, userText: text, game, signal, effort: e, search: s });
-      if (!draft.text || check === false || !needsCheck(text, draft.text)) return draft;
-      log('check', {});
-      const checked = await ask({ history: checkHistory(history, text, draft.text), userText: CHECK_ASK, game, signal, effort: e, search: s });
-      if (checked.aborted) return checked;
-      if (!checked.text?.trim()) { log('check-failed', { kind: checked.error?.kind }); return draft; }
-      // A check that came back as a comment, much shorter, or without its "Next:" line doesn't replace a good draft.
-      const pick = pickChecked(draft.text, checked.text);
-      log('check-done', { used: pick.used, why: pick.why });
-      return { text: pick.text };
-    };
-
-    const addonsDir = path.join(flavorDir, 'Interface', 'AddOns');
-    // What the chat window's header shows and lets the player pick: the model's thinking levels and search.
-    const efforts = Object.keys(m.effort?.[model] || {});
-    const label = m.models.list.find(x => x.id === model)?.label || model;
-    const ai = { name: m.name, model: label, efforts, effort, search: !!m.webSearch, searchOn: search };
-    const svc = createService({ addonsDir, stateDir: path.join(DATA, 'link'), turn, ai, log: (k, d) => {
-      log(k, d);
-      if (k === 'hello') say('The game said hello (addon', d.ver + ').');
-      else if (k === 'msg') say('Message in', d.chat, `(${d.bytes} bytes): asking ${m.name}…`);
-      else if (k === 'reply') say('Reply out', d.chat, `(${d.chars} characters).`);
-      else if (k === 'turn-error') say('Error for', d.chat + ':', d.kind);
-      else if (k === 'msg-refused') say('Refused a message:', d.reason);
-      else if (k === 'state') say('Character data in:', d.part, `(${d.bytes} bytes)`);
-      else if (k === 'state-rejected') say('Character data refused:', d.part || '?', d.reason);
-      else if (k === 'state-wait-over') say('Character data late for', d.chat + ': answering with what is there.');
-    } });
-    svc.start();
-    let lastErr = '';
-    const capture = createWindowsCapture({ flavorDirs: FOREVER_FLAVORS, notGame: NOT_GAME, log,
-      onPayload: ({ text }) => svc.handlePayload(text),
-      onGame: ({ state }) => say('WoW:', state),
-      onError: (e) => { const s = String(e?.message || e?.kind || e); if (s !== lastErr) { lastErr = s; say('Screen reading:', s); } },
-      onStatus: (s) => { if (s.connected === true) say('Screen reading started.'); },
-    });
-    capture.start();
-    say(`Spellmind is running with ${m.name} (${model}, thinking ${effort}${search ? ', web search on' : ''}), prompt ${pack.version}. In game: /sm <question>. Ctrl+C stops it.`);
-    const stop = () => { say('Stopping…'); try { capture.stop(); } catch { /* stopping */ } svc.stop(); process.exit(0); };
+    process.on('unhandledRejection', (e) => run.log('unhandled', { error: String(e?.message || e).slice(0, 200) }));
+    const s = run.status();
+    say(`Spellmind is running with ${s.ai.name} (${s.ai.model}, thinking ${s.ai.effort}${s.ai.search ? ', web search on' : ''}). In game: /sm <question>. Ctrl+C stops it.`);
+    const stop = () => { say('Stopping…'); run.stop(); process.exit(0); };
     process.on('SIGINT', stop);
     process.on('SIGTERM', stop);
     break;

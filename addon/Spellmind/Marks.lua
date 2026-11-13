@@ -245,7 +245,7 @@ function M.OnAnswer(key, r)
 	local text
 	if r.t == "reply" then
 		text = ns.SafeText(r.text)
-		if (tonumber(r.more) or 0) > 0 then text = text .. "\n|cff888888(the rest is in the Spellmind app)|r" end
+		if (tonumber(r.more) or 0) > 0 then text = text .. "\n|cff888888(cut short: ask for the rest)|r" end
 	elseif r.t == "error" then
 		text = "|cffff6060" .. ns.SafeText(r.text) .. "|r"
 	else

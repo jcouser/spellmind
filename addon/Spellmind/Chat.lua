@@ -402,6 +402,29 @@ function C.WaitingIn(chatId)
 	return nil
 end
 
+-- Stop the question waiting in this chat (the review: a wrong one, or one waiting on a closed app,
+-- couldn't be stopped). Not taken by the app yet: dropped here, nothing sent. Taken: a stop record,
+-- which the app answers with "Stopped." (its aborted record ends the wait as an answer does).
+-- → "dropped", "asked" or nil (nothing waiting).
+function C.Stop()
+	local db = ns.db
+	if not db then return nil end
+	local p = C.WaitingIn(db.chat)
+	if not p then return nil end
+	if ns.Link.Drop(p.key) then
+		for i, x in ipairs(Pending()) do if x == p then table.remove(Pending(), i); break end end
+		AddMsg("sys", "|cff888888Stopped before it was sent.|r")
+		C.Refresh()
+		return "dropped"
+	end
+	if not p.stopping then
+		p.stopping = true
+		ns.Link.NewKeyed("stop", db.chat, {}, "")
+	end
+	C.Refresh()
+	return "asked"
+end
+
 -- The key of the same question (text and about) still waiting for its answer in the current chat,
 -- or nil. A button pressed again while its question waits (the app not running, seen in game: one
 -- Ask a click, each answered later) reuses it instead of queueing a copy.
@@ -549,7 +572,7 @@ function C.OnRecord(r, replay)
 		if type(r.plan) == "table" and ns.Guide then pcall(ns.Guide.OnPlan, r.plan) end
 		text = ns.SafeText(r.text)
 		local more = math.max(0, math.floor(tonumber(r.more) or 0))
-		local whole = text .. (more > 0 and " |cff888888(the rest is in the Spellmind app)|r" or "")
+		local whole = text .. (more > 0 and " |cff888888(cut short: ask for the rest)|r" or "")
 		AddText(WHO, whole)
 		-- The reply's suggestion chips (the app's, from its "Next:" line): one click asks.
 		local chips = {}

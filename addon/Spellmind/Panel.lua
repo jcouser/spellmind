@@ -1205,6 +1205,23 @@ end
 function Tabs.settings()
 	local ST = ns.Settings
 	local out = {}
+	-- The Spellmind app, read only (the review: only the Chat tab's header said whether it was there, and
+	-- which AI answers). The AI is changed in the app's window, not here.
+	out[#out + 1] = { kind = "head", text = "The Spellmind app" }
+	local gone = ns.Link.AppGone and ns.Link.AppGone()
+	local age = ns.Link.BridgeAge and ns.Link.BridgeAge()
+	out[#out + 1] = { kind = "item", left = "App",
+		right = gone and "|cffff9933not running|r" or "|cff19ff19running|r",
+		sub = "|cff888888" .. (gone and "Start it from the Start menu, or its icon by the clock. It talks to your AI for this addon."
+			or ("Heard from " .. (age and age < 60 and "just now" or age and (math.floor(age / 60) .. " min ago") or "this session") .. ".")) .. "|r" }
+	local ai = R.ai
+	if type(ai) == "table" and type(ai.name) == "string" then
+		local model = type(ai.model) == "string" and ai.model ~= "" and (" · " .. ns.Escape(ai.model)) or ""
+		out[#out + 1] = { kind = "item", left = "Your AI", right = ns.Escape(ai.name) .. model,
+			sub = "|cff888888" .. (ai.ready == false and "|cffff9933Not set up: sign in or paste a key in the app.|r" or "Change it, sign in or add a key in the app's window.") .. "|r" }
+	end
+	out[#out + 1] = { kind = "item", left = "Addon", right = "version " .. ns.Escape(ns.VERSION or "?"),
+		sub = "|cff888888The app keeps it up to date while WoW is closed.|r" }
 	for _, sec in ipairs(ST.List()) do
 		out[#out + 1] = { kind = "head", text = sec.section }
 		for _, r in ipairs(sec.rows) do

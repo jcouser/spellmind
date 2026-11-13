@@ -103,7 +103,7 @@ function draw(s) {
   if (s.link.phase === 'gave-up') fact($('factHello'), 'It kept stopping: click Restart the link below', 'bad');
   else if (s.link.phase === 'restarting') fact($('factHello'), `Restarting in ${Math.round((s.link.delayMs || 0) / 1000)} s`, 'warn');
   else if (s.link.phase === 'setup') fact($('factHello'), 'Waiting for the setup', 'warn');
-  else if (r.hello) fact($('factHello'), `Linked since ${new Date(r.hello).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, 'good');
+  else if (r.hello) fact($('factHello'), `Connected since ${new Date(r.hello).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, 'good');
   else fact($('factHello'), r.wow === 'running' ? 'Waiting for the addon to say hello' : 'Not yet this session', 'muted');
   // The line the game showed (userLine), not the kind (the audit: "An error: oauth_expired").
   if (r.error) fact($('factLast'), r.errorText || `It failed (${r.error}).`, 'bad');

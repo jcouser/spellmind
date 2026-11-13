@@ -18,14 +18,21 @@ test('the tab: last in the rail; its sections, each switch with its On or Off bu
   assert.equal(vm.evaluate('SpellmindPanel.tabs[10].text:GetText()'), 'Settings');
   const d = list(vm, 'SpellmindPanel.drawn');
   assert.deepEqual(d.filter(x => x.kind === 'head').map(x => x.text),
-    ['On the game\'s windows', 'Nudges', 'Game data the AI gets', 'Chat and the minimap', 'Your guide']);
+    ['The Spellmind app', 'On the game\'s windows', 'Nudges', 'Game data the AI gets', 'Chat and the minimap', 'Your guide']);
+  // The app's section (the audit): running or not, the addon's version; nothing to switch there.
+  const app = d.find(x => x.text === 'App');
+  assert.ok(app && /running/.test(app.right));
+  assert.ok(d.some(x => x.text === 'Addon' && /^version /.test(x.right)));
   assert.ok(d.some(x => x.text === 'Item tooltips'));
   assert.ok(d.some(x => x.text === 'Spells to train'));
   assert.ok(d.some(x => x.text === 'Reputations'));
-  assert.equal(vm.evaluate('SpellmindPanel.rows[2].actions[1].text:GetText()'), '|cff19ff19On|r');
+  // The first switch, found by its name.
+  const row = d.findIndex(x => x.text === 'Quest log: Break it down') + 1;
+  assert.ok(row > 0);
+  assert.equal(vm.evaluate(`SpellmindPanel.rows[${row}].actions[1].text:GetText()`), '|cff19ff19On|r');
   // A click flips it and redraws in place.
-  vm.run('SpellmindPanel.rows[2].actions[1].scripts.OnClick(SpellmindPanel.rows[2].actions[1], "LeftButton")');
-  assert.equal(vm.evaluate('SpellmindPanel.rows[2].actions[1].text:GetText()'), '|cff888888Off|r');
+  vm.run(`SpellmindPanel.rows[${row}].actions[1].scripts.OnClick(SpellmindPanel.rows[${row}].actions[1], "LeftButton")`);
+  assert.equal(vm.evaluate(`SpellmindPanel.rows[${row}].actions[1].text:GetText()`), '|cff888888Off|r');
   assert.equal(vm.evaluate('tostring(SpellmindDB.marks.quest)'), 'false');
 });
 

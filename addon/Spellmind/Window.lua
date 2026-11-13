@@ -20,11 +20,12 @@ W.BUBBLE = 0.78 -- of the list's width, at most
 W.PLACEHOLDER = "Ask Spellmind… (shift-click items or quests to add them)"
 W.EFFORT_NAMES = { low = "Low", medium = "Medium", high = "High", xhigh = "Extra high", max = "Max", none = "None", minimal = "Minimal" }
 W.EFFORT_HINT = {
+	minimal = "Barely thinks: the quickest, for simple questions.",
 	low = "Fastest (about 3 s). Fine for plain questions.",
 	medium = "Balanced. With web search, facts come from the web.",
 	high = "Slower (about 10 s), more careful.",
-	xhigh = "Slower still; uses more of your plan.",
-	max = "The slowest and most thorough; uses the most of your plan.",
+	xhigh = "Slower still; uses more of your plan or credit.",
+	max = "The slowest and most thorough; uses the most of your plan or credit.",
 }
 
 local COLORS = {
@@ -150,8 +151,19 @@ end
 -- What the app offers (bridge.ai, read by Chat.lua into R.ai) and the player's picks
 ---------------------------------------------------------------------------
 
+-- A pick made here holds while the app's own default stays what it was then. Changed in the app, the
+-- app's new default wins (the review: a pick made once here silently beat every later app setting).
+local function Settled()
+	local ai, ui = R.ai, UI()
+	if type(ai) ~= "table" then return end
+	if ui.effort ~= nil and ui.effortFrom ~= ai.effort then ui.effort, ui.effortFrom = nil, nil end
+	local on = ai.searchOn ~= false
+	if ui.search ~= nil and ui.searchFrom ~= on then ui.search, ui.searchFrom = nil, nil end
+end
+
 -- The thinking level to send: the player's pick when the app offers it, else nil (the app's default).
 function W.Effort()
+	Settled()
 	local ai, pick = R.ai, UI().effort
 	if type(ai) ~= "table" or type(pick) ~= "string" then return nil end
 	for _, e in ipairs(type(ai.efforts) == "table" and ai.efforts or {}) do
@@ -164,6 +176,7 @@ end
 function W.Search()
 	local ai = R.ai
 	if type(ai) ~= "table" or ai.search ~= true then return nil end
+	Settled()
 	local pick = UI().search
 	if pick == nil then return ai.searchOn ~= false end
 	return pick and true or false
@@ -249,6 +262,7 @@ function W.OpenMenu()
 		r.effort = e
 		r:SetScript("OnClick", function(self)
 			UI().effort = self.effort
+			UI().effortFrom = type(R.ai) == "table" and R.ai.effort or nil
 			m:Hide()
 			W.Refresh()
 		end)
@@ -488,6 +502,7 @@ function W.Build()
 	f.search:SetPoint("LEFT", f.effort, "RIGHT", 6, 0)
 	f.search:SetScript("OnClick", function()
 		UI().search = not W.Search()
+		UI().searchFrom = type(R.ai) == "table" and R.ai.searchOn ~= false
 		W.Refresh()
 	end)
 	f.menu = BuildMenu(f)
@@ -561,7 +576,11 @@ function W.Build()
 	f.send.arrow:SetSize(16, 16)
 	f.send.arrow:SetPoint("CENTER", f.send, "CENTER", 1, 0)
 	f.send.arrow:SetTexture(W.MEDIA .. "Send")
-	f.send:SetScript("OnClick", function() Send(f.input) end)
+	-- While a question waits in this chat, the button is Stop (W.Refresh; the review: a wrong question,
+	-- or one waiting on a closed app, couldn't be stopped). Enter still sends.
+	f.send:SetScript("OnClick", function(self)
+		if self.stop then ns.Chat.Stop() else Send(f.input) end
+	end)
 
 	f:SetScript("OnSizeChanged", function() if win then W.Layout() end end)
 	f:Hide()
@@ -643,6 +662,13 @@ function W.Refresh()
 	f.effort.text:SetText(EffortLabel())
 	-- As wide as its words and the chevron (the review: "Medium" touched the arrow; "Extra high" ran under it).
 	f.effort:SetWidth(math.max(100, (tonumber(f.effort.text:GetStringWidth()) or 90) + 30))
+	-- The send button is Stop while a question waits here, "Stopping…" once asked.
+	local waiting = ns.Chat.WaitingIn and ns.db and ns.Chat.WaitingIn(ns.db.chat)
+	f.send.stop = waiting and true or nil
+	f.send.arrow:SetShown(not waiting)
+	f.send.text:SetText(waiting and (waiting.stopping and "…" or "Stop") or "")
+	f.send:SetWidth(waiting and 44 or 30)
+	f.send.tip = waiting and "Stop this question (it isn't answered)" or "Send (Enter)"
 	local search = W.Search()
 	f.search:SetShown(search ~= nil)
 	f.search.text:SetText("Web search: " .. (search and "|cff19ff19On|r" or "|cff888888Off|r"))

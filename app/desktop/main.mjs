@@ -204,7 +204,7 @@ function summary() {
   if (linkState.phase !== 'running') return { tone: 'off', text: 'The link is stopped' };
   if (s?.error && Object.hasOwn(ACT_ON, s.error)) return { tone: ACT_ON[s.error][0], text: ACT_ON[s.error][1] };
   if (s?.error && Object.hasOwn(PASSING, s.error)) return { tone: 'warn', text: PASSING[s.error] };
-  if (s?.wow === 'running' || s?.wow === 'launched') return { tone: 'good', text: s.hello ? 'Linked to WoW' : 'WoW is running: waiting for the addon' };
+  if (s?.wow === 'running' || s?.wow === 'launched') return { tone: 'good', text: s.hello ? 'Connected to WoW' : 'WoW is running: waiting for the addon' };
   return { tone: 'idle', text: 'Waiting for WoW' };
 }
 

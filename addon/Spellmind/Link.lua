@@ -223,6 +223,19 @@ function L.NewKeyed(rtype, chatId, args, body)
 	return key
 end
 
+-- A record the app hasn't taken yet, taken back (Chat.Stop): out of the outbox and off the strip.
+-- → true, or false once it's acked (the app has it).
+function L.Drop(key)
+	if not R.out[key] then return false end
+	local db = ns.db
+	for i, e in ipairs(db.outbox) do
+		if e.key == key then table.remove(db.outbox, i); break end
+	end
+	R.out[key], R.sentAt[key] = nil, nil
+	L.RefreshStrip()
+	return true
+end
+
 function L.OutboxDepth()
 	local n = 0
 	for _ in pairs(R.out) do n = n + 1 end
@@ -836,7 +849,7 @@ function L.LoadSlot(reason)
 		if code == "DISABLED" then
 			L.Warn("parts", "Spellmind Parts are turned off in the AddOns list, so answers can't come in. Turn them back on there, then type /reload.")
 		else
-			L.Warn("slots", "A part of Spellmind didn't load, so answers can't come in. Run the Spellmind app's setup again, then restart WoW.")
+			L.Warn("slots", "A part of Spellmind didn't load, so answers can't come in. Close WoW, open the Spellmind app and click Reinstall (under World of Warcraft), then start WoW.")
 		end
 		L.CountFree()
 		return nil

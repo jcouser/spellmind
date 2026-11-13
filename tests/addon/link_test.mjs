@@ -454,3 +454,46 @@ test('the app says its AI isn\'t set up (ai.ready false): the window\'s header s
   vm.run('NS.Window.Refresh()');
   assert.match(vm.evaluate('SpellmindWindow.status:GetText()'), /^Connected · Claude/);
 });
+
+test('Stop: a question the app hasn\'t taken is dropped here; one it has gets a stop record; the send button says Stop meanwhile (the audit)', () => {
+  const vm = session();
+  vm.run('NS.Window.Build()');
+  vm.slash('Where is the rogue trainer?');
+  assert.equal(vm.outbox().length, 1);
+  vm.run('NS.Window.Refresh()');
+  assert.equal(vm.evaluate('SpellmindWindow.send.text:GetText()'), 'Stop');
+  assert.equal(vm.evaluate('NS.Chat.Stop()'), 'dropped');
+  assert.equal(vm.outbox().length, 0, 'taken back: nothing goes');
+  assert.equal(vm.evaluate('tostring(NS.Chat.WaitingIn(SpellmindDB.chat))'), 'nil');
+  assert.equal(vm.evaluate('SpellmindWindow.send.text:GetText()'), '', 'the arrow again');
+  // Taken by the app (acked): a stop record goes; the app's "aborted" ends the wait.
+  vm.slash('Where is the weapon master?');
+  const [{ key }] = vm.outbox();
+  vm.slotText(slotFor(vm, { push: 1, acked: [key] }));
+  ring(vm);
+  assert.equal(vm.outbox().length, 0, 'acked');
+  assert.equal(vm.evaluate('NS.Chat.Stop()'), 'asked');
+  const out = vm.outbox();
+  assert.equal(out.length, 1);
+  assert.match(out[0].wire, /stop/);
+  assert.equal(vm.evaluate('NS.Chat.Stop()'), 'asked', 'asked once, not again');
+  assert.equal(vm.outbox().length, 1);
+  const chat = vm.evaluate('SpellmindDB.chat');
+  vm.advance(2); // slot loads are 1.5 s apart
+  vm.slotText(slotFor(vm, { push: 2, acked: [out[0].key], records: [{ seq: 1, t: 'aborted', chat, kind: 'user', text: 'Stopped.' }] }));
+  ring(vm);
+  assert.equal(vm.evaluate('tostring(NS.Chat.WaitingIn(SpellmindDB.chat))'), 'nil', 'the wait ended');
+});
+
+test('a Thinking pick in the game holds until the app\'s own default changes; then the app\'s wins (the audit)', () => {
+  const vm = session();
+  vm.run('NS.State.OnBridge({ ai = { name = "ChatGPT", model = "GPT-6 Luna", efforts = { "low", "medium", "high" }, effort = "medium", search = true, searchOn = true } })');
+  vm.run('SpellmindDB.ui = SpellmindDB.ui or {}; SpellmindDB.ui.effort = "high"; SpellmindDB.ui.effortFrom = "medium"; SpellmindDB.ui.search = false; SpellmindDB.ui.searchFrom = true');
+  assert.equal(vm.evaluate('NS.Window.Effort()'), 'high');
+  assert.equal(vm.evaluate('tostring(NS.Window.Search())'), 'false');
+  // The player set Low and search off in the app: the game's old picks give way.
+  vm.run('NS.State.OnBridge({ ai = { name = "ChatGPT", model = "GPT-6 Luna", efforts = { "low", "medium", "high" }, effort = "low", search = true, searchOn = false } })');
+  assert.equal(vm.evaluate('tostring(NS.Window.Effort())'), 'nil', 'the app\'s Low');
+  assert.equal(vm.evaluate('tostring(NS.Window.Search())'), 'false', 'the app\'s off');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.ui.search)'), 'nil');
+});

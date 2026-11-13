@@ -120,17 +120,17 @@ test('QuestieDB: what you haven\'t picked up, who gives it and where; locked one
   const hall = d.find(x => x.text === 'The Hall of Thanes');
   assert.match(hall.sub, /^.cff888888quests level 16 · .cffffd1001 to pick up.r · 2 later · 1 in your log · 1 done/);
   const oh = d.find(x => x.text === 'Oh Brother...');
-  assert.match(oh.sub, /^.cffffd100Pick up.r .cff888888from Thane Ironbelly, Ironforge \(45, 51\)/, 'ready: "Pick up" leads its line');
+  assert.match(oh.sub, /^.cffffd100Pick up step 1 of 2.r .cff888888from Thane Ironbelly, Ironforge \(45, 51\)/, 'ready: "Pick up" leads its line');
   assert.equal(oh.tag, undefined, 'no tag: it read as a button');
   assert.match(oh.sub, /from Thane Ironbelly, Ironforge \(45, 51\)/);
-  const under = d.find(x => x.text === 'Underground Assault');
-  assert.match(under.sub, /First: Oh Brother\.\.\. \(to pick up, above\)/);
-  assert.equal(under.tag, undefined, 'not yet: no "pick up" tag');
+  // Oh Brother... opens Underground Assault: one questline row, the locked quest on it.
+  assert.match(oh.sub, /\n.cff888888Then: Underground Assault.r$/, 'the same giver isn\'t said twice');
+  assert.ok(!d.some(x => x.text === 'Underground Assault'), 'on its questline\'s row, not its own');
   const vault = d.find(x => x.text === 'The Deep Vault');
   assert.match(vault.sub, /Opens at level 22/);
   const labels = d.filter(x => x.kind === 'label').map(x => x.text);
-  assert.ok(labels.includes('To pick up') && labels.includes('Not yet'), 'quests grouped under small labels');
-  assert.ok(d.indexOf(oh) < d.findIndex(x => x.text === 'Not yet') && d.findIndex(x => x.text === 'Not yet') < d.indexOf(under), 'ready first, then not yet');
+  assert.deepEqual(labels, ['Questlines that lead here', 'Not yet: they open at a higher level'], 'grouped under small labels');
+  assert.ok(d.indexOf(oh) < d.indexOf(vault));
   for (const other of ['A Horde Errand', 'A Warrior\'s Trial', 'Shadowy Orders', 'Collecting Memories', 'Elwynn Wolves'])
     assert.ok(!d.some(x => x.text === other), `${other}: another race, class or faction, done, or another zone`);
 });
@@ -146,7 +146,8 @@ test('QuestieDB: a dungeon with every quest done says so; the LFG list\'s "Hall 
 test('QuestieDB: the briefing names the quests to pick up and who gives them', () => {
   const vm = withDB();
   const q = vm.evaluate('NS.Dungeons.Briefing("The Hall of Thanes")');
-  assert.match(q, /Quests for it I haven't picked up: Oh Brother\.\.\. \(from Thane Ironbelly, Ironforge \(45, 51\)\); Underground Assault \(from Thane Ironbelly, Ironforge \(45, 51\)\) after Oh Brother\.\.\./);
+  assert.match(q, /Quests for it I haven't picked up: The Deep Vault \(from Thane Ironbelly, Ironforge \(45, 51\)\) at level 22\./);
+  assert.match(q, /Questline Oh Brother\.\.\.: step 1 is to pick up from Thane Ironbelly, Ironforge \(45, 51\); it opens Underground Assault after step 1\./);
   assert.match(q, /Already done: Collecting Memories\./);
   assert.match(q, /the best order to pick up the missing quests/);
 });
@@ -198,10 +199,34 @@ test('a chain that starts outside the dungeon: its first step is listed to pick 
   assert.equal(pick[0].id, 2040, 'what you can take now comes first');
   vm.run('NS.Panel.openDungeons = { deadmines = true }; NS.Panel.Show("dungeons")');
   const d = list(vm, 'SpellmindPanel.drawn');
-  const row = d.find(x => x.text === 'The Defias Brotherhood (first step)');
-  assert.match(row.sub, /Pick up/);
-  assert.match(row.sub, /from Gryan Stoutmantle, Westfall \(56, 48\).r\n.cff888888Leads to /, 'each detail on a line of its own');
-  assert.ok(d.some(x => x.text === 'Red Silk Bandanas' && /First: The Defias Brotherhood \(to pick up, above\)/.test(x.sub)));
+  // One row for the questline: the step to take, then each Deadmines quest it opens, in chain order.
+  const rows = d.filter(x => x.text === 'The Defias Brotherhood');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].sub, '|cffffd100Pick up step 1 of 3|r |cff888888from Gryan Stoutmantle, Westfall (56, 48)|r'
+    + '\n|cff888888After step 2: Red Silk Bandanas|r'
+    + '\n|cff888888Step 3 is the dungeon\'s quest|r');
+  assert.ok(!d.some(x => x.text === 'Red Silk Bandanas'), 'on the questline\'s row');
+  assert.deepEqual(Object.values(q.chains).map(c => [c.id, c.step, Object.values(c.opens).map(o => o.step)]), [[2040, 1, [3, 3]]]);
+});
+
+test('seen in game: a long questline says where you are and at which step each of the dungeon\'s quests opens', () => {
+  const vm = newVM();
+  vm.run(DEFIAS);
+  // Five steps to the dungeon's quest; Red Silk Bandanas after the fourth (as in the game).
+  vm.run(`STUB.qdb.quests[2044] = { name = "The Defias Brotherhood", zone = 40, level = 18, npc = 902, single = { 2041 } }
+STUB.qdb.quests[2045] = { name = "The Defias Brotherhood", zone = 40, level = 18, npc = 902, single = { 2044 } }
+STUB.qdb.quests[2042].single = { 2045 }; STUB.qdb.quests[2043].single = { 2045 }`);
+  vm.run('STUB.UseQuestieDB(); C_QuestLog.IsOnQuest = function(id) return id == 2040 end');
+  vm.run('LibQuestieDB.Quest.finishedBy = function(id) if id == 2040 then return { { 902 } } end end');
+  vm.run('STUB.lfg = { { 2, "Deadmines", 17, 26 } }; STUB.UseLFG()');
+  vm.login().advance(9);
+  vm.run('NS.Dungeons.Quests("The Deadmines")');
+  vm.advance(1);
+  vm.run('NS.Panel.openDungeons = { deadmines = true }; NS.Panel.Show("dungeons")');
+  const row = list(vm, 'SpellmindPanel.drawn').find(x => x.text === 'The Defias Brotherhood');
+  assert.equal(row.sub, '|cff19ff19In your log: step 1 of 5|r |cff888888hand it in to Gryan Stoutmantle, Westfall|r'
+    + '\n|cff888888After step 4: Red Silk Bandanas, from Gryan Stoutmantle, Westfall (56, 48)|r'
+    + '\n|cff888888Step 5 is the dungeon\'s quest|r');
 });
 
 test('a chain whose step is in your log: the later quest says so', () => {
@@ -226,7 +251,7 @@ test('Go on a quest to pick up: the game\'s map pin on its giver (QuestieDB\'s z
   assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1455, 'Ironforge');
   assert.equal(vm.evaluate('string.format("%.3f", STUB.waypoints[1].position.x)'), '0.452');
   assert.ok(vm.savedLines().some(l => /Map pin set for Thane Ironbelly: follow the arrow\./.test(l)));
-  const locked = d.findIndex(x => x.text === 'Underground Assault');
+  const locked = d.findIndex(x => x.text === 'The Deep Vault');
   assert.notEqual(vm.evaluate(`tostring(SpellmindPanel.rows[${locked + 1}].actions[1] and SpellmindPanel.rows[${locked + 1}].actions[1]:IsShown())`), 'true', 'a locked one has no Go');
 });
 
@@ -238,9 +263,14 @@ test('the AI gets what the Dungeons tab shows (seen in game: the tab named Testi
   assert.equal(hall.inLog, 1);
   assert.equal(hall.done, 1);
   assert.equal(hall.toPickUp, 3);
-  assert.deepEqual(hall.pickup[0], { name: 'Oh Brother...', from: 'Thane Ironbelly, Ironforge (45, 51)' });
-  assert.equal(hall.pickup.find(q => q.name === 'Underground Assault').after, 'Oh Brother...');
+  assert.equal(hall.inLog + hall.done + hall.toPickUp, hall.total, 'the counts add up (seen in game: "6 total" but 3 + 4 shown)');
+  // The ones to take as they are, then the questlines to the rest, as the tab shows them.
+  assert.deepEqual(hall.pickup, [{ name: 'The Deep Vault', from: 'Thane Ironbelly, Ironforge (45, 51)', at: 22 }]);
+  assert.deepEqual(hall.questlines, [{ name: 'Oh Brother...', step: 1, from: 'Thane Ironbelly, Ironforge (45, 51)', opens: ['Underground Assault, after step 1'] }]);
   assert.equal(validatePart('advisor', a).ok, true);
+  const { sanitizeState } = await import('../../core/ai/sanitize.mjs');
+  const kept = sanitizeState({ advisor: a }).advisor.dungeons.find(d => d.name === 'The Hall of Thanes');
+  assert.deepEqual(kept.questlines[0].opens, ['Underground Assault, after step 1'], 'deep enough to reach the AI');
 });
 
 test('the dungeon\'s own range and its quests\' levels are told apart (seen in game: the quests\' 18-20 read as the dungeon\'s 17-26)', () => {
@@ -267,8 +297,8 @@ test('seen in game: a chain whose steps share a name says which step is in the l
   vm.advance(1);
   vm.run('NS.Panel.openDungeons = { deadmines = true }; NS.Panel.Show("dungeons")');
   const d = list(vm, 'SpellmindPanel.drawn');
-  const row = d.find(x => x.text === 'Red Silk Bandanas');
-  assert.match(row.sub, /First: The Defias Brotherhood, step 2 \(in your log\)/);
-  assert.match(row.sub, /\n.cff888888Hand that in to Gryan Stoutmantle, Westfall/, 'the hand-in on its own line');
-  assert.match(vm.evaluate('NS.Dungeons.Briefing("The Deadmines")'), /Red Silk Bandanas .* after The Defias Brotherhood \(step 2\), which is in my log, handed in to Gryan Stoutmantle, Westfall/);
+  const row = d.find(x => x.text === 'The Defias Brotherhood');
+  assert.match(row.sub, /^.cff19ff19In your log: step 2 of 3.r .cff888888hand it in to Gryan Stoutmantle, Westfall.r\n/);
+  assert.match(row.sub, /\n.cff888888Then: Red Silk Bandanas, from Gryan Stoutmantle, Westfall \(56, 48\).r\n.cff888888Step 3 is the dungeon's quest.r$/);
+  assert.match(vm.evaluate('NS.Dungeons.Briefing("The Deadmines")'), /Questline The Defias Brotherhood: I'm on step 2, in my log, handed in to Gryan Stoutmantle, Westfall; it opens Red Silk Bandanas after step 2, its step 3, the dungeon's quest\./);
 });

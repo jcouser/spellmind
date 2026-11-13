@@ -318,7 +318,7 @@ local function Draw(f, specs, keepScroll)
 				if (s.right or "") == "" then rw = 0 end
 				r.sub:SetWidth(math.max(40, w - lx - 2 + rightEdge - 8 - (rw > 0 and rw + 8 or 0)))
 				if r.sub.SetWordWrap then r.sub:SetWordWrap(true) end
-				if r.sub.SetMaxLines then r.sub:SetMaxLines(4) end
+				if r.sub.SetMaxLines then r.sub:SetMaxLines(8) end
 				local sh = math.max(12, tonumber(r.sub:GetStringHeight()) or 12)
 				if sh > 16 then
 					h = 21 + sh + 5
@@ -599,57 +599,81 @@ function Tabs.dungeons()
 	local function lfg(name)
 		return { "LFG", function(_, btn) P.LFGMenu(name, btn) end }
 	end
-	-- The quests still to pick up (QuestieDB's list): who gives each and where, or what opens it.
-	-- The quests still to pick up (QuestieDB's list), in two groups under small labels: the ones you can
-	-- take now, then the ones not yet open. Each says its parts on lines of their own (the player asked,
+	-- Go to a giver: the game's map pin, and a line saying so.
+	local function goTo(spot, giver)
+		return { "Go", function()
+			if ns.Dungeons.Go(spot) then
+				ns.Chat.System("Map pin set for " .. ns.Escape(spot.name or giver or "the quest giver") .. ": follow the arrow.")
+			else
+				ns.Chat.System("The game can't pin " .. ns.Escape(giver or "that spot") .. " on the map.")
+			end
+		end }
+	end
+	-- The questlines that lead to this dungeon's locked quests (the player, 2026-11-13: "I'm trying to
+	-- understand what questlines to follow leading to all deadmines quests"). One row each: the step to
+	-- do now, then each of the dungeon's quests it opens, at its place in the chain.
+	local function questlines(qs)
+		local list = qs and qs.chains or {}
+		if #list == 0 then return {} end
+		out[#out + 1] = { kind = "label", text = "Questlines that lead here" }
+		local starts = {}
+		for _, c in ipairs(list) do
+			starts[c.id] = true
+			local lines = {}
+			-- How far it goes: its last step that opens one of the dungeon's quests.
+			local last = c.step
+			for _, o in ipairs(c.opens) do if o.step > last then last = o.step end end
+			local stepWord = " step " .. c.step .. " of " .. last
+			if c.inLog then
+				lines[#lines + 1] = "|cff19ff19In your log:" .. stepWord .. "|r" .. (c.to and (" |cff888888hand it in to " .. ns.Escape(c.to) .. "|r") or "")
+			elseif c.at then
+				lines[#lines + 1] = "|cffff9933Opens at level " .. c.at .. "|r |cff888888from " .. ns.Escape(c.from or "a giver Spellmind doesn't know") .. "|r"
+			else
+				lines[#lines + 1] = "|cffffd100Pick up" .. stepWord .. "|r |cff888888from " .. ns.Escape(c.from or "a giver Spellmind doesn't know") .. "|r"
+			end
+			for _, o in ipairs(c.opens) do
+				local lvl = o.at and (" |cffff9933(level " .. o.at .. ")|r") or ""
+				if o.same then
+					lines[#lines + 1] = "|cff888888Step " .. o.step .. " is the dungeon's quest|r" .. lvl
+				else
+					local after = o.step - 1
+					lines[#lines + 1] = "|cff888888" .. (after > c.step and ("After step " .. after) or "Then") .. ": " .. ns.Escape(o.name)
+						.. ((o.from and o.from ~= c.from) and (", from " .. ns.Escape(o.from)) or "") .. "|r" .. lvl
+				end
+			end
+			local actions = (not c.inLog and not c.at and c.spot) and { goTo(c.spot, c.from) } or nil
+			out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(c.name), right = c.level and ("level " .. c.level) or "",
+				sub = table.concat(lines, "\n"), actions = actions }
+		end
+		return starts
+	end
+	-- The rest still to pick up (QuestieDB's list), under small labels: the ones you can take now, then
+	-- the ones waiting on a level. Each says its parts on lines of their own (the player asked,
 	-- 2026-11-13: one crowded line ran under the level, with half the window empty below).
 	local function pickups(qs)
+		local starts = questlines(qs)
 		local ready, later = {}, {}
 		for _, q in ipairs(qs and qs.pickup or {}) do
-			if not q.after and not q.at then ready[#ready + 1] = q else later[#later + 1] = q end
+			-- A questline's quests are on its row.
+			if q.after or starts[q.id] then
+			elseif not q.at then ready[#ready + 1] = q else later[#later + 1] = q end
 		end
 		local function Row(q)
-			-- A chain's first step can share its name with a later one (The Defias Brotherhood).
-			local label = q.name
-			if q.first then
-				for _, o in ipairs(q.opens or {}) do if o == q.name then label = q.name .. " (first step)" end end
-			end
 			local lines = {}
-			if not q.after and not q.at then
-				lines[#lines + 1] = "|cffffd100Pick up|r |cff888888from " .. ns.Escape(q.from or "a giver Spellmind doesn't know") .. "|r"
-				if q.opens and #q.opens > 0 then lines[#lines + 1] = "|cff888888Leads to " .. ns.Escape(table.concat(q.opens, ", ")) .. "|r" end
-			else
-				-- What it waits on, and which step when a chain repeats its name; for one in the log, who takes it.
-				if q.after then
-					local waitName = ns.Escape(q.after) .. (q.afterStep and (", step " .. q.afterStep) or "")
-					if q.afterLog then
-						lines[#lines + 1] = "|cffff9933First: " .. waitName .. " (in your log)|r"
-						if q.afterTo then lines[#lines + 1] = "|cff888888Hand that in to " .. ns.Escape(q.afterTo) .. "|r" end
-					else
-						lines[#lines + 1] = "|cffff9933First: " .. waitName .. " (to pick up, above)|r"
-					end
-				end
-				if q.at then lines[#lines + 1] = "|cffff9933Opens at level " .. q.at .. "|r" end
+			if q.at then
+				lines[#lines + 1] = "|cffff9933Opens at level " .. q.at .. "|r"
 				lines[#lines + 1] = "|cff888888Then from " .. ns.Escape(q.from or "a giver Spellmind doesn't know") .. "|r"
+			else
+				lines[#lines + 1] = "|cffffd100Pick up|r |cff888888from " .. ns.Escape(q.from or "a giver Spellmind doesn't know") .. "|r"
 			end
 			-- Ready to take: Go pins the giver on the map.
-			local actions
-			if not q.after and not q.at and q.spot then
-				local spot, giver = q.spot, q.from
-				actions = { { "Go", function()
-					if ns.Dungeons.Go(spot) then
-						ns.Chat.System("Map pin set for " .. ns.Escape(spot.name or giver or "the quest giver") .. ": follow the arrow.")
-					else
-						ns.Chat.System("The game can't pin " .. ns.Escape(giver or "that spot") .. " on the map.")
-					end
-				end } }
-			end
-			out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(label), right = q.level and ("level " .. q.level) or "",
+			local actions = (not q.at and q.spot) and { goTo(q.spot, q.from) } or nil
+			out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(q.name), right = q.level and ("level " .. q.level) or "",
 				sub = table.concat(lines, "\n"), actions = actions }
 		end
 		if #ready > 0 then out[#out + 1] = { kind = "label", text = "To pick up" } end
 		for _, q in ipairs(ready) do Row(q) end
-		if #later > 0 then out[#out + 1] = { kind = "label", text = "Not yet" } end
+		if #later > 0 then out[#out + 1] = { kind = "label", text = "Not yet: they open at a higher level" } end
 		for _, q in ipairs(later) do Row(q) end
 	end
 	-- The status line: QuestieDB's count when it's there (while its first read runs, "reading…").

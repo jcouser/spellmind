@@ -71,7 +71,9 @@ const REP = { id: int, name: str, r: intIn(1, 8), v: num, max: num, watched: boo
 const WORLD_NPC = { name: str, sub: str, does: strList(6), x: num, y: num, sells: strList(LIST_MAX.sells), seen: bool };
 // advisor (Advisor.lua, milestone 18): what the addon's tabs work out.
 const ADV_PICKUP = { name: str, from: str, after: str, afterStep: int, afterInLog: bool, afterTo: str, at: int, first: bool };
-const ADV_DUNGEON = { name: str, range: str, questLevels: str, inLog: int, done: int, toPickUp: int, total: int, pickup: list(ADV_PICKUP, 5) };
+// A questline to a dungeon's locked quests: the step to do now, and what each later step opens.
+const ADV_LINE = { name: str, step: int, inLog: bool, to: str, from: str, at: int, opens: strList(4) };
+const ADV_DUNGEON = { name: str, range: str, questLevels: str, inLog: int, done: int, toPickUp: int, total: int, pickup: list(ADV_PICKUP, 5), questlines: list(ADV_LINE, 3) };
 const ADV_UPGRADE = { slot: str, name: str, from: str };
 const ADV_SKILLUP = { name: str, color: str, makes: int };
 const ADV_PROF = { name: str, next: str, skillUps: list(ADV_SKILLUP, 3) };

@@ -89,3 +89,18 @@ A dungeon's quests in full on the Quests tab repeated the Dungeons tab, which ha
 - **Under one Dungeons heading, each dungeon is one row.** Its lowest quest's level is in that quest's colour, with "+N levels" when it's 3 or more up. Its quests are named on the line below ("3 quests: Collecting Memories, Oh Brother..., Underground Assault").
 - **LFG** writes the dungeon's line. **Open** shows the Dungeons tab.
 - **Ready ones are still under Ready to turn in, and grey ones under Skip?**
+
+## The Dungeons tab: questlines (seen in game, 2026-11-13)
+
+"I'm trying to understand what questlines to follow leading to all deadmines quests." The tab listed each locked quest on its own: "First: The Defias Brotherhood, step 1 (in your log)". That hid the five steps between, and three rows waited on the same quest. The AI had the same list and a count that didn't add up: the chain's first step, outside the dungeon, was counted as one of the dungeon's quests ("6 total" against 3 + 4 shown).
+
+- **Questlines that lead here:** one row per chain, named for the step to do now (`Dungeons.Quests` `chains`).
+  - Its first line says where you are: "In your log: step 1 of 7, hand it in to Wiley the Black, Redridge Mountains", or "Pick up step 1 of 2 from …" with Go, or "Opens at level N".
+  - Then each of the dungeon's quests it opens, in chain order: "After step 6: Red Silk Bandanas, from Scout Riell, Westfall", "Step 7 is the dungeon's quest". A giver the same as the questline's isn't said again.
+- **To pick up** keeps only quests you can take as they are. **Not yet: they open at a higher level** keeps the ones waiting only on a level.
+- **The AI:**
+  - The advisor part's dungeons carry `questlines` (`name`, `step`, `inLog` with `to`, or `from`, `at`, and `opens` as short lines).
+  - `pickup` holds only the quests you can take as they are.
+  - `toPickUp` is the dungeon's own quests, so `inLog + done + toPickUp = total`.
+  - Brief says "Questline The Defias Brotherhood: I'm on step 1, in my log, …; it opens Red Silk Bandanas after step 6, its step 7, the dungeon's quest."
+  - The prompt: a quest that isn't in a dungeon's questlines doesn't lead there.

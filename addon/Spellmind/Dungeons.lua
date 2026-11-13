@@ -412,8 +412,9 @@ function DG.Quests(name, done)
 	for _, d in ipairs(DG.FromLog()) do for _, q in ipairs(d.quests) do inLog[q.id] = true end end
 	local QL = C_QuestLog
 	local function Have(id) return inLog[id] or (QL and type(QL.IsOnQuest) == "function" and ns.Try(QL.IsOnQuest, id)) and true or false end
-	local out = { area = area, done = {}, log = {}, pickup = {}, total = 0 }
+	local out = { area = area, done = {}, log = {}, pickup = {}, chains = {}, total = 0 }
 	local starts = {} -- the first steps of chains that lead to this dungeon's quests, by id
+	local chains = {} -- the questlines to this dungeon's locked quests, by the step to do now
 	for _, id in ipairs(index[area] or {}) do
 		local races = tonumber((ns.Try(L.Quest.requiredRaces, id))) or 0
 		local classes = tonumber((ns.Try(L.Quest.requiredClasses, id))) or 0
@@ -458,6 +459,24 @@ function DG.Quests(name, done)
 						if starts[step.id] then table.insert(starts[step.id].opens, qname) end
 					end
 					local req = tonumber((ns.Try(L.Quest.requiredLevel, id)))
+					-- Its questline: the step to do now (in the log, or to take) and every quest of this
+					-- dungeon it opens, each at its place in the chain (seen in game: "First: The Defias
+					-- Brotherhood, step 1" hid the five steps between it and the dungeon's quest).
+					if step then
+						local c = chains[step.id]
+						if not c then
+							local sfrom, _, sspot = Giver(L, step.id)
+							local sreq = tonumber((ns.Try(L.Quest.requiredLevel, step.id)))
+							c = { id = step.id, name = after or "?", step = StepOf(L, step.id), inLog = step.inLog and true or nil,
+								to = step.inLog and Finisher(L, step.id) or nil, from = not step.inLog and sfrom or nil,
+								spot = not step.inLog and sspot or nil, level = tonumber((ns.Try(L.Quest.questLevel, step.id))),
+								at = (not step.inLog and sreq and sreq > level) and sreq or nil, opens = {} }
+							chains[step.id] = c
+							out.chains[#out.chains + 1] = c
+						end
+						c.opens[#c.opens + 1] = { id = id, name = qname, step = StepOf(L, id), same = qname == c.name or nil, from = from,
+							at = (req and req > level) and req or nil }
+					end
 					out.pickup[#out.pickup + 1] = { id = id, name = qname, level = tonumber((ns.Try(L.Quest.questLevel, id))), from = from,
 						after = after, afterLog = afterLog, afterStep = afterStep, afterTo = afterTo, at = (req and req > level) and req or nil, spot = spot }
 				end
@@ -473,7 +492,17 @@ function DG.Quests(name, done)
 	table.sort(out.pickup, function(a, b)
 		local la, lb = (a.after or a.at) and 1 or 0, (b.after or b.at) and 1 or 0
 		if la ~= lb then return la < lb end
-		return (a.level or 0) < (b.level or 0)
+		if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) < (b.level or 0) end
+		return a.name < b.name
+	end)
+	-- Questlines: the ones in the log first, then by level; each one's quests in chain order.
+	for _, c in ipairs(out.chains) do
+		table.sort(c.opens, function(a, b) if a.step ~= b.step then return a.step < b.step end return a.name < b.name end)
+	end
+	table.sort(out.chains, function(a, b)
+		if (a.inLog and 1 or 0) ~= (b.inLog and 1 or 0) then return a.inLog ~= nil end
+		if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) < (b.level or 0) end
+		return a.name < b.name
 	end)
 	return out
 end
@@ -510,15 +539,30 @@ function DG.Briefing(name)
 	local qs = DG.Quests(name)
 	if qs then
 		local pick = {}
-		for i, q in ipairs(qs.pickup) do
-			if i <= 6 then
-				pick[#pick + 1] = q.name .. (q.first and " (the first step of a chain" .. ((q.opens and #q.opens > 0) and (" leading to " .. table.concat(q.opens, ", ")) or "") .. ")" or "") .. (q.from and (" (from " .. q.from .. ")") or "") .. (q.after and (" after " .. q.after .. (q.afterStep and (" (step " .. q.afterStep .. ")") or "") .. (q.afterLog and (", which is in my log" .. (q.afterTo and (", handed in to " .. q.afterTo) or "")) or "")) or "") .. (q.at and (" at level " .. q.at) or "")
+		local heads = {}
+		for _, c in ipairs(qs.chains or {}) do heads[c.id] = true end
+		for _, q in ipairs(qs.pickup) do
+			-- A quest behind another, or a questline's step to take, is in its questline's sentence below.
+			if #pick < 6 and not q.after and not heads[q.id] then
+				pick[#pick + 1] = q.name .. (q.from and (" (from " .. q.from .. ")") or "") .. (q.at and (" at level " .. q.at) or "")
 			end
 		end
 		if #pick > 0 then parts[#parts + 1] = "Quests for it I haven't picked up: " .. table.concat(pick, "; ") .. "." end
+		-- The questlines to them, as the tab shows: where I am in each, and at which step each opens.
+		for i, c in ipairs(qs.chains or {}) do
+			if i <= 3 then
+				local opens = {}
+				for _, o in ipairs(c.opens) do
+					opens[#opens + 1] = (o.same and ("its step " .. o.step .. ", the dungeon's quest") or (o.name .. " after step " .. (o.step - 1))) .. (o.at and (" (level " .. o.at .. ")") or "")
+				end
+				local now = c.inLog and ("I'm on step " .. c.step .. ", in my log" .. (c.to and (", handed in to " .. c.to) or ""))
+					or ("step " .. c.step .. " is to pick up" .. (c.from and (" from " .. c.from) or "") .. (c.at and (" at level " .. c.at) or ""))
+				parts[#parts + 1] = "Questline " .. c.name .. ": " .. now .. "; it opens " .. table.concat(opens, ", ") .. "."
+			end
+		end
 		if #qs.done > 0 then parts[#parts + 1] = "Already done: " .. table.concat(qs.done, ", ") .. "." end
 		if qs.total > 0 and #qs.pickup == 0 and #qs.log == 0 then parts[#parts + 1] = "I've done all its quests." end
-		parts[#parts + 1] = "Tell me: the level range, the bosses in order with one tip each for my role, loot worth hoping for my class, and what to bring" .. (#pick > 0 and ", and the best order to pick up the missing quests." or ".")
+		parts[#parts + 1] = "Tell me: the level range, the bosses in order with one tip each for my role, loot worth hoping for my class, and what to bring" .. ((#pick > 0 or #(qs.chains or {}) > 0) and ", and the best order to pick up the missing quests." or ".")
 	else
 		parts[#parts + 1] = "Tell me: which other quests to pick up before going in (who gives them and where), the level range, the bosses in order with one tip each for my role, loot worth hoping for my class, and what to bring."
 	end

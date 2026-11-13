@@ -14,7 +14,7 @@ local _, ns = ...
 local AV = {}
 ns.Advisor = AV
 
-AV.DUNGEONS_MAX, AV.PICKUP_MAX, AV.UPGRADES_MAX, AV.SKILLUPS_MAX = 4, 5, 6, 3
+AV.DUNGEONS_MAX, AV.PICKUP_MAX, AV.LINES_MAX, AV.UPGRADES_MAX, AV.SKILLUPS_MAX = 4, 5, 3, 6, 3
 
 local function O(...) return ns.State.JSON.O(...) end
 
@@ -27,13 +27,29 @@ local function Dungeons()
 		if seen[key] or #list >= AV.DUNGEONS_MAX then return end
 		seen[key] = true
 		local qs = DG.Quests(name)
-		local pickup
-		if qs and #qs.pickup > 0 then
-			pickup = {}
-			for i, q in ipairs(qs.pickup) do
-				if i > AV.PICKUP_MAX then break end
-				pickup[#pickup + 1] = O("name", q.name, "from", q.from, "after", q.after, "afterStep", q.afterStep, "afterInLog", q.afterLog and true or nil, "afterTo", q.afterTo,
-					"at", q.at, "first", q.first and true or nil)
+		-- The quests to take as they are (or at a level), then the questlines to the rest, as the Dungeons
+		-- tab shows them (seen in game: a list of locked quests each "after The Defias Brotherhood", and a
+		-- count that took the chain's first step for one of the dungeon's, left the AI unsure what to do).
+		local pickup, lines
+		local heads = {}
+		for _, c in ipairs(qs and qs.chains or {}) do
+			heads[c.id] = true
+			if #(lines or {}) < AV.LINES_MAX then
+				local opens = {}
+				for _, o in ipairs(c.opens) do
+					if #opens < 4 then
+						opens[#opens + 1] = (o.same and ("step " .. o.step .. ": this dungeon's quest") or (o.name .. ", after step " .. (o.step - 1)))
+							.. (o.at and (", level " .. o.at) or "")
+					end
+				end
+				lines = lines or {}
+				lines[#lines + 1] = O("name", c.name, "step", c.step, "inLog", c.inLog and true or nil, "to", c.to, "from", c.from, "at", c.at, "opens", opens)
+			end
+		end
+		for _, q in ipairs(qs and qs.pickup or {}) do
+			if not q.after and not heads[q.id] and #(pickup or {}) < AV.PICKUP_MAX then
+				pickup = pickup or {}
+				pickup[#pickup + 1] = O("name", q.name, "from", q.from, "at", q.at)
 			end
 		end
 		-- The range is the dungeon's own (the game's group finder) when it lists it; the log's quest levels are
@@ -41,7 +57,8 @@ local function Dungeons()
 		local range
 		for _, l in ipairs(DG.Listed()) do if DG.Norm(l.name) == key then range = DG.Range(l.low, l.high) end end
 		list[#list + 1] = O("name", name, "range", range, "questLevels", inLog and DG.Range(low, high) or nil, "inLog", inLog,
-			"done", qs and #qs.done or nil, "toPickUp", qs and #qs.pickup or nil, "total", qs and qs.total or nil, "pickup", pickup)
+			"done", qs and #qs.done or nil, "toPickUp", qs and (qs.total - #qs.done - #qs.log) or nil, "total", qs and qs.total or nil, "pickup", pickup,
+			"questlines", lines)
 	end
 	local here = DG.Here()
 	local log = DG.FromLog()

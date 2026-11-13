@@ -74,6 +74,10 @@ const told = new Set(); // what a notification has said this session
 // A desktop notification, once per thing until it's resolved; a click opens the window.
 function notify(key, title, body) {
   if (told.has(key) || !appSettings().notifications || !Notification.isSupported()) return;
+  // Not from source: Electron makes a Start menu shortcut ("Electron", its own exe, no app) for a
+  // notification's app id, and Windows then gave the installed app's taskbar button its atom and a
+  // relaunch into bare Electron (2026-11-13).
+  if (!app.isPackaged) { note(`(A notification, from source: ${title})`); return; }
   told.add(key);
   const n = new Notification({ title, body, icon: path.join(HERE, 'assets', 'icon.png'), silent: true });
   n.on('click', () => openWindow());
@@ -286,6 +290,12 @@ function openWindow() {
     { label: 'View', submenu: [{ role: 'zoomIn' }, { role: 'zoomIn', accelerator: 'CommandOrControl+=', visible: false }, { role: 'zoomOut' }, { role: 'resetZoom' }] },
   ]));
   win.setMenuBarVisibility(false);
+  // The taskbar button's own record: this exe's icon, and this exe to relaunch from a pin (the player,
+  // 2026-11-13: after runs from source shared the app id, Windows showed Electron's atom and a pin
+  // started bare Electron, its "To run a local app" page). Written on every window, so it mends a stale record.
+  if (app.isPackaged && process.platform === 'win32' && typeof win.setAppDetails === 'function') {
+    win.setAppDetails({ appId: IDENTITY.appId, appIconPath: process.execPath, appIconIndex: 0, relaunchCommand: `"${process.execPath}"`, relaunchDisplayName: 'Spellmind' });
+  }
   // A right-click in a field: Cut, Copy, Paste, Select all (pasting a key or an address by mouse).
   win.webContents.on('context-menu', (_e, params) => {
     if (!params.isEditable) return;

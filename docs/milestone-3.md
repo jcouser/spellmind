@@ -55,6 +55,10 @@ Built 2026-11-13, Windows first: from source, and as an installer (`Spellmind-Se
 ## The app's switches (config.json "app", all on unless turned off)
 
 - **Start when I log in to Windows.** The installed app writes it on every start, naming its own exe. A run from source never writes it, and has its own app id (`gg.spellmind.app.dev`): sharing the installed app's let Windows show Electron's atom as Spellmind's taskbar icon (2026-11-13).
+- **The atom on the taskbar, and a reopen into bare Electron (2026-11-13).** A run from source showed a notification, and Electron made a Start menu shortcut for its app id: "Electron", its own exe with no app. That run shared the installed app's id, so Windows used that shortcut for Spellmind's taskbar icon and to relaunch it (Electron's "To run a local app" page).
+  - A run from source now has its own id and shows no notifications (a line in Activity instead).
+  - The installed app's window names its own icon and relaunch command (`setAppDetails`).
+  - The stray shortcut was removed by hand.
 - **Minimize to the tray, not the taskbar.**
 - **Notifications** (Windows' own, silent; a click opens the window), each once until it's resolved:
   - The sign-in is gone or refused (`oauth_expired`, `auth_invalid`, `no_key`). The pill says "Sign in again".

@@ -50,6 +50,7 @@ files:
       - main.mjs
       - worker.mjs
       - preload.cjs
+      - updater.mjs
       - renderer/**/*
       - assets/**/*
   - from: ../../core
@@ -76,6 +77,14 @@ files:
     filter:
       - LICENSE
       - NOTICE.md
+
+# The update feed (updater.mjs): this repository's GitHub releases. electron-builder writes it into the
+# build as app-update.yml; the release workflow uploads the files, never a local build (--publish never).
+publish:
+  provider: github
+  owner: jcouser
+  repo: spellmind
+  releaseType: release
 
 win:
   icon: assets/icon.ico

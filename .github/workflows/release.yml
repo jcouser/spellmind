@@ -1,0 +1,132 @@
+# A release (docs/releasing.md): on a v* tag, from that commit,
+#   1. the screen-reading helper, cross-compiled with the pinned Zig (twice, the same bytes);
+#   2. the tests, then the Windows installer (with the helper inside) and the addon zip;
+#   3. a DRAFT GitHub release with the installer, its update feed (latest.yml, the .blockmap), the
+#      addon zip and SHA256SUMS.txt. A person reads it and publishes it; the app's updater and the
+#      download links only see published releases.
+#
+# Code signing (SignPath Foundation's free open-source signing) slots in between 2 and 3 once the
+# project is approved: docs/releasing.md says what changes. Until then the installer is unsigned.
+#
+# Hardening: no pull_request trigger; the build jobs have a read-only token and no secrets; only the
+# release job can write, and it runs nothing from the repository; every action pinned to a commit.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  capture-helper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Zig (pinned, its SHA-256 checked)
+        run: bash core/capture/windows/fetch-zig.sh "$RUNNER_TEMP/zig" >> "$GITHUB_ENV"
+      - name: Build (twice, and refused unless both are the same bytes)
+        run: bash core/capture/windows/build.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: capture-helper
+          path: core/capture/windows/build/
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    needs: capture-helper
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      # Unsigned on purpose: electron-builder never signs with whatever a runner happens to hold.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: The tag is the version the app and the addon say
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          app=$(node -p "require('./app/desktop/package.json').version")
+          toc=$(sed -n 's/^## Version: *//p' addon/Spellmind/Spellmind.toc | tr -d '\r')
+          echo "tag $tag, app $app, addon $toc"
+          [ "$tag" = "$app" ] && [ "$tag" = "$toc" ] || { echo "::error::the tag, app/desktop/package.json and Spellmind.toc must all say the same version"; exit 1; }
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: capture-helper
+          path: core/capture/windows/build/
+      - name: The installer
+        working-directory: app/desktop
+        run: |
+          npm ci
+          npx electron-builder --win nsis --publish never
+          node scripts/hash.mjs
+      - name: The addon zip
+        run: node tools/package-addon.mjs --out app/desktop/dist
+      - name: Checksums
+        working-directory: app/desktop/dist
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          sha256sum "Spellmind-Setup-$v.exe" "Spellmind-$v.zip" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-files
+          path: |
+            app/desktop/dist/Spellmind-Setup-*.exe
+            app/desktop/dist/Spellmind-Setup-*.exe.blockmap
+            app/desktop/dist/latest.yml
+            app/desktop/dist/Spellmind-*.zip
+            app/desktop/dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-files
+          path: files
+      - name: A draft release, for a person to read and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          {
+            echo "## Spellmind $v"
+            echo
+            echo "- **The app (Windows 10 and 11):** \`Spellmind-Setup-$v.exe\`. It installs the addon too."
+            echo "- **The addon only:** \`Spellmind-$v.zip\`, unzipped into \`World of Warcraft\\_forever_\\Interface\\AddOns\`."
+            echo
+            echo "Check a download before running it ([how](https://github.com/$GH_REPO/blob/main/docs/install.md)):"
+            echo
+            echo '```'
+            cat files/SHA256SUMS.txt
+            echo '```'
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "Spellmind $v" --notes-file notes.md files/*

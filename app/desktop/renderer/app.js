@@ -186,6 +186,23 @@ function draw(s) {
 
   // The app.
   $('loginItem').checked = !!s.loginItem;
+  // Its own updates (updater.mjs): what's on offer, and the one button for the next step.
+  const u = s.update || { phase: 'off' };
+  const updateWords = {
+    off: [`Version ${s.version}. ${s.packaged ? 'Updates aren\'t checked in this copy.' : 'From source: no updates.'}`, null],
+    idle: [`Version ${s.version}.`, 'Check now'],
+    checking: ['Checking for a new version…', null],
+    none: [`Version ${s.version}: the newest.`, 'Check now'],
+    available: [`Version ${u.version} is available.${u.error ? ` ${u.error}` : ''}`, `Update to ${u.version}`],
+    downloading: [`Downloading ${u.version}… ${u.percent || 0}%`, null],
+    ready: [`Version ${u.version} is downloaded. It installs when Spellmind restarts.`, 'Restart to update'],
+    error: [`Version ${s.version}. ${u.error || ''}`, 'Check now'],
+  };
+  const uw = updateWords[u.phase] || updateWords.off;
+  $('updateLine').textContent = uw[0];
+  $('updateBtn').hidden = !uw[1];
+  $('updateBtn').textContent = uw[1] || '';
+  $('updateBtn').className = u.phase === 'available' || u.phase === 'ready' ? '' : 'quiet';
   for (const el of document.querySelectorAll('[data-app]')) el.checked = !!s.app?.[el.dataset.app];
 
   // Activity.
@@ -299,6 +316,12 @@ for (const el of document.querySelectorAll('[data-app]')) {
 }
 $('restartLink').addEventListener('click', () => act($('restartLink'), () => sm.restartLink(), 'Restarting the link.'));
 $('openLogs').addEventListener('click', () => act(null, () => sm.openLogs()));
+$('updateBtn').addEventListener('click', () => {
+  const phase = last?.update?.phase;
+  if (phase === 'available') act($('updateBtn'), () => sm.downloadUpdate(), null, { busyText: 'Starting…' });
+  else if (phase === 'ready') act($('updateBtn'), () => sm.installUpdate(), null, { busyText: 'Restarting…' });
+  else act($('updateBtn'), () => sm.checkUpdate(), null, { busyText: 'Checking…' });
+});
 
 sm.onStatus(draw);
 sm.status().then(draw);

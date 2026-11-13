@@ -24,6 +24,7 @@ import { createKeyStore } from '../../core/ai/security/keystore.mjs';
 import { createEgress } from '../../core/ai/security/egress.mjs';
 import { createSignIns } from '../../core/ai/signin/index.mjs';
 import { IDENTITY } from '../../core/identity.mjs';
+import { createUpdater } from './updater.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // SPELLMIND_DATA: another data folder (a first run seen from source, the tests); the player's is dataDir().
@@ -49,7 +50,7 @@ let setupNeeded = false; // a setup step undone (fullStatus works it out)
 const activity = []; // { at, line }
 
 // The app's own switches, in config.json under "app" (all on unless turned off).
-const APP_DEFAULTS = Object.freeze({ startAtLogin: true, minimizeToTray: true, notifications: true, updateAddon: true });
+const APP_DEFAULTS = Object.freeze({ startAtLogin: true, minimizeToTray: true, notifications: true, updateAddon: true, checkUpdates: true });
 const appSettings = () => ({ ...APP_DEFAULTS, ...(readConfig(DATA).app || {}) });
 
 // The errors the player has to act on (core/ai/providers/errors.mjs kinds), each with the pill's
@@ -107,6 +108,38 @@ function updateAddonIfOld(why) {
     notify('addon-updated', 'Spellmind\'s addon is up to date', 'The new version loads the next time you start WoW.');
   } else note(`The addon couldn't be updated: ${r.detail || r.error}`);
   pushStatus();
+}
+
+// ---------------------------------------------------------------------------
+// The app's own updates (updater.mjs): the installed app on Windows only; a run from source has none.
+let updates = null;
+async function startUpdates() {
+  if (!app.isPackaged || process.platform !== 'win32') return;
+  try {
+    const mod = await import('electron-updater');
+    const autoUpdater = mod.autoUpdater ?? mod.default?.autoUpdater;
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.allowDowngrade = false;
+    autoUpdater.allowPrerelease = false;
+    autoUpdater.logger = null;
+    updates = createUpdater({
+      updater: autoUpdater,
+      current: app.getVersion(),
+      wowRunning: () => wowRunning().running,
+      onChange: (s) => {
+        if (s.phase === 'available' && !s.error) {
+          note(`Spellmind ${s.version} is available.`);
+          notify('update', `Spellmind ${s.version} is available`, 'Open Spellmind to update it.');
+        }
+        if (s.phase === 'ready') note(`Spellmind ${s.version} is downloaded: it installs when you restart Spellmind.`);
+        pushStatus();
+      },
+    });
+    updates.schedule(appSettings().checkUpdates);
+  } catch {
+    note('Updates can\'t be checked in this copy: download new versions from the releases page.');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -240,6 +273,7 @@ async function fullStatus() {
     wow: wowState,
     loginItem: loginItem.get(),
     app: appSettings(),
+    update: updates ? updates.state() : { phase: 'off' },
     activity: activity.slice().reverse(),
   };
 }
@@ -267,9 +301,18 @@ function refreshTray() {
     { label: 'Open Spellmind', click: () => openWindow() },
     { label: 'Start when I log in to Windows', type: 'checkbox', checked: loginItem.get(), click: (item) => { CALLS.setApp({ startAtLogin: item.checked }); pushStatus(); } },
     { label: 'Restart the link', click: () => { note('Restarting the link.'); sup.restart(); } },
+    ...updateItems(),
     { type: 'separator' },
     { label: 'Quit Spellmind', click: () => { quitting = true; app.quit(); } },
   ]));
+}
+
+// An update on offer, in the tray's menu too.
+function updateItems() {
+  const u = updates?.state();
+  if (u?.phase === 'available') return [{ label: `Update to ${u.version}`, click: () => { CALLS.downloadUpdate(); } }];
+  if (u?.phase === 'ready') return [{ label: `Restart to update to ${u.version}`, click: () => { const r = CALLS.installUpdate(); if (!r.ok) openWindow(); } }];
+  return [];
 }
 
 function createTray() {
@@ -460,7 +503,19 @@ const CALLS = {
     writeConfig(DATA, { ...readConfig(DATA), app: next });
     if (Object.hasOwn(change, 'startAtLogin')) { loginItem.set(next.startAtLogin); refreshTray(); }
     if (change?.updateAddon === true) updateAddonIfOld('turned on');
+    if (Object.hasOwn(change, 'checkUpdates')) updates?.schedule(next.checkUpdates);
     return { ok: true };
+  },
+  // The app's own updates (updater.mjs).
+  checkUpdate: async () => (updates ? updates.check({ manual: true }) : { ok: false, error: 'no_updates', detail: 'Only the installed app updates itself.' }),
+  downloadUpdate: async () => (updates ? updates.download() : { ok: false, error: 'no_updates' }),
+  installUpdate: () => {
+    if (!updates) return { ok: false, error: 'no_updates' };
+    const was = quitting;
+    quitting = true;
+    const r = updates.install();
+    if (!r.ok) quitting = was;
+    return r;
   },
   restartLink: async () => { note('Restarting the link.'); await sup.restart(); return { ok: true }; },
   openLogs: async () => { await shell.openPath(DATA); return { ok: true }; },
@@ -522,6 +577,7 @@ app.whenReady().then(() => {
   createTray();
   updateAddonIfOld('Spellmind started');
   sup.start();
+  startUpdates();
   // A login start stays in the tray; a start by hand, or one with any setup step undone, opens the window.
   if (!HIDDEN) openWindow();
   else fullStatus().then((s) => { if (!s.wow.ok || s.wow.addon.state === 'missing' || !s.ai.ready) openWindow(); }).catch(() => openWindow());

@@ -82,6 +82,8 @@ From [tommygeoco/neverquestalone](https://github.com/tommygeoco/neverquestalone)
 - `tests/helpers/images.mjs` ← `bridge/transport/images.mjs`
 - `tests/fixtures/protocol-v2.json` ← `tests/fixtures/protocol-v2.json`
 - `core/capture/windows/` ← `bridge/capture/windows/` (the capture helper's C sources, renamed spellmind-capture; Spellmind's magic, a 600-row search and `--search-rows`)
+- `core/capture/windows/fetch-zig.sh` ← `bridge/capture/windows/fetch-zig.sh` (the pinned Zig download, for the release workflow)
+- `tools/package-addon.mjs` ← `tools/package-addon.mjs` (the addon zip: Spellmind's folder, doorbells and parts)
 - `core/capture/build.mjs` ← `bridge/capture/build.mjs`
 - `core/link/store.mjs` ← `bridge/app/store.mjs`
 - `core/link/install.mjs` ← parts of `bridge/byok/wow.mjs` (the flavor folders, the process check, the addon copy)

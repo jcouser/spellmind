@@ -13,14 +13,15 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder --win nsis && node scripts/hash.mjs"
+    "dist": "electron-builder --win nsis --publish never && node scripts/hash.mjs"
   },
   "devDependencies": {
     "electron": "44.9.3",
     "electron-builder": "26.16.1"
   },
   "dependencies": {
-    "@napi-rs/keyring": "2.1.0"
+    "@napi-rs/keyring": "2.1.0",
+    "electron-updater": "6.8.9"
   },
   "author": "The Spellmind authors"
 }

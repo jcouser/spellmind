@@ -1,0 +1,31 @@
+# Milestone 22: going public (0.4.0)
+
+Built 2026-11-13: what Spellmind needs to be on GitHub and CurseForge.
+
+## The addon on its own
+
+- **One version for a release.** The addon's TOC, `ns.VERSION` and the app are all 0.4.0; tests keep them equal and the release workflow refuses a tag that doesn't match.
+- **The CurseForge zip** (`tools/package-addon.mjs`): the addon, `LICENSE.txt`, its doorbells and the 200 parts, laid out as the app installs them, the same bytes every build.
+- **Only forward** (`core/link/install.mjs` `shouldUpdate`): the app puts its addon over the game's only when the game's is older. A newer one from CurseForge is left; the window says "A newer addon is installed… Update the app to match", with a quiet button to use the app's anyway.
+- **Get the app:** `/sm app`, a button on the Settings tab's App row while the app isn't heard, and a line under "Start the Spellmind app" open a box with the project's link to copy. It says every tab but the chat works without the app.
+- **TOC:** new Notes, `X-License: MIT`, `X-Website`.
+
+## The app's own updates (`app/desktop/updater.mjs`)
+
+- electron-updater 6.8.9 against this repository's GitHub releases (`publish` in `electron-builder.yml`).
+- Checks 30 s after the start, then every 6 hours, while "Check for new versions of Spellmind" is on; **Check now** in the window.
+- A newer version is offered (window, tray, one notification). Nothing downloads until the player clicks. **Restart to update** installs it, never while WoW is running; otherwise it installs when Spellmind quits.
+- Only forward, and errors in plain words (never a raw message, which can hold a path).
+
+## The repository
+
+- README with screenshots (each checked for character, guild and realm names), [privacy](privacy.md), [how it reads the game](screen-reading.md), [FAQ](faq.md), [install](install.md), [releasing](releasing.md), [the CurseForge listing](curseforge.md), SECURITY.md.
+- **Workflows:** `test.yml` (every push and pull request) and `release.yml` (a `v*` tag: the helper with the pinned Zig, the tests, the installer, the zip, checksums, then a draft release for a person to publish).
+- **Signing:** SignPath Foundation's free open-source program, applied for once the repository is public ([releasing.md](releasing.md)). Unsigned until then.
+
+## Still to do
+
+- Fresh screenshots of the Quests, Gear and Spells tabs in today's layout, and of the minimap button.
+- The first tagged release, and checking that an installed 0.4.0 offers the next one.
+- The SignPath application, then the signing step.
+- The CurseForge project (Beta), by hand.

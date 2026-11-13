@@ -16,3 +16,9 @@ On Forever the spellbook shows no spells to come (seen in game: `spells.next` wa
 - **The trainer's filter:** the game lists only what its filter shows. With "available" alone ticked, Coming next is empty until the filter is widened. TRAINER_UPDATE reads it again.
 - **Known spells** are matched by name and rank against the spellbook. A spell the trainer calls "used" counts as known too.
 - **Still to verify in game:** the API names on Forever, a full restart (it's a new file), and the button's place beside the trainer's window.
+
+## Fix: ranks on Forever (2026-11-12)
+
+Seen in game: the trainer offered Eviscerate (Rank 3) and Gouge (Rank 2), but Spellmind's list left both out. The AI then kept saying Eviscerate 3 wasn't offered, until the player said what they were looking at. Forever's `GetTrainerServiceInfo` gave every service an empty rank, so "Eviscerate" with no rank looked like the Eviscerate 2 already known.
+- The rank is now also read from the service's name ("(Rank 3)") and from the game's tooltip data for it (`C_TooltipInfo.GetTrainerService`).
+- The trainer's own status comes first: only "used" is learned. A service is taken as learned since the visit only when the spellbook has that rank, or, with no rank read, when the spellbook's spell has no rank either.

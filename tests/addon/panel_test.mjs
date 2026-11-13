@@ -33,7 +33,7 @@ test('Quests: ready; Do now grouped by the log\'s own headers (the zone you\'re 
   vm.run('NS.Panel.Show("quests")');
   const d = drawn(vm);
   const heads = d.filter(x => x.kind === 'head').map(x => x.text);
-  assert.deepEqual(heads, ['Ready to turn in', 'Do now: Loch Modan', 'Do now: Ironforge', 'Later'], 'the zone you\'re in (Loch Modan) first');
+  assert.deepEqual(heads, ['Ready to turn in', 'Do now: Loch Modan', 'Dungeon: Ironforge', 'Later'], 'the zone you\'re in (Loch Modan) first');
   const section = h => { const i = d.findIndex(x => x.text === h); const j = d.findIndex((x, k) => k > i && x.kind === 'head'); return d.slice(i + 1, j < 0 ? d.length : j); };
   const ready = section('Ready to turn in');
   assert.ok(ready.filter(x => x.kind === 'item').every(x => /Ready to turn in/.test(x.sub)));
@@ -48,7 +48,7 @@ test('Quests: ready; Do now grouped by the log\'s own headers (the zone you\'re 
   assert.equal(here[0].sub, "|cffbbbbbb0/1 Bingles' Wrench, 0/1 Bingles' Screwdriver|r", 'what\'s left');
   assert.equal(here[0].right, 'SW · 200 yd', 'direction and distance');
   assert.match(here[1].text, /Snowbound/);
-  const dungeon = section('Do now: Ironforge');
+  const dungeon = section('Dungeon: Ironforge');
   assert.match(dungeon[0].text, /Old Ironforge Incursion/, 'with its header\'s group, though no marker is on this map');
   assert.equal(dungeon[0].tag, 'Dungeon');
   const later = section('Later');
@@ -179,4 +179,22 @@ test('LFG on a group quest that isn\'t a dungeon: its own title; a leading "The"
   vm.run('STUB.quests[11].title = "The Mo\'grosh Problem"; C_QuestLog.IsEliteQuest = function(id) return id == 96393 end');
   vm.run('NS.Panel.LFGTo(96393, "/4")');
   assert.equal(vm.evaluate('STUB.openedChat'), "/4 LFG Mo'grosh Problem DPS Rogue");
+});
+
+test('a dungeon\'s quests stay together, levels apart (seen in game: one under Do now, two under Later)', () => {
+  const vm = session();
+  vm.run(`table.insert(STUB.quests, { title = "The Deadmines", isHeader = true })
+table.insert(STUB.quests, { title = "Collecting Memories", questID = 168, level = 18 })
+table.insert(STUB.quests, { title = "Oh Brother...", questID = 167, level = 20 })
+table.insert(STUB.quests, { title = "Underground Assault", questID = 2040, level = 20 })
+C_QuestLog.GetQuestTagInfo = function(id) if id == 168 or id == 167 or id == 2040 then return { tagID = 81, tagName = "Dungeon" } end end`);
+  vm.run('NS.Panel.Show("quests")');
+  const d = drawn(vm);
+  const i = d.findIndex(x => x.text === 'Dungeon: The Deadmines');
+  assert.ok(i >= 0);
+  const rows = d.slice(i + 1, i + 4).map(x => x.text);
+  assert.ok(/Collecting Memories/.test(rows[0]) && /Oh Brother/.test(rows[1]) && /Underground Assault/.test(rows[2]), JSON.stringify(rows));
+  assert.match(d[i + 2].right, /\+5 levels/, 'the gap still shows');
+  const later = d.findIndex(x => x.text === 'Later');
+  assert.ok(!d.slice(later + 1).some(x => /Oh Brother|Underground Assault/.test(x.text || '')), 'not under Later');
 });

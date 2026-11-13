@@ -292,6 +292,7 @@ function Tabs.quests()
 	local you = ns.State.Whole(ns.Try(UnitLevel, "player")) or 1
 	local groups = { ready = {}, group = {}, later = {}, grey = {} }
 	local now, byHeader = {}, {} -- the Do now headers in log order, and their rows
+	local dungeons, byDungeon = {}, {} -- dungeon quests, by their dungeon
 	local zone, sub = ns.Try(GetRealZoneText), ns.Try(GetSubZoneText)
 	for _, it in ipairs(type(q.list) == "table" and q.list or {}) do
 		local info = ns.Quests.Read(it.id)
@@ -331,6 +332,17 @@ function Tabs.quests()
 			end
 			if info.complete then groups.ready[#groups.ready + 1] = row
 			elseif info.diff == "Trivial" or info.trivial then groups.grey[#groups.grey + 1] = row
+			elseif dungeon then
+				-- A dungeon's quests stay together, whatever their levels (seen in game: one under Do now,
+				-- two under Later, all three for the Deadmines). Each keeps its "+3 levels".
+				local h = info.header or info.title or "Dungeon"
+				if not byDungeon[h] then
+					byDungeon[h] = { title = h, rows = {}, order = #dungeons + 1, low = level }
+					dungeons[#dungeons + 1] = byDungeon[h]
+				end
+				local g = byDungeon[h]
+				g.rows[#g.rows + 1] = row
+				if level < g.low then g.low = level end
 			elseif (info.elite or info.group) and not dungeon then groups.group[#groups.group + 1] = row
 			elseif info.diff == "VeryDifficult" or info.diff == "Impossible" then groups.later[#groups.later + 1] = row
 			else
@@ -368,6 +380,12 @@ function Tabs.quests()
 	local line = #groups.ready > 0 and ns.Quests.XpLine(total) or nil
 	if line then table.insert(out, 2, { kind = "text", text = line }) end
 	for _, g in ipairs(now) do Section("Do now: " .. ns.Escape(g.title), g.rows) end
+	-- Dungeons, the lowest first: their quests together, level by level.
+	table.sort(dungeons, function(a, b) if a.low ~= b.low then return a.low < b.low end return a.order < b.order end)
+	for _, g in ipairs(dungeons) do
+		table.sort(g.rows, function(a, b) return a.order < b.order end)
+		Section("Dungeon: " .. ns.Escape(g.title), g.rows)
+	end
 	Section("Group", groups.group)
 	Section("Later", groups.later)
 	Section("Skip? Little XP left", groups.grey)

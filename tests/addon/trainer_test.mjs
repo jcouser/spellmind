@@ -111,3 +111,27 @@ test('the AI\'s spells part carries the trainer\'s due and soon lists, and the c
   assert.equal(validatePart('spells', part).ok, true);
   assert.equal(validatePart('spells', { v: 1, trainer: { due: [{ name: 'Kick', cost: 'lots' }] } }).reason, 'field spells.trainer');
 });
+
+// Seen in game on Forever: the services' rank text came back empty, so Eviscerate (Rank 3) was taken
+// for the Eviscerate 2 already known and left out; the AI then insisted it wasn't offered.
+test('an empty rank (as on Forever): an offered spell you know a lower rank of is still due; the tooltip\'s "Rank 3" is read', () => {
+  const vm = newVM();
+  vm.run(NO_FUTURE);
+  vm.run('table.insert(STUB.spellbook.tabs[2].items, { name = "Eviscerate", subName = "Rank 2", itemType = 1 }); STUB.player.level = 17');
+  vm.login().advance(9);
+  vm.run(`STUB.trainer = {
+    { "Eviscerate", "", "available", 1500, 16 },
+    { "Gouge", "", "unavailable", 1600, 18 },
+    { "Pick Lock", "", "available", 1500, 16 },
+  }
+  C_TooltipInfo.GetTrainerService = function(i) if i == 1 then return { lines = { { leftText = "Eviscerate", rightText = "Rank 3" } } } end end
+  STUB.FireEvent("TRAINER_SHOW")`);
+  vm.advance(0.3);
+  const s = list(vm, 'NS.State.Me().trainer.services');
+  assert.equal(s[0].rank, 3, 'from the tooltip');
+  assert.equal(s[1].rank, undefined, 'no rank anywhere');
+  const p = vm.json('NS.Trainer.Plan()');
+  assert.deepEqual(list(vm, 'NS.Trainer.Plan().due').map(x => x.name), ['Eviscerate', 'Pick Lock'], 'Eviscerate 3 due: the trainer says available');
+  assert.deepEqual(list(vm, 'NS.Trainer.Plan().soon').map(x => x.name), ['Gouge'], 'Gouge 2 at 18, though Gouge 1 is known');
+  assert.equal(p.total, 3000);
+});

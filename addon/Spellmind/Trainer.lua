@@ -21,6 +21,20 @@ end
 
 local function Level() return tonumber((ns.Try(UnitLevel, "player"))) or 1 end
 
+-- A service's rank from the game's tooltip data for it ("Rank 3" beside its name), or nil.
+function TR.TooltipRank(i)
+	local T = rawget(_G, "C_TooltipInfo")
+	local data = T and type(T.GetTrainerService) == "function" and select(2, pcall(T.GetTrainerService, i)) or nil
+	for k, line in ipairs(type(data) == "table" and type(data.lines) == "table" and data.lines or {}) do
+		if k > 3 then break end
+		for _, t in ipairs({ line.rightText, line.leftText }) do
+			local r = type(t) == "string" and tonumber(t:match("Rank (%d+)"))
+			if r then return r end
+		end
+	end
+	return nil
+end
+
 -- The trainer's list now into the store (the class trainer only). Returns how many services.
 function TR.Read()
 	if type(GetNumTrainerServices) ~= "function" then return 0 end
@@ -31,7 +45,10 @@ function TR.Read()
 	for i = 1, math.min(tonumber((ns.Try(GetNumTrainerServices))) or 0, TR.MAX) do
 		local name, sub, kind = ns.Try(GetTrainerServiceInfo, i)
 		if type(name) == "string" and name ~= "" and kind ~= "header" then
+			-- The rank: the service's subtext ("Rank 3"); on Forever that came back empty (seen in game:
+			-- Eviscerate 3 taken for the Eviscerate 2 already known), so the tooltip's text too.
 			local rank = type(sub) == "string" and tonumber(sub:match("(%d+)")) or nil
+			rank = rank or tonumber(name:match("%(Rank (%d+)%)")) or TR.TooltipRank(i)
 			list[#list + 1] = { name = ns.State.Text(name), rank = rank, kind = kind,
 				cost = tonumber((ns.Try(GetTrainerServiceCost, i))) or 0, level = tonumber((ns.Try(GetTrainerServiceLevelReq, i))) or 0 }
 		end
@@ -74,7 +91,10 @@ function TR.Plan(known)
 	local due, soon, total = {}, {}, 0
 	for _, s in ipairs(t.services) do
 		local have = known[s.name]
-		local learned = s.kind == "used" or (have ~= nil and (s.rank == nil or have >= s.rank))
+		-- The trainer's own word first ("used" is learned). Learned since the visit: the book has that
+		-- rank, or, for a service with no rank read, the book has the spell with no rank at all (a known
+		-- Eviscerate 2 is no proof of an unranked "Eviscerate" being learned: seen in game).
+		local learned = s.kind == "used" or (have ~= nil and ((s.rank ~= nil and have >= s.rank) or (s.rank == nil and have == 0)))
 		if not learned then
 			if (tonumber(s.level) or 0) <= level then
 				due[#due + 1] = s

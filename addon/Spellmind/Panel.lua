@@ -716,7 +716,7 @@ function Tabs.talents()
 	local g = GD.Get()
 	local plan = g and g.plan
 	local out = {}
-	if not g or not g.url then
+	if not g or (not g.url and not g.plan) then
 		out[#out + 1] = { kind = "head", text = "Your guide" }
 		out[#out + 1] = { kind = "item", left = "No guide yet", sub = "|cff888888Give Spellmind your leveling guide's link: it follows its talent order.|r",
 			actions = { { "Set link", function() GD.AskLink(panel) end } } }
@@ -735,11 +735,24 @@ function Tabs.talents()
 			out[#out + 1] = { kind = "head", text = unspent > 0 and ("Spend your " .. (unspent == 1 and "point" or (unspent .. " points"))) or "Next points" }
 			for i, s in ipairs(p.next) do
 				local now = s.now and unspent >= i
-				out[#out + 1] = { kind = "item", indent = true, left = (now and "|cff19ff19" or "") .. ns.Escape(GD.StepText(s, tree)) .. (now and "|r" or ""),
-					right = "level " .. s.level, tag = now and { "now", 0.1, 1, 0.1 } or nil }
+				-- Its level is past and no point is left for it: the guide had it by now (your points
+				-- went elsewhere; the next one you get fills it).
+				local behind = s.now and not now
+				out[#out + 1] = { kind = "item", indent = true,
+					left = (now and "|cff19ff19" or behind and "|cffff9933" or "") .. ns.Escape(GD.StepText(s, tree)) .. ((now or behind) and "|r" or ""),
+					right = behind and ("|cffff9933behind: the guide takes it at " .. s.level .. "|r") or ("level " .. s.level),
+					tag = now and { "now", 0.1, 1, 0.1 } or nil }
+			end
+			if p.behind > 0 and unspent == 0 then
+				out[#out + 1] = { kind = "text", text = "     |cff888888Your next point" .. (p.behind > 1 and "s go" or " goes") .. " here first.|r" }
 			end
 		elseif p then
 			out[#out + 1] = { kind = "text", text = "|cff19ff19Every point of the guide is taken.|r" }
+		end
+		-- Points the guide takes later, taken already: where the "behind" ones went.
+		for _, e in ipairs(p and p.early or {}) do
+			out[#out + 1] = { kind = "item", indent = true, left = "|cff9d7dffTaken early:|r " .. ns.Escape(e.name) .. " " .. e.rank,
+				sub = "|cff888888Your guide takes it at level " .. (e.from == e.to and e.from or (e.from .. " to " .. e.to)) .. ".|r" }
 		end
 		for _, o in ipairs(p and p.off or {}) do
 			out[#out + 1] = { kind = "item", indent = true, left = "|cffff6060Off plan:|r " .. ns.Escape(o.name) .. " " .. o.have,

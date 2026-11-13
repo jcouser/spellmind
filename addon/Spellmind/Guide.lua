@@ -102,7 +102,9 @@ end
 
 -- Where the character stands against the plan:
 --   next     the next steps not taken, in the plan's order (at most NEXT_MAX), each { level, name,
---            rank, now (its level is reached) }
+--            rank, now (its level is reached: with no point to spend, it's one you're behind on) }
+--   behind   how many steps at or below your level aren't taken
+--   early    talents taken before the guide's level for them: { name, rank, from, to } (its levels)
 --   off      talents with points the plan doesn't give them: { name, have, plan }
 --   unknown  plan names the tree doesn't have (only when the client lists the tree)
 --   done, total
@@ -112,14 +114,27 @@ function GD.Progress(have)
 	if type(plan) ~= "table" or type(plan.talents) ~= "table" or #plan.talents == 0 then return nil end
 	local level = Level()
 	have = have or Current()
-	local out = { next = {}, off = {}, unknown = {}, done = 0, total = #plan.talents }
-	local planned = {}
+	local out = { next = {}, off = {}, unknown = {}, early = {}, behind = 0, done = 0, total = #plan.talents }
+	local planned, early = {}, {}
 	for _, s in ipairs(plan.talents) do
 		planned[s.name] = math.max(planned[s.name] or 0, s.rank)
 		if (have[s.name] or 0) >= s.rank then
 			out.done = out.done + 1
-		elseif #out.next < GD.NEXT_MAX then
-			out.next[#out.next + 1] = { level = s.level, name = s.name, rank = s.rank, now = s.level <= level }
+			-- Taken before the guide's level for it (seen in game: 8 points, not the guide's first 8).
+			if s.level > level then
+				local e = early[s.name]
+				if not e then
+					e = { name = s.name, rank = s.rank, from = s.level, to = s.level }
+					early[s.name] = e
+					out.early[#out.early + 1] = e
+				end
+				e.rank, e.to = math.max(e.rank, s.rank), math.max(e.to, s.level)
+			end
+		else
+			if s.level <= level then out.behind = out.behind + 1 end
+			if #out.next < GD.NEXT_MAX then
+				out.next[#out.next + 1] = { level = s.level, name = s.name, rank = s.rank, now = s.level <= level }
+			end
 		end
 	end
 	for name, r in pairs(have) do

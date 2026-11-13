@@ -61,7 +61,8 @@ test('an imported plan: the next points against your talents, spent ones skipped
   assert.equal(d[0].text, 'Your guide: Combat');
   assert.match(d[1].sub, /3 of 7 points taken/);
   assert.equal(d[2].text, 'Next points');
-  assert.equal(d[3].text, 'Malice 2/3', 'counted to the tree\'s top rank');
+  assert.match(d[3].text, /Malice 2\/3/, 'counted to the tree\'s top rank');
+  assert.match(d[3].right, /behind: the guide takes it at 13/, 'level 15 with no point left for it');
   assert.ok(d.some(x => /Off plan:.*Lightning Reflexes 3/.test(x.text || '') && /doesn't take it/.test(x.sub)));
   assert.ok(d.some(x => /Not in your talents: Flash of Steel/.test(x.text || '')));
   assert.ok(d.some(x => x.text === 'Assassination'), 'the page\'s other build, to import instead');
@@ -101,4 +102,26 @@ test('a new link forgets the old plan', () => {
   vm.run('NS.Guide.SetUrl("https://example.com/other-guide")');
   assert.equal(vm.evaluate('tostring(NS.Guide.Get().plan)'), 'nil');
   assert.equal(drawn(vm, 'talents')[1].sub.includes('Not imported yet'), true);
+});
+
+test('behind and early (seen in game: 8 points at 17, not the guide\'s first 8): the skipped steps say so in orange, the early picks are shown', () => {
+  const vm = newVM();
+  vm.run('STUB.player.level = 13');
+  vm.login().advance(3.1);
+  // The guide: Improved Gouge at 10 and 11, then the rogue's Malice and Improved Sinister Strike later.
+  vm.run(`NS.Chat.OnRecord({ t = "reply", text = "Imported.", plan = { build = "Combat", source = "mobalytics.gg", talents = {
+    { level = 10, name = "Improved Gouge", rank = 1 }, { level = 11, name = "Improved Gouge", rank = 2 },
+    { level = 14, name = "Improved Sinister Strike", rank = 1 }, { level = 15, name = "Improved Sinister Strike", rank = 2 },
+    { level = 16, name = "Malice", rank = 1 }, { level = 17, name = "Lightning Reflexes", rank = 1 } } } })`);
+  const p = vm.json('NS.Guide.Progress()');
+  assert.equal(p.behind, 2);
+  assert.deepEqual(list(vm, 'NS.Guide.Progress().early').map(e => `${e.name} ${e.rank} ${e.from}-${e.to}`),
+    ['Improved Sinister Strike 2 14-15', 'Malice 1 16-16', 'Lightning Reflexes 1 17-17']);
+  const d = drawn(vm, 'talents');
+  const gouge = d.find(x => /Improved Gouge 1\/2/.test(x.text || ''));
+  assert.match(gouge.right, /behind: the guide takes it at 10/);
+  assert.equal(gouge.tag, undefined, 'no point to spend: not "now"');
+  assert.ok(d.some(x => /Your next points go here first/.test(x.text || '')));
+  const early = d.find(x => /Taken early:.*Improved Sinister Strike 2/.test(x.text || ''));
+  assert.match(early.sub, /takes it at level 14 to 15/);
 });

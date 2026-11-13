@@ -22,3 +22,9 @@ The player follows a leveling guide (Mobalytics' WoW Forever rogue guide) and as
 
 - Verify in game: an import of the real guide, the name check against Forever's tree, and Re-import.
 - The guide's stat priority could weigh the gear scoring (`Gear.MAIN`). For now it goes to the AI's upgrade answers only.
+
+## Behind and early (seen in game, 2026-11-12)
+
+The import worked: "1-60 Combat", 8 of 51 points taken, at level 17. But Remorseless Attacks (levels 10 and 11) and Deflection (17) were listed as "next" with no explanation: the player's 8 points had gone on 8 of the guide's other steps.
+- **Behind:** a step at or below your level that isn't taken, when no point is left for it, is orange: "behind: the guide takes it at 10". A grey line says your next point goes there first.
+- **Taken early:** steps you've taken before the guide's level for them are listed, e.g. "Taken early: Precision 2. Your guide takes it at level 20 to 21."

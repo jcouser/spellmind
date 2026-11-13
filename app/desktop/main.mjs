@@ -34,7 +34,10 @@ const ACTIVITY_MAX = 40;
 app.setAppUserModelId(IDENTITY.appId);
 // The window's title bar and menus dark, like the page.
 nativeTheme.themeSource = 'dark';
-if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
+// --quit (the installer, closing it for an update): the running copy hears it (second-instance) and
+// quits; with none running, this one just ends.
+const QUIT_ASKED = process.argv.includes('--quit');
+if (!app.requestSingleInstanceLock() || QUIT_ASKED) { app.quit(); process.exit(0); }
 
 let win = null, tray = null, quitting = false;
 let linkState = { phase: 'stopped', restarts: 0 };
@@ -419,7 +422,10 @@ for (const [name, fn] of Object.entries(CALLS)) {
 // ---------------------------------------------------------------------------
 // Start.
 
-app.on('second-instance', () => openWindow());
+app.on('second-instance', (_e, argv) => {
+  if (Array.isArray(argv) && argv.includes('--quit')) { quitting = true; app.quit(); return; }
+  openWindow();
+});
 app.on('window-all-closed', () => { /* the tray keeps it running */ });
 app.on('before-quit', () => { quitting = true; });
 app.on('will-quit', (e) => {

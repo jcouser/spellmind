@@ -36,6 +36,14 @@ Seen: the chat and the card said "Thinking…" with the app closed. The game kne
   - It can be dragged, and turns gold on hover.
 - **The chat's list stops 12 px from the edge** for it.
 
+### Updating with the app running (the player: "Spellmind also needed to be closed")
+- **The installer asks a running Spellmind to quit** (`app/desktop/installer.nsh` `customCheckAppRunning`): it starts `Spellmind.exe --quit`, which the running copy hears through its single-instance lock. That copy says goodbye to the game and ends.
+  - electron-builder's own check asked for OK, and a plain taskkill only hid the window to the tray.
+  - Then whatever is left (the app, its worker, the screen-reading helper) is ended.
+  - Checked on the built app: everything gone within 3 s, the goodbye slot written.
+- **Uninstall removes the start-at-login entry** (the Run value and Explorer's flag), not on an update (B).
+- **No elevate.exe** in a per-user install (B).
+
 ### Words
 - **Settings:** "Full answer: a short one whole…" (it said "Whole").
 
@@ -56,9 +64,8 @@ Seen: the chat and the card said "Thinking…" with the app closed. The game kne
   - Electron's fuses;
   - a confirmation before a new Other address;
   - the log's rotation and redaction;
-  - the Run value removed on uninstall;
   - the addon update going only up, never down: the installed app writes its own addon's files over newer ones;
-  - junction checks, atomic config writes, a cap on restarts, no elevate.exe;
+  - junction checks, atomic config writes, a cap on restarts;
   - the installer's hash and instructions.
 - **C:** Activity in plain words, errors that stay on screen, API keys billed by use, Other's state and Disconnect, Paste key following the key's AI, accessibility basics.
 - **D:** Stop on a waiting question, a "Spellmind app" section in Settings, the game's thinking pick overriding the app's, small wording.

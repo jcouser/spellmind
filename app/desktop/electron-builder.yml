@@ -80,3 +80,7 @@ nsis:
   deleteAppDataOnUninstall: false
   artifactName: "${productName}-Setup-${version}.${ext}"
   shortcutName: Spellmind
+  # Close a running Spellmind by asking it to quit; remove its start-at-login entry on uninstall.
+  include: installer.nsh
+  # A per-user install never elevates: no elevate.exe (the security review).
+  packElevateHelper: false

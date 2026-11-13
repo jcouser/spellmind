@@ -72,3 +72,12 @@ Each quest's details were one long grey line ("Pick up · from X · leads to Y")
   - To pick up: "Pick up from X", then "Leads to Y".
   - Not yet: "First: NAME, step N (in your log)", then "Hand that in to Z"; or "First: NAME (to pick up, above)"; "Opens at level N"; then "Then from X".
 - **A row's second lines stop short of its right-hand text** instead of running under it.
+
+## A nudge leads to its tab (asked in game, 2026-11-13)
+
+"5 spells to train" should lead to the Spells tab.
+
+- **A click on the toast** (not a drag) opens the tab the nudge is about. Its hover says which: "Click: open the Spells tab".
+  - Spells: Spells. Talents: Talents. Bags and repairs: Gear. Turn-ins: Quests. Professions: Professions. Entering a dungeon: Dungeons.
+- **Open** is a button on each row of the Nudges tab too.
+- **An opened nudge counts as seen, like an asked one:** it doesn't toast again or count on the badge. It stays in the list until it's dismissed or no longer applies, and it toasts again if the situation changes.

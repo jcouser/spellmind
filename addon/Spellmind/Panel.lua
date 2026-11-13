@@ -39,6 +39,7 @@ P.ACTION_TIPS = {
 	Show = "Shows what the app has of your game data now.",
 	Ask = "Asks your AI about this.",
 	Dismiss = "Hides it until something changes.",
+	Open = "Opens the tab this is about.",
 }
 P.BAG_ROWS = 8
 P.TABS = {
@@ -1094,13 +1095,13 @@ function Tabs.nudges()
 	local list = ns.Nudges and ns.Nudges.List() or {}
 	for _, n in ipairs(list) do
 		local kind = n.kind
+		local actions = {}
+		if ns.Nudges.TabFor(kind) then actions[#actions + 1] = { "Open", function() ns.Nudges.OpenKind(kind) end } end
+		actions[#actions + 1] = { "Ask", function() ns.Nudges.AskKind(kind, panel) end }
+		actions[#actions + 1] = { "Dismiss", function() ns.Nudges.DoneKind(kind) end }
 		-- The title, and its detail on a line of its own (the review: on one line beside two buttons it was cut).
 		out[#out + 1] = { kind = "item", icon = n.icon, left = n.title, sub = (n.text and n.text ~= "") and ("|cff888888" .. n.text .. "|r") or nil,
-			tag = n.asked and { "asked", 0.4, 0.85, 0.4 } or nil,
-			actions = {
-				{ "Ask", function() ns.Nudges.AskKind(kind, panel) end },
-				{ "Dismiss", function() ns.Nudges.DoneKind(kind) end },
-			} }
+			tag = n.asked and { "asked", 0.4, 0.85, 0.4 } or nil, actions = actions }
 	end
 	if #list == 0 then out[#out + 1] = { kind = "text", text = "Nothing waiting. Nudges show by the minimap when something comes up." } end
 	return out

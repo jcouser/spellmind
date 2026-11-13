@@ -258,11 +258,11 @@ local function Queue()
 	return R.nudges
 end
 
--- The ones still to see: not asked yet (an asked one stays in the list until dismissed, but doesn't
+-- The ones still to see: not asked or opened yet (an asked one stays in the list until dismissed, but doesn't
 -- toast again or count on the badge).
 local function Pending()
 	local out = {}
-	for _, n in ipairs(Queue()) do if not n.asked then out[#out + 1] = n end end
+	for _, n in ipairs(Queue()) do if not n.asked and not n.opened then out[#out + 1] = n end end
 	return out
 end
 
@@ -338,7 +338,7 @@ function N.Check(only)
 				if had then
 					-- The situation changed while it waited (two points to spend now, not one): it says so.
 					if had.key ~= n.key and seen[n.kind] ~= n.key then
-						had.key, had.title, had.text, had.ask, had.asked = n.key, n.title, n.text, n.ask, nil
+						had.key, had.title, had.text, had.ask, had.asked, had.opened = n.key, n.title, n.text, n.ask, nil, nil
 						R.nudgeFaded = nil
 					end
 				elseif seen[n.kind] ~= n.key then
@@ -497,7 +497,34 @@ function N.AskKind(kind, anchor, opts)
 	if ns.Marks then ns.Marks.Ask(anchor, "Nudge: " .. n.title, n.ask, opts) end
 end
 
+-- The panel tab each kind of nudge is about (seen in game: "5 spells to train" should lead to
+-- the Spells tab). The demo has none.
+N.TABS = { talents = "talents", spells = "spells", durability = "gear", bags = "gear", turnin = "quests",
+	near = "quests", prof = "professions", dungeon = "dungeons" }
+function N.TabFor(kind)
+	return N.TABS[tostring(kind):match("^([^:]+)") or ""]
+end
+
+-- Opened (a click on the toast, or Open in the list): its tab shows. Seen, like Ask: it doesn't
+-- toast again, and stays in the list until it's dismissed or no longer applies.
+function N.OpenKind(kind)
+	local _, n = Find(kind)
+	local tab = n and N.TabFor(n.kind)
+	if not tab or not ns.Panel then return nil end
+	n.opened = true
+	Seen()[n.kind] = n.key
+	ToastOff(n)
+	N.Next()
+	ns.Panel.Show(tab)
+	return tab
+end
+
 -- The toast's own buttons.
+function N.Open()
+	local f = toast
+	if f and f.nudge then return N.OpenKind(f.nudge.kind) end
+end
+
 function N.Done()
 	local f = toast
 	if f and f.nudge then N.DoneKind(f.nudge.kind) end
@@ -546,7 +573,23 @@ function N.Build()
 	f:EnableMouse(true)
 	f:SetMovable(true)
 	f:RegisterForDrag("LeftButton")
-	f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+	f:SetScript("OnDragStart", function(self) self.dragged = true; self:StartMoving() end)
+	-- A click (not a drag) opens the tab the nudge is about; the hover says which.
+	f:SetScript("OnMouseDown", function(self) self.dragged = nil end)
+	f:SetScript("OnMouseUp", function(self, button)
+		if button == "LeftButton" and not self.dragged then N.Open() end
+		self.dragged = nil
+	end)
+	f:SetScript("OnEnter", function(self)
+		local tab = self.nudge and N.TabFor(self.nudge.kind)
+		if not tab or not GameTooltip then return end
+		local name = tab
+		for _, t in ipairs(ns.Panel and ns.Panel.TABS or {}) do if t.id == tab then name = t.name end end
+		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+		GameTooltip:SetText("Click: open the " .. name .. " tab", 1, 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	f:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 	f:SetScript("OnDragStop", function(self)
 		self:StopMovingOrSizing()
 		local point, _, relPoint, x, y = self:GetPoint()

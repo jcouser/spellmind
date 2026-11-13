@@ -25,7 +25,7 @@ test('the tab: second in the rail; your quests\' dungeons with their quests, lev
   assert.equal(vm.evaluate('SpellmindPanel.tabs[3].text:GetText()'), 'Dungeons');
   assert.equal(d[0].text, 'Your quests are for');
   assert.equal(d[1].text, 'The Hall of Thanes');
-  assert.match(d[1].sub, /1 in your log · level 16/);
+  assert.match(d[1].sub, /1 in your log · quests level 16/);
   assert.equal(d[2].text, 'Old Ironforge Incursion');
   assert.equal(d[2].quest, 96393, 'with its Break it down mark');
   assert.ok(!d.some(x => x.text === 'At your level'), 'no LFG list on this client: no section');
@@ -118,7 +118,7 @@ test('QuestieDB: what you haven\'t picked up, who gives it and where; locked one
   const vm = withDB();
   const d = drawn(vm);
   const hall = d.find(x => x.text === 'The Hall of Thanes');
-  assert.match(hall.sub, /^.cff888888level 16 · .cffffd1001 to pick up.r · 2 later · 1 in your log · 1 done/);
+  assert.match(hall.sub, /^.cff888888quests level 16 · .cffffd1001 to pick up.r · 2 later · 1 in your log · 1 done/);
   const oh = d.find(x => x.text === 'Oh Brother...');
   assert.match(oh.sub, /^.cffffd100Pick up.r · /, 'ready: "Pick up" leads its line');
   assert.equal(oh.tag, undefined, 'no tag: it read as a button');
@@ -238,4 +238,17 @@ test('the AI gets what the Dungeons tab shows (seen in game: the tab named Testi
   assert.deepEqual(hall.pickup[0], { name: 'Oh Brother...', from: 'Thane Ironbelly, Ironforge (45, 51)' });
   assert.equal(hall.pickup.find(q => q.name === 'Underground Assault').after, 'Oh Brother...');
   assert.equal(validatePart('advisor', a).ok, true);
+});
+
+test('the dungeon\'s own range and its quests\' levels are told apart (seen in game: the quests\' 18-20 read as the dungeon\'s 17-26)', () => {
+  const vm = newVM();
+  vm.run(HALL);
+  vm.run('STUB.lfg = { { 1, "Hall of Thanes", 13, 20 } }; STUB.UseLFG()');
+  vm.login().advance(9);
+  const hall = drawn(vm).find(x => x.text === 'The Hall of Thanes');
+  assert.match(hall.sub, /dungeon 13–20 · quests level 16/);
+  const a = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.State.Collect.advisor())'));
+  const d = a.dungeons.find(x => x.name === 'The Hall of Thanes');
+  assert.equal(d.range, '13–20');
+  assert.equal(d.questLevels, 'level 16');
 });

@@ -36,7 +36,11 @@ local function Dungeons()
 					"at", q.at, "first", q.first and true or nil)
 			end
 		end
-		list[#list + 1] = O("name", name, "range", DG.Range(low, high), "inLog", inLog,
+		-- The range is the dungeon's own (the game's group finder) when it lists it; the log's quest levels are
+		-- their own field (seen in game: "18-20", the quests', was taken for the dungeon's 17-26).
+		local range
+		for _, l in ipairs(DG.Listed()) do if DG.Norm(l.name) == key then range = DG.Range(l.low, l.high) end end
+		list[#list + 1] = O("name", name, "range", range, "questLevels", inLog and DG.Range(low, high) or nil, "inLog", inLog,
 			"done", qs and #qs.done or nil, "toPickUp", qs and #qs.pickup or nil, "total", qs and qs.total or nil, "pickup", pickup)
 	end
 	local here = DG.Here()

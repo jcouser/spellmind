@@ -567,8 +567,13 @@ function Tabs.dungeons()
 			any = true
 			local name = d.name
 			local bits = {}
+			-- The dungeon's own range (the game's group finder), then the levels of your quests for it: two
+			-- different things (seen in game: the quests' 18-20 read as the dungeon's).
+			for _, l in ipairs(DG.Listed()) do
+				if DG.Norm(l.name) == DG.Norm(name) and DG.Range(l.low, l.high) then bits[#bits + 1] = "dungeon " .. DG.Range(l.low, l.high) end
+			end
 			local range = DG.Range(d.low, d.high)
-			if range then bits[#bits + 1] = range end
+			if range then bits[#bits + 1] = "quests " .. range end
 			if d.ready > 0 then bits[#bits + 1] = "|cff19ff19" .. d.ready .. " ready to turn in|r" end
 			-- Without QuestieDB's count (which has them), how many are in the log.
 			if not DG.HasDB() then table.insert(bits, 1, #d.quests .. " in your log") end

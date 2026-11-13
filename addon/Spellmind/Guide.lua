@@ -168,6 +168,51 @@ function GD.MaxRank(name)
 	return top
 end
 
+-- The guide's ability priority against the spellbook (docs/milestone-16.md): for each step, the
+-- ability it names that you have ({ have = name }), or one your class trainer teaches later
+-- ({ train = name, level }), or neither. The longest name found in the step wins ("Slice and Dice"
+-- over "Slice"). Talents with an ability (Riposte) are in the spellbook once taken.
+function GD.Priority()
+	local g = GD.Get()
+	local plan = g and g.plan
+	if type(plan) ~= "table" or type(plan.rotation) ~= "table" then return {} end
+	local book = {}
+	local s = ns.State and ns.State.Collect and select(2, pcall(ns.State.Collect.spells))
+	for _, kv in ipairs(type(s) == "table" and s._o or {}) do
+		if kv[1] == "tabs" then
+			for _, tab in ipairs(kv[2] or {}) do
+				for _, f in ipairs(tab._o or {}) do
+					if f[1] == "list" then
+						for _, sp in ipairs(f[2] or {}) do
+							for _, x in ipairs(sp._o or {}) do if x[1] == "name" and type(x[2]) == "string" then book[x[2]] = true end end
+						end
+					end
+				end
+			end
+		end
+	end
+	local trainer = {}
+	local me = Me()
+	for _, sv in ipairs(me and me.trainer and me.trainer.services or {}) do
+		if type(sv.name) == "string" and not book[sv.name] then
+			local lvl = tonumber(sv.level) or 0
+			if not trainer[sv.name] or lvl < trainer[sv.name] then trainer[sv.name] = lvl end
+		end
+	end
+	local out = {}
+	for _, line in ipairs(plan.rotation) do
+		local low = tostring(line):lower()
+		local best, bestKind, bestLevel
+		local function try(name, kind, level)
+			if #name >= 3 and low:find(name:lower(), 1, true) and (not best or #name > #best) then best, bestKind, bestLevel = name, kind, level end
+		end
+		for name in pairs(book) do try(name, "have") end
+		for name, lvl in pairs(trainer) do try(name, "train", lvl) end
+		out[#out + 1] = { line = line, have = bestKind == "have" and best or nil, train = bestKind == "train" and best or nil, level = bestLevel }
+	end
+	return out
+end
+
 -- For the talents part (State.lua): the AI follows the player's guide in its answers.
 function GD.ForState(have)
 	local g = GD.Get()

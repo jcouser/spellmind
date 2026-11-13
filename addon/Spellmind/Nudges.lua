@@ -249,16 +249,31 @@ local function Changed()
 	if ns.Panel and ns.Panel.NudgesChanged then ns.Panel.NudgesChanged() end
 end
 
--- One kind of nudge on or off (the Settings tab): SpellmindDB.nudges.kinds[name] = false when off.
+-- The kinds off unless the player turns them on: with Questie loaded, a quest ready to turn in and
+-- its turn-in nearby are already on its map and tracker (the player found them chatty, 2026-11-12).
+N.QUESTIE_OFF = { turnin = true, near = true }
+function N.DefaultOn(name)
+	if N.QUESTIE_OFF[name] then
+		local AO = rawget(_G, "C_AddOns")
+		local loaded = (AO and type(AO.IsAddOnLoaded) == "function" and ns.Try(AO.IsAddOnLoaded, "Questie"))
+			or (type(rawget(_G, "IsAddOnLoaded")) == "function" and ns.Try(IsAddOnLoaded, "Questie"))
+		if loaded then return false end
+	end
+	return true
+end
+
+-- One kind of nudge on or off (the Settings tab): SpellmindDB.nudges.kinds[name] = true or false
+-- once the player picks; else its default.
 function N.KindOn(name)
 	local k = Saved().kinds
-	return not (type(k) == "table" and k[name] == false)
+	if type(k) == "table" and k[name] ~= nil then return k[name] == true end
+	return N.DefaultOn(name)
 end
 
 function N.SetKind(name, on)
 	local saved = Saved()
 	if type(saved.kinds) ~= "table" then saved.kinds = {} end
-	if on then saved.kinds[name] = nil else saved.kinds[name] = false end
+	saved.kinds[name] = on and true or false
 	if not on then
 		-- Its waiting ones go ("turnin:297" is a turnin).
 		local q, keep = Queue(), {}

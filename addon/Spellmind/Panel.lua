@@ -826,8 +826,14 @@ function Tabs.spells()
 	local plan = g and g.plan
 	if type(plan) == "table" and #(plan.rotation or {}) > 0 then
 		out[#out + 1] = { kind = "head", text = "Your guide's priority" }
-		-- One line a row: a long step is cut (the AI has the whole of it).
-		for i, line in ipairs(plan.rotation) do out[#out + 1] = { kind = "item", left = i .. ". " .. ns.Escape(ns.Utf8Cut(line, 90)) } end
+		-- One line a row: a long step is cut (the AI has the whole of it). Each says whether you have
+		-- its ability yet, from your spellbook and your class trainer's list.
+		for i, st in ipairs(ns.Guide.Priority()) do
+			local right = ""
+			if st.have then right = "|cff19ff19you have it|r"
+			elseif st.train then right = "|cffff9933" .. ns.Escape(st.train) .. ": trains at " .. (st.level or "?") .. "|r" end
+			out[#out + 1] = { kind = "item", left = i .. ". " .. ns.Escape(ns.Utf8Cut(st.line, 70)), right = right }
+		end
 	end
 	if type(plan) == "table" and (#(plan.stats or {}) > 0 or plan.weapons) then
 		out[#out + 1] = { kind = "head", text = "Stats and weapons" }

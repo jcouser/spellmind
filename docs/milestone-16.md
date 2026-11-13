@@ -1,0 +1,8 @@
+# Milestone 16: the guide reaches gear and spells
+
+| Piece | File | What it does |
+|---|---|---|
+| Stat weights | `Gear.lua` (Weights, GuideOrder) | With a guide whose stat priority names 2 or more stats, its order weighs every gear comparison: tooltip upgrade lines, sheet dots, reward picks and the Gear tab. The first stat counts 2 and the last 0.8, times what one point is worth (`PER_POINT`: 1 Agility ≈ 2 Attack Power; 1 Hit or Crit is a whole percent on classic items). Weapon damage and armour keep the class's weights, and stats the guide doesn't name count nothing. "Expertise" has no item stat to read, so it's skipped. Without a guide, the class's own rough order (`MAIN`) applies, as before. |
+| Weapon speed | `Gear.lua` (Speed, SpeedAdvice, SpeedLean) | The guide's weapon advice is read for the word before "main" and "off" ("a slower main hand and a faster off hand"). A weapon's speed comes from the game's tooltip data ("Speed 2.60"). In the main or off hand it leans 2 a second from 2.0 s the guide's way. That's a tie-breaker, never more than real stats. |
+| The priority, checked | `Guide.lua` (Priority), `Panel.lua` | Each step of the guide's ability priority on the Spells tab says **you have it** (in the spellbook) or **trains at 20** (the class trainer's kept list), matching the longest ability name in the step. A talent ability not taken yet (Riposte) shows neither. |
+| Turn-in nudges with Questie | `Nudges.lua` (DefaultOn) | The player turned "quests ready to turn in" and "a turn-in nearby" off as chatty: Questie already shows both. With Questie loaded they now start off. The player's pick, either way, is kept (`kinds[name] = true/false`) and wins. |

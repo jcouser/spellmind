@@ -56,9 +56,55 @@ local function Worn(slot)
 	return { link = link, info = Info(link), stats = ns.State.ItemStats(link) }
 end
 
+-- The player's guide's stat priority (Guide.lua) as weights, when it has one (docs/milestone-16.md):
+-- the first stat counts 2, the last 0.8, times what one point of it is worth (1 Agility is about 2
+-- Attack Power; 1 Hit or Crit is a whole percent on classic items). Weapon damage and armour keep the
+-- class's own weights: guides list stats, not those. Stats it doesn't name count nothing.
+G.GUIDE_STATS = {
+	{ "agi", "agility" }, { "str", "strength" }, { "sta", "stamina" }, { "int", "intellect" }, { "spi", "spirit" },
+	{ "rap", "ranged attack power" }, { "ap", "attack power" }, { "hit", "hit" }, { "crit", "crit" }, { "sp", "spell power" },
+	{ "sp", "spell damage" }, { "heal", "healing" }, { "mp5", "mana" }, { "def", "defense" }, { "dodge", "dodge" },
+	{ "parry", "parry" }, { "block", "block" }, { "armor", "armor" },
+}
+G.PER_POINT = { agi = 1, str = 1, sta = 1, int = 1, spi = 1, ap = 0.5, rap = 0.5, hit = 10, crit = 10, sp = 1.2, heal = 0.6,
+	mp5 = 2, def = 1, dodge = 10, parry = 10, block = 1, armor = 0.05 }
+
+-- The guide's stat names into keys, in its order (a stat once: "Attack Power" isn't also "Ranged").
+function G.GuideOrder(stats)
+	local out, seen = {}, {}
+	for _, s in ipairs(stats or {}) do
+		local low = tostring(s):lower()
+		for _, k in ipairs(G.GUIDE_STATS) do
+			if not seen[k[1]] and low:find(k[2], 1, true) and not (k[1] == "ap" and low:find("ranged", 1, true)) then
+				seen[k[1]] = true
+				out[#out + 1] = k[1]
+				break
+			end
+		end
+	end
+	return out
+end
+
+function G.Weights()
+	local base = G.MAIN[Class()] or G.MAIN.WARRIOR
+	local g = ns.Guide and ns.Guide.Get()
+	local stats = g and g.plan and g.plan.stats
+	local order = G.GuideOrder(stats)
+	if #order < 2 then return base, false end
+	if G.weights and G.weightsAt == g.at then return G.weights, true end
+	local w = { dps = base.dps, armor = base.armor }
+	for i, k in ipairs(order) do
+		local rank = 2 - 1.2 * (i - 1) / (#order - 1)
+		w[k] = (G.PER_POINT[k] or 1) * rank
+	end
+	G.weights, G.weightsAt = w, g.at
+	return w, true
+end
+
 -- How much of the class's main stats an item has (to compare two of the same slot), and its stats.
+-- With a guide, its stat priority decides (G.Weights).
 function G.Weight(link)
-	local w, total = G.MAIN[Class()] or G.MAIN.WARRIOR, 0
+	local w, total = G.Weights(), 0
 	local st = ns.State.ItemStats(link)
 	for k, v in pairs(st) do total = total + (w[k] or 0) * (tonumber(v) or 0) end
 	return total, st
@@ -80,6 +126,47 @@ local function SlotFor(info)
 	return best
 end
 
+-- A weapon's speed (seconds), from the game's tooltip data ("Speed 2.60"), or nil.
+function G.Speed(link)
+	local data = C_TooltipInfo and type(C_TooltipInfo.GetHyperlink) == "function" and select(2, pcall(C_TooltipInfo.GetHyperlink, link)) or nil
+	for _, line in ipairs(type(data) == "table" and type(data.lines) == "table" and data.lines or {}) do
+		for _, t in ipairs({ line.rightText, line.leftText }) do
+			local s = type(t) == "string" and tonumber(t:match("^%a+ (%d+%.%d+)$"))
+			if s and s > 0.5 and s < 6 then return s end
+		end
+	end
+	return nil
+end
+
+-- The guide's weapon advice, as a lean: "a slower main hand", "a faster off hand" (read from its
+-- words). { main = "slow"|"fast"|nil, off = ... }.
+function G.SpeedAdvice()
+	local g = ns.Guide and ns.Guide.Get()
+	local text = g and g.plan and g.plan.weapons
+	if type(text) ~= "string" then return {} end
+	local low = text:lower()
+	local out = {}
+	-- The word before the hand: "a slower main hand", "a fast off-hand dagger".
+	for _, hand in ipairs({ "main", "off" }) do
+		for adj in low:gmatch("(%a+)[%s%-]+" .. hand) do
+			if adj:find("slow", 1, true) then out[hand] = "slow" elseif adj:find("fast", 1, true) then out[hand] = "fast" end
+		end
+	end
+	return out
+end
+
+-- The lean in weight for a weapon in the main hand (16) or off hand (17): a little for each tenth of
+-- a second the guide's way, from 2.0 s (a tie-breaker, not more than its stats).
+G.SPEED_LEAN = 2 -- per second
+function G.SpeedLean(link, slot)
+	if slot ~= 16 and slot ~= 17 then return 0 end
+	local want = G.SpeedAdvice()[slot == 16 and "main" or "off"]
+	if not want then return 0 end
+	local s = G.Speed(link)
+	if not s then return 0 end
+	return (want == "slow" and (s - 2) or (2 - s)) * G.SPEED_LEAN
+end
+
 -- Is link an upgrade for this character? Returns slot, a short reason ("empty slot", "+3 Agi, +4 ilvl").
 function G.Upgrade(link)
 	local info = Info(link)
@@ -89,8 +176,8 @@ function G.Upgrade(link)
 	local worn = Worn(slot)
 	if not worn then return slot, "fills an empty slot" end
 	if worn.info and worn.info.link and tonumber(link:match("item:(%d+)")) == tonumber(worn.link:match("item:(%d+)")) then return nil end
-	local a = G.Weight(link)
-	local b = G.Weight(worn.link)
+	local a = G.Weight(link) + G.SpeedLean(link, slot)
+	local b = G.Weight(worn.link) + G.SpeedLean(worn.link, slot)
 	local dIlvl = (tonumber(info.ilvl) or 0) - (tonumber(worn.info and worn.info.ilvl) or 0)
 	if a > b + 0.5 or (a >= b and dIlvl >= 3) then
 		local line = ns.Tooltip.Line(link) or ""

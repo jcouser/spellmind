@@ -23,7 +23,7 @@ test('the TOC: interface 16001, the title, the notes, SpellmindDB, and every fil
   const field = name => (toc.match(new RegExp(`^## ${name}: (.*)$`, 'm')) || [])[1];
   assert.equal(field('Interface'), '16001');
   assert.equal(field('Title'), 'Spellmind');
-  assert.equal(field('Notes'), 'Spellmind: AI Companion. Ask anything in game; needs the Spellmind app.');
+  assert.equal(field('Notes'), 'Spellmind: AI Companion. Quest, dungeon, gear and spell help in game; ask your own AI with the free Spellmind app.');
   assert.equal(field('SavedVariables'), 'SpellmindDB');
   assert.deepEqual(tocFiles(), ['Codec.lua', 'Inbox.lua', 'Core.lua', 'Link.lua', 'State.lua', 'Probe.lua', 'Window.lua', 'Chat.lua', 'Marks.lua', 'Quests.lua', 'Tooltip.lua', 'Gear.lua', 'GearUI.lua', 'Professions.lua', 'Trainer.lua', 'Settings.lua', 'Dungeons.lua', 'Gold.lua', 'Guide.lua', 'World.lua', 'Advisor.lua', 'Panel.lua', 'Nudges.lua', 'Minimap.lua']);
   const onDisk = fs.readdirSync(ADDON).filter(f => f.endsWith('.lua')).sort();

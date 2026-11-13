@@ -58,7 +58,7 @@ test('/sm hello puts a msg record on the strip, 272 px down, with the hello besi
   assert.deepEqual(before.map(r => r.type), ['hello']);
   const h = before[0];
   const { sid, ...rest } = h.args;
-  assert.deepEqual(rest, { cur: '0', ver: '0.1.0', build: '70009', iface: '16001', n: '0', ctx: '0', sig: 'ok', slots: '200', slot: '1', mode: 'pixel' });
+  assert.deepEqual(rest, { cur: '0', ver: '0.4.0', build: '70009', iface: '16001', n: '0', ctx: '0', sig: 'ok', slots: '200', slot: '1', mode: 'pixel' });
   assert.match(sid, /^[0-9a-f]{16}$/, 'the character session id (milestone 4)');
   assert.deepEqual(Object.keys(h.args).slice(-1), ['sid'], 'last');
   assert.equal(h.key, vm.evaluate('NS.R.nonce'));
@@ -72,7 +72,7 @@ test('/sm hello puts a msg record on the strip, 272 px down, with the hello besi
   assert.deepEqual(m.args, { cur: '0', agent: 'main', ctx: '0' });
   assert.equal(m.text, 'hello');
   assert.deepEqual(vm.outbox().map(e => e.key), [m.key]);
-  assert.ok(vm.chatLines().includes('Spellmind: Start the Spellmind app to get answers.'));
+  assert.ok(vm.chatLines().includes('Spellmind: Start the Spellmind app to get answers. No app yet? Type /sm app.'));
   assert.equal(vm.evaluate('NS.Link.Status()'), 'Start the Spellmind app to get answers.');
   assert.deepEqual(vm.json('STUB.forbidden'), {});
 });
@@ -496,4 +496,14 @@ test('a Thinking pick in the game holds until the app\'s own default changes; th
   assert.equal(vm.evaluate('tostring(NS.Window.Effort())'), 'nil', 'the app\'s Low');
   assert.equal(vm.evaluate('tostring(NS.Window.Search())'), 'false', 'the app\'s off');
   assert.equal(vm.evaluate('tostring(SpellmindDB.ui.search)'), 'nil');
+});
+
+test('/sm app: the Get the app box, its link the project page to copy; nothing sent; the Settings App row offers it while the app isn\'t heard', () => {
+  const vm = session();
+  const before = vm.outbox().length;
+  vm.slash('app');
+  assert.equal(vm.outbox().length, before, 'nothing sent');
+  assert.equal(vm.evaluate('tostring(NS.Marks.appBox:IsShown())'), 'true');
+  assert.equal(vm.evaluate('NS.Marks.appBox.input:GetText()'), 'https://github.com/jcouser/spellmind');
+  assert.match(vm.evaluate('NS.Marks.GET_APP_TEXT'), /Every tab works without it/);
 });

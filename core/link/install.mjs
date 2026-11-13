@@ -137,6 +137,11 @@ export function installedBy(flavorDir) {
   try { return fs.readFileSync(path.join(flavorDir, 'Interface', 'AddOns', ADDON_NAME, INSTALLED_BY), 'utf8').trim().slice(0, 32) || null; } catch { return null; }
 }
 
+/** The ## Version in an addon folder's TOC (the game's copy or this app's), or null. */
+export function addonVersion(dir) {
+  try { return /^##\s*Version:\s*([\w.-]{1,32})\s*$/m.exec(fs.readFileSync(path.join(dir, `${ADDON_NAME}.toc`), 'utf8'))?.[1] ?? null; } catch { return null; }
+}
+
 /** a < b for versions like 0.2.10 (numbers compared part by part). */
 export function olderVersion(a, b) {
   const pa = String(a || '0').split('.').map(n => parseInt(n, 10) || 0), pb = String(b || '0').split('.').map(n => parseInt(n, 10) || 0);
@@ -146,7 +151,8 @@ export function olderVersion(a, b) {
 
 /**
  * The installed addon against this copy's (the desktop app, docs/milestone-3.md): file by file, as
- * copyAddon copies them. → { state: 'missing' | 'current' | 'outdated', changed, added } where added
+ * copyAddon copies them. → { state: 'missing' | 'current' | 'outdated', changed, added, installedBy,
+ * installedVersion, version } where installedVersion and version are the two TOCs' and added
  * counts files the game hasn't got (those load only after a full restart of WoW; changed ones on
  * /reload).
  */
@@ -168,7 +174,9 @@ export function addonState({ flavorDir, source = ADDON_SOURCE } = {}) {
     }
   };
   try { walk(source, dst); } catch { return { state: 'missing', changed: 0, added: 0 }; }
-  return { state: changed + added > 0 ? 'outdated' : 'current', changed, added, installedBy: installedBy(flavorDir) };
+  const installedVersion = addonVersion(dst), version = addonVersion(source);
+  const newerInstalled = !!(installedVersion && version && olderVersion(version, installedVersion));
+  return { state: changed + added > 0 ? 'outdated' : 'current', changed, added, installedBy: installedBy(flavorDir), installedVersion, version, newerInstalled };
 }
 
 /**
@@ -190,4 +198,25 @@ export function installAddon({ flavorDir, source = ADDON_SOURCE, count = SLOT_CO
   const have = countSlots(addonsDir);
   if (have < count) return { ok: false, error: 'slots_missing', detail: `Only ${have} of ${count} slot addons are in place.` };
   return { ok: true, addonsDir, files, slots, bells, note: RESTART_LINE };
+}
+
+/**
+ * Whether the app's copy should go over the game's on its own (docs/curseforge.md): only forward.
+ *   - The game's is a newer version (CurseForge or WowUp updated it first): left.
+ *   - The same version: left, unless an older copy of this app put it there (a build between releases).
+ *   - An older version: updated.
+ * → { update: boolean, why }
+ */
+export function shouldUpdate(st, appVersion) {
+  if (!st || st.state !== 'outdated') return { update: false, why: 'current' };
+  if (st.installedVersion && st.version) {
+    if (olderVersion(st.version, st.installedVersion)) return { update: false, why: 'newer_installed' };
+    if (!olderVersion(st.installedVersion, st.version)) {
+      return st.installedBy && olderVersion(st.installedBy, appVersion) ? { update: true, why: 'same_version_older_app' } : { update: false, why: 'same_version' };
+    }
+    return { update: true, why: 'older_installed' };
+  }
+  // No version to go by: the marker decides, as before.
+  if (st.installedBy && !olderVersion(st.installedBy, appVersion)) return { update: false, why: 'same_or_newer_app' };
+  return { update: true, why: 'no_version' };
 }

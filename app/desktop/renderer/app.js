@@ -175,6 +175,8 @@ function draw(s) {
     current: ['Installed and up to date.', 'good', 'Reinstall', true],
     outdated: [`An update is ready (${a.changed || 0} changed, ${a.added || 0} new file${a.added === 1 ? '' : 's'}).`, 'warn', 'Update'],
   };
+  // A newer addon from CurseForge or WowUp: not an update, and the app leaves it (install.mjs shouldUpdate).
+  if (a.state === 'outdated' && a.newerInstalled) addonWords.outdated = [`A newer addon is installed (${a.installedVersion}; this app has ${a.version}). Update the app to match.`, 'warn', `Use ${a.version} instead`, true];
   const aw = addonWords[a.state] || addonWords.missing;
   fact($('addonState'), aw[0], aw[1]);
   $('installAddon').textContent = aw[2];

@@ -21,7 +21,9 @@
 local ADDON_NAME, ns = ...
 
 ns.ADDON = ADDON_NAME or "Spellmind"
-ns.VERSION = "0.1.0"
+ns.VERSION = "0.4.0"
+-- Where the free Spellmind app is (the "Get the app" box, Marks.lua): the project's page, not a file.
+ns.APP_URL = "https://github.com/jcouser/spellmind"
 ns.PROTOCOL = 2
 ns.SLOT_COUNT = 200
 ns.SLOT_PREFIX = "Spellmind_S"

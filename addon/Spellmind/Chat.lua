@@ -23,7 +23,7 @@ local WHO = "|cff9d7dffSpellmind:|r "
 local YOU = "|cffffd100You:|r "
 local ERR = "|cffff6060Spellmind:|r "
 C.KEY_REFUSED = "That looks like an API key, so it wasn't sent. Keys go in the Spellmind app, never in game."
-C.NOT_HEARD = "Start the Spellmind app to get answers."
+C.NOT_HEARD = "Start the Spellmind app to get answers. No app yet? Type /sm app."
 
 ---------------------------------------------------------------------------
 -- What may be sent
@@ -626,6 +626,7 @@ C.HELP = {
 	"  /sm quests, dungeons, gear, talents, spells, professions, gold, nudges, settings: open that tab.",
 	"  /sm guide <link>: your leveling guide, read by your AI.",
 	"  /sm nudges on/off/reset · /sm marks on/off · /sm data, or data on/off · /sm minimap on/off.",
+	"  /sm app: where to get the free Spellmind app (the chat needs it; every other tab works without).",
 }
 C.TAB_WORDS = { chat = "chat", quests = "quests", quest = "quests", dungeons = "dungeons", dungeon = "dungeons", gear = "gear",
 	talents = "talents", spells = "spells", professions = "professions", profs = "professions", gold = "gold", settings = "settings" }
@@ -673,6 +674,11 @@ SlashCmdList.SPELLMIND = function(msg)
 		local n = ns.Nudges.Reset()
 		ChatFrame(n > 0 and ("Spellmind: " .. n .. " nudge" .. (n > 1 and "s" or "") .. " to show.")
 			or "Spellmind: nothing to nudge about right now (no spells due, points to spend, broken gear, full bags or capped professions).")
+		return
+	end
+	-- /sm app: the Get the app box, with the project's link to copy.
+	if (lower == "app" or lower == "download") and ns.Marks and ns.Marks.GetApp then
+		ns.Marks.GetApp()
 		return
 	end
 	-- /sm help (or ?): the commands, never a question to the AI (the review: it was sent as one).

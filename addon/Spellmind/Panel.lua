@@ -1212,8 +1212,9 @@ function Tabs.settings()
 	local age = ns.Link.BridgeAge and ns.Link.BridgeAge()
 	out[#out + 1] = { kind = "item", left = "App",
 		right = gone and "|cffff9933not running|r" or "|cff19ff19running|r",
-		sub = "|cff888888" .. (gone and "Start it from the Start menu, or its icon by the clock. It talks to your AI for this addon."
-			or ("Heard from " .. (age and age < 60 and "just now" or age and (math.floor(age / 60) .. " min ago") or "this session") .. ".")) .. "|r" }
+		sub = "|cff888888" .. (gone and "Start it from the Start menu, or its icon by the clock. It talks to your AI for this addon. Don't have it? Get the app."
+			or ("Heard from " .. (age and age < 60 and "just now" or age and (math.floor(age / 60) .. " min ago") or "this session") .. ".")) .. "|r",
+		actions = gone and ns.Marks and ns.Marks.GetApp and { { "Get the app", function() ns.Marks.GetApp() end, tip = "Where the free app is: a link to copy." } } or nil }
 	local ai = R.ai
 	if type(ai) == "table" and type(ai.name) == "string" then
 		local model = type(ai.model) == "string" and ai.model ~= "" and (" · " .. ns.Escape(ai.model)) or ""
@@ -1221,7 +1222,7 @@ function Tabs.settings()
 			sub = "|cff888888" .. (ai.ready == false and "|cffff9933Not set up: sign in or paste a key in the app.|r" or "Change it, sign in or add a key in the app's window.") .. "|r" }
 	end
 	out[#out + 1] = { kind = "item", left = "Addon", right = "version " .. ns.Escape(ns.VERSION or "?"),
-		sub = "|cff888888The app keeps it up to date while WoW is closed.|r" }
+		sub = "|cff888888The app keeps it up to date while WoW is closed, or update it from CurseForge.|r" }
 	for _, sec in ipairs(ST.List()) do
 		out[#out + 1] = { kind = "head", text = sec.section }
 		for _, r in ipairs(sec.rows) do

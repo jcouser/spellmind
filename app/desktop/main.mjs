@@ -18,7 +18,7 @@ import { createSupervisor } from '../../core/app/supervisor.mjs';
 import { aiChoices, applyAI } from '../../core/app/settings.mjs';
 import { createAISetup } from '../../core/app/ai.mjs';
 import { eventLine } from '../../core/app/lines.mjs';
-import { installAddon, addonState, looksLikeFlavor, flavorIn, findFlavorDirs, wowRunning, olderVersion, RUNNING_LINE } from '../../core/link/install.mjs';
+import { installAddon, addonState, looksLikeFlavor, flavorIn, findFlavorDirs, wowRunning, shouldUpdate, RUNNING_LINE } from '../../core/link/install.mjs';
 import { loadManifests, checkCustomUrl } from '../../core/ai/providers/index.mjs';
 import { createKeyStore } from '../../core/ai/security/keystore.mjs';
 import { createEgress } from '../../core/ai/security/egress.mjs';
@@ -91,9 +91,14 @@ function updateAddonIfOld(why) {
   if (!appSettings().updateAddon || !cfg.wow) return;
   const st = addonState({ flavorDir: cfg.wow });
   if (st.state !== 'outdated') return;
-  // Only forward: never over an addon a newer app put there, nor one this app put there and someone
-  // changed since (the security review: an older copy of the app wrote its older addon back).
-  if (st.installedBy && !olderVersion(st.installedBy, app.getVersion())) { note("The addon differs from this app's, but a same or newer app installed it: left as it is. Update in the window to replace it."); return; }
+  // Only forward (core/link/install.mjs shouldUpdate): never over a newer addon, from CurseForge or a
+  // newer app (the security review: an older copy of the app wrote its older addon back).
+  const plan = shouldUpdate(st, app.getVersion());
+  if (!plan.update) {
+    if (plan.why === 'newer_installed') note(`The game has a newer Spellmind addon (${st.installedVersion}) than this app's (${st.version}): left as it is. Update the app to match.`);
+    else note("The addon differs from this app's, but it's the same or a newer version: left as it is. Update in the window to replace it.");
+    return;
+  }
   if (wowRunning().running) { note('An addon update is ready: it goes in when WoW closes.'); return; }
   const r = installAddon({ flavorDir: cfg.wow, version: app.getVersion() });
   if (r.ok) {

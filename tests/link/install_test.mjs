@@ -57,3 +57,29 @@ test('tasklist: the game\'s pids, never WowUp\'s, the voice proxy\'s or the cras
     '"WowVoiceProxy.exe","6","Console","1","1 K"', '"WowError.exe","7","Console","1","1 K"', '"notepad.exe","8","Console","1","1 K"'].join('\r\n');
   assert.deepEqual(parseTasklist(csv), [4242, 77]);
 });
+
+test('only forward: a newer addon from CurseForge is left, an older one updated, the same version left unless an older app put it there', async () => {
+  const { shouldUpdate } = await import('../../core/link/install.mjs');
+  const st = (o) => ({ state: 'outdated', changed: 1, added: 0, ...o });
+  assert.deepEqual(shouldUpdate(st({ installedVersion: '0.5.0', version: '0.4.0' }), '0.4.0'), { update: false, why: 'newer_installed' });
+  assert.deepEqual(shouldUpdate(st({ installedVersion: '0.3.9', version: '0.4.0' }), '0.4.0'), { update: true, why: 'older_installed' });
+  assert.deepEqual(shouldUpdate(st({ installedVersion: '0.4.0', version: '0.4.0' }), '0.4.0'), { update: false, why: 'same_version' });
+  assert.deepEqual(shouldUpdate(st({ installedVersion: '0.4.0', version: '0.4.0', installedBy: '0.3.3' }), '0.4.0'), { update: true, why: 'same_version_older_app' });
+  assert.deepEqual(shouldUpdate(st({ installedVersion: '0.4.0', version: '0.4.0', installedBy: '0.4.0' }), '0.4.0'), { update: false, why: 'same_version' });
+  assert.deepEqual(shouldUpdate(st({ installedBy: '0.5.0' }), '0.4.0'), { update: false, why: 'same_or_newer_app' });
+  assert.deepEqual(shouldUpdate(st({}), '0.4.0'), { update: true, why: 'no_version' });
+  assert.equal(shouldUpdate({ state: 'current' }, '0.4.0').update, false);
+});
+
+test('addonState reads both TOCs\' versions and says when the game\'s is newer', async (t) => {
+  const { addonState } = await import('../../core/link/install.mjs');
+  const w = fakeWow(t);
+  fs.writeFileSync(path.join(w.src, 'Spellmind.toc'), '## Interface: 16001\n## Version: 0.4.0\nCodec.lua\n');
+  assert.equal(installAddon({ flavorDir: w.flavor, source: w.src, count: 1, running: closed }).ok, true);
+  fs.writeFileSync(path.join(w.addons, 'Spellmind', 'Spellmind.toc'), '## Interface: 16001\n## Version: 0.5.1\nCodec.lua\n');
+  const s = addonState({ flavorDir: w.flavor, source: w.src });
+  assert.equal(s.state, 'outdated');
+  assert.equal(s.installedVersion, '0.5.1');
+  assert.equal(s.version, '0.4.0');
+  assert.equal(s.newerInstalled, true);
+});

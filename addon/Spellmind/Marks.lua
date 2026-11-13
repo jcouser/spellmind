@@ -23,7 +23,7 @@ M.PORTRAIT = "Interface\\AddOns\\Spellmind\\Media\\Portrait"
 M.HINT = "|cff888888Click: Break it down (asks your AI). Shift-click: edit the question first.|r"
 M.NO_DATA = "Break it down needs your game data. Turn it on in Settings, then click again."
 M.THINKING = "|cff888888Thinking…|r"
-M.NO_APP = "|cff9d7dffThe Spellmind app isn't running, so there's no answer yet.|r\n\nStart it from the Start menu, or its icon by the clock. Your question is waiting: its answer will show here."
+M.NO_APP = "|cff9d7dffThe Spellmind app isn't running, so there's no answer yet.|r\n\nStart it from the Start menu, or its icon by the clock. Your question is waiting: its answer will show here.\n\n|cff888888No app yet? Type /sm app.|r"
 M.CARD_W, M.CARD_MIN_H, M.CARD_MAX_H = 360, 120, 420
 
 -- Marks on or off (/sm marks off): the saved switch, on unless set off.
@@ -282,4 +282,81 @@ function M.AskMore()
 	if not card then return end
 	ns.Chat.AskAbout(card.about, card.label)
 	ns.Chat.Open()
+end
+
+---------------------------------------------------------------------------
+-- Get the app: where the free desktop app is, as a link to copy (the game can't open a browser)
+---------------------------------------------------------------------------
+
+M.GET_APP_TEXT = "The free Spellmind app (Windows 10 or 11) asks your own AI, a ChatGPT plan or an API key for Claude, ChatGPT, Grok or Gemini, and brings the answers here.\n\n|cff888888Every tab works without it: quests, dungeons, gear, talents, spells, professions, gold and nudges. Only the chat and Break it down need it.|r"
+
+function M.GetApp()
+	local f = M.appBox
+	if not f then
+		f = CreateFrame("Frame", "SpellmindGetApp", UIParent, "BackdropTemplate")
+		f:SetSize(440, 196)
+		f:SetFrameStrata("FULLSCREEN_DIALOG")
+		f:SetClampedToScreen(true)
+		f:EnableMouse(true)
+		f:SetMovable(true)
+		f:RegisterForDrag("LeftButton")
+		f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+		f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+		if f.SetBackdrop then
+			f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+				tile = true, tileSize = 16, edgeSize = 14, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
+			f:SetBackdropColor(0.05, 0.04, 0.1, 0.98)
+			f:SetBackdropBorderColor(0.62, 0.49, 1, 1)
+		end
+		f.portrait = f:CreateTexture(nil, "ARTWORK")
+		f.portrait:SetSize(24, 24)
+		f.portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -7)
+		f.portrait:SetTexture(M.PORTRAIT)
+		f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 38, -12)
+		f.title:SetText("Get the Spellmind app")
+		f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+		f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
+		f.body = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		f.body:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -40)
+		f.body:SetWidth(412)
+		f.body:SetJustifyH("LEFT")
+		if f.body.SetWordWrap then f.body:SetWordWrap(true) end
+		f.body:SetText(M.GET_APP_TEXT)
+		-- The link, selected, to copy: typing can't change it (any edit puts it back).
+		f.input = CreateFrame("EditBox", nil, f, "BackdropTemplate")
+		f.input:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 12, 36)
+		f.input:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 36)
+		f.input:SetHeight(24)
+		if f.input.SetBackdrop then
+			f.input:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+				tile = true, tileSize = 16, edgeSize = 10, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+			f.input:SetBackdropColor(0.07, 0.05, 0.14, 0.95)
+			f.input:SetBackdropBorderColor(0.5, 0.4, 0.85, 1)
+		end
+		f.input:SetFontObject(ChatFontNormal)
+		f.input:SetTextInsets(6, 6, 0, 0)
+		f.input:SetAutoFocus(false)
+		f.input:SetScript("OnEscapePressed", function() f:Hide() end)
+		f.input:SetScript("OnEnterPressed", function() f:Hide() end)
+		f.input:SetScript("OnTextChanged", function(self, user)
+			if user and self:GetText() ~= ns.APP_URL then
+				self:SetText(ns.APP_URL)
+				if self.HighlightText then self:HighlightText() end
+			end
+		end)
+		f.input:SetScript("OnEditFocusGained", function(self) if self.HighlightText then self:HighlightText() end end)
+		f.note = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+		f.note:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 16)
+		f.note:SetText("Press Ctrl+C to copy the link, then open it in your browser.")
+		f:Hide()
+		M.appBox = f
+	end
+	f.input:SetText(ns.APP_URL)
+	f:ClearAllPoints()
+	f:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+	f:Show()
+	f.input:SetFocus()
+	if f.input.HighlightText then f.input:HighlightText() end
+	return f
 end

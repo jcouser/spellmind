@@ -19,11 +19,12 @@ test('the addon against the installed one: missing, current, then outdated (chan
   fs.mkdirSync(path.join(flavor, 'Interface', 'AddOns'), { recursive: true });
   assert.equal(addonState({ flavorDir: flavor }).state, 'missing');
   const dst = path.join(flavor, 'Interface', 'AddOns', 'Spellmind');
+  const V = /^## Version: (.*)$/m.exec(fs.readFileSync(path.join(ADDON_SOURCE, 'Spellmind.toc'), 'utf8'))[1];
   fs.cpSync(ADDON_SOURCE, dst, { recursive: true });
-  assert.deepEqual(addonState({ flavorDir: flavor }), { state: 'current', changed: 0, added: 0, installedBy: null });
+  assert.deepEqual(addonState({ flavorDir: flavor }), { state: 'current', changed: 0, added: 0, installedBy: null, installedVersion: V, version: V, newerInstalled: false });
   fs.appendFileSync(path.join(dst, 'Panel.lua'), '\n-- old\n');
   fs.rmSync(path.join(dst, 'Advisor.lua'));
-  assert.deepEqual(addonState({ flavorDir: flavor }), { state: 'outdated', changed: 1, added: 1, installedBy: null });
+  assert.deepEqual(addonState({ flavorDir: flavor }), { state: 'outdated', changed: 1, added: 1, installedBy: null, installedVersion: V, version: V, newerInstalled: false });
   // The game's own files in the folder (the doorbells, the inbox the app writes) aren't the addon's.
   fs.cpSync(ADDON_SOURCE, dst, { recursive: true });
   fs.mkdirSync(path.join(dst, 'sig'), { recursive: true });

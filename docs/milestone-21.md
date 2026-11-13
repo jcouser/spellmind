@@ -76,10 +76,10 @@ The turn moved to `core/app/turn.mjs` (`createTurn`), tested against a stand-in 
 - **A "Next:" at the end of the last paragraph** ("…the count mismatch. Next: Where do I get…? / …?") makes chips, when what follows reads as suggestions. A plain "Next: head to Lakeshire." stays as text.
 
 ### Batch B: security before the installer is shared
-- **Other's key belongs to its address** (): a new address without a key drops the old one, and the link sends it only to that host.
+- **Other's key belongs to its address** (`cfg.custom.keyHost`): a new address without a key drops the old one, and the link sends it only to that host.
 - **A new Other address asks first,** in the app's own dialog: "Send your questions and game data to <host>?". It warns when a key would go over http on the network. Model names from a service are filtered to the shape of model names before they're shown.
 - **Egress:** only Other may reach this computer (loopback). 169.254/16 (link-local, where a cloud's metadata service lives) isn't a home network, so it's https only.
-- **Electron's fuses** ( in electron-builder.yml):
+- **Electron's fuses** (`electronFuses` in electron-builder.yml):
   - RunAsNode, NODE_OPTIONS and --inspect are off.
   - The app loads only from app.asar, checked against the hash in the exe.
   - Checked on the built exe with @electron/fuses, and the packed app run: worker, helper, keychain and --quit all work.
@@ -87,24 +87,24 @@ The turn moved to `core/app/turn.mjs` (`createTurn`), tested against a stand-in 
   - Every permission request is refused.
   - Any web contents is denied webviews, new windows and navigation.
   - The calls check the frame's address, not only the window.
-  - The  code (the only executeJavaScript) is in dev-shot.mjs, which the installer doesn't take.
+  - The `--shot` code (the only executeJavaScript) is in dev-shot.mjs, which the installer doesn't take.
 - **The log:**
-  - core/log.mjs: a file a day in , kept 7 days, through the key redactor.
+  - core/log.mjs: a file a day in `%APPDATA%Spellmindlogs`, kept 7 days, through the key redactor.
   - The token and nonce fields are left out, and publishes are logged only when they fail.
-  - The old  (with tokens) is deleted.
+  - The old `spellmind.log` (with tokens) is deleted.
 - **The addon copy refuses links:** a junction or link at AddOns\Spellmind (or a file that's a link) is removed, never written through. Tested with a real junction.
 - **The addon update only goes forward:**
-  - Each install leaves  (the app's version).
+  - Each install leaves `.installed-by` (the app's version).
   - The automatic update runs only for an older one, or none: never over a newer app's addon, nor one changed by hand.
   - The window's Update still does as asked.
 - **config.json is written whole** (a temp file, renamed). One that can't be read is kept as config.json.bad.
 - **Restarts are capped:** after 20 stops in a row the supervisor gives up. The pill says "The link keeps stopping: restart it".
-- **The sign-in's listener** answers only to  (421 otherwise: DNS rebinding).
+- **The sign-in's listener** answers only to `127.0.0.1:<port>` (421 otherwise: DNS rebinding).
 - **The clipboard toast** says Windows' clipboard history keeps its own copy of a pasted key.
 - **The installer:**
-  -  prints its SHA-256 and writes it beside it.
+  - `npm run dist` prints its SHA-256 and writes it beside it.
   - [docs/install.md](install.md): one download place, checking the hash, SmartScreen's warning, never admin, what it installs, what an uninstall leaves.
-  - ound 0 vulnerabilities: 0 vulnerabilities (2026-11-13).
+  - `npm audit --omit=dev`: 0 vulnerabilities (2026-11-13).
 
 ### Words
 - **Settings:** "Full answer: a short one whole…" (it said "Whole").

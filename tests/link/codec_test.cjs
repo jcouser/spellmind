@@ -12,6 +12,10 @@ try { execFileSync('python3', ['--version'], { stdio: 'ignore' }); }
 catch { console.log('SKIP Codec.lua round-trip: python3 is required.'); process.exit(0); }
 
 const CAPTURE_X11 = path.join(__dirname, '..', 'bridge', 'capture_x11.py');
+// Spellmind has no Linux helper yet (core/capture/build.mjs): the round trip waits for it. The
+// Windows helper's own round trip is tests/link/capture_windows_helper_test.mjs. (Seen in CI, where
+// python3 is there and this file isn't.)
+if (!fs.existsSync(CAPTURE_X11)) { console.log('SKIP Codec.lua round-trip: no Linux capture helper in Spellmind yet.'); process.exit(0); }
 const TMP = path.join(__dirname, 'tmp');
 const CELLS = 200, MAXROWS = 48, CELL = 4;
 fs.mkdirSync(TMP, { recursive: true });

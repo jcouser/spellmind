@@ -292,3 +292,10 @@ test('scrolling: a new message scrolls to the end, again a frame later (when the
   vm.advance(0.1);
   assert.equal(vm.num(`${sc}.vscroll`), 1000, 'asking brings it to the end');
 });
+
+test('a question waiting shows a "Thinking…" bubble last, and "Waiting for the app" when it\'s away (the review)', () => {
+  const vm = newVM().login().advance(3.1);
+  vm.slash('');
+  vm.run('SpellmindWindow.input:SetText("where is the bank?"); SpellmindWindow.input.scripts.OnEnterPressed(SpellmindWindow.input)');
+  assert.match(vm.windowLines().at(-1), /Thinking…|Waiting for the Spellmind app/);
+});

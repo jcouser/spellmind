@@ -77,12 +77,12 @@ test('a part of the game data kept back: sent as off (valid, and the AI is told)
   const back = reloadVM(vm).login();
   assert.equal(back.evaluate('tostring(NS.State.PartOn("bags"))'), 'false');
   back.run('NS.R.caps = { state = true }');
-  assert.ok(list(back, 'NS.State.Report()').includes('bags: kept back (Settings)'));
+  assert.ok(list(back, 'NS.State.Report()').includes('Bags: off in Settings'));
 });
 
 test('answers in the game\'s chat: Whole, First line, Off; off, a reply shows only in the window', () => {
   const vm = session();
-  assert.equal(label(vm, 'chatLines'), '|cff19ff19Whole|r');
+  assert.equal(label(vm, 'chatLines'), '|cff19ff19Full answer|r');
   flip(vm, 'chatLines');
   assert.equal(label(vm, 'chatLines'), '|cff19ff19First line|r');
   vm.run('NS.Chat.OnRecord({ t = "reply", text = "Train Sprint.\\nThen Kick." })');

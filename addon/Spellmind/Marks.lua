@@ -19,8 +19,9 @@ local R = ns.R
 
 M.ICON = "Interface\\AddOns\\Spellmind\\Media\\Mark"
 M.PORTRAIT = "Interface\\AddOns\\Spellmind\\Media\\Portrait"
-M.HINT = "|cff888888Click: Explain. Shift-click: ask in the chat window.|r"
-M.NO_DATA = "Explain needs your game data. Type /sm data on, then click again."
+-- The feature's own name, as Settings and the card say it (the review).
+M.HINT = "|cff888888Click: Break it down (asks your AI). Shift-click: edit the question first.|r"
+M.NO_DATA = "Break it down needs your game data. Turn it on in Settings, then click again."
 M.THINKING = "|cff888888Thinking…|r"
 M.NO_APP = "|cff9d7dffThe Spellmind app isn't running, so there's no answer yet.|r\n\nStart it on your computer (node tools/spellmind.mjs start in the Spellmind folder). Your question is waiting: its answer will show here."
 M.CARD_W, M.CARD_MIN_H, M.CARD_MAX_H = 360, 120, 420
@@ -222,7 +223,14 @@ function M.ShowCard(b, req, key)
 	card:ClearAllPoints()
 	local anchor = req.anchor or b
 	-- side "left": the card opens to the anchor's left (a nudge by the minimap, at the screen's right edge).
-	if req.side == "left" then card:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 0)
+	-- To the left when asked (a nudge by the minimap), or when there's no room on the right (the review:
+	-- clamped to the screen, it landed on top of the window it belonged beside).
+	local side = req.side
+	if side ~= "left" and anchor.GetRight and UIParent and UIParent.GetRight then
+		local right, screen = tonumber((anchor:GetRight())), tonumber((UIParent:GetRight()))
+		if right and screen and right + M.CARD_W + 6 > screen then side = "left" end
+	end
+	if side == "left" then card:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -6, 0)
 	else card:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 6, 0) end
 	card:Show()
 end

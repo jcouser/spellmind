@@ -53,10 +53,10 @@ test('the Gear tab: Next upgrades first (within reach, with where from and Go fo
   const gloves = d.find(x => /Ironband's Gloves/.test(x.text || ''));
   assert.match(gloves.text, /^Hands · /);
   assert.match(gloves.sub, /Reward of Gathering Idols/);
-  assert.equal(gloves.tag, 'upgrade');
+  assert.equal(gloves.tag, undefined, 'no "upgrade" label under "Upgrades within reach" (the review)');
   assert.ok(d.some(x => x.text === 'Weakest slots'));
   assert.ok(d.some(x => x.text === 'Head' && /empty/.test(x.right)), 'a weak slot with nothing within reach yet');
-  assert.ok(d.findIndex(x => x.text === 'Your gear (worn)') > d.findIndex(x => /Ironband's Gloves/.test(x.text || '')));
+  assert.ok(!d.some(x => x.text === 'Your gear (worn)'), 'no copy of the character sheet (the review)');
 });
 
 test('the reward pick: turning in with a choice, a box says the likely pick (usable, an upgrade) and why; Why? asks the AI', () => {

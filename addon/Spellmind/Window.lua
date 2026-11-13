@@ -236,6 +236,15 @@ function W.Layout(stick)
 	local f = win
 	if not f or not ns.db then return end
 	local msgs = ns.Chat.Msgs()
+	-- While a question of this chat waits: a "Thinking…" bubble last (the review: with the double-check
+	-- an answer takes 5 to 11 s, and only the grey status line said anything).
+	if ns.Chat.WaitingIn and ns.db and ns.Chat.WaitingIn(ns.db.chat) then
+		local copy = {}
+		for i, m in ipairs(msgs) do copy[i] = m end
+		local away = ns.Link and ns.Link.AppAway and ns.Link.AppAway()
+		copy[#copy + 1] = { w = "sm", t = away and "|cff888888Waiting for the Spellmind app to start…|r" or "|cff888888Thinking…|r", pending = true }
+		msgs = copy
+	end
 	-- Where the player is before the rows change: at the bottom (within a few pixels) or reading.
 	local range0 = tonumber(f.scroll:GetVerticalScrollRange()) or 0
 	local atBottom = (tonumber(f.scroll:GetVerticalScroll()) or 0) >= range0 - 12
@@ -563,6 +572,8 @@ function W.Refresh()
 	local hasAI = type(ai) == "table"
 	f.effort:SetShown(hasAI and type(ai.efforts) == "table" and #ai.efforts > 0)
 	f.effort.text:SetText(EffortLabel())
+	-- As wide as its words and the chevron (the review: "Medium" touched the arrow; "Extra high" ran under it).
+	f.effort:SetWidth(math.max(100, (tonumber(f.effort.text:GetStringWidth()) or 90) + 30))
 	local search = W.Search()
 	f.search:SetShown(search ~= nil)
 	f.search.text:SetText("Web search: " .. (search and "|cff19ff19On|r" or "|cff888888Off|r"))

@@ -23,7 +23,7 @@ test('the tab: second in the rail; your quests\' dungeons with their quests, lev
   const vm = session();
   const d = drawn(vm);
   assert.equal(vm.evaluate('SpellmindPanel.tabs[3].text:GetText()'), 'Dungeons');
-  assert.equal(d[0].text, 'Your quests are for');
+  assert.equal(d[0].text, 'Dungeons you have quests for');
   assert.equal(d[1].text, 'The Hall of Thanes');
   assert.match(d[1].sub, /1 in your log · quests level 16/);
   assert.equal(d[2].text, 'Old Ironforge Incursion');
@@ -35,7 +35,7 @@ test('Brief: the question names the dungeon, your level, role and class, and you
   const vm = session();
   drawn(vm);
   vm.run('SpellmindPanel.rows[2].actions[2].scripts.OnClick(SpellmindPanel.rows[2].actions[2], "LeftButton")');
-  assert.equal(vm.evaluate('SpellmindCard.title:GetText()'), 'Advisor: Brief me: The Hall of Thanes');
+  assert.equal(vm.evaluate('SpellmindCard.title:GetText()'), 'Brief me: The Hall of Thanes');
   const q = vm.evaluate('NS.Dungeons.Briefing("The Hall of Thanes")');
   assert.match(q, /^Brief me for The Hall of Thanes as a level 15 DPS Rogue\./);
   assert.match(q, /My quests for it: Old Ironforge Incursion\./);

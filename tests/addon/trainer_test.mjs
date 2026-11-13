@@ -76,8 +76,8 @@ test('the Spells tab: Train now with costs and the total, then Coming next with 
   const vm = session();
   vm.run('NS.Panel.Show("spells")');
   const d = list(vm, 'SpellmindPanel.drawn');
-  assert.equal(d[0].text, 'Train now: 9s');
-  assert.ok(d.some(x => x.text === 'Backstab (rank 2)' && x.right === '3s' && x.tag === 'train now'));
+  assert.equal(d[0].text, 'At your trainer now: 9s');
+  assert.ok(d.some(x => x.text === 'Backstab (rank 2)' && x.right === '3s' && x.tag === undefined), 'no guide: no "in your guide" mark');
   assert.ok(d.some(x => x.text === 'Coming next'));
   assert.ok(d.some(x => x.text === 'Kick (rank 2)' && x.right === 'level 16'));
   assert.ok(!d.some(x => /You have/.test(x.text || '')), 'enough gold: no warning');

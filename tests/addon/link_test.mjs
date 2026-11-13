@@ -394,3 +394,15 @@ test('the review: a question the app took but never answered expires after 5 min
   assert.equal(vm.evaluate('tostring(NS.Chat.Waiting())'), 'nil');
   assert.match(JSON.stringify(vm.json('NS.Chat.Msgs()')), /No answer came for that question/);
 });
+
+test('/sm help lists the commands and asks the AI nothing; /sm gear opens that tab (the review)', () => {
+  const vm = session();
+  const before = vm.outbox().length;
+  vm.slash('help');
+  assert.ok(vm.chatLines().some(l => /^Spellmind commands:/.test(l)));
+  assert.ok(vm.chatLines().every(l => !/\|[^|]/.test(l.replace(/\|\|/g, ''))), 'no stray | codes');
+  assert.equal(vm.outbox().length, before, 'nothing sent');
+  vm.slash('gear');
+  assert.equal(vm.evaluate('NS.Panel.tab'), 'gear');
+  assert.equal(vm.outbox().length, before);
+});

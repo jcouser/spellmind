@@ -50,7 +50,7 @@ test('Quests: ready; Do now grouped by the log\'s own headers (the zone you\'re 
   assert.match(here[1].text, /Snowbound/);
   const dungeon = section('Dungeon: Ironforge');
   assert.match(dungeon[0].text, /Old Ironforge Incursion/, 'with its header\'s group, though no marker is on this map');
-  assert.equal(dungeon[0].tag, 'Dungeon');
+  assert.equal(dungeon[0].tag, undefined, 'no "Dungeon" label under a Dungeon heading (the review)');
   const later = section('Later');
   assert.match(later[0].text, /\[18\]\|r Gathering Idols/);
   assert.equal(later[0].right, 'NE · 560 yd');
@@ -74,23 +74,25 @@ test('Go: the game\'s own map pin and arrow for a quest on this map; super-track
   vm.run('for _, r in ipairs(SpellmindPanel.rows) do if r.mark and r.mark.questID == 297 and r:IsShown() then r.actions[1].scripts.OnClick(r.actions[1]) end end');
   assert.equal(vm.num('#STUB.waypoints'), n + 1);
 });
-test('Gear: worn items in slot order with item level and dps, the bow tagged "needs Bows skill", empty slots', () => {
+test('Gear: only what needs you (the review): gear about to break, bag items with something to say (the bow you cannot use), empty slots', () => {
   const vm = session();
   vm.run('table.insert(STUB.bags[2].items, { 2504, 1 })'); // the bow into a bag
   vm.run('NS.Panel.Show("gear")');
   const d = drawn(vm);
-  const wornAt = d.findIndex(x => x.text === 'Your gear (worn)');
-  const worn = d.slice(wornAt + 1).filter(x => x.kind === 'item').slice(0, 3).map(x => x.text);
-  assert.match(worn[0], /^Chest · \|cff1eff00Simple Robe of the Monkey/);
-  assert.match(worn[2], /^Main Hand · .*Craftsman's Dagger/);
-  assert.match(d.find(x => /Craftsman's Dagger/.test(x.text)).right, /ilvl 15 · 6\.1 dps/);
+  assert.ok(!d.some(x => x.text === 'Your gear (worn)'), 'no copy of the character sheet');
+  const repairAt = d.findIndex(x => x.text === 'Needs repair');
+  assert.ok(repairAt >= 0);
+  assert.match(d[repairAt + 1].text, /^Chest · .*Simple Robe of the Monkey/);
+  assert.match(d[repairAt + 1].right, /72% durability/);
+  assert.ok(!d.some(x => /Handstitched Leather Pants/.test(x.text || '')), '85%: fine, not listed');
   const bow = d.find(x => /Worn Shortbow/.test(x.text || ''));
   assert.ok(bow, JSON.stringify(d.map(x => x.text)));
-  assert.equal(bow.tag, 'needs Bows skill');
-  assert.ok(d.some(x => x.kind === 'head' && /^In your bags \(\d+ of \d+ free\)$/.test(x.text)));
+  assert.match(bow.right, /Bows/);
+  assert.ok(d.some(x => x.kind === 'head' && /^Worth a look in your bags \(\d+ of \d+ free\)$/.test(x.text)));
+  assert.ok(!d.some(x => /Hearthstone/.test(x.text || '')), 'nothing to say: not listed');
   const empty = d[d.findIndex(x => x.text === 'Empty slots') + 1].text;
   assert.match(empty, /^Head, Neck, Shoulder, Waist/);
-  assert.doesNotMatch(empty, /Shirt|Tabard/, 'cosmetic slots aren\'t "empty"');
+  assert.doesNotMatch(empty, /Shirt|Tabard/, "cosmetic slots aren't empty");
 });
 
 test('the other tabs: talents, the spells coming (train now when due), professions near their cap, gold and bag space', () => {
@@ -114,9 +116,9 @@ test('an Ask button: asked in the chat, its answer in the card beside the panel;
   vm.run('NS.Panel.Show("gear")');
   vm.run('SpellmindPanel.asks[1].scripts.OnClick(SpellmindPanel.asks[1])');
   assert.equal(vm.evaluate('tostring(SpellmindCard.shown)'), 'true');
-  assert.equal(vm.evaluate('SpellmindCard.title:GetText()'), 'Advisor: Find my next upgrades');
+  assert.equal(vm.evaluate('SpellmindCard.title:GetText()'), 'Find my next upgrades');
   assert.equal(vm.evaluate('tostring(SpellmindCard.anchor.rel == SpellmindPanel)'), 'true');
-  assert.ok(vm.savedLines().some(l => /Advisor: Find my next upgrades/.test(l)), 'the chat keeps the question');
+  assert.ok(vm.savedLines().some(l => /Find my next upgrades/.test(l)), 'the chat keeps the question');
   // The question names the weakest slots, so the AI looks where it counts.
   assert.ok(vm.outbox().some(o => o.wire.includes('Find my next realistic gear upgrades, starting with my weakest slots: Head (empty)')));
   vm.run('NS.Panel.Show("gear")'); // a redraw (rows hidden and shown again) keeps the card

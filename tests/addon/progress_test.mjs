@@ -117,3 +117,12 @@ test('the advisor part stays the same as time passes (seen in game: a per-hour r
   assert.equal(vm.evaluate('NS.State.JSON.encode(NS.State.Collect.advisor())'), a);
   assert.match(a, /"sessionNet":500/);
 });
+
+test('weapon skills: only a weapon you wear that\'s well behind (the review: the list copied the Skills window)', () => {
+  const vm = session();
+  let d = drawn(vm, 'professions');
+  assert.ok(!d.some(x => x.text === 'Weapon skills'), 'the dagger in hand is 72/75: nothing to say');
+  vm.run('STUB.equipped[17] = { id = 2140, link = STUB.ItemLink(2140) }');
+  d = drawn(vm, 'professions');
+  assert.ok(d.some(x => /Swords 40\/75/.test(x.text || '') && /miss often/.test(x.sub)), JSON.stringify(d.map(x => x.text)));
+});

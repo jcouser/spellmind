@@ -61,7 +61,7 @@ test('the quest log: the mark shows with a quest\'s details, and hovering it giv
   assert.ok(tip.includes('Left: Carved Stone Idol 0/8'), JSON.stringify(tip));
   assert.ok(tip.includes('On your map: 70.6, 25 (about 560 yd)'), JSON.stringify(tip));
   assert.ok(tip.includes('Rewards: 6s 50c, 1350 XP, choose 1 of 3 (2 you can use)'), JSON.stringify(tip));
-  assert.match(tip.at(-1), /Click: Explain\. Shift-click: ask in the chat window\./);
+  assert.match(tip.at(-1), /Click: Break it down \(asks your AI\)\. Shift-click: edit the question first\./);
   // A quest ready to turn in says so instead of what's left.
   vm.run('QuestMapFrame_ShowQuestDetails(1338); SpellmindQuestMark.scripts.OnEnter(SpellmindQuestMark)');
   assert.ok(lines(vm, 'GameTooltip.added').some(l => /Ready to turn in/.test(l)));
@@ -155,7 +155,7 @@ test('Explain with game data off says how to turn it on and sends nothing', () =
   vm.slash('data off');
   vm.run('QuestMapFrame_ShowQuestDetails(297)');
   vm.run('SpellmindQuestMark:Click()');
-  assert.ok(vm.windowLines().some(l => /Explain needs your game data/.test(l)) || vm.chatLines().some(l => /Explain needs your game data/.test(l)));
+  assert.ok(vm.windowLines().some(l => /Break it down needs your game data/.test(l)) || vm.chatLines().some(l => /Break it down needs your game data/.test(l)));
   assert.equal(vm.evaluate('tostring(SpellmindCard == nil or not SpellmindCard:IsShown())'), 'true');
 });
 
@@ -205,8 +205,7 @@ test('a crafting reagent: nothing to say until every crafting profession of your
   assert.deepEqual(show(1210), [], 'Leatherworking not read yet: no guess');
   vm.run('table.insert(STUB.bags[2].items, { 1210, 1 }); NS.Panel.Show("gear")');
   const row = () => vm.json('SpellmindPanel.drawn').find(x => /Shadowgem/.test(x.text || ''));
-  assert.match(row().right, /^\|cff888888vendor .*2s.*50c/, 'the Gear tab: only its value, in grey');
-  assert.doesNotMatch(row().right, /sell/, 'not "sell"');
+  assert.equal(row(), undefined, 'the Gear tab: nothing to say yet, so not listed (the review: no bag dump)');
   vm.run(`C_TradeSkillUI = {
     GetBaseProfessionInfo = function() return { professionName = "Leatherworking" } end,
     GetAllRecipeIDs = function() return { 2152 } end,

@@ -1191,6 +1191,13 @@ local function Bytes(n)
 end
 
 -- What /sm data shows: each part's size and whether the app has it.
+-- A part's name as the player sees it (Settings' names; the review: "advisor", "rep" leaked out).
+S.LABELS = { char = "Character", focus = "What you clicked" }
+function S.PartLabel(p)
+	local st = ns.Settings and ns.Settings.PARTS and ns.Settings.PARTS[p]
+	return (st and st[1]) or S.LABELS[p] or p
+end
+
 function S.Report()
 	local lines = {}
 	if not ns.db then return lines end
@@ -1213,11 +1220,11 @@ function S.Report()
 		local rec = me.parts[p]
 		local line
 		if not S.PartOn(p) then
-			line = p .. ": kept back (Settings)"
+			line = S.PartLabel(p) .. ": off in Settings"
 		elseif type(rec) ~= "table" or type(rec.json) ~= "string" then
-			line = p .. ": not read" .. (R.stateErr and R.stateErr[p] and " (the game didn't answer)" or "")
+			line = S.PartLabel(p) .. ": not read" .. (R.stateErr and R.stateErr[p] and " (the game didn't answer)" or "")
 		else
-			line = p .. ": " .. Bytes(#rec.json) .. " bytes"
+			line = S.PartLabel(p) .. ": " .. Bytes(#rec.json) .. " bytes"
 			local body = rec.z and Body(p, rec)
 			if body then line = line .. " (" .. Bytes(#body) .. " compressed)" end
 			line = line .. (rec.ok and ", the app has it" or ", on its way")

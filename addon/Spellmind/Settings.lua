@@ -44,7 +44,7 @@ ST.PARTS = {
 	advisor = { "What the tabs work out", "Dungeon quests to pick up, upgrades within reach, skill-ups, gold." },
 }
 
-ST.CHAT_NAMES = { all = "Whole", first = "First line", off = "Off" }
+ST.CHAT_NAMES = { all = "Full answer", first = "First line", off = "Off" }
 
 local function Marks()
 	local db = ns.db

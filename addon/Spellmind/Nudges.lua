@@ -135,13 +135,13 @@ function Detect.spells()
 	if #due == 0 then return {} end
 	if fromTrainer then
 		local shown = table.concat(due, ", ", 1, math.min(3, #due)) .. (#due > 3 and (" and " .. (#due - 3) .. " more") or "")
-		return { { kind = "spells", key = "spells:" .. you .. ":" .. #due,
+		return { { kind = "spells", key = "spells:" .. you,
 			title = (#due == 1 and "A spell" or (#due .. " spells")) .. " to train",
 			text = ns.Escape(shown),
 			ask = "My class trainer has " .. table.concat(due, ", ") .. " for me now. Which are worth it first if gold is short, and which trainer is closest?" } }
 	end
 	local shown = table.concat(due, ", ", 1, math.min(3, #due)) .. (#due > 3 and (" and " .. (#due - 3) .. " more") or "")
-	return { { kind = "spells", key = "spells:" .. you .. ":" .. #due,
+	return { { kind = "spells", key = "spells:" .. you,
 		title = (#due == 1 and "A spell" or (#due .. " spells")) .. " to train",
 		text = ns.Escape(shown),
 		ask = "I can train " .. table.concat(due, ", ") .. " now. Which are worth it, roughly what do they cost, and where's my trainer?" } }
@@ -228,11 +228,20 @@ function Detect.prof()
 	local s = Part("skills")
 	local out = {}
 	for _, p in ipairs(type(s.prof) == "table" and s.prof or {}) do
+		-- The same rules as the Professions tab (the review: the nudge waited for the cap while the tab
+		-- said "train now", and urged a rank the level didn't allow yet).
 		local rank, max = tonumber(p.rank) or 0, tonumber(p.max) or 0
-		if max > 0 and max < 300 and rank >= max - N.PROF_NEAR then
-			out[#out + 1] = { kind = "prof:" .. (p.name or "?"), key = tostring(max), title = ns.Escape(p.name or "A profession") .. " near its cap",
-				text = rank .. " of " .. max .. ": train the next rank to keep going.",
-				ask = "My " .. (p.name or "profession") .. " is at " .. rank .. " of " .. max .. ". Where do I train the next rank, and what does it need?" }
+		local nr = ns.Professions and ns.Professions.NextRank(rank, max)
+		local name = p.name or "A profession"
+		local near = max > 0 and rank >= max - N.PROF_NEAR -- only near the cap: the tab says "train now" before then
+		if near and type(nr) == "table" and nr.ready then
+			out[#out + 1] = { kind = "prof:" .. name, key = "ready:" .. max, title = ns.Escape(name) .. ": " .. nr.name .. " ready",
+				text = "Train it at a " .. ns.Escape(name) .. " trainer.",
+				ask = "I can train " .. nr.name .. " " .. name .. " now. Where's the nearest trainer, and what should I make next to level it?" }
+		elseif near and type(nr) == "table" and nr.needLevel then
+			out[#out + 1] = { kind = "prof:" .. name, key = "cap:" .. max, title = ns.Escape(name) .. " stops at " .. max,
+				text = "Until level " .. nr.level .. ", when you can train " .. nr.name .. ".",
+				ask = "My " .. name .. " is at " .. rank .. " of " .. max .. " and I can't train " .. nr.name .. " until level " .. nr.level .. ". What's worth doing with it meanwhile?" }
 		end
 	end
 	return out

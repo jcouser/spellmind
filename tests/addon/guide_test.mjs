@@ -75,9 +75,9 @@ test('points to spend: the steps you can take now are green and tagged; the nudg
   vm.run(PLAN);
   const d = drawn(vm, 'talents');
   assert.equal(d[2].text, 'Spend your 2 points');
-  assert.equal(d[3].tag, 'now');
-  assert.equal(d[4].tag, 'now');
-  assert.equal(d[5].tag, undefined, 'a third step: only 2 points');
+  assert.match(d[3].text, /^.cff19ff19/, 'green: take it now');
+  assert.match(d[4].text, /^.cff19ff19/);
+  assert.doesNotMatch(d[5].text, /^.cff19ff19/, 'a third step: only 2 points');
   vm.advance(6);
   assert.equal(vm.evaluate('SpellmindNudge.title:GetText()'), '2 talent points to spend');
   assert.equal(vm.evaluate('SpellmindNudge.text:GetText()'), 'Your guide: Malice 2/3.');

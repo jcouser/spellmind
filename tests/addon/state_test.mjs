@@ -374,13 +374,14 @@ test('/sm data shows each part\'s size and whether the app has it; /sm data off 
   vm.run('STUB.player.money = 20000');
   vm.slash('data');
   const lines = vm.chatLines();
-  const sizes = Object.fromEntries(PARTS.map(p => [p, lines.find(l => l.startsWith(`Spellmind: ${p}: `))]));
+  const label = p => vm.evaluate(`NS.State.PartLabel('${p}')`); // the names Settings uses
+  const sizes = Object.fromEntries(PARTS.map(p => [p, lines.find(l => l.startsWith(`Spellmind: ${label(p)}: `))]));
   for (const p of PARTS) {
     const bytes = JSON.stringify(FIXTURE.parts[p]).length;
     const shown = bytes >= 1000 ? `${Math.floor(bytes / 1000)},${String(bytes % 1000).padStart(3, '0')}` : String(bytes);
     if (p === 'char') assert.match(sizes[p], /bytes \(\d+ compressed\), on its way$/, 'the money changed: built again, not confirmed');
-    else if (p === 'focus' || p === 'world') assert.equal(sizes[p], `Spellmind: ${p}: ${shown} bytes, the app has it`, 'short: plain JSON');
-    else assert.match(sizes[p], new RegExp(`^Spellmind: ${p}: ${shown} bytes \\(\\d+ compressed\\), the app has it$`), sizes[p]);
+    else if (p === 'focus' || p === 'world') assert.equal(sizes[p], `Spellmind: ${label(p)}: ${shown} bytes, the app has it`, 'short: plain JSON');
+    else assert.match(sizes[p], new RegExp(`^Spellmind: ${label(p).replace(/[()]/g, "\$&")}: ${shown} bytes \\(\\d+ compressed\\), the app has it$`), sizes[p]);
   }
 
   vm.slash('data off');

@@ -103,13 +103,15 @@ function C.IsOpen()
 end
 
 -- The window on its Chat tab, or closed when that's what shows.
-function C.Toggle()
+-- focus: put the keyboard in the box (/sm typed by hand). A minimap click doesn't, so the movement
+-- keys keep moving the character (the review).
+function C.Toggle(focus)
 	if ns.Panel.ChatOpen() then
 		ns.Panel.Get():Hide()
 	else
 		ns.Panel.Show("chat")
 		C.Refresh()
-		ns.Window.Get().input:SetFocus()
+		if focus then ns.Window.Get().input:SetFocus() end
 	end
 end
 
@@ -359,6 +361,14 @@ function C.Waiting()
 	return Pending()[1]
 end
 
+-- A question still waiting in this chat (the window's "Thinking…" bubble).
+function C.WaitingIn(chatId)
+	for _, p in ipairs(Pending()) do
+		if p.chat == nil or p.chat == chatId then return p end
+	end
+	return nil
+end
+
 -- The key of the same question (text and about) still waiting for its answer in the current chat,
 -- or nil. A button pressed again while its question waits (the app not running, seen in game: one
 -- Ask a click, each answered later) reuses it instead of queueing a copy.
@@ -552,10 +562,21 @@ end
 
 SLASH_SPELLMIND1 = "/spellmind"
 SLASH_SPELLMIND2 = "/sm"
+
+-- /sm help's lines, and the words that open a tab.
+C.HELP = {
+	"Spellmind commands:",
+	"  /sm: open or close the chat.  /sm <question>: ask.",
+	"  /sm quests, dungeons, gear, talents, spells, professions, gold, nudges, settings: open that tab.",
+	"  /sm guide <link>: your leveling guide, read by your AI.",
+	"  /sm nudges on/off/reset · /sm marks on/off · /sm data, or data on/off · /sm minimap on/off.",
+}
+C.TAB_WORDS = { chat = "chat", quests = "quests", quest = "quests", dungeons = "dungeons", dungeon = "dungeons", gear = "gear",
+	talents = "talents", spells = "spells", professions = "professions", profs = "professions", gold = "gold", settings = "settings" }
 SlashCmdList.SPELLMIND = function(msg)
 	msg = ns.Trim(msg)
 	if msg == "" then
-		C.Toggle()
+		C.Toggle(true)
 		return
 	end
 	-- /sm probe: the API probe (Probe.lua), saved for the next /reload. Never sent anywhere.
@@ -598,7 +619,22 @@ SlashCmdList.SPELLMIND = function(msg)
 			or "Spellmind: nothing to nudge about right now (no spells due, points to spend, broken gear, full bags or capped professions).")
 		return
 	end
-	-- /sm panel: the Advisor panel.
+	-- /sm help (or ?): the commands, never a question to the AI (the review: it was sent as one).
+	if lower == "help" or lower == "?" then
+		for _, line in ipairs(C.HELP) do ChatFrame(line) end
+		return
+	end
+	-- /sm quests, /sm gear …: that tab of the Spellmind window. Bare /sm nudges and /sm marks say how.
+	if lower == "nudges" or lower == "marks" then
+		ChatFrame(lower == "nudges" and "Spellmind: /sm nudges on, off, reset or demo. The Nudges tab lists what's waiting." or "Spellmind: /sm marks on or off. Each mark has its own switch in Settings.")
+		if lower == "nudges" and ns.Panel and ns.db then ns.Panel.Show("nudges") end
+		return
+	end
+	if C.TAB_WORDS[lower] and ns.Panel and ns.db then
+		ns.Panel.Show(C.TAB_WORDS[lower])
+		return
+	end
+	-- /sm panel: the last tab other than Chat.
 	if lower == "panel" and ns.Panel and ns.db then
 		ns.Panel.Toggle()
 		return

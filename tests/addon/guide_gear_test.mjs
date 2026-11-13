@@ -68,3 +68,17 @@ test('with Questie loaded, the turn-in nudges start off; turning one on sticks; 
   const plain = session();
   assert.equal(plain.evaluate('tostring(NS.Nudges.KindOn("turnin"))'), 'true');
 });
+
+test('the Spells tab: what the trainer has now, the ones your guide uses first and marked (the review)', () => {
+  const vm = session();
+  vm.run('for _, t in ipairs(STUB.spellbook.tabs) do for i = #t.items, 1, -1 do if t.items[i].itemType == 2 then table.remove(t.items, i) end end end');
+  vm.run('STUB.trainer = { { "Sprint", "Rank 1", "available", 600, 10 }, { "Slice and Dice", "Rank 1", "available", 300, 10 } }; STUB.FireEvent("TRAINER_SHOW")');
+  vm.advance(0.3);
+  vm.run(plan('rotation = { "Slice and Dice at 2+ combo points", "Sinister Strike" }'));
+  vm.run('NS.Panel.Show("spells")');
+  const d = list(vm, 'SpellmindPanel.drawn');
+  assert.equal(d[0].text, 'At your trainer now: 9s');
+  assert.match(d[1].text, /Slice and Dice/);
+  assert.equal(d[1].tag, 'in your guide');
+  assert.equal(d[2].tag, undefined, 'Sprint: not in the guide');
+});

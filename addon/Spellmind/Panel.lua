@@ -22,6 +22,24 @@ P.FOLD_H = 52
 P.RAIL_W = 150
 P.ROW_H = 24
 P.ROW_H2 = 38 -- a row with a second line
+-- What each row button does, on hover (the review: nothing said before the click, and the AI ones
+-- looked like the instant ones). The AI ones carry the owl's mark.
+P.AI_ACTIONS = { Brief = true, Import = true, ["Re-import"] = true }
+P.ACTION_TIPS = {
+	Go = "Sets the game's map pin and arrow. Nothing else.",
+	LFG = "Writes an LFG line in your chat box. You press Enter to send it.",
+	Brief = "Asks your AI for a briefing: quests to pick up, bosses, loot, what to bring.",
+	Quests = "Lists this dungeon's quests you haven't picked up.",
+	Hide = "Hides the list again.",
+	Import = "Your AI reads the guide's page and brings its build in.",
+	["Re-import"] = "Your AI reads the guide's page again.",
+	Change = "Paste a different guide's link.",
+	["Set link"] = "Paste your leveling guide's link.",
+	Reset = "Shows the nudges you dismissed again, if they still apply.",
+	Show = "Shows what the app has of your game data now.",
+	Ask = "Asks your AI about this.",
+	Dismiss = "Hides it until something changes.",
+}
 P.BAG_ROWS = 8
 P.TABS = {
 	{ id = "chat", name = "Chat", icon = "Interface\\AddOns\\Spellmind\\Media\\Portrait" },
@@ -83,9 +101,10 @@ local function Money(copper)
 	copper = math.floor(tonumber(copper) or 0)
 	local g, s, c = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
 	local out = {}
+	-- No zero parts ("1g", not "1g 0s 0c"), as the rest of Spellmind writes money (the review).
 	if g > 0 then out[#out + 1] = "|cffffd100" .. g .. "g|r" end
-	if s > 0 or g > 0 then out[#out + 1] = "|cffc7c7cf" .. s .. "s|r" end
-	out[#out + 1] = "|cffeda55f" .. c .. "c|r"
+	if s > 0 then out[#out + 1] = "|cffc7c7cf" .. s .. "s|r" end
+	if c > 0 or #out == 0 then out[#out + 1] = "|cffeda55f" .. c .. "c|r" end
 	return table.concat(out, " ")
 end
 
@@ -114,10 +133,11 @@ local function NewRow(f)
 	r.sub:SetJustifyH("LEFT")
 	if r.sub.SetWordWrap then r.sub:SetWordWrap(false) end
 	r.right:SetJustifyH("RIGHT")
-	r.tag = CreateFrame("Frame", nil, r, "BackdropTemplate")
+	-- A tag is coloured words, no border (the review: a bordered "Dungeon" beside LFG and Go read as a
+	-- button).
+	r.tag = CreateFrame("Frame", nil, r)
 	r.tag:SetHeight(16)
-	if r.tag.SetBackdrop then r.tag:SetBackdrop(BACKDROP) end
-	r.tag.text = r.tag:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	r.tag.text = r.tag:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	r.tag.text:SetPoint("CENTER", r.tag, "CENTER", 0, 0)
 	r.rule = r:CreateTexture(nil, "ARTWORK")
 	r.rule:SetColorTexture(0.62, 0.49, 1, 0.35)
@@ -171,16 +191,21 @@ local function Draw(f, specs, keepScroll)
 			r.left:SetText(s.text)
 			y = y - 30
 		elseif s.kind == "text" then
-			r:SetHeight(20)
+			-- Wrapped to the width, as tall as it needs (the review: hints and empty states ended in "…").
 			r.left:SetFontObject(GameFontHighlightSmall)
-			r.left:SetPoint("LEFT", r, "LEFT", 4, 0)
+			if r.left.SetWordWrap then r.left:SetWordWrap(true) end
+			r.left:SetPoint("TOPLEFT", r, "TOPLEFT", 4, -3)
 			r.left:SetWidth(w - 8)
 			r.left:SetText(s.text)
-			y = y - 22
+			local th = math.max(14, tonumber(r.left:GetStringHeight()) or 14)
+			r:SetHeight(th + 6)
+			y = y - th - 8
 		else
 			local h = s.sub and P.ROW_H2 or P.ROW_H
 			r:SetHeight(h)
 			r.left:SetFontObject(GameFontHighlight)
+			if r.left.SetWordWrap then r.left:SetWordWrap(false) end
+			r.left:SetWidth(0)
 			if s.icon then r.icon:SetTexture(s.icon) end
 			local lx = (s.icon and 30 or 8) + (s.indent and 16 or 0)
 			if s.sub then
@@ -227,24 +252,46 @@ local function Draw(f, specs, keepScroll)
 					end
 					a.text = a:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 					a.text:SetPoint("CENTER", a, "CENTER", 0, 0)
+					-- The owl's mark on a button that asks the AI (the bottom Ask buttons' kin).
+					a.owl = a:CreateTexture(nil, "OVERLAY")
+					a.owl:SetSize(11, 11)
+					a.owl:SetPoint("LEFT", a, "LEFT", 5, 0)
+					a.owl:SetTexture(ns.Window.MEDIA .. "Mark")
 					a:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 					a:SetScript("OnClick", function(self, button) if self.fn then self.fn(button, self) end end)
+					a:SetScript("OnEnter", function(self)
+						if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.85, 0.68, 0.25, 1) end
+						if self.tip and GameTooltip then
+							GameTooltip:SetOwner(self, "ANCHOR_TOP")
+							GameTooltip:SetText(self.tip, 1, 1, 1, 1, true)
+							GameTooltip:Show()
+						end
+					end)
+					a:SetScript("OnLeave", function(self)
+						if self.SetBackdropBorderColor then self:SetBackdropBorderColor(0.58, 0.45, 0.98, 1) end
+						if GameTooltip then GameTooltip:Hide() end
+					end)
 					r.actions[k] = a
 				end
-				a.text:SetText(spec[1])
+				local label = spec[1]
+				local plainLabel = tostring(label):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+				local ai = spec.ai or P.AI_ACTIONS[plainLabel]
+				a.text:SetText(label)
 				a.fn = spec[2]
+				a.tip = spec.tip or P.ACTION_TIPS[plainLabel]
+				a.owl:SetShown(ai and true or false)
+				a.text:ClearAllPoints()
+				a.text:SetPoint("CENTER", a, "CENTER", ai and 6 or 0, 0)
+				local aw = math.max(50, (tonumber(a.text:GetStringWidth()) or 40) + 18 + (ai and 12 or 0))
+				a:SetWidth(aw)
 				a:ClearAllPoints()
 				a:SetPoint("RIGHT", r, "RIGHT", rightEdge, 0)
 				a:Show()
-				rightEdge = rightEdge - 64
+				rightEdge = rightEdge - aw - 6
 			end
 			if s.tag then
 				r.tag.text:SetText(s.tag[1])
-				r.tag:SetWidth((tonumber(r.tag.text:GetStringWidth()) or 60) + 14)
-				if r.tag.SetBackdropColor then
-					r.tag:SetBackdropColor(0.1, 0.06, 0.06, 0.95)
-					r.tag:SetBackdropBorderColor(s.tag[2] or 1, s.tag[3] or 0.6, s.tag[4] or 0.2, 1)
-				end
+				r.tag:SetWidth((tonumber(r.tag.text:GetStringWidth()) or 60) + 4)
 				r.tag.text:SetTextColor(s.tag[2] or 1, s.tag[3] or 0.6, s.tag[4] or 0.2)
 				r.tag:ClearAllPoints()
 				r.tag:SetPoint("RIGHT", r, "RIGHT", rightEdge, 0)
@@ -252,8 +299,18 @@ local function Draw(f, specs, keepScroll)
 				rightEdge = rightEdge - (tonumber(r.tag:GetWidth()) or 60) - 6
 			end
 			r.right:SetPoint("RIGHT", r, "RIGHT", rightEdge, 0)
-			-- The second line stops short of the row's buttons and tags (seen in game: it ran under Go).
-			if s.sub then r.sub:SetWidth(math.max(40, w - lx - 2 + rightEdge - 8)) end
+			-- The second line stops short of the row's buttons and tags (seen in game: it ran under Go), and
+			-- wraps to a second line when it needs one (the review: long ones ended in "…").
+			if s.sub then
+				r.sub:SetWidth(math.max(40, w - lx - 2 + rightEdge - 8))
+				if r.sub.SetWordWrap then r.sub:SetWordWrap(true) end
+				if r.sub.SetMaxLines then r.sub:SetMaxLines(2) end
+				local sh = math.max(12, tonumber(r.sub:GetStringHeight()) or 12)
+				if sh > 16 then
+					h = 21 + sh + 5
+					r:SetHeight(h)
+				end
+			end
 			r.right:SetText(s.right or "")
 			r.left:SetPoint("RIGHT", r.right, "LEFT", -8, 0)
 			r.left:SetText(s.left or "")
@@ -314,7 +371,7 @@ function Tabs.quests()
 			local xp = info.rewards and info.rewards.xp
 			local xpText = xp and ("|cffb48cff" .. ns.Quests.Num(xp) .. " XP|r") or nil
 			local sub
-			if info.complete then sub = "|cff40c040Ready to turn in|r" .. (xpText and ("  " .. xpText) or "")
+			if info.complete then sub = "|cff19ff19Ready to turn in|r" .. (xpText and ("  " .. xpText) or "")
 			else
 				local left = ns.Quests.Left(info)
 				sub = (xpText and (xpText .. (left and "  " or "")) or "") .. (left and ("|cffbbbbbb" .. left .. "|r") or "")
@@ -322,12 +379,13 @@ function Tabs.quests()
 			end
 			local tag
 			if info.elite then tag = { "Elite", 1, 0.3, 0.3 }
-			elseif info.tagName then tag = { info.tagName, 0.45, 0.65, 1 }
+			-- Not "Dungeon": those rows sit under their own "Dungeon: …" heading (the review).
+			elseif info.tagName and info.tagName ~= "Dungeon" and info.tagName ~= "Raid" then tag = { info.tagName, 0.45, 0.65, 1 }
 			elseif info.group then tag = { "Group " .. info.group, 1, 0.6, 0.2 } end
 			local dungeon = info.tagName == "Dungeon" or info.tagName == "Raid"
 			local gap = level - you
 			local right = where
-			if not right and gap >= 3 and not info.complete then right = "|cffff8040+" .. gap .. " levels|r" end
+			if not right and gap >= 3 and not info.complete then right = "|cffff9933+" .. gap .. " levels|r" end
 			local id = it.id
 			local row = { kind = "item", left = color .. "[" .. level .. plus .. "]|r " .. ns.Escape(info.title or it.title or "?"),
 				sub = sub, right = right, tag = tag, quest = id, dist = info.dist or P.FAR, order = info.logIndex or 999, xp = xp or 0,
@@ -429,7 +487,8 @@ function P.LFGMenu(id, anchor)
 		end
 		m.title = m:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		m.title:SetPoint("TOPLEFT", m, "TOPLEFT", 10, -8)
-		m.title:SetText("Post your LFG line in:")
+		-- Nothing is posted: the line goes into the chat box (the review: "Post" said otherwise).
+		m.title:SetText("Write your LFG line for:")
 		m.rows = {}
 		f.lfgMenu = m
 	end
@@ -457,7 +516,14 @@ function P.LFGMenu(id, anchor)
 		r:Show()
 		y = y - 20
 	end
-	m:SetSize(190, -y + 6)
+	-- Nothing is sent by Spellmind: the player sends it.
+	if not m.foot then
+		m.foot = m:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+		m.foot:SetText("You press Enter to send it.")
+	end
+	m.foot:ClearAllPoints()
+	m.foot:SetPoint("TOPLEFT", m, "TOPLEFT", 10, y - 2)
+	m:SetSize(190, -y + 22)
 	m:ClearAllPoints()
 	if anchor then m:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -2) else m:SetPoint("CENTER", f, "CENTER", 0, 0) end
 	m:Show()
@@ -569,7 +635,7 @@ function Tabs.dungeons()
 		pickups(qs)
 		shown[DG.Norm(here.name)] = true
 	end
-	out[#out + 1] = { kind = "head", text = "Your quests are for" }
+	out[#out + 1] = { kind = "head", text = "Dungeons you have quests for" }
 	local any = false
 	for _, d in ipairs(log) do
 		if not shown[DG.Norm(d.name)] then
@@ -598,7 +664,7 @@ function Tabs.dungeons()
 			shown[DG.Norm(name)] = true
 		end
 	end
-	if not any then out[#out + 1] = { kind = "text", text = "No dungeon quests in your log. Brief on a dungeon below, or ask which one fits." } end
+	if not any then out[#out + 1] = { kind = "text", text = "No dungeon quests in your log. Ask: Which dungeon now? suggests one." } end
 	local near = {}
 	for _, d in ipairs(DG.AtLevel()) do if not shown[DG.Norm(d.name)] then near[#near + 1] = d end end
 	if #near > 0 then
@@ -647,7 +713,6 @@ function Tabs.gear()
 		bySlot[c.slot] = true
 		out[#out + 1] = { kind = "item", icon = c.icon, left = (P.SLOT_NAMES[c.slot] or "?") .. " · " .. (QUALITY[c.q or 1] or "") .. ns.Escape(c.name) .. "|r",
 			sub = "|cffbbbbbb" .. (c.from == "bags" and "In your bags" or ("Reward of " .. ns.Escape(c.from))) .. ": |r" .. (c.reason or ""),
-			tag = { "upgrade", 0.1, 1, 0.1 },
 			actions = c.quest and { { "Go", function() P.Go(c.quest) end } } or nil }
 	end
 	if #cands == 0 then
@@ -660,67 +725,64 @@ function Tabs.gear()
 			if shown == 0 then out[#out + 1] = { kind = "head", text = "Weakest slots" } end
 			shown = shown + 1
 			out[#out + 1] = { kind = "item", left = w.name .. (w.item and (" · " .. ns.Escape(w.item)) or ""),
-				right = "|cffff8040" .. w.why .. "|r" }
+				right = "|cffff9933" .. w.why .. "|r" }
 		end
 	end
-	out[#out + 1] = { kind = "head", text = "Your gear (worn)" }
+	-- What needs you, not what the character sheet and the bags already show (the review: "Your gear
+	-- (worn)" and "In your bags" repeated them). Gear about to break:
 	local gear = Part("gear")
 	local worn = {}
 	for _, it in ipairs(type(gear.items) == "table" and gear.items or {}) do worn[#worn + 1] = it end
 	table.sort(worn, function(a, b) return (a.slot or 0) < (b.slot or 0) end)
+	local repairs = {}
 	for _, it in ipairs(worn) do
-		local bits = {}
-		if it.ilvl then bits[#bits + 1] = "ilvl " .. it.ilvl end
-		if type(it.st) == "table" and it.st.dps then bits[#bits + 1] = string.format("%.1f dps", it.st.dps) end
-		local tag
 		if type(it.dur) == "table" and (tonumber(it.dur[2]) or 0) > 0 then
 			local pct = math.floor(it.dur[1] / it.dur[2] * 100 + 0.5)
-			if pct < 25 then tag = { pct .. "% durability", 1, 0.25, 0.25 } elseif pct < 75 then tag = { pct .. "% durability", 1, 0.6, 0.2 } end
+			if pct < 75 then
+				repairs[#repairs + 1] = { kind = "item", icon = ns.Try(GetInventoryItemTexture, "player", it.slot),
+					left = (P.SLOT_NAMES[it.slot] or "?") .. " · " .. (QUALITY[it.q or 1] or "") .. ns.Escape(it.name or "?") .. "|r",
+					right = (pct < 25 and "|cffff6060" or "|cffff9933") .. pct .. "% durability|r" }
+			end
 		end
-		out[#out + 1] = { kind = "item", icon = ns.Try(GetInventoryItemTexture, "player", it.slot),
-			left = (P.SLOT_NAMES[it.slot] or "?") .. " · " .. (QUALITY[it.q or 1] or "") .. ns.Escape(it.name or "?") .. "|r",
-			right = table.concat(bits, " · "), tag = tag }
 	end
+	if #repairs > 0 then
+		out[#out + 1] = { kind = "head", text = "Needs repair" }
+		for _, r in ipairs(repairs) do out[#out + 1] = r end
+	end
+	-- The bags: only what has something to say (can't use it, safe to sell, a profession's), not every item.
 	local bags = Part("bags")
 	local items = type(bags.items) == "table" and bags.items or {}
-	if #items > 0 then
-		out[#out + 1] = { kind = "head", text = "In your bags" .. (bags.free and bags.slots and (" (" .. bags.free .. " of " .. bags.slots .. " free)") or "") }
-		local n = 0
-		for _, it in ipairs(items) do
-			if n >= P.BAG_ROWS then break end
-			n = n + 1
-			local info = { pcall(C_Item.GetItemInfo, it.id) }
-			local link, icon, sell = info[1] and info[3], info[1] and info[11], info[1] and info[12]
-			local tag, right
-			if it.equip and type(link) == "string" and ns.Tooltip then
-				local data = C_TooltipInfo and type(C_TooltipInfo.GetHyperlink) == "function" and select(2, pcall(C_TooltipInfo.GetHyperlink, link)) or nil
+	local worth, extra = {}, 0
+	for _, it in ipairs(items) do
+		local info = { pcall(C_Item.GetItemInfo, it.id) }
+		local link, icon = info[1] and info[3], info[1] and info[11]
+		local right
+		if type(link) == "string" and ns.Tooltip then
+			local data = C_TooltipInfo and type(C_TooltipInfo.GetHyperlink) == "function" and select(2, pcall(C_TooltipInfo.GetHyperlink, link)) or nil
+			if it.equip then
 				local reds = ns.Tooltip.RedTexts(type(data) == "table" and data or nil)
-				if #reds > 0 then
-					local why = ns.Tooltip.Why(reds, tonumber(info[13]), it.sub)
-					tag = { (why:gsub("^no (.-) skill yet.*$", "needs %1 skill")), 1, 0.3, 0.3 }
-				else
-					local ok, line = pcall(ns.Tooltip.Line, link, data)
-					-- Just the differences: the row names the item, and "vs your …" crowded its name out (seen in game).
-					if ok and type(line) == "string" then right = (line:gsub("^|cff9d7dffSpellmind:|r ", ""):gsub(" vs your .*$", "")) end
-				end
-			elseif type(link) == "string" and ns.Tooltip then
-				-- The tooltip's own advice, so the two never disagree (seen in game: "sell: 2s 50c" here
-				-- read as a recommendation the tooltip didn't make); otherwise just its vendor value.
-				local data = C_TooltipInfo and type(C_TooltipInfo.GetHyperlink) == "function" and select(2, pcall(C_TooltipInfo.GetHyperlink, link)) or nil
+				if #reds > 0 then right = "|cffff9933" .. ns.Tooltip.Why(reds, tonumber(info[13]), it.sub) .. "|r" end
+			end
+			if not right then
+				-- The tooltip's own advice, so the two never disagree (seen in game).
 				local ok, advice = pcall(ns.Tooltip.SellLine, link, data)
 				if not (ok and advice) then ok, advice = pcall(ns.Tooltip.ProfLine, link, data) end
-				if ok and type(advice) == "string" then
-					right = advice:gsub("^|cff9d7dffSpellmind:|r ", "")
-				elseif type(sell) == "number" and sell > 0 then
-					right = "|cff888888vendor " .. Money(sell * (it.n or 1)) .. "|r"
-				end
-			elseif type(sell) == "number" and sell > 0 then
-				right = "|cff888888vendor " .. Money(sell * (it.n or 1)) .. "|r"
+				if ok and type(advice) == "string" then right = advice:gsub("^|cff9d7dffSpellmind:|r ", "") end
 			end
-			out[#out + 1] = { kind = "item", icon = icon, left = (QUALITY[it.q or 1] or "") .. ns.Escape(it.name or "?") .. "|r" .. ((it.n or 1) > 1 and (" x" .. it.n) or ""), right = right, tag = tag }
 		end
-		local more = (#items - n) + (tonumber(bags.more) or 0)
-		if more > 0 then out[#out + 1] = { kind = "text", text = "|cff888888and " .. more .. " more|r" } end
+		if right then
+			if #worth < P.BAG_ROWS then
+				worth[#worth + 1] = { kind = "item", icon = icon, left = (QUALITY[it.q or 1] or "") .. ns.Escape(it.name or "?") .. "|r" .. ((it.n or 1) > 1 and (" x" .. it.n) or ""), right = right }
+			else
+				extra = extra + 1
+			end
+		end
+	end
+	if #worth > 0 or bags.slots then
+		out[#out + 1] = { kind = "head", text = "Worth a look in your bags" .. (bags.free and bags.slots and (" (" .. bags.free .. " of " .. bags.slots .. " free)") or "") }
+		for _, r in ipairs(worth) do out[#out + 1] = r end
+		if extra > 0 then out[#out + 1] = { kind = "text", text = "|cff888888and " .. extra .. " more|r" } end
+		if #worth == 0 then out[#out + 1] = { kind = "text", text = "|cff888888Nothing to sell, use or craft with that needs saying.|r" } end
 		if type(bags.junk) == "table" and (bags.junk.n or 0) > 0 then
 			out[#out + 1] = { kind = "text", text = "Grey junk: " .. bags.junk.n .. " item" .. (bags.junk.n > 1 and "s" or "") .. ", worth " .. Money(bags.junk.copper) }
 		end
@@ -773,7 +835,7 @@ function Tabs.talents()
 				out[#out + 1] = { kind = "item", indent = true,
 					left = (now and "|cff19ff19" or behind and "|cffff9933" or "") .. ns.Escape(GD.StepText(s, tree)) .. ((now or behind) and "|r" or ""),
 					right = behind and ("|cffff9933behind: the guide takes it at " .. s.level .. "|r") or ("level " .. s.level),
-					tag = now and { "now", 0.1, 1, 0.1 } or nil }
+					tag = nil } -- green says "now" (the review: the tag repeated it)
 			end
 			if p.behind > 0 and unspent == 0 then
 				out[#out + 1] = { kind = "text", text = "     |cff888888Your next point" .. (p.behind > 1 and "s go" or " goes") .. " here first.|r" }
@@ -804,9 +866,12 @@ function Tabs.talents()
 			end
 		end
 	end
-	out[#out + 1] = { kind = "head", text = "Talents" }
-	out[#out + 1] = { kind = "text", text = string.format("%d spent, %s", tonumber(t.spent) or 0,
-		unspent > 0 and ("|cff19ff19" .. unspent .. " to spend|r") or "none to spend") }
+	-- What's spent: only without a guide (its row says "8 of 51 points taken" already, the review).
+	if not plan then
+		out[#out + 1] = { kind = "head", text = "Talents" }
+		out[#out + 1] = { kind = "text", text = string.format("%d spent, %s", tonumber(t.spent) or 0,
+			unspent > 0 and ("|cff19ff19" .. unspent .. " to spend|r") or "none to spend") }
+	end
 	return out
 end
 
@@ -820,9 +885,23 @@ local function SpellRows()
 		local M = ns.GearUI and ns.GearUI.Money or tostring
 		local out = {}
 		if #p.due > 0 then
-			out[#out + 1] = { kind = "head", text = "Train now: " .. M(p.total) }
-			for _, t in ipairs(p.due) do
-				out[#out + 1] = { kind = "item", left = ns.Escape(ns.Trainer.Label(t)), right = M(t.cost or 0), tag = { "train now", 0.1, 1, 0.1 } }
+			-- What the trainer has now, the ones your guide uses first and marked (the review: every spell
+			-- was "train now" while the guide and the AI said otherwise).
+			out[#out + 1] = { kind = "head", text = "At your trainer now: " .. M(p.total) }
+			local plan = ns.Guide and ns.Guide.Get() and ns.Guide.Get().plan
+			local lines = {}
+			for _, l in ipairs(type(plan) == "table" and plan.rotation or {}) do lines[#lines + 1] = tostring(l):lower() end
+			local function InGuide(name)
+				for _, l in ipairs(lines) do if l:find(tostring(name):lower(), 1, true) then return true end end
+				return false
+			end
+			local ordered = {}
+			for _, t in ipairs(p.due) do if InGuide(t.name) then ordered[#ordered + 1] = t end end
+			for _, t in ipairs(p.due) do if not InGuide(t.name) then ordered[#ordered + 1] = t end end
+			for _, t in ipairs(ordered) do
+				local g = InGuide(t.name)
+				out[#out + 1] = { kind = "item", left = (g and "|cff19ff19" or "") .. ns.Escape(ns.Trainer.Label(t)) .. (g and "|r" or ""),
+					right = M(t.cost or 0), tag = g and { "in your guide", 0.1, 1, 0.1 } or nil }
 			end
 			local money = tonumber((ns.Try(GetMoney))) or 0
 			if money < p.total then out[#out + 1] = { kind = "text", text = "|cffff6060You have " .. M(money) .. ": ask which come first.|r" } end
@@ -882,6 +961,33 @@ end
 P.DIFF_COLOR = { optimal = "|cffff8040", medium = "|cffffff00", easy = "|cff40c040", trivial = "|cff808080" }
 P.DIFF_NAME = { optimal = "orange", medium = "yellow" }
 P.SKILLUPS_MAX, P.MATERIALS_MAX = 4, 6
+-- The weapons worn (main hand, off hand, ranged) whose skill is P.WEAPON_BEHIND or more under its cap.
+P.WEAPON_BEHIND = 25
+function P.WeaponsBehind(s)
+	local gear = Part("gear")
+	local out, seen = {}, {}
+	for _, it in ipairs(type(gear.items) == "table" and gear.items or {}) do
+		if (it.slot == 16 or it.slot == 17 or it.slot == 18) and type(it.sub) == "string" then
+			-- "One-Handed Axes" is the Axes skill; an exact name first ("Two-Handed Axes").
+			local best
+			for _, w in ipairs(type(s.weapon) == "table" and s.weapon or {}) do
+				if w.name == it.sub then best = w end
+			end
+			if not best then
+				for _, w in ipairs(type(s.weapon) == "table" and s.weapon or {}) do
+					if type(w.name) == "string" and it.sub:find(w.name, 1, true) then best = w end
+				end
+			end
+			local rank, max = best and tonumber(best.rank) or 0, best and tonumber(best.max) or 0
+			if best and not seen[best.name] and max > 0 and rank <= max - P.WEAPON_BEHIND then
+				seen[best.name] = true
+				out[#out + 1] = { name = best.name, rank = rank, max = max }
+			end
+		end
+	end
+	return out
+end
+
 function Tabs.professions()
 	local PR = ns.Professions
 	local s = Part("skills")
@@ -940,9 +1046,15 @@ function Tabs.professions()
 				sub = #also > 0 and ("|cff888888also " .. table.concat(also, ", ") .. "|r") or nil }
 		end
 	end
-	out[#out + 1] = { kind = "head", text = "Weapon skills" }
-	for _, p in ipairs(type(s.weapon) == "table" and s.weapon or {}) do
-		out[#out + 1] = { kind = "item", left = ns.Escape(p.name or "?"), right = (p.rank or 0) .. " / " .. (p.max or 0) }
+	-- Weapon skills: only a weapon you have equipped whose skill is well behind (the review: the list
+	-- copied the Skills window, and missed the one that mattered, Guns 1/85 with a gun on).
+	local behind = P.WeaponsBehind(s)
+	if #behind > 0 then
+		out[#out + 1] = { kind = "head", text = "Weapon skills" }
+		for _, w in ipairs(behind) do
+			out[#out + 1] = { kind = "item", left = "|cffff9933" .. ns.Escape(w.name) .. " " .. w.rank .. "/" .. w.max .. "|r",
+				sub = "|cff888888You'll miss often with it. Use it on easy mobs to raise it.|r" }
+		end
 	end
 	return out
 end
@@ -953,7 +1065,8 @@ function Tabs.nudges()
 	local list = ns.Nudges and ns.Nudges.List() or {}
 	for _, n in ipairs(list) do
 		local kind = n.kind
-		out[#out + 1] = { kind = "item", icon = n.icon, left = n.title .. (n.text and n.text ~= "" and ("  |cff888888" .. n.text .. "|r") or ""),
+		-- The title, and its detail on a line of its own (the review: on one line beside two buttons it was cut).
+		out[#out + 1] = { kind = "item", icon = n.icon, left = n.title, sub = (n.text and n.text ~= "") and ("|cff888888" .. n.text .. "|r") or nil,
 			tag = n.asked and { "asked", 0.4, 0.85, 0.4 } or nil,
 			actions = {
 				{ "Ask", function() ns.Nudges.AskKind(kind, panel) end },
@@ -1036,7 +1149,8 @@ function Tabs.settings()
 			out[#out + 1] = { kind = "item", indent = r.indent,
 				left = dim and ("|cff888888" .. r.label .. "|r") or r.label,
 				sub = r.sub and ("|cff888888" .. r.sub .. "|r") or nil,
-				actions = { { ST.Label(r), function() ST.Flip(id); P.Show("settings", true) end } } }
+				actions = { { ST.Label(r), function() ST.Flip(id); P.Show("settings", true) end,
+					tip = r.choices and "Click for the next choice." or "Click to turn it on or off." } } }
 		end
 		if sec.section == "Nudges" then
 			out[#out + 1] = { kind = "item", indent = true, left = "Dismissed nudges", sub = "|cff888888Show the ones you dismissed again, if they still apply.|r",
@@ -1151,7 +1265,10 @@ function P.Build()
 	Bounds(f)
 	if saved.point then f:SetPoint(saved.point, UIParent, saved.relPoint or saved.point, tonumber(saved.x) or 0, tonumber(saved.y) or 0)
 	else f:SetPoint("CENTER", UIParent, "CENTER", -120, 40) end
-	f:SetFrameStrata("DIALOG")
+	-- MEDIUM, raised on a click (the review: at DIALOG it covered the game's windows and Spellmind's own
+	-- trainer and merchant buttons beside them).
+	f:SetFrameStrata("MEDIUM")
+	if f.SetToplevel then f:SetToplevel(true) end
 	f:SetMovable(true)
 	f:EnableMouse(true)
 	f:SetClampedToScreen(true)
@@ -1187,6 +1304,11 @@ function P.Build()
 	f.fold = ns.Window.SmallButton(f, 20)
 	f.fold:SetPoint("RIGHT", f.close, "LEFT", -2, 0)
 	f.fold:SetScript("OnClick", function() P.Fold(not Saved().folded) end)
+	-- A drawn bar, like the hamburger beside it (the review: the "-" was hard to see); folded, a chevron.
+	f.fold.bar = f.fold:CreateTexture(nil, "OVERLAY")
+	f.fold.bar:SetColorTexture(0.85, 0.68, 0.25, 1)
+	f.fold.bar:SetSize(10, 2)
+	f.fold.bar:SetPoint("CENTER", f.fold, "CENTER", 0, 0)
 	f.compact = ns.Window.SmallButton(f, 20)
 	f.compact:SetPoint("RIGHT", f.fold, "LEFT", -4, 0)
 	-- A hamburger: three gold bars (the tabs' menu), drawn, no texture file.
@@ -1262,7 +1384,7 @@ function P.Build()
 		local chat = ns.Window.Get()
 		if chat then chat:Hide() end
 	end)
-	if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "SpellmindPanel") end
+	P.EscCloses(not saved.compact)
 	f:Hide()
 	panel = f
 	return f
@@ -1322,7 +1444,8 @@ local function Arrange(f)
 	f.who:SetShown(not chatTab)
 	local chat = ns.Window.Get()
 	if chat then chat:SetShown(chatTab and not folded) end
-	f.fold.text:SetText(folded and "+" or "-")
+	f.fold.text:SetText(folded and "+" or "")
+	if f.fold.bar then f.fold.bar:SetShown(not folded) end
 	f.fold.tip = folded and "Unfold the window." or "Fold the window to its header."
 	-- The hamburger's bars: gold with the tabs showing, grey without (compact).
 	for _, bar in ipairs(f.compact.bars) do
@@ -1379,12 +1502,23 @@ function Tabs.chat() return {} end
 
 -- Compact on or off: each mode keeps its own size. Compact shows the Chat tab. quiet: P.Show is
 -- already switching tabs.
+-- Esc closes the full window, not the compact one (the review: kept open while questing, it went
+-- with a routine Esc to clear a target). UISpecialFrames is the game's list of windows Esc closes.
+function P.EscCloses(on)
+	if type(UISpecialFrames) ~= "table" then return end
+	for i = #UISpecialFrames, 1, -1 do
+		if UISpecialFrames[i] == "SpellmindPanel" then table.remove(UISpecialFrames, i) end
+	end
+	if on then table.insert(UISpecialFrames, "SpellmindPanel") end
+end
+
 function P.SetCompact(on, quiet)
 	local f = P.Build()
 	local saved = Saved()
 	if (saved.compact and true or false) == (on and true or false) then return end
 	KeepSize(f)
 	saved.compact = on and true or nil
+	P.EscCloses(not saved.compact)
 	Bounds(f)
 	if not saved.folded then f:SetSize(ModeSize(saved.compact)) end
 	P.PlaceAsks(f)
@@ -1437,5 +1571,6 @@ end
 -- An Ask button: the question goes to the chat, its answer to the card beside the window.
 function P.Ask(label, text)
 	if not ns.Marks then return end
-	return ns.Marks.Ask(panel, "Advisor: " .. ns.Escape(label), text)
+	-- The card is titled with the question itself (the review: "Advisor:" was an old internal name).
+	return ns.Marks.Ask(panel, ns.Escape(label), text)
 end

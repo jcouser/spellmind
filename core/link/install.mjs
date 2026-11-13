@@ -74,6 +74,33 @@ function copyAddon(src, dst) {
 }
 
 /**
+ * The installed addon against this copy's (the desktop app, docs/milestone-3.md): file by file, as
+ * copyAddon copies them. → { state: 'missing' | 'current' | 'outdated', changed, added } where added
+ * counts files the game hasn't got (those load only after a full restart of WoW; changed ones on
+ * /reload).
+ */
+export function addonState({ flavorDir, source = ADDON_SOURCE } = {}) {
+  const dst = flavorDir ? path.join(flavorDir, 'Interface', 'AddOns', ADDON_NAME) : null;
+  if (!dst || !fs.existsSync(path.join(dst, `${ADDON_NAME}.toc`))) return { state: 'missing', changed: 0, added: 0 };
+  let changed = 0, added = 0;
+  const walk = (src, to) => {
+    for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+      if (e.name === 'sig' || e.name === 'Inbox.lua') continue;
+      const from = path.join(src, e.name), there = path.join(to, e.name);
+      if (e.isDirectory()) walk(from, there);
+      else if (e.isFile()) {
+        let have = null;
+        try { have = fs.readFileSync(there); } catch { /* not there */ }
+        if (!have) added += 1;
+        else if (!have.equals(fs.readFileSync(from))) changed += 1;
+      }
+    }
+  };
+  try { walk(source, dst); } catch { return { state: 'missing', changed: 0, added: 0 }; }
+  return { state: changed + added > 0 ? 'outdated' : 'current', changed, added };
+}
+
+/**
  * Install into flavorDir (…/World of Warcraft/_forever_). Refuses while the game runs.
  * → { ok, addonsDir, files, slots, bells } | { ok: false, error, detail }
  */

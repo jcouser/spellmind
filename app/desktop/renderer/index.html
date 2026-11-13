@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Spellmind</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <img class="owl" src="owl.png" alt="">
+    <div class="who">
+      <h1>Spellmind</h1>
+      <div class="sub" id="version"></div>
+    </div>
+    <div class="pill" id="pill"><span class="dot"></span><span id="pillText">Starting…</span></div>
+  </header>
+
+  <main>
+    <section class="card" id="setupCard" hidden>
+      <h2>Finish the setup</h2>
+      <ol class="steps" id="steps"></ol>
+    </section>
+
+    <section class="card">
+      <h2>Status</h2>
+      <dl class="facts">
+        <dt>World of Warcraft</dt><dd id="factWow">…</dd>
+        <dt>The game's link</dt><dd id="factHello">…</dd>
+        <dt>Last answer</dt><dd id="factLast">…</dd>
+      </dl>
+    </section>
+
+    <section class="card">
+      <h2>Your AI</h2>
+      <div class="row">
+        <div class="grow">
+          <div class="label" id="aiName">ChatGPT</div>
+          <div class="note" id="aiSigned">…</div>
+        </div>
+        <button id="signIn">Sign in with ChatGPT</button>
+        <button id="cancelSignIn" class="quiet" hidden>Cancel</button>
+        <button id="signOut" class="quiet" hidden>Sign out</button>
+      </div>
+      <div class="grid">
+        <label for="model">Model</label>
+        <select id="model"></select>
+        <label for="effort">Thinking</label>
+        <select id="effort"></select>
+        <label for="search">Web search</label>
+        <label class="switch"><input type="checkbox" id="search"><span>Look up game facts on the web</span></label>
+      </div>
+      <p class="note">The game's chat window starts from these, and can pick its own thinking for a question.</p>
+    </section>
+
+    <section class="card">
+      <h2>World of Warcraft</h2>
+      <div class="row">
+        <div class="grow">
+          <div class="label">WoW: Forever folder</div>
+          <div class="note path" id="wowFolder">Not picked yet</div>
+        </div>
+        <button id="chooseWow" class="quiet">Change</button>
+      </div>
+      <div class="row">
+        <div class="grow">
+          <div class="label">The addon</div>
+          <div class="note" id="addonState">…</div>
+        </div>
+        <button id="installAddon">Install</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>The app</h2>
+      <label class="switch"><input type="checkbox" id="loginItem"><span>Start Spellmind when I log in to Windows</span></label>
+      <p class="note" id="loginNote">It waits in the tray, by the clock, so the game finds it. Closing this window keeps it there; Quit is in the tray icon's menu.</p>
+      <div class="row buttons">
+        <button id="restartLink" class="quiet">Restart the link</button>
+        <button id="openLogs" class="quiet">Open the log folder</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Activity</h2>
+      <ul class="activity" id="activity"></ul>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

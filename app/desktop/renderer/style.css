@@ -1,0 +1,86 @@
+/* Spellmind's window: the addon's colours (art/README.md): dark indigo, teal, pale white, gold. */
+:root {
+  --bg: #120b2e;
+  --card: #1a1040;
+  --line: #3a2a78;
+  --text: #ece8ff;
+  --muted: #9d94c4;
+  --gold: #ffd100;
+  --teal: #3fe0d0;
+  --good: #19ff19;
+  --warn: #ff9933;
+  --bad: #ff6060;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+body { display: flex; flex-direction: column; min-height: 100vh; }
+
+header {
+  display: flex; align-items: center; gap: 12px; padding: 14px 18px;
+  border-bottom: 1px solid var(--line); background: linear-gradient(#1d1248, var(--bg));
+  position: sticky; top: 0; z-index: 2;
+}
+.owl { width: 48px; height: 48px; }
+.who { flex: 1; }
+h1 { margin: 0; font-size: 20px; color: var(--gold); font-weight: 600; }
+.sub { color: var(--muted); font-size: 12px; }
+
+.pill { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: #140d33; font-size: 13px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.pill.good .dot { background: var(--good); box-shadow: 0 0 6px var(--good); }
+.pill.idle .dot { background: var(--teal); }
+.pill.warn .dot { background: var(--warn); }
+.pill.bad .dot { background: var(--bad); }
+
+main { padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.card h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
+#setupCard { border-color: var(--warn); }
+
+.row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.row.buttons { margin-top: 10px; }
+.grow { flex: 1; min-width: 0; }
+.label { font-weight: 600; }
+.note { color: var(--muted); font-size: 12.5px; margin: 2px 0 0; }
+.note.path { overflow-wrap: anywhere; }
+p.note { margin-top: 8px; }
+
+.facts { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; margin: 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; }
+
+.grid { display: grid; grid-template-columns: 110px 1fr; gap: 8px 12px; align-items: center; margin-top: 10px; }
+
+button, select {
+  font: inherit; color: var(--text); background: #2a1c63; border: 1px solid #6a52d8; border-radius: 6px; padding: 6px 12px;
+}
+button { cursor: pointer; white-space: nowrap; }
+button:hover:not(:disabled) { border-color: var(--gold); }
+button:disabled { opacity: .5; cursor: default; }
+button.quiet { background: transparent; border-color: var(--line); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+select { width: 100%; padding: 5px 8px; }
+
+.switch { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.switch input { width: 16px; height: 16px; accent-color: var(--teal); }
+
+.steps { margin: 0; padding-left: 20px; }
+.steps li { margin: 4px 0; }
+.steps li.done { color: var(--muted); text-decoration: line-through; }
+
+.activity { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; font-size: 12.5px; }
+.activity li { display: flex; gap: 10px; padding: 3px 0; border-bottom: 1px solid #241656; }
+.activity time { color: var(--muted); flex: none; font-variant-numeric: tabular-nums; }
+.activity .empty { color: var(--muted); border: 0; }
+
+.good { color: var(--good); }
+.warn { color: var(--warn); }
+.bad { color: var(--bad); }
+.muted { color: var(--muted); }
+
+.toast {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); max-width: 90%;
+  background: #2a1c63; border: 1px solid var(--gold); border-radius: 8px; padding: 10px 14px; box-shadow: 0 6px 24px #000a;
+}
+.toast.bad { border-color: var(--bad); }

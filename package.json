@@ -10,7 +10,8 @@
   },
   "scripts": {
     "test": "node --test \"tests/**/*_test.mjs\" \"tests/**/*_test.cjs\"",
-    "capture:build": "node core/capture/build.mjs"
+    "capture:build": "node core/capture/build.mjs",
+    "app": "npm --prefix app/desktop start"
   },
   "optionalDependencies": {
     "@napi-rs/keyring": "2.1.0"

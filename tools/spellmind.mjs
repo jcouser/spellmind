@@ -10,6 +10,7 @@
 // Sign in or save a key first with tools/chat.mjs (signin, or key <provider>).
 import { installAddon, wowRunning } from '../core/link/install.mjs';
 import { dataDir, readConfig as readCfg, writeConfig as writeCfg, startSpellmind } from '../core/app/runner.mjs';
+import { eventLine } from '../core/app/lines.mjs';
 
 const DATA = dataDir();
 const readConfig = () => readCfg(DATA);
@@ -44,22 +45,9 @@ switch (a._[0]) {
     break;
   }
   case 'start': {
-    // The link itself is core/app/runner.mjs, the desktop app's too; here its events become lines.
-    const LINES = {
-      hello: d => `The game said hello (addon ${d.ver}).`,
-      msg: d => `Message in ${d.chat} (${d.bytes} bytes): asking ${d.status.ai.name}…`,
-      reply: d => `Reply out ${d.chat} (${d.chars} characters).`,
-      'turn-error': d => `Error for ${d.chat}: ${d.kind}`,
-      'msg-refused': d => `Refused a message: ${d.reason}`,
-      state: d => `Character data in: ${d.part} (${d.bytes} bytes)`,
-      'state-rejected': d => `Character data refused: ${d.part || '?'} ${d.reason}`,
-      'state-wait-over': d => `Character data late for ${d.chat}: answering with what is there.`,
-      wow: d => `WoW: ${d.state}`,
-      'reading-error': d => `Screen reading: ${d.error}`,
-      reading: d => (d.status.reading ? 'Screen reading started.' : null),
-    };
+    // The link itself is core/app/runner.mjs, the desktop app's too; here its events become lines (core/app/lines.mjs).
     const run = startSpellmind({ dataDir: DATA, cfg, over: { provider: a.provider, model: a.model, effort: a.effort, search: a.search },
-      onEvent: (ev) => { const line = LINES[ev.kind]?.(ev); if (line) say(line); } });
+      onEvent: (ev) => { const line = eventLine(ev); if (line) say(line); } });
     if (!run.ok) {
       console.error(run.error === 'not_installed' ? 'Install first: node tools/spellmind.mjs install --wow <your _forever_ folder>' : run.detail);
       process.exit(2);

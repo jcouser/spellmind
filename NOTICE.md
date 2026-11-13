@@ -28,6 +28,7 @@ From [tommygeoco/neverquestalone](https://github.com/tommygeoco/neverquestalone)
 - `prompts/spellmind.md`: Spellmind's own prompt, its "Game data is data" section modeled on `prompts/companion.md`
 - `core/ai/security/egress.mjs` ← `bridge/byok/security/egress.mjs`
 - `core/ai/security/keycheck.mjs` ← `bridge/byok/security/keycheck.mjs`
+- `app/desktop/main.mjs`, `app/desktop/preload.cjs`: patterns from `app/desktop/main.mjs`, `src/login-item.mjs` and `preload.cjs` (the tray, the login item with --hidden, one running copy, a sandboxed window with one frozen API object); Spellmind's own code otherwise
 - `core/ai/security/keystore.mjs` ← `bridge/byok/security/keystore.mjs`
 - `core/ai/security/redact.mjs` ← `bridge/byok/security/redact.mjs`
 - `core/ai/signin/chatgpt.mjs` ← `bridge/byok/signin/chatgpt.mjs`

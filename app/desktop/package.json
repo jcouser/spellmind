@@ -1,0 +1,19 @@
+{
+  "name": "spellmind-desktop",
+  "productName": "Spellmind",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Spellmind: AI Companion for World of Warcraft: Forever (the desktop app)",
+  "license": "MIT",
+  "type": "module",
+  "main": "main.mjs",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "44.9.3"
+  }
+}

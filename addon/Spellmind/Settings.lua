@@ -41,6 +41,7 @@ ST.PARTS = {
 	quests = { "Quest log", "Your quests and their objectives." },
 	rep = { "Reputations", "Your standing with each faction." },
 	world = { "Places", "Your hearth, the flight paths you know, and NPCs nearby." },
+	advisor = { "What the tabs work out", "Dungeon quests to pick up, upgrades within reach, skill-ups, gold." },
 }
 
 ST.CHAT_NAMES = { all = "Whole", first = "First line", off = "Off" }

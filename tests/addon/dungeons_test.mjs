@@ -226,3 +226,16 @@ test('Go on a quest to pick up: the game\'s map pin on its giver (QuestieDB\'s z
   const locked = d.findIndex(x => x.text === 'Underground Assault');
   assert.notEqual(vm.evaluate(`tostring(SpellmindPanel.rows[${locked + 1}].actions[1] and SpellmindPanel.rows[${locked + 1}].actions[1]:IsShown())`), 'true', 'a locked one has no Go');
 });
+
+test('the AI gets what the Dungeons tab shows (seen in game: the tab named Testing the Wells\' giver, the AI couldn\'t)', async () => {
+  const { validatePart } = await import('../../core/link/charstate.mjs');
+  const vm = withDB();
+  const a = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.State.Collect.advisor())'));
+  const hall = a.dungeons.find(d => d.name === 'The Hall of Thanes');
+  assert.equal(hall.inLog, 1);
+  assert.equal(hall.done, 1);
+  assert.equal(hall.toPickUp, 3);
+  assert.deepEqual(hall.pickup[0], { name: 'Oh Brother...', from: 'Thane Ironbelly, Ironforge (45, 51)' });
+  assert.equal(hall.pickup.find(q => q.name === 'Underground Assault').after, 'Oh Brother...');
+  assert.equal(validatePart('advisor', a).ok, true);
+});

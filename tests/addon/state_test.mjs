@@ -15,7 +15,7 @@ import { slotTable } from '../../core/link/luaenc.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'fixtures', 'state-parts.json'), 'utf8'));
-const PARTS = ['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep', 'focus', 'world'];
+const PARTS = ['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep', 'focus', 'world', 'advisor'];
 const LIMITS = { maxBody: 2900, maxText: 8000 };
 
 // Saved data as an install that has sent six builds before (the fixture's parts are seq 7).
@@ -159,7 +159,8 @@ test('only changed parts go again: an equip change sends gear alone, with a new 
   vm.advance(1.5);
   assert.equal(stateRecords(vm).length, 0, 'not yet: builds wait 2 s');
   vm.advance(0.6);
-  const recs = stateRecords(vm);
+  // advisor (what the tabs work out) is computed from the rest, so it can go along.
+  const recs = stateRecords(vm).filter(r => r.args.part !== 'advisor');
   assert.deepEqual(recs.map(r => r.args.part), ['gear']);
   assert.equal(recs[0].args.seq, '8');
   assert.equal(recs[0].part.items[0].name, 'Fine Longsword');
@@ -170,7 +171,7 @@ test('only changed parts go again: an equip change sends gear alone, with a new 
   vm.advance(3);
   assert.equal(stateRecords(vm).length, 0, 'nothing built in combat');
   vm.run('STUB.combat = false; STUB.FireEvent("PLAYER_REGEN_ENABLED")');
-  const after = stateRecords(vm);
+  const after = stateRecords(vm).filter(r => r.args.part !== 'advisor');
   assert.deepEqual(after.map(r => r.args.part), ['char']);
   assert.equal(after[0].part.money, 10000);
   assert.equal(after[0].args.seq, '9');

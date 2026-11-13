@@ -30,7 +30,7 @@ local S = {}
 ns.State = S
 local R = ns.R
 
-S.PARTS = { "char", "stats", "talents", "spells", "gear", "bags", "skills", "quests", "rep", "focus", "world" }
+S.PARTS = { "char", "stats", "talents", "spells", "gear", "bags", "skills", "quests", "rep", "focus", "world", "advisor" }
 S.MAX_JSON = 8000 -- bytes of one part's JSON
 S.MAX_BODY = 2900 -- bytes of one part's body on the strip
 S.STR_MAX = 60 -- bytes of one string from the game
@@ -662,6 +662,12 @@ end
 
 -- world (World.lua, docs/milestone-17.md): the hearth, the flight paths known and the NPCs nearby, so
 -- "who sells ammo here" and routes come from the game, not the model's memory.
+-- advisor (Advisor.lua, docs/milestone-18.md): what the tabs work out, so the AI has it too.
+function Build.advisor()
+	if not ns.Advisor then return O("v", 1) end
+	return ns.Advisor.Part()
+end
+
 function Build.world()
 	if not ns.World then return O("v", 1) end
 	return ns.World.Part()
@@ -768,6 +774,15 @@ local TRIMS = {
 		end },
 		{ "rewards", function(obj) Set(obj, "choices", nil); Set(obj, "items", nil) end },
 	},
+	advisor = {
+		{ "pickup", function(obj)
+			for _, d in ipairs(Get(obj, "dungeons") or {}) do Set(d, "pickup", nil) end
+		end },
+		{ "skillUps", function(obj)
+			for _, p in ipairs(Get(obj, "professions") or {}) do Set(p, "skillUps", nil) end
+		end },
+		{ "upgrades", function(obj) Set(obj, "upgrades", nil) end },
+	},
 	world = {
 		{ "sells", function(obj)
 			for _, n in ipairs(Get(obj, "npcs") or {}) do Set(n, "sells", nil) end
@@ -835,7 +850,7 @@ end
 
 -- The parts a player can keep back. char (class, level, zone) is what every answer starts from, and
 -- focus is only ever what they clicked, so those two always go while game data is on.
-S.OPTIONAL = { "stats", "talents", "spells", "gear", "bags", "skills", "quests", "rep", "world" }
+S.OPTIONAL = { "stats", "talents", "spells", "gear", "bags", "skills", "quests", "rep", "world", "advisor" }
 
 function S.PartOn(name)
 	local p = ns.db and type(ns.db.share) == "table" and ns.db.share.parts

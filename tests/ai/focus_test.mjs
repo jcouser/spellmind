@@ -13,7 +13,7 @@ const QUEST = { v: 1, kind: 'quest', id: 297, title: 'Gathering Idols', level: 1
 
 test('focus: the tenth part, optional; a quest focus and an empty one are valid, a wrong kind or field is not', () => {
   assert.ok(PARTS.includes('focus'));
-  assert.deepEqual(OPTIONAL_PARTS, ['focus', 'world'], 'world (milestone 17) is optional too');
+  assert.deepEqual(OPTIONAL_PARTS, ['focus', 'world', 'advisor'], 'world and advisor (milestones 17, 18) are optional too');
   assert.ok(validatePart('focus', { v: 1 }).ok);
   assert.ok(validatePart('focus', QUEST).ok);
   assert.equal(validatePart('focus', { ...QUEST, kind: 'npc' }).reason, 'field focus.kind');

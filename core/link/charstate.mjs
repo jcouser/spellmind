@@ -18,9 +18,9 @@ import { inflateBody } from './records.mjs';
 import { writeFileQuick } from '../files.mjs';
 
 /** The parts, in the order the addon draws them. */
-export const PARTS = Object.freeze(['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep', 'focus', 'world']);
+export const PARTS = Object.freeze(['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep', 'focus', 'world', 'advisor']);
 /** Parts with nothing in them most of the time ({"v":1}): focus, until the player clicks a Spellmind mark. */
-export const OPTIONAL_PARTS = Object.freeze(['focus', 'world']);
+export const OPTIONAL_PARTS = Object.freeze(['focus', 'world', 'advisor']);
 /** What a message's about= names: the thing the player clicked Explain on (focus.kind:focus.id). */
 export const ABOUT_RE = /^(quest|item|spell|talent):\d{1,10}$/;
 /** focus's long strings: the quest's text and its objectives line, in characters. */
@@ -69,6 +69,13 @@ const WHERE = { zone: str, x: num, y: num, dist: num };
 const REP = { id: int, name: str, r: intIn(1, 8), v: num, max: num, watched: bool };
 // world (World.lua, milestone 17): NPCs nearby, from the character's own visits or QuestieDB.
 const WORLD_NPC = { name: str, sub: str, does: strList(6), x: num, y: num, sells: strList(LIST_MAX.sells), seen: bool };
+// advisor (Advisor.lua, milestone 18): what the addon's tabs work out.
+const ADV_PICKUP = { name: str, from: str, after: str, afterInLog: bool, at: int, first: bool };
+const ADV_DUNGEON = { name: str, range: str, inLog: int, done: int, toPickUp: int, total: int, pickup: list(ADV_PICKUP, 5) };
+const ADV_UPGRADE = { slot: str, name: str, from: str };
+const ADV_SKILLUP = { name: str, color: str, makes: int };
+const ADV_PROF = { name: str, next: str, skillUps: list(ADV_SKILLUP, 3) };
+const ADV_GOLD = { sessionNet: num, perHour: num, todayNet: num, costs: strList(6), costsTotal: num };
 const SHAPES = {
   char: { class: str, classFile: str, race: str, raceFile: str, faction: str, level: int, xp: num, xpMax: num, rested: num, resting: bool, money: num, loc: shape(LOC) },
   stats: { hp: num, mana: num, str: num, agi: num, sta: num, int: num, spi: num, armor: num, ap: num, rap: num, crit: num, rcrit: num, scrit: num, dodge: num, parry: num, block: num, res: numMap },
@@ -80,6 +87,7 @@ const SHAPES = {
   quests: { count: int, max: int, unread: int, list: list(QUEST, LIST_MAX.quests) },
   rep: { list: list(REP, LIST_MAX.rep), collapsed: int },
   world: { zone: str, sub: str, x: num, y: num, hearth: str, flights: strList(LIST_MAX.flights), npcs: list(WORLD_NPC, LIST_MAX.worldNpcs) },
+  advisor: { dungeons: list(ADV_DUNGEON, 4), upgrades: list(ADV_UPGRADE, 6), professions: list(ADV_PROF, LIST_MAX.skills), gold: shape(ADV_GOLD) },
   // What the player clicked Explain on (docs/milestone-5.md): a quest, for now.
   // A quest (milestone 5's Break it down, or a quest linked in the chat box) or an item (linked, milestone 6).
   focus: { kind: v => v === 'quest' || v === 'item', id: int, title: str, level: num, diff: str, trivial: bool, elite: bool, group: int, complete: bool,

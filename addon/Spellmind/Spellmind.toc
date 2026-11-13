@@ -26,6 +26,7 @@ Dungeons.lua
 Gold.lua
 Guide.lua
 World.lua
+Advisor.lua
 Panel.lua
 Nudges.lua
 Minimap.lua

@@ -67,7 +67,7 @@ A bug found on the way: a turn error's own kind (`oauth_expired`) overwrote the 
 
 ## The installer (`npm run dist` in app/desktop: electron-builder 26, NSIS)
 
-- **One click, per user,** with no admin rights. It installs to `%LOCALAPPDATA%\Programs\Spellmind`, with Start menu and desktop shortcuts. The settings and log in `%APPDATA%\Spellmind` stay on uninstall.
+- **One click, per user,** with no admin rights. It installs to `%LOCALAPPDATA%\Programs\spellmind-desktop` (the package's name; changing it would install a second copy beside the first), with Start menu and desktop shortcuts. The settings and log in `%APPDATA%\Spellmind` stay on uninstall.
 - **Inside app.asar the repo's layout is kept** (`app/desktop/`, `core/`, `addon/Spellmind/`, `prompts/`, LICENSE and NOTICE), so the imports work the same packed.
 - **Unpacked beside it,** since nothing runs from inside app.asar:
   - the screen-reading helper (`core/link/capture.mjs` looks under `app.asar.unpacked`);
@@ -76,8 +76,40 @@ A bug found on the way: a turn error's own kind (`oauth_expired`) overwrote the 
 - **Unsigned:** Windows SmartScreen warns on the first run ("More info", then "Run anyway"). A code-signing certificate is for later.
 - **English only:** Chromium's other locale packs stay out. The installer is about 113 MB.
 
+## Choosing the AI (0.2.0)
+
+The core had every AI NeverQuestAlone's has; the window offered only the ChatGPT plan. Now **Your AI** starts with a picker.
+
+- **The choices:**
+  - ChatGPT plan (sign in)
+  - Claude (Anthropic API key)
+  - ChatGPT (OpenAI API key)
+  - Grok (xAI API key)
+  - Gemini (Google API key)
+  - Other (OpenAI-compatible)
+
+  Each says "in use" or "not set up". Picking one that's set up switches to it at once; picking another shows its setup below, and nothing changes until that works.
+- **The plan:** Sign in, Cancel, Sign out (the browser flow, as before). Signing in switches to it.
+- **An API key** (`core/app/ai.mjs`):
+  - **Get a key** opens that AI's own key page. The link comes from its manifest only, never from the window.
+  - **Paste key** reads the clipboard in the app, so the window never sees the key.
+  - The key's shape says which AI it's for (`providers/keytext.mjs`). It's unwrapped from quotes and spaces, then tested with a live call (the AI's models list).
+  - Only a key that works is kept, in Windows' credential store. Then the clipboard is cleared and the link switches to that AI.
+  - Turned away with plain words, and nothing sent: an empty clipboard, text that isn't a key, an admin key, a Claude sign-in token, an OpenRouter key (it goes under Other).
+  - Remove key.
+- **Other:**
+  - An address: https, or http for this computer or the home network, with no user name, password or query. A pasted `/chat/completions` is cut to the base.
+  - A model name, and optionally the key on the clipboard.
+  - It's tested the same way. A model the service doesn't list is refused, with the ones it does.
+- **Model, Thinking and Web search** are the AI in use's own:
+  - no Thinking menu for a model without levels (Other);
+  - web search off and greyed, saying "has no web search in Spellmind yet", where the manifest has none (Claude, Gemini, Grok and Other for now).
+  - A model kept from another AI falls back to this one's default, and a thinking level to the nearest it has (`runner.mjs` `pickAI`).
+- **Setup step 3** is "Set up your AI", done by any AI that's ready.
+- **Found on the way:** a name declared twice in the window's script left the whole window blank. A test now parses the script and checks every element it looks up is in the page.
+
 ## Next
 
-- **Choosing the AI in the window:** the core has Anthropic, OpenAI, Gemini, xAI and an OpenAI-compatible address. The window has only the ChatGPT plan's sign-in.
+- **The AI audit:** web search for Claude and Gemini (their own tools), the manifests' model lists (Claude Fable 5.2 and Haiku 5.5 aren't in them yet), and the double-check and prompt tried on each AI.
 - **Updates:** they need a public release feed, which waits until the repository is public.
 - **Usage** (how much of the plan's limit was used) and per-part sharing in the window (the game's Settings tab has the parts today).

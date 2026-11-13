@@ -61,6 +61,13 @@ button:disabled { opacity: .5; cursor: default; }
 button.quiet { background: transparent; border-color: var(--line); }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 select { width: 100%; padding: 5px 8px; }
+input[type="text"] {
+  font: inherit; color: var(--text); background: #140d33; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%;
+}
+input[type="text"]::placeholder { color: #6f6699; }
+.setup { margin: 10px 0 4px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 8px; }
+.setup .grid { margin-top: 0; }
+[hidden] { display: none !important; }
 
 .switch { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .switches { display: flex; flex-direction: column; gap: 8px; }

@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { loadManifests, createProvider } from '../ai/providers/index.mjs';
+import { loadManifests, createProvider, manifestFor, effortLevels, nearestEffort } from '../ai/providers/index.mjs';
 import { createKeyStore } from '../ai/security/keystore.mjs';
 import { createEgress } from '../ai/security/egress.mjs';
 import { createSignIns } from '../ai/signin/index.mjs';
@@ -38,15 +38,22 @@ export function writeConfig(dir, cfg) {
 
 /** The AI the settings name, and what the app shows of it: { m, model, effort, search } or { error }. */
 export function pickAI(cfg = {}, over = {}, manifests = loadManifests()) {
-  const m = manifests.find(x => x.id === (over.provider || cfg.provider || 'chatgpt'));
-  if (!m || m.custom) return { error: 'unknown_ai' };
-  const model = over.model || cfg.model || m.models.default;
+  // Other (custom) is built from the player's address and model (cfg.custom); null until it's set.
+  const m = manifestFor(over.provider || cfg.provider || 'chatgpt', manifests, cfg.custom);
+  if (!m || m.hidden) return { error: 'unknown_ai' };
+  // A model another AI had (the settings kept from before a switch) falls back to this one's default.
+  const wanted = over.model || cfg.model;
+  const listed = (m.models.list || []).some(x => x.id === wanted);
+  const model = wanted && (listed || (m.models.allowAny && !m.custom)) ? wanted : m.models.default;
   // Web search on by default where the AI has it (manifest webSearch): without it, low and medium
   // thinking got game facts (which weapon master teaches Bows) wrong most of the time in a test on
   // 2026-11-10, and high was right only at about 10 s an answer. With it, low was right 3 of 3 at
   // 6 to 10 s; medium is the default, so plain chat stays quick and facts come from the web.
   const search = !!m.webSearch && (over.search || cfg.search || 'on') !== 'off';
-  const effort = over.effort || cfg.effort || (search ? 'medium' : 'high');
+  // A level this model hasn't (one saved for another AI) goes to its nearest; a model with no levels
+  // (Other) keeps the word, which its requests don't use.
+  const wantEffort = over.effort || cfg.effort || (search ? 'medium' : 'high');
+  const effort = nearestEffort(effortLevels(m, model), wantEffort) || wantEffort;
   return { m, model, effort, search };
 }
 

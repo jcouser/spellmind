@@ -33,24 +33,54 @@
 
     <section class="card">
       <h2>Your AI</h2>
-      <div class="row">
-        <div class="grow">
-          <div class="label" id="aiName">ChatGPT</div>
-          <div class="note" id="aiSigned">…</div>
-        </div>
-        <button id="signIn">Sign in with ChatGPT</button>
-        <button id="cancelSignIn" class="quiet" hidden>Cancel</button>
-        <button id="signOut" class="quiet" hidden>Sign out</button>
-      </div>
       <div class="grid">
+        <label for="aiPick">AI</label>
+        <select id="aiPick"></select>
+      </div>
+
+      <div class="setup" id="setupPlan" hidden>
+        <div class="row">
+          <div class="grow"><div class="note" id="planState">…</div></div>
+          <button id="signIn">Sign in with ChatGPT</button>
+          <button id="cancelSignIn" class="quiet" hidden>Cancel</button>
+          <button id="signOut" class="quiet" hidden>Sign out</button>
+        </div>
+        <p class="note">Uses your ChatGPT plan (Plus or Pro), with no API key: you sign in in your browser.</p>
+      </div>
+
+      <div class="setup" id="setupKey" hidden>
+        <div class="row">
+          <div class="grow"><div class="note" id="keyState">…</div></div>
+          <button id="openKeys" class="quiet">Get a key</button>
+          <button id="pasteKey">Paste key</button>
+          <button id="removeKey" class="quiet" hidden>Remove key</button>
+        </div>
+        <p class="note" id="keyHelp">Copy your API key, then click Paste key. Spellmind reads it from your clipboard, tests it with your AI, keeps it in Windows' credential store and clears your clipboard. It never shows it again.</p>
+      </div>
+
+      <div class="setup" id="setupCustom" hidden>
+        <div class="grid">
+          <label for="customUrl">Address</label>
+          <input id="customUrl" type="text" spellcheck="false" autocomplete="off" placeholder="https://openrouter.ai/api/v1 or http://localhost:11434/v1">
+          <label for="customModel">Model</label>
+          <input id="customModel" type="text" spellcheck="false" autocomplete="off" placeholder="llama3.3, openai/gpt-oss-120b…">
+        </div>
+        <div class="row">
+          <label class="switch grow"><input type="checkbox" id="customWithKey"><span>Use the key on my clipboard (not needed for a server on this computer)</span></label>
+          <button id="connectCustom">Connect</button>
+        </div>
+        <p class="note">Any OpenAI-compatible service: OpenRouter, Groq, Together, or a model on your own computer with Ollama or LM Studio.</p>
+      </div>
+
+      <div class="grid" id="aiOptions">
         <label for="model">Model</label>
         <select id="model"></select>
         <label for="effort">Thinking</label>
         <select id="effort"></select>
         <label for="search">Web search</label>
-        <label class="switch"><input type="checkbox" id="search"><span>Look up game facts on the web</span></label>
+        <label class="switch"><input type="checkbox" id="search"><span id="searchText">Look up game facts on the web</span></label>
       </div>
-      <p class="note">The game's chat window starts from these, and can pick its own thinking for a question.</p>
+      <p class="note" id="aiOptionsNote">The game's chat window starts from these, and can pick its own thinking for a question.</p>
     </section>
 
     <section class="card">

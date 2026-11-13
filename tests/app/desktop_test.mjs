@@ -88,3 +88,12 @@ test('the window is locked down: sandboxed, no Node, isolated, a strict content 
   const js = fs.readFileSync(path.join(DESKTOP, 'renderer', 'app.js'), 'utf8');
   assert.doesNotMatch(js, /innerHTML|outerHTML|insertAdjacentHTML|eval\(/, 'text goes in as text');
 });
+
+test('the window\'s script parses, and every element it looks up is in the page (seen: a name declared twice left it blank)', async () => {
+  const { Script } = await import('node:vm');
+  const js = fs.readFileSync(path.join(DESKTOP, 'renderer', 'app.js'), 'utf8');
+  assert.doesNotThrow(() => new Script(js, { filename: 'app.js' }));
+  const html = fs.readFileSync(path.join(DESKTOP, 'renderer', 'index.html'), 'utf8');
+  const ids = [...new Set([...js.matchAll(/\$\('([A-Za-z]+)'\)/g)].map(m => m[1]))];
+  assert.deepEqual(ids.filter(id => !html.includes(`id="${id}"`)), []);
+});

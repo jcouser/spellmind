@@ -4,7 +4,7 @@
 //
 //   aiChoices(cfg) → { provider, name, models: [{ id, label }], model, efforts, effort, hasSearch, search }
 //   applyAI(cfg, change) → { ok, cfg } | { ok: false, error }
-import { loadManifests } from '../ai/providers/index.mjs';
+import { loadManifests, effortLevels } from '../ai/providers/index.mjs';
 import { pickAI } from './runner.mjs';
 
 export function aiChoices(cfg = {}, manifests = loadManifests()) {
@@ -14,10 +14,11 @@ export function aiChoices(cfg = {}, manifests = loadManifests()) {
   return {
     provider: m.id,
     name: m.name,
+    card: m.display?.card || m.name,
     signIn: typeof m.auth?.signIn === 'string',
     models: m.models.list.map(x => ({ id: x.id, label: x.label || x.id })),
     model,
-    efforts: Object.keys(m.effort?.[model] || {}),
+    efforts: effortLevels(m, model),
     effort,
     hasSearch: !!m.webSearch,
     search,

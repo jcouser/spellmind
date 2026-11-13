@@ -6,6 +6,7 @@ const $ = (id) => document.getElementById(id);
 const sm = window.spellmind;
 let last = null;
 let busy = false;
+let viewing = null; // the AI the picker shows (its setup), not necessarily the one in use
 
 const EFFORT_NAMES = { minimal: 'Minimal', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high', max: 'Max' };
 const ERRORS = {
@@ -62,7 +63,7 @@ function draw(s) {
   const steps = [
     { done: s.wow.ok, text: 'Pick your WoW: Forever folder (below).' },
     { done: s.wow.addon.state !== 'missing', text: 'Install the addon, with WoW closed.' },
-    { done: !!s.ai.signedIn, text: 'Sign in with your ChatGPT plan.' },
+    { done: !!s.ai.ready, text: 'Set up your AI: sign in with your ChatGPT plan, or paste an API key (below).' },
     { done: !!s.run?.hello, text: 'Start WoW and log in: the game says hello here.' },
   ];
   // Shown until the first three are done; the hello is the status card's after that.
@@ -82,17 +83,45 @@ function draw(s) {
   if (r.error) fact($('factLast'), `An error: ${r.error}`, 'bad');
   else fact($('factLast'), r.lastAt ? ago(r.lastAt) : 'None yet this session', r.lastAt ? '' : 'muted');
 
-  // The AI.
+  // The AI: the picker (the one in use first, marked), the picked one's setup, then the options of
+  // the one in use. Picking one that's set up switches to it; one that isn't shows its setup.
   const ai = s.ai;
-  $('aiName').textContent = ai.name || 'Your AI';
-  fact($('aiSigned'), ai.signingIn ? 'Finish the sign-in in your browser…' : ai.signedIn ? 'Signed in with your plan.' : 'Not signed in.', ai.signedIn ? 'good' : ai.signingIn ? 'warn' : 'bad');
-  $('signIn').hidden = ai.signedIn || ai.signingIn || !ai.signIn;
-  $('cancelSignIn').hidden = !ai.signingIn;
-  $('signOut').hidden = !ai.signedIn;
+  const ais = ai.list || [];
+  const using = ais.find(x => x.current) || ais[0];
+  if (!viewing || !ais.some(x => x.id === viewing)) viewing = using?.id;
+  const shown = ais.find(x => x.id === viewing) || using;
+  // "ChatGPT plan (sign in)", "Claude (Anthropic API key)", "Other (OpenAI-compatible)": the plan and
+  // OpenAI's API key both say ChatGPT, so each says how it connects.
+  const how = (x) => (x.kind === 'signin' ? 'sign in' : x.kind === 'custom' ? 'OpenAI-compatible' : `${x.maker || x.card} API key`);
+  options($('aiPick'), ais.map(x => ({ value: x.id, label: `${x.card} (${how(x)})${x.current ? ' · in use' : x.ready ? '' : ' · not set up'}` })), shown?.id);
+
+  $('setupPlan').hidden = shown?.kind !== 'signin';
+  $('setupKey').hidden = shown?.kind !== 'key';
+  $('setupCustom').hidden = shown?.kind !== 'custom';
+  if (shown?.kind === 'signin') {
+    fact($('planState'), ai.signingIn ? 'Finish the sign-in in your browser…' : shown.ready ? 'Signed in with your plan.' : 'Not signed in.', shown.ready ? 'good' : ai.signingIn ? 'warn' : 'bad');
+    $('signIn').hidden = shown.ready || ai.signingIn;
+    $('cancelSignIn').hidden = !ai.signingIn;
+    $('signOut').hidden = !shown.ready;
+  } else if (shown?.kind === 'key') {
+    fact($('keyState'), shown.ready ? `Key saved${shown.current ? ' and in use' : ''}.` : `No key yet. ${shown.card}'s keys start like ${(shown.keyExample || 'a long code').replace(/…$/, '')}…`, shown.ready ? 'good' : 'muted');
+    $('pasteKey').textContent = shown.ready ? 'Replace key' : 'Paste key';
+    $('removeKey').hidden = !shown.ready;
+    $('openKeys').hidden = !shown.keysUrl;
+  } else if (shown?.kind === 'custom' && shown.custom && document.activeElement?.tagName !== 'INPUT') {
+    if (!$('customUrl').value) $('customUrl').value = shown.custom.baseUrl || '';
+    if (!$('customModel').value) $('customModel').value = shown.custom.model || '';
+  }
+
+  // The options belong to the AI in use.
+  $('aiOptions').hidden = $('aiOptionsNote').hidden = !shown?.current || !ai.ready;
   options($('model'), (ai.models || []).map(m => ({ value: m.id, label: m.label })), ai.model);
+  $('model').disabled = (ai.models || []).length < 2;
   options($('effort'), (ai.efforts || []).map(e => ({ value: e, label: EFFORT_NAMES[e] || e })), ai.effort);
-  $('search').checked = !!ai.search;
+  $('effort').hidden = $('effort').previousElementSibling.hidden = !(ai.efforts || []).length;
+  $('search').checked = !!ai.search && !!ai.hasSearch;
   $('search').disabled = !ai.hasSearch;
+  $('searchText').textContent = ai.hasSearch ? 'Look up game facts on the web' : `${ai.card || 'This AI'} has no web search in Spellmind yet`;
 
   // WoW.
   $('wowFolder').textContent = s.wow.folder || 'Not picked yet';
@@ -150,6 +179,19 @@ $('signIn').addEventListener('click', () => {
   setTimeout(() => sm.status().then(draw), 300);
 });
 $('cancelSignIn').addEventListener('click', () => act(null, () => sm.cancelSignIn()));
+// Picking an AI: one that's set up is used at once; another shows how to set it up.
+$('aiPick').addEventListener('change', (e) => {
+  viewing = e.target.value;
+  const x = (last?.ai?.list || []).find(a => a.id === viewing);
+  if (x && x.ready && !x.current) act(null, () => sm.chooseAI(viewing), `Now using ${x.card}.`);
+  else if (last) draw(last);
+});
+$('pasteKey').addEventListener('click', () => act($('pasteKey'), () => sm.pasteKey(), (r) => `${r.card}: key saved and working. Your clipboard was cleared.`));
+$('removeKey').addEventListener('click', () => act($('removeKey'), () => sm.removeKey(viewing), 'Key removed.'));
+$('openKeys').addEventListener('click', () => act(null, () => sm.openKeysPage(viewing)));
+$('connectCustom').addEventListener('click', () => act($('connectCustom'),
+  () => sm.connectCustom({ baseUrl: $('customUrl').value, model: $('customModel').value, withKey: $('customWithKey').checked }),
+  'Connected and working.'));
 $('signOut').addEventListener('click', () => act($('signOut'), () => sm.signOut(), 'Signed out.'));
 $('model').addEventListener('change', (e) => act(null, () => sm.setAI({ model: e.target.value }), 'Saved.'));
 $('effort').addEventListener('change', (e) => act(null, () => sm.setAI({ effort: e.target.value }), 'Saved.'));

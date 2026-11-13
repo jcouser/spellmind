@@ -9,13 +9,14 @@
 //   - One copy runs: a second launch opens the first one's window.
 //   - The window (renderer/): status, the AI and its sign-in, the WoW folder and the addon, the app.
 //     Closing it keeps Spellmind in the tray; Quit in the tray's menu ends it.
-import { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, dialog, ipcMain, shell, utilityProcess, Notification } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, dialog, ipcMain, shell, utilityProcess, Notification, clipboard } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dataDir, readConfig, writeConfig } from '../../core/app/runner.mjs';
 import { createSupervisor } from '../../core/app/supervisor.mjs';
 import { aiChoices, applyAI } from '../../core/app/settings.mjs';
+import { createAISetup } from '../../core/app/ai.mjs';
 import { eventLine } from '../../core/app/lines.mjs';
 import { installAddon, addonState, looksLikeFlavor, wowRunning, RUNNING_LINE } from '../../core/link/install.mjs';
 import { loadManifests } from '../../core/ai/providers/index.mjs';
@@ -132,20 +133,31 @@ const sup = createSupervisor({
 
 const manifests = loadManifests();
 const keystore = createKeyStore({ backend: 'os' });
-function signInFor(cfg) {
-  const m = manifests.find(x => x.id === (cfg.provider || 'chatgpt'));
-  if (!m) return { m: null, session: null };
-  const egress = createEgress({ allowHosts: () => new Set(m.hosts), loopbackOk: true });
-  return { m, session: createSignIns({ keystore, fetch: egress.fetch }).for(m) };
+// Each AI's own egress (only its hosts) and, for a plan, its sign-in session, made once.
+const fetchFor = (m) => createEgress({ allowHosts: () => new Set(m.hosts), loopbackOk: true }).fetch;
+const sessions = new Map();
+function sessionFor(m) {
+  if (!m) return null;
+  if (!sessions.has(m.id)) sessions.set(m.id, createSignIns({ keystore, fetch: fetchFor(m) }).for(m));
+  return sessions.get(m.id);
 }
+const PLAN = manifests.find(m => m.id === 'chatgpt');
+const aiSetup = createAISetup({ manifests, keystore, signInFor: sessionFor, fetchFor });
 let signingIn = null;
 
+// The AI the link uses, with every AI the window offers and which are set up.
 async function aiStatus(cfg) {
+  const list = await aiSetup.list(cfg);
   const choices = aiChoices(cfg, manifests);
-  const { m, session } = signInFor(cfg);
-  let signedIn = false;
-  try { signedIn = session ? await session.signedIn() : !!(m && await keystore.get(m.id)); } catch { signedIn = false; }
-  return { ...choices, signedIn, signingIn: !!signingIn };
+  const current = list.find(x => x.current);
+  return { ...choices, list, ready: !!current?.ready, signedIn: !!list.find(x => x.id === 'chatgpt')?.ready, signingIn: !!signingIn };
+}
+
+// A setting the AI setup changed: saved, and the link restarted with it.
+async function useCfg(cfg, line) {
+  writeConfig(DATA, cfg);
+  if (line) note(line);
+  await sup.restart();
 }
 
 // ---------------------------------------------------------------------------
@@ -248,6 +260,12 @@ function openWindow() {
       setTimeout(async () => {
         try {
           const file = process.argv[at + 1];
+          // --shot-ai <id>: the picker on that AI first (its setup shown; nothing is switched).
+          const ai = process.argv[process.argv.indexOf('--shot-ai') + 1];
+          if (process.argv.includes('--shot-ai') && /^[a-z]+$/.test(ai || '')) {
+            await win.webContents.executeJavaScript(`(() => { const s = document.getElementById('aiPick'); s.value = '${ai}'; viewing = '${ai}'; draw(last); })()`);
+            await new Promise(r => setTimeout(r, 300));
+          }
           fs.writeFileSync(file, (await win.webContents.capturePage()).toPNG());
           await win.webContents.executeJavaScript('window.scrollTo(0, document.body.scrollHeight)');
           await new Promise(r => setTimeout(r, 300));
@@ -274,24 +292,65 @@ const CALLS = {
     return { ok: true };
   },
 
+  // The ChatGPT plan: the browser sign-in; once in, the link uses it.
   signIn: async () => {
-    const { session } = signInFor(readConfig(DATA));
+    const session = sessionFor(PLAN);
     if (!session) return { ok: false, error: 'unsupported' };
     signingIn = session;
     pushStatus();
     try {
       const r = await session.start({ openUrl: (url) => shell.openExternal(url) });
-      if (r.ok) { note(`Signed in with your ChatGPT${r.plan ? ' ' + r.plan : ''} plan.`); await sup.restart(); }
+      if (r.ok) {
+        const picked = await aiSetup.choose(readConfig(DATA), PLAN.id);
+        await useCfg(picked.ok ? picked.cfg : readConfig(DATA), `Signed in with your ChatGPT${r.plan ? ' ' + r.plan : ''} plan.`);
+      }
       return r.ok ? { ok: true, plan: r.plan } : { ok: false, error: r.error };
     } finally { signingIn = null; pushStatus(); }
   },
   cancelSignIn: () => { signingIn?.cancel(); return { ok: true }; },
   signOut: async () => {
-    const { m, session } = signInFor(readConfig(DATA));
-    if (m) await keystore.delete(m.id);
-    session?.signOut();
-    note('Signed out.');
+    await keystore.delete(PLAN.id);
+    sessionFor(PLAN)?.signOut();
+    note('Signed out of the ChatGPT plan.');
     await sup.restart();
+    return { ok: true };
+  },
+
+  // An API key from the clipboard, read here (the window never sees it): which AI it's for, a live
+  // test, then the OS credential store. The clipboard is cleared once it's kept.
+  pasteKey: async () => {
+    const text = clipboard.readText();
+    const r = await aiSetup.pasteKey(readConfig(DATA), text);
+    if (!r.ok) return { ok: false, error: r.error, detail: r.detail };
+    if (clipboard.readText() === text) clipboard.clear();
+    await useCfg(r.cfg, `${r.card}: key saved and working.`);
+    return { ok: true, card: r.card };
+  },
+  removeKey: async (id) => {
+    const r = await aiSetup.removeKey(readConfig(DATA), String(id || ''));
+    if (r.ok) { note('Key removed.'); await sup.restart(); }
+    return r;
+  },
+  // Other: an OpenAI-compatible address and model, with the key from the clipboard when asked.
+  connectCustom: async (p) => {
+    const keyText = p?.withKey ? clipboard.readText() : null;
+    const r = await aiSetup.connectCustom(readConfig(DATA), { baseUrl: String(p?.baseUrl || ''), model: String(p?.model || '') }, keyText);
+    if (!r.ok) return r;
+    if (keyText && clipboard.readText() === keyText) clipboard.clear();
+    await useCfg(r.cfg, `Connected to ${r.cfg.custom.model} at ${new URL(r.cfg.custom.baseUrl).host}.`);
+    return { ok: true };
+  },
+  chooseAI: async (id) => {
+    const r = await aiSetup.choose(readConfig(DATA), String(id || ''));
+    if (!r.ok) return r;
+    await useCfg(r.cfg, 'Switched AI: restarting the link.');
+    return { ok: true };
+  },
+  // An AI's API key page, from its manifest only (never a URL the window sends).
+  openKeysPage: async (id) => {
+    const url = manifests.find(m => m.id === id)?.links?.keys;
+    if (typeof url !== 'string' || !url.startsWith('https://')) return { ok: false, error: 'no_link' };
+    await shell.openExternal(url);
     return { ok: true };
   },
 

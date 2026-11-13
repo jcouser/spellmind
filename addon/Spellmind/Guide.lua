@@ -28,6 +28,9 @@ end
 function GD.CleanUrl(text)
 	local url = tostring(text or ""):match("(https://[^%s|<>\"']+)")
 	if not url or #url > 300 then return nil end
+	-- No login in a link ("user:pw@host"): the app refuses those too (the privacy review).
+	if url:match("^https://[^/]*@") then return nil end
+	url = url:gsub("#.*$", "")
 	return (url:gsub("[%).,;]+$", ""))
 end
 

@@ -37,7 +37,9 @@ S.STR_MAX = 60 -- bytes of one string from the game
 local THROTTLE = 2 -- seconds: game events coalesce into one build
 local NODES_MAX = 60
 local BAG_ITEMS_MAX = 40
-local OBJ_MAX = 8 -- objectives per quest
+local OBJ_MAX = 8 -- objectives a quest in focus (the app's focusObj)
+local LOG_OBJ_MAX = 5 -- objectives a quest in the log part (the app's obj: more and the whole part was refused)
+local REP_MAX = 40 -- factions in the rep part (the app's rep)
 local OFF_WAIT = 60 -- seconds the forget record waits for the app to take it
 
 ---------------------------------------------------------------------------
@@ -550,10 +552,10 @@ local function QuestMax(atLeast)
 	return math.max(max, atLeast)
 end
 
-local function Objectives(id)
+local function Objectives(id, max)
 	local out = {}
 	for _, o in ipairs(ns.Try(C_QuestLog.GetQuestObjectives, id) or {}) do
-		if #out >= OBJ_MAX then break end
+		if #out >= (max or OBJ_MAX) then break end
 		if type(o) == "table" then
 			-- The client puts the count in the text too ("Prairie Wolf Paw: 3/6"); have and need carry it.
 			local text = tostring(o.text or ""):gsub("^%s*%d+%s*/%s*%d+%s*", ""):gsub("%s*:?%s*%d+%s*/%s*%d+%s*$", "")
@@ -585,7 +587,7 @@ function Build.quests()
 			local id = info.questID
 			if type(id) == "number" and id > 0 then
 				local done = Complete(id)
-				list[#list + 1] = O("id", id, "title", Text(info.title), "level", Whole(info.level), "complete", done, "obj", Objectives(id))
+				list[#list + 1] = O("id", id, "title", Text(info.title), "level", Whole(info.level), "complete", done, "obj", Objectives(id, LOG_OBJ_MAX))
 			else
 				unread = unread + 1
 			end
@@ -684,7 +686,8 @@ function Build.rep()
 		local f = ns.Try(RP.GetFactionDataByIndex, i)
 		if type(f) == "table" then
 			if f.isHeader and f.isCollapsed then collapsed = collapsed + 1 end
-			if (not f.isHeader or f.isHeaderWithRep) and type(f.factionID) == "number" and f.factionID > 0 then
+			-- 1168, guild reputation, carries the guild's name on modern clients: never read.
+			if (not f.isHeader or f.isHeaderWithRep) and type(f.factionID) == "number" and f.factionID > 0 and f.factionID ~= 1168 then
 				local cur, lo, hi = tonumber(f.currentStanding), tonumber(f.currentReactionThreshold), tonumber(f.nextReactionThreshold)
 				local v = (cur and lo) and Whole(cur - lo) or Whole(cur)
 				local max = (hi and lo) and Whole(hi - lo) or nil
@@ -693,7 +696,20 @@ function Build.rep()
 			end
 		end
 	end
-	return O("v", 1, "list", list, "collapsed", collapsed)
+	-- At most REP_MAX (the app refused the whole part past it): the watched one first, then the
+	-- log's order; how many more there are.
+	local more
+	if #list > REP_MAX then
+		local kept = {}
+		for _, f in ipairs(list) do if Get(f, "watched") then kept[#kept + 1] = f end end
+		for _, f in ipairs(list) do
+			if #kept >= REP_MAX then break end
+			if not Get(f, "watched") then kept[#kept + 1] = f end
+		end
+		more = #list - #kept
+		list = kept
+	end
+	return O("v", 1, "list", list, "collapsed", collapsed, "more", more)
 end
 
 ---------------------------------------------------------------------------

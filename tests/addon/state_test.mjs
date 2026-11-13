@@ -15,6 +15,8 @@ import { slotTable } from '../../core/link/luaenc.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'fixtures', 'state-parts.json'), 'utf8'));
+// Identity calls other than the name read to blank it out of quest text (ns.Redact, the only UnitName in the addon).
+const identity = vm => Object.values(vm.json('STUB.identityCalls') || {}).filter(c => c !== 'UnitName');
 const PARTS = ['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep', 'focus', 'world', 'advisor'];
 const LIMITS = { maxBody: 2900, maxText: 8000 };
 
@@ -102,7 +104,7 @@ test('each part State.lua builds from the stub is the fixture\'s, byte for byte 
     }
   }
   assert.deepEqual(vm.json('STUB.questHeaders'), {}, 'no quest header was opened or closed');
-  assert.deepEqual(vm.json('STUB.identityCalls'), {}, 'name, realm and guild never read');
+  assert.deepEqual(identity(vm), [], 'realm and guild never read; the name only by ns.Redact (see the privacy test)');
 });
 
 test('after the hello is answered with caps state and z, all ten parts come off the strip: z=1 bodies inflate to the fixture, one seq, the hello\'s sid', () => {
@@ -356,7 +358,7 @@ test('privacy: the name, realm and guild are never read and never on the strip; 
   vm.slash('Who am I?');
   const text = stripText(vm) + Object.values(drain(vm)).map(r => r.json).join('');
   for (const s of ['Testchar', 'Test Realm', 'Test Guild', 'TestRealm', 'Player-4372']) assert.ok(!text.includes(s), s);
-  assert.deepEqual(vm.json('STUB.identityCalls'), {});
+  assert.deepEqual(identity(vm), []);
   const saved = vm.saved();
   assert.ok(!saved.includes('Testchar') && !saved.includes('Player-4372'), 'nor in SpellmindDB');
   assert.match(vm.evaluate('NS.State.Key()'), /^g[0-9a-f]{8}$/);
@@ -422,4 +424,49 @@ test('the parts go only with a question: none on the strip after the hello, all 
   const parts = stateRecords(vm).map(r => r.args.part);
   assert.ok(parts.includes('gear'), `the next question brings the change: ${parts}`);
   assert.ok(!parts.includes('quests'), 'and only that');
+});
+
+test('privacy: quest text the game wrote the name into goes with the name blanked; the name is in nothing sent or saved; only ns.Redact reads it', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const vm = session();
+  vm.run('STUB.questText[297] = { "Greetings, Testchar. The troggs took our idols, Testchar!", "Bring Testchar\'s 8 idols back." }');
+  const q = vm.json('NS.Quests.Read(297)');
+  assert.equal(q.text, 'Greetings, [you]. The troggs took our idols, [you]!');
+  assert.equal(q.goal, 'Bring [you]\'s 8 idols back.');
+  vm.run('NS.State.SetFocus(NS.Quests.Focus(297))');
+  const focus = vm.evaluate('NS.State.JSON.encode(NS.State.Collect.focus())');
+  assert.ok(!focus.includes('Testchar') && focus.includes('[you]'), focus);
+  assert.ok(!vm.saved().includes('Testchar'), 'nor in SpellmindDB');
+  // The only place in the addon that reads the name.
+  const dir = path.join(process.cwd(), 'addon', 'Spellmind');
+  const code = f => fs.readFileSync(path.join(dir, f), 'utf8').replace(/--.*$/gm, ''); // comments may name them
+  const readers = fs.readdirSync(dir).filter(f => f.endsWith('.lua') && /\bUnitName\b/.test(code(f)));
+  assert.deepEqual(readers, ['Core.lua']);
+  for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.lua'))) {
+    assert.doesNotMatch(code(f), /GetRealmName|GetGuildInfo|UnitFullName|GetNormalizedRealmName/, f);
+  }
+});
+
+test('the addon\'s caps fit the app\'s (the review: 6+ objectives or 41+ factions made the app refuse the whole part); the watched faction kept; guild reputation never sent', async () => {
+  const { validatePart } = await import('../../core/link/charstate.mjs');
+  const vm = session();
+  vm.run(`STUB.objectives[297] = {}
+for i = 1, 8 do STUB.objectives[297][i] = { text = "Thing " .. i .. ": 0/1", numFulfilled = 0, numRequired = 1 } end
+for i = 1, 45 do table.insert(STUB.factions, { factionID = 2000 + i, name = "Faction " .. i, reaction = 4, currentStanding = 0, currentReactionThreshold = 0, nextReactionThreshold = 3000 }) end
+STUB.factions[#STUB.factions].isWatched = true
+table.insert(STUB.factions, { factionID = 1168, name = "Guild: Test Guild", reaction = 4, currentStanding = 0, currentReactionThreshold = 0, nextReactionThreshold = 3000 })`);
+  for (const p of ['quests', 'rep', 'advisor']) {
+    const json = vm.evaluate(`NS.State.JSON.encode(NS.State.Collect.${p}())`);
+    assert.equal(validatePart(p, json).ok, true, `${p}: ${validatePart(p, json).reason}`);
+  }
+  const rep = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.State.Collect.rep())'));
+  assert.equal(rep.list.length, 40);
+  assert.equal(rep.list[0].name, 'Faction 45', 'the watched one first');
+  assert.equal(rep.more, 8, "the stub's 3 and 45 more, less 40");
+  assert.ok(!JSON.stringify(rep).includes('Test Guild'));
+  const quests = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.State.Collect.quests())'));
+  assert.equal(quests.list.find(q => q.id === 297).obj.length, 5);
+  vm.run('NS.State.SetFocus(NS.Quests.Focus(297))');
+  assert.equal(JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.State.Collect.focus())')).obj.length, 8, 'a quest in focus keeps 8');
 });

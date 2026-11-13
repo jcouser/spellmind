@@ -77,6 +77,10 @@ switch (a._[0]) {
     fs.mkdirSync(DATA, { recursive: true });
     const log = (k, d) => { try { fs.appendFileSync(logFile, `${new Date().toISOString()} ${k} ${JSON.stringify(d ?? {})}\n`); } catch { /* logging never stops the link */ } };
 
+    // A promise nobody caught is logged, never the end of the app (the review: one could stop it and
+    // lose the replies in flight).
+    process.on('unhandledRejection', (e) => log('unhandled', { error: String(e?.message || e).slice(0, 200) }));
+
     // The prompt (prompts/spellmind.md), read once: its version goes in the log.
     const pack = loadPack();
     log('pack', { version: pack.version, tokens: pack.tokens });

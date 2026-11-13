@@ -53,7 +53,9 @@ function TR.Read()
 				cost = tonumber((ns.Try(GetTrainerServiceCost, i))) or 0, level = tonumber((ns.Try(GetTrainerServiceLevelReq, i))) or 0 }
 		end
 	end
-	if #list > 0 then me.trainer = { at = time(), services = list } end
+	-- Only a class trainer's list (the review: a weapon master's "Swords, Bows" replaced it): one with a
+	-- ranked spell, or a spell the spellbook has.
+	if #list > 0 and TR.IsClassList(list) then me.trainer = { at = time(), services = list } end
 	return #list
 end
 
@@ -77,6 +79,16 @@ local function Known()
 		end
 	end
 	return out
+end
+
+-- A class trainer's list: a ranked spell in it, or a spell the spellbook already has. A weapon
+-- master's ("Swords", "Bows") or a riding trainer's has neither.
+function TR.IsClassList(list)
+	local known = Known()
+	for _, s in ipairs(list) do
+		if s.rank or known[s.name] then return true end
+	end
+	return false
 end
 
 -- What's due and what's coming, from the kept list: due = learnable at this level and not known
@@ -176,7 +188,12 @@ local function Seen()
 end
 
 ns.On("TRAINER_SHOW", function() C_Timer.After(0.2, Seen) end)
-ns.On("TRAINER_UPDATE", function() C_Timer.After(0.2, function() pcall(TR.Read) end) end)
+-- The filter changed or a spell was learned: read again once, however many updates come.
+ns.On("TRAINER_UPDATE", function()
+	if TR.updatePending then return end
+	TR.updatePending = true
+	C_Timer.After(0.3, function() TR.updatePending = nil; pcall(TR.Read) end)
+end)
 ns.On("TRAINER_CLOSED", function()
 	if ns.Marks and ns.Marks.card and ns.Marks.card.owner == rawget(_G, "ClassTrainerFrame") then ns.Marks.card:Hide() end
 end)

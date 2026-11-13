@@ -295,6 +295,8 @@ function Q.Read(id)
 	local level = S().Whole(info.difficultyLevel) or S().Whole(info.level)
 	local desc, goal
 	if logIndex then desc, goal = Try(GetQuestLogQuestText, logIndex) end
+	-- The game writes the character's name into quest text: blanked before it goes anywhere.
+	desc, goal = ns.Redact(desc), ns.Redact(goal)
 	local group = S().Whole(Try(QL.GetSuggestedGroupSize, id)) or S().Whole(info.suggestedGroup)
 	local where, dist = Where(id)
 	return {

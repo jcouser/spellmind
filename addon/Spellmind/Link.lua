@@ -980,7 +980,9 @@ function L.FastActive()
 	if R.stripShown or #R.sched > 0 then return true end
 	local h = R.hello
 	if h and not h.confirmed and h.drawUntil and GetTime() < h.drawUntil then return true end
-	return ns.Chat.Waiting() ~= nil
+	-- A question waiting keeps the fast poll, but not while the app is away: it can't answer then
+	-- (the review: four checks a second for the rest of the session).
+	return ns.Chat.Waiting() ~= nil and not L.AppAway()
 end
 
 function L.Slow()

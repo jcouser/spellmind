@@ -379,3 +379,18 @@ test('the strip\'s spot: the top-left corner alone; 272 px down when NeverQuestA
   assert.equal(r.kind, 'decoded');
   assert.equal(r.geometry.y0, 272);
 });
+
+test('the review: a question the app took but never answered expires after 5 minutes with a line saying so; the fast poll stops', () => {
+  const vm = session();
+  vm.slash('hello?');
+  const [{ key }] = vm.outbox();
+  vm.run(`NS.Chat.OnAcked("${key}")`);
+  assert.ok(vm.evaluate('tostring(NS.Chat.Waiting() ~= nil)') === 'true');
+  vm.advance(200);
+  vm.run('NS.Chat.ExpirePending()');
+  assert.ok(vm.evaluate('tostring(NS.Chat.Waiting() ~= nil)') === 'true', 'not yet');
+  vm.advance(120);
+  vm.run('NS.Chat.ExpirePending()');
+  assert.equal(vm.evaluate('tostring(NS.Chat.Waiting())'), 'nil');
+  assert.match(JSON.stringify(vm.json('NS.Chat.Msgs()')), /No answer came for that question/);
+});

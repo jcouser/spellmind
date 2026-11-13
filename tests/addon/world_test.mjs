@@ -76,11 +76,11 @@ local get = LibQuestieDB.Support.Get
   part(vm); // starts QuestieDB's read
   vm.advance(1);
   const w = part(vm);
-  assert.deepEqual(w.npcs.map(n => `${n.name} <${n.sub}>`), ['Yanni Stoutheart <General Supplies>', 'Irene Sureshot <Gunsmith>'], 'the Horde vendor and the plain dwarf left out; nearest first');
-  assert.equal(w.npcs[0].seen, undefined, 'from QuestieDB, not a visit');
+  assert.deepEqual(w.npcs.map(n => `${n.name} <${n.sub}>`), ['Irene Sureshot <Gunsmith>', 'Yanni Stoutheart <General Supplies>'], 'the Horde vendor and the plain dwarf left out; the nearest, by name');
+  assert.equal(w.npcs[1].seen, undefined, 'from QuestieDB, not a visit');
 });
 
 test('without QuestieDB or any visit: the hearth and where you are, nothing made up', () => {
   const w = part(session());
-  assert.deepEqual(w, { v: 1, zone: 'Loch Modan', sub: 'Stoutlager Inn', x: 35.4, y: 48.2, hearth: 'Thelsamar' });
+  assert.deepEqual(w, { v: 1, zone: 'Loch Modan', sub: 'Stoutlager Inn', hearth: 'Thelsamar' });
 });

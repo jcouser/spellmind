@@ -133,6 +133,19 @@ function ns.Utf8Cut(s, max)
 	return s:sub(1, cut)
 end
 
+-- Quest text with the character's name blanked out (the privacy review, 2026-11-12): the game writes
+-- the name into quest text ("Greetings, <name>"), and that text goes to the AI with Break it down. The
+-- name is read here only to find it, at the moment of use: it's never kept in a variable past this
+-- call, never stored, never sent. Nothing else in Spellmind reads it.
+ns.NAME_MARK = "[you]"
+function ns.Redact(text)
+	if type(text) ~= "string" or text == "" then return text end
+	local ok, name = pcall(UnitName, "player")
+	if not ok or type(name) ~= "string" or #name < 2 then return text end
+	local pattern = name:gsub("(%W)", "%%%1")
+	return (text:gsub(pattern, ns.NAME_MARK))
+end
+
 function ns.Try(fn, ...)
 	if type(fn) ~= "function" then return nil end
 	local ok, a, b, c, d = pcall(fn, ...)

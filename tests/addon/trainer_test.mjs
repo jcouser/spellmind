@@ -135,3 +135,10 @@ test('an empty rank (as on Forever): an offered spell you know a lower rank of i
   assert.deepEqual(list(vm, 'NS.Trainer.Plan().soon').map(x => x.name), ['Gouge'], 'Gouge 2 at 18, though Gouge 1 is known');
   assert.equal(p.total, 3000);
 });
+
+test('a weapon master\'s list doesn\'t replace the class trainer\'s (the review)', () => {
+  const vm = session();
+  vm.run('STUB.trainer = { { "Swords", "", "available", 1000, 1 }, { "Bows", "", "available", 1000, 1 } }; STUB.FireEvent("TRAINER_SHOW")');
+  vm.advance(0.3);
+  assert.equal(list(vm, 'NS.State.Me().trainer.services')[0].name, 'Backstab', 'still the class trainer\'s');
+});

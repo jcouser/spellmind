@@ -278,6 +278,9 @@ function WD.Nearby()
 	for _, n in ipairs(FromDB(here, known)) do list[#list + 1] = n end
 	table.sort(list, function(a, b) return Dist(here, a) < Dist(here, b) end)
 	while #list > WD.NPCS_MAX do table.remove(list) end
+	-- Then by name, so the part stays the same as the player walks (the review: it changed with every
+	-- step and was sent again and again). char.loc has the player's spot for distances.
+	table.sort(list, function(a, b) return tostring(a.name) < tostring(b.name) end)
 	return list, here
 end
 
@@ -297,7 +300,7 @@ function WD.Part()
 	end
 	local flights = WD.Flights()
 	local hearth = ns.State.Text(ns.Try(GetBindLocation))
-	return O("v", 1, "zone", here.zone, "sub", here.sub, "x", here.x, "y", here.y, "hearth", hearth,
+	return O("v", 1, "zone", here.zone, "sub", here.sub, "hearth", hearth,
 		"flights", #flights > 0 and flights or nil, "npcs", #list > 0 and list or nil)
 end
 

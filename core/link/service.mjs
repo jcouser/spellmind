@@ -62,6 +62,7 @@ export const HISTORY_MAX = 20;
 export const CHATS_KEPT = 30;
 export const RESERVED_PREFIX = /^\s*\[Spellmind/i;
 /** How long a message waits for the parts its st= names before it runs with stale: true. */
+export const MSG_PER_MINUTE = 12; // messages a session may send a minute (the security review)
 export const STATE_WAIT_MS = 12000; // the parts go with the question now (milestone 8): twelve of them since milestone 18, so a little longer
 /** What the service tells the addon it takes (bridge.caps): state records, and z=1 bodies. */
 export const CAPS = Object.freeze(['state', 'z']);
@@ -188,13 +189,19 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
       if (r.token && r.key) noteAck(r.token, r.key); // else the addon would draw it for good
     }
     // State before messages: a message and its parts drawn in one frame meet (otherwise in order).
-    const ordered = [...records.filter(r => r.type === 'state'), ...records.filter(r => r.type !== 'state')];
+    // A hello first of all: it's what lets the rest of the frame be heard (handleRecord).
+    const ordered = [...records.filter(r => r.type === 'hello'), ...records.filter(r => r.type === 'state'),
+      ...records.filter(r => r.type !== 'state' && r.type !== 'hello')];
     for (const r of ordered) {
       try { handleRecord(r); } catch (e) { log('record-error', { type: r.type, key: r.key || null, error: String(e?.message || e).slice(0, 120) }); }
     }
   }
 
   function handleRecord(r) {
+    // Only a session that said hello is heard (the security review, 2026-11-12: any addon can draw a
+    // strip, so a made-up token mustn't take the slot over or reach the AI). Not a full fix: the
+    // channels between the game and the app are all readable Lua.
+    if (r.type !== 'hello' && !S.tokens[r.token]?.nonce) { log('record-no-hello', { type: r.type }); return; }
     const t = ensureToken(r.token);
     if (S.lastToken !== r.token) { S.lastToken = r.token; store.saveState(); }
     const cursorMoved = store.reportCursor(r.token, r.args.cur);
@@ -240,6 +247,16 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
     if (!s.ok) {
       const part = s.part ?? (/^[a-z]{1,12}$/.test(r.args.part || '') ? r.args.part : null);
       log('state-rejected', { token: r.token, part, reason: s.reason, bytes: Buffer.byteLength(String(r.body || '')) });
+      // Settled anyway (the review): the slot confirms the refused seq, so the addon stops drawing
+      // it, and questions naming it don't wait for a part that will never come. The turn has the
+      // last good one, if any.
+      const seq = Number(r.args.seq);
+      const c = chars.tokens[r.token];
+      if (part && Number.isInteger(seq) && c && r.args.sid === c.sid) {
+        c.rejected = { ...(c.rejected || {}), [part]: Math.max(seq, c.rejected?.[part] ?? 0) };
+        saveChars();
+        stateArrived(r.token);
+      }
       return;
     }
     if (s.off) {
@@ -256,18 +273,39 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
     saveChars();
     if (m.reset) log('state-session', { token: r.token, sid: s.sid });
     log('state', { token: r.token, part: s.part, seq: s.seq, bytes: s.bytes, z: s.z || undefined });
-    publisher.pushWithin(ackRingMs);
-    // Messages waiting for these parts go now.
+    stateArrived(r.token);
+  }
+
+  // A part in (or settled): messages waiting for their parts go when they're all here. While one
+  // still waits, the slot rings now, so the addon draws its next parts at once (the review: an 8 s
+  // wait between frames made the last parts miss the turn); otherwise within the ack ring.
+  function stateArrived(token) {
+    let stillWaiting = false;
     for (const [id, w] of [...waiting]) {
-      if (w.item.token !== r.token || !stReady(w.item.st, chars.tokens[r.token])) continue;
+      if (w.item.token !== token) continue;
+      if (!stReady(w.item.st, chars.tokens[token])) { stillWaiting = true; continue; }
       clearTimeout(w.timer);
       waiting.delete(id);
       send(w.item);
     }
+    if (stillWaiting) publisher.publish({ push: true });
+    else publisher.pushWithin(ackRingMs);
   }
 
   function onMsg(r, t) {
     const text = String(r.text || '');
+    // At most MSG_PER_MINUTE messages a minute from one session (the security review: a forged flood
+    // would spend the player's AI plan). A person typing never comes near it.
+    const minute = now() - 60000;
+    t.recentMsgs = (t.recentMsgs || []).filter(at => at > minute);
+    if (t.recentMsgs.length >= MSG_PER_MINUTE) {
+      noteAck(r.token, r.key);
+      store.saveState();
+      record({ t: 'error', chat: r.chat, kind: 'refused', text: systemLine('Not sent: too many messages in a minute. Wait a moment.') });
+      log('msg-refused', { key: r.key, chat: r.chat, reason: 'rate' });
+      return;
+    }
+    t.recentMsgs.push(now());
     if (RESERVED_PREFIX.test(text)) {
       noteAck(r.token, r.key);
       store.saveState();
@@ -359,15 +397,25 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
       const game = gameFor(item);
       if (item.st !== null && item.st !== undefined) log('turn-game', { chat: item.chat, parts: game.state ? Object.keys(game.state) : [], stale: game.stale || undefined });
       // An import reads the page with web search, whatever the header's pick, and starts from no history.
-      if (item.guide) return turn({ chatId: item.chat, text: guideAsk(item.guide.url, item.guide.build), history: [], signal, game, effort: item.effort, search: AI && AI.search ? true : item.search, check: false });
+      // No game data with it: reading a page needs none (the privacy review).
+      if (item.guide) return turn({ chatId: item.chat, text: guideAsk(item.guide.url, item.guide.build), history: [], signal, game: { state: null, stale: false }, effort: item.effort, search: AI && AI.search ? true : item.search, check: false });
       return turn({ chatId: item.chat, text: item.text, history: prior, signal, game, effort: item.effort, search: item.search, check: item.check });
     }).then((res) => finish(runId, item, res), (err) => finish(runId, item, err?.name === 'AbortError' ? { aborted: true } : { error: { kind: 'error', text: String(err?.message || err) } }));
   }
 
+  // The outcome written first, then the message leaves the outbox (the review: removed first, a crash
+  // in between lost the reply; now the worst case is the message asked again, and a reply is never
+  // published twice: markRun).
   function finish(runId, item, res) {
     if (stopped) return;
     delete S.inflight[runId];
-    store.removeOutbox(item.token, item.key);
+    try { finishTurn(runId, item, res); } finally {
+      store.removeOutbox(item.token, item.key);
+      store.saveState();
+    }
+  }
+
+  function finishTurn(runId, item, res) {
     const c = S.chats[item.chat] || ensureChat(item.chat, item.token);
     if (res?.aborted) {
       record({ t: 'aborted', chat: c.id, kind: 'user', text: systemLine('Stopped.') });

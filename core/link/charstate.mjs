@@ -85,7 +85,7 @@ const SHAPES = {
   bags: { slots: int, free: int, items: list(BAG_ITEM, LIST_MAX.bagItems), junk: shape({ n: int, copper: num }), more: int },
   skills: { prof: list(SKILL, LIST_MAX.skills), weapon: list(SKILL, LIST_MAX.skills) },
   quests: { count: int, max: int, unread: int, list: list(QUEST, LIST_MAX.quests) },
-  rep: { list: list(REP, LIST_MAX.rep), collapsed: int },
+  rep: { list: list(REP, LIST_MAX.rep), collapsed: int, more: int },
   world: { zone: str, sub: str, x: num, y: num, hearth: str, flights: strList(LIST_MAX.flights), npcs: list(WORLD_NPC, LIST_MAX.worldNpcs) },
   advisor: { dungeons: list(ADV_DUNGEON, 4), upgrades: list(ADV_UPGRADE, 6), professions: list(ADV_PROF, LIST_MAX.skills), gold: shape(ADV_GOLD) },
   // What the player clicked Explain on (docs/milestone-5.md): a quest, for now.
@@ -191,13 +191,17 @@ export function parseSt(st) {
 
 /** Has the token every part st names, at that seq or later? An empty st means ready. */
 export function stReady(st, stored) {
-  return parseSt(st).every(({ part, seq }) => (stored?.parts?.[part]?.seq ?? -1) >= seq);
+  // A part the app refused at that seq counts as settled (service.mjs onState): it will never come.
+  return parseSt(st).every(({ part, seq }) => Math.max(stored?.parts?.[part]?.seq ?? -1, stored?.rejected?.[part] ?? -1) >= seq);
 }
 
 /** The seqs held, for the slot's bridge.state.parts. */
 export function partSeqs(stored) {
   const out = {};
-  for (const p of PARTS) if (stored?.parts?.[p]) out[p] = stored.parts[p].seq;
+  for (const p of PARTS) {
+    const seq = Math.max(stored?.parts?.[p]?.seq ?? -1, stored?.rejected?.[p] ?? -1);
+    if (seq >= 0) out[p] = seq; // a refused seq is confirmed too, so the addon stops drawing it
+  }
   return out;
 }
 

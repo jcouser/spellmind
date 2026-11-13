@@ -216,3 +216,16 @@ test('the log has part names and sizes, never their contents', async (t) => {
   assert.deepEqual(st.map(d => d.part), PARTS);
   for (const d of st) assert.equal(typeof d.bytes, 'number');
 });
+
+test('the review: a refused part settles. The slot confirms its seq (the addon stops drawing it) and a question naming it goes without the full wait', async (t) => {
+  const r = rig(t, { stateWaitMs: 60000 });
+  r.send(hello(), part('char'));
+  const bad = { v: 1, list: Array.from({ length: 41 }, (_, i) => ({ id: i + 1, name: `F${i}`, r: 4, v: 0, max: 3000 })) };
+  r.send(msg(1, 'how is my rep?', `rep:${FIX.seq + 1}`));
+  r.send(part('rep', { seq: FIX.seq + 1, value: bad }));
+  for (let i = 0; i < 20 && r.calls.length < 1; i++) await sleep(20);
+  assert.equal(r.calls.length, 1, 'the turn ran without the 60 s wait');
+  assert.equal(r.calls[0].game.stale, false);
+  assert.equal(r.slot().bridge.state.parts.rep, FIX.seq + 1, 'confirmed, so it isn\'t drawn again');
+  assert.ok(r.lines.some(([k, d]) => k === 'state-rejected' && d.part === 'rep'));
+});

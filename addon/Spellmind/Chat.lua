@@ -441,7 +441,28 @@ end
 
 function C.OnAcked(key, o)
 	for _, p in ipairs(Pending()) do
-		if p.key == key then p.acked = true end
+		if p.key == key and not p.acked then p.acked, p.ackedAt = true, time() end
+	end
+end
+
+-- A question the app took but never answered (the review: "Thinking…" forever, and the link polling
+-- four times a second for good): after EXPIRE seconds it's dropped, with a line saying so, in the
+-- window and in its card. One the app hasn't taken yet waits: the app may still start.
+C.EXPIRE = 300
+C.NO_ANSWER = "No answer came for that question. Ask it again."
+function C.ExpirePending()
+	local list, keep, now = Pending(), {}, time()
+	for _, p in ipairs(list) do
+		if p.ackedAt and now - p.ackedAt > C.EXPIRE then
+			AddMsg("err", "|cffff6060" .. C.NO_ANSWER .. "|r", nil, p.chat)
+			if p.card and ns.Marks and ns.Marks.OnAnswer then pcall(ns.Marks.OnAnswer, p.key, { t = "error", text = C.NO_ANSWER }) end
+		else
+			keep[#keep + 1] = p
+		end
+	end
+	if #keep ~= #list then
+		R.pending = keep
+		C.Refresh()
 	end
 end
 
@@ -640,5 +661,7 @@ ns.On("PLAYER_LOGIN", function()
 	end
 	table.sort(keys, function(a, b) return a.n < b.n end)
 	for _, k in ipairs(keys) do table.insert(Pending(), { key = k.key, t = time(), chat = R.out[k.key].chat }) end
+	-- Questions the app took and never answered expire (C.ExpirePending), checked twice a minute.
+	if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(30, function() pcall(C.ExpirePending) end) end
 	C.Refresh()
 end)

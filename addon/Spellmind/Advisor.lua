@@ -107,7 +107,7 @@ local function Gold()
 	local inc = GL.Income()
 	local costs, total = GL.Costs()
 	local list = {}
-	for _, c in ipairs(costs) do list[#list + 1] = c.label .. (c.copper and (": " .. c.copper .. "c") or "") end
+	for i, c in ipairs(costs) do if i <= 6 then list[#list + 1] = c.label .. (c.copper and (": " .. c.copper .. "c") or "") end end -- the app takes 6
 	-- No per-hour rate: it changes every second, so the part would be built and sent again and again
 	-- (seen in game: it came in after the turn had stopped waiting). The Gold tab shows it.
 	return O("sessionNet", inc.session.net, "todayNet", inc.today.net,

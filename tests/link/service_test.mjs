@@ -243,3 +243,20 @@ test('milestone 17: check=0 (Settings off) reaches the turn as check false; othe
   assert.equal(calls[0].check, false);
   assert.equal(calls[1].check, undefined);
 });
+
+test('the security review: a session that never said hello isn\'t heard; a flood of messages is cut off at 12 a minute', async (t) => {
+  const calls = [];
+  const r = rig(t, { turn: async (a) => { calls.push(a); return { text: 'ok' }; } });
+  // A made-up token, no hello: its message never reaches the AI, and it can't take the slot.
+  r.send({ token: 'deadbeef', key: 'ab12_1', type: 'msg', chat: CHAT, args: { cur: 0, ctx: 0 }, text: 'spend my plan' });
+  await r.settle();
+  assert.equal(calls.length, 0);
+  assert.ok(r.lines.some(([k]) => k === 'record-no-hello'));
+  r.hello();
+  for (let i = 1; i <= 14; i++) r.send({ token: TOKEN, key: `${NONCE}_${i}`, type: 'msg', chat: CHAT, args: { cur: 0, ctx: 0 }, text: `q${i}` });
+  for (let i = 0; i < 40 && calls.length < 12; i++) await r.settle();
+  await r.settle();
+  assert.equal(calls.length, 12);
+  const refused = toArr(r.slot().records).filter(x => x.t === 'error' && /too many messages/.test(x.text));
+  assert.equal(refused.length, 2);
+});

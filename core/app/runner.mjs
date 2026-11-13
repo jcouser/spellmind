@@ -94,8 +94,9 @@ export function startSpellmind({ dataDir: DATA, cfg = {}, over = {}, onEvent = (
   const logger = createLogger(path.join(DATA, 'logs'));
   const log = (k, d) => {
     if (k === 'publish' && !(d && (d.errors || d.error))) return;
-    const { token, nonce, ...rest } = d && typeof d === 'object' ? d : {};
-    try { logger(k, rest); } catch { /* logging never stops the link */ }
+    const { token, nonce, kind, ...rest } = d && typeof d === 'object' ? d : {};
+    // A line's own "kind" (a capture error's: window_not_found) goes as "what": the logger's kind is the line's.
+    try { logger(k, kind !== undefined ? { ...rest, what: kind } : rest); } catch { /* logging never stops the link */ }
   };
 
   const label = m.models.list.find(x => x.id === model)?.label || model;

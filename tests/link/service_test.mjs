@@ -232,3 +232,14 @@ test('milestone 15: an import reads the guide with web search; the plan rides on
   const err = toArr(r.slot().records).find(x => x.t === 'error' && x.kind === 'guide');
   assert.match(err.text, /in a form Spellmind could read/);
 });
+
+test('milestone 17: check=0 (Settings off) reaches the turn as check false; otherwise it\'s left to the app', async (t) => {
+  const calls = [];
+  const r = rig(t, { turn: async (a) => { calls.push(a); return { text: 'ok' }; } });
+  r.hello();
+  r.send({ token: TOKEN, key: `${NONCE}_1`, type: 'msg', chat: CHAT, args: { cur: 0, ctx: 0, check: 0 }, text: 'Where is the inn?' });
+  r.send({ token: TOKEN, key: `${NONCE}_2`, type: 'msg', chat: CHAT, args: { cur: 0, ctx: 0 }, text: 'And the bank?' });
+  for (let i = 0; i < 20 && calls.length < 2; i++) await r.settle();
+  assert.equal(calls[0].check, false);
+  assert.equal(calls[1].check, undefined);
+});

@@ -417,6 +417,8 @@ function C.Send(text, opts)
 	if effort then args[#args + 1] = { "effort", effort } end
 	local search = ns.Window and ns.Window.Search()
 	if search ~= nil then args[#args + 1] = { "search", search and 1 or 0 } end
+	-- The double-check off (Settings): the app checks fact answers unless told not to.
+	if ns.db.ui and ns.db.ui.check == false then args[#args + 1] = { "check", 0 } end
 	-- A caller's own (Guide.lua's guide=1): short words and numbers only.
 	for _, a in ipairs(type(opts.args) == "table" and opts.args or {}) do
 		if type(a[1]) == "string" and a[1]:match("^%l+$") and tostring(a[2]):match("^[%w]+$") then args[#args + 1] = { a[1], a[2] } end

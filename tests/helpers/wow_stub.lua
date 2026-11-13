@@ -262,6 +262,7 @@ function GetMoney() return P.money end
 function GetZoneText() return P.zone end
 function GetRealZoneText() return P.zone end
 function GetSubZoneText() return P.subzone end
+function GetBindLocation() return "Thelsamar" end
 C_Map = {
 	GetBestMapForUnit = function(unit) return P.map end,
 	-- A Vector2D in the game: GetXY gives both.

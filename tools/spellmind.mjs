@@ -21,6 +21,7 @@ import { createWindowsCapture } from '../core/link/capture.mjs';
 import { installAddon, FOREVER_FLAVORS, NOT_GAME, wowRunning } from '../core/link/install.mjs';
 import { loadPack } from '../core/ai/pack.mjs';
 import { buildRequest } from '../core/ai/context.mjs';
+import { needsCheck, checkHistory, CHECK_ASK } from '../core/ai/check.mjs';
 
 const DATA = process.platform === 'win32' ? path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Spellmind') : path.join(os.homedir(), '.config', 'spellmind');
 const CONFIG = path.join(DATA, 'config.json');
@@ -82,11 +83,12 @@ switch (a._[0]) {
 
     // One turn: the prompt, the chat's history, then the game data and the message; the reply's
     // text, or the error's words.
-    const turn = async ({ text, history, signal, game, effort: pickedEffort, search: pickedSearch }) => {
+    // One request: the text, or { aborted } or { error }.
+    const ask = async ({ history, userText, game, signal, effort: e, search: s }) => {
       let out = '', searched = false;
-      const { system, messages, meta } = buildRequest({ pack, game, history, userText: text });
+      const { system, messages, meta } = buildRequest({ pack, game, history, userText });
       log('request', { pack: pack.version, dataChars: meta.dataChars, omitted: meta.omitted.length ? meta.omitted : undefined, stale: game?.stale || undefined });
-      for await (const ev of provider.stream({ model, effort: pickedEffort || effort, system, messages, webSearch: pickedSearch ?? search }, { signal })) {
+      for await (const ev of provider.stream({ model, effort: e, system, messages, webSearch: s }, { signal })) {
         if (ev.type === 'text') out += ev.delta;
         else if (ev.type === 'progress' && ev.searching && !searched) { searched = true; log('web-search', {}); }
         else if (ev.type === 'error') {
@@ -96,6 +98,18 @@ switch (a._[0]) {
         }
       }
       return { text: out };
+    };
+    // A turn: the answer, then (docs/milestone-17.md) a double-check of one that names places, people,
+    // routes, items or quest steps, unless the player turned it off. A failed check keeps the draft.
+    const turn = async ({ text, history, signal, game, effort: pickedEffort, search: pickedSearch, check }) => {
+      const e = pickedEffort || effort, s = pickedSearch ?? search;
+      const draft = await ask({ history, userText: text, game, signal, effort: e, search: s });
+      if (!draft.text || check === false || !needsCheck(text, draft.text)) return draft;
+      log('check', {});
+      const checked = await ask({ history: checkHistory(history, text, draft.text), userText: CHECK_ASK, game, signal, effort: e, search: s });
+      if (checked.aborted) return checked;
+      if (!checked.text?.trim()) { log('check-failed', { kind: checked.error?.kind }); return draft; }
+      return checked;
     };
 
     const addonsDir = path.join(flavorDir, 'Interface', 'AddOns');

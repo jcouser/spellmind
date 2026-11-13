@@ -30,7 +30,7 @@ local S = {}
 ns.State = S
 local R = ns.R
 
-S.PARTS = { "char", "stats", "talents", "spells", "gear", "bags", "skills", "quests", "rep", "focus" }
+S.PARTS = { "char", "stats", "talents", "spells", "gear", "bags", "skills", "quests", "rep", "focus", "world" }
 S.MAX_JSON = 8000 -- bytes of one part's JSON
 S.MAX_BODY = 2900 -- bytes of one part's body on the strip
 S.STR_MAX = 60 -- bytes of one string from the game
@@ -660,6 +660,13 @@ function Build.spells()
 	return O("v", 1, "tabs", tabs, "next", #nextList > 0 and nextList or nil, "trainer", trainer)
 end
 
+-- world (World.lua, docs/milestone-17.md): the hearth, the flight paths known and the NPCs nearby, so
+-- "who sells ammo here" and routes come from the game, not the model's memory.
+function Build.world()
+	if not ns.World then return O("v", 1) end
+	return ns.World.Part()
+end
+
 function Build.rep()
 	local RP = C_Reputation
 	if type(RP) ~= "table" then return O("v", 1) end
@@ -761,6 +768,17 @@ local TRIMS = {
 		end },
 		{ "rewards", function(obj) Set(obj, "choices", nil); Set(obj, "items", nil) end },
 	},
+	world = {
+		{ "sells", function(obj)
+			for _, n in ipairs(Get(obj, "npcs") or {}) do Set(n, "sells", nil) end
+		end },
+		{ "npcs", function(obj)
+			local list = Get(obj, "npcs") or {}
+			if #list <= 5 then return false end
+			for i = #list, math.max(6, math.floor(#list / 2) + 1), -1 do table.remove(list, i) end
+			return true
+		end },
+	},
 	talents = {
 		{ "guide", function(obj) Set(obj, "guide", nil) end },
 	},
@@ -817,7 +835,7 @@ end
 
 -- The parts a player can keep back. char (class, level, zone) is what every answer starts from, and
 -- focus is only ever what they clicked, so those two always go while game data is on.
-S.OPTIONAL = { "stats", "talents", "spells", "gear", "bags", "skills", "quests", "rep" }
+S.OPTIONAL = { "stats", "talents", "spells", "gear", "bags", "skills", "quests", "rep", "world" }
 
 function S.PartOn(name)
 	local p = ns.db and type(ns.db.share) == "table" and ns.db.share.parts

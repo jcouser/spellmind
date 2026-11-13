@@ -40,6 +40,7 @@ ST.PARTS = {
 	skills = { "Skills", "Professions and weapon skills." },
 	quests = { "Quest log", "Your quests and their objectives." },
 	rep = { "Reputations", "Your standing with each faction." },
+	world = { "Places", "Your hearth, the flight paths you know, and NPCs nearby." },
 }
 
 ST.CHAT_NAMES = { all = "Whole", first = "First line", off = "Off" }
@@ -109,6 +110,12 @@ function ST.List()
 	other.rows[2] = { id = "minimap", label = "Minimap button", sub = "Off: /sm opens the chat.",
 		get = function() return not (type(ns.db.minimap) == "table" and ns.db.minimap.hide) end,
 		set = function(v) ns.MinimapButton.Show(v) end }
+	other.rows[3] = { id = "check", label = "Double-check facts", sub = "Answers naming places, NPCs, routes or items are checked once more first. A few seconds slower.",
+		get = function() return not (type(ns.db.ui) == "table" and ns.db.ui.check == false) end,
+		set = function(v)
+			if type(ns.db.ui) ~= "table" then ns.db.ui = {} end
+			if v then ns.db.ui.check = nil else ns.db.ui.check = false end
+		end }
 	out[#out + 1] = other
 	return out
 end

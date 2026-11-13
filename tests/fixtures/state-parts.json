@@ -1,5 +1,5 @@
 {
-  "about": "Milestone 4's contract (docs/milestone-4.md): the ten state parts (focus empty, as it is until an Explain click) as the addon builds them and the service takes them. A level-15 Dwarf rogue (from the probe of 2026-11-10), made up where the probe didn't read. Both the addon's tests (what State.lua builds from the WoW stub) and the service's tests (what onState takes) read this file.",
+  "about": "Milestone 4's contract (docs/milestone-4.md): the eleven state parts (focus empty, as it is until an Explain click) as the addon builds them and the service takes them. A level-15 Dwarf rogue (from the probe of 2026-11-10), made up where the probe didn't read. Both the addon's tests (what State.lua builds from the WoW stub) and the service's tests (what onState takes) read this file.",
   "sid": "5d1e0f3a9b7c2e41",
   "seq": 7,
   "parts": {
@@ -12,6 +12,7 @@
     "skills": {"v":1,"prof":[{"name":"Skinning","rank":58,"max":75},{"name":"Leatherworking","rank":61,"max":75}],"weapon":[{"name":"Daggers","rank":72,"max":75},{"name":"Swords","rank":40,"max":75}]},
     "quests": {"v":1,"count":7,"max":40,"unread":0,"list":[{"id":86667,"title":"Snowbound","level":10,"complete":false,"obj":[{"text":"Jar of Snow","have":0,"need":1}]},{"id":1338,"title":"Stormpike's Order","level":14,"complete":true},{"id":2038,"title":"Bingles' Missing Supplies","level":15,"complete":false,"obj":[{"text":"Bingles' Wrench","have":0,"need":1},{"text":"Bingles' Screwdriver","have":0,"need":1}]},{"id":263,"title":"In Defense of the King's Lands","level":15,"complete":true},{"id":301,"title":"Report to Ironforge","level":15,"complete":true},{"id":297,"title":"Gathering Idols","level":18,"complete":false,"obj":[{"text":"Carved Stone Idol","have":0,"need":8}]},{"id":96393,"title":"Old Ironforge Incursion","level":16,"complete":false,"obj":[{"text":"Durgen Dirgehammer's Head","have":0,"need":1}]}],"omitted":[]},
     "rep": {"v":1,"list":[{"id":47,"name":"Ironforge","r":5,"v":581,"max":6000},{"id":72,"name":"Stormwind","r":4,"v":2100,"max":3000},{"id":54,"name":"Gnomeregan","r":4,"v":400,"max":3000}],"collapsed":0},
-    "focus": {"v":1}
+    "focus": {"v":1},
+    "world": {"v":1,"zone":"Loch Modan","sub":"Stoutlager Inn","x":35.4,"y":48.2,"hearth":"Thelsamar"}
   }
 }

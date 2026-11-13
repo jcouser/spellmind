@@ -293,7 +293,9 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
     const search = AI && AI.search && (r.args.search === '0' || r.args.search === '1') ? r.args.search === '1' : undefined;
     // guide=1: "Import my guide: <url>" (docs/milestone-15.md): the turn reads that page for a build.
     const guide = r.args.guide === '1' && guideUrl(text) ? { url: guideUrl(text), build: guideBuild(text) } : undefined;
-    const item = { token: r.token, key: r.key, chat: c.id, kind: 'msg', text, st, about, effort, search, guide, firstSeen: now(), attempts: 0 };
+    // check=0: the player turned the double-check off (Settings); otherwise the app's default (on).
+    const check = r.args.check === '0' ? false : undefined;
+    const item = { token: r.token, key: r.key, chat: c.id, kind: 'msg', text, st, about, effort, search, guide, check, firstSeen: now(), attempts: 0 };
     store.addOutbox(item); // on disk before the ack (SE-2)
     // A message that waits for its parts is acked with a ring now, so the strip frees for them.
     const wait = !!st && !stReady(st, chars.tokens[r.token]);
@@ -357,8 +359,8 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
       const game = gameFor(item);
       if (item.st !== null && item.st !== undefined) log('turn-game', { chat: item.chat, parts: game.state ? Object.keys(game.state) : [], stale: game.stale || undefined });
       // An import reads the page with web search, whatever the header's pick, and starts from no history.
-      if (item.guide) return turn({ chatId: item.chat, text: guideAsk(item.guide.url, item.guide.build), history: [], signal, game, effort: item.effort, search: AI && AI.search ? true : item.search });
-      return turn({ chatId: item.chat, text: item.text, history: prior, signal, game, effort: item.effort, search: item.search });
+      if (item.guide) return turn({ chatId: item.chat, text: guideAsk(item.guide.url, item.guide.build), history: [], signal, game, effort: item.effort, search: AI && AI.search ? true : item.search, check: false });
+      return turn({ chatId: item.chat, text: item.text, history: prior, signal, game, effort: item.effort, search: item.search, check: item.check });
     }).then((res) => finish(runId, item, res), (err) => finish(runId, item, err?.name === 'AbortError' ? { aborted: true } : { error: { kind: 'error', text: String(err?.message || err) } }));
   }
 

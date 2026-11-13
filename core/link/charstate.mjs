@@ -18,9 +18,9 @@ import { inflateBody } from './records.mjs';
 import { writeFileQuick } from '../files.mjs';
 
 /** The parts, in the order the addon draws them. */
-export const PARTS = Object.freeze(['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep', 'focus']);
+export const PARTS = Object.freeze(['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep', 'focus', 'world']);
 /** Parts with nothing in them most of the time ({"v":1}): focus, until the player clicks a Spellmind mark. */
-export const OPTIONAL_PARTS = Object.freeze(['focus']);
+export const OPTIONAL_PARTS = Object.freeze(['focus', 'world']);
 /** What a message's about= names: the thing the player clicked Explain on (focus.kind:focus.id). */
 export const ABOUT_RE = /^(quest|item|spell|talent):\d{1,10}$/;
 /** focus's long strings: the quest's text and its objectives line, in characters. */
@@ -31,7 +31,7 @@ export const PART_JSON_MAX = 8000;
 /** A z=1 body (base64) the service takes: at most this many characters (the strip's own cap is 2,900). */
 export const PART_BODY_MAX = 4096;
 /** The lists' caps: the addon's own, so a forged part can't be longer than a real one. */
-export const LIST_MAX = Object.freeze({ gearItems: 19, gearEmpty: 19, bagItems: 40, quests: 100, obj: 5, rep: 40, nodes: 60, skills: 25, spellTabs: 8, spells: 100, nextSpells: 10, trainer: 10, omitted: 16, focusObj: 8, rewards: 6 });
+export const LIST_MAX = Object.freeze({ gearItems: 19, gearEmpty: 19, bagItems: 40, quests: 100, obj: 5, rep: 40, nodes: 60, skills: 25, spellTabs: 8, spells: 100, nextSpells: 10, trainer: 10, worldNpcs: 20, flights: 40, sells: 10, omitted: 16, focusObj: 8, rewards: 6 });
 export const SID_RE = /^[0-9a-f]{16}$/;
 export const STATE_FILE = 'charstate.json';
 const SEQ_RE = /^\d{1,12}$/;
@@ -67,6 +67,8 @@ const QUEST = { id: int, title: str, level: num, complete: bool, obj: list(OBJ, 
 const REWARD = { id: int, name: str, q: intIn(0, 8), n: int, usable: bool, sub: str, equip: str, st: numMap };
 const WHERE = { zone: str, x: num, y: num, dist: num };
 const REP = { id: int, name: str, r: intIn(1, 8), v: num, max: num, watched: bool };
+// world (World.lua, milestone 17): NPCs nearby, from the character's own visits or QuestieDB.
+const WORLD_NPC = { name: str, sub: str, does: strList(6), x: num, y: num, sells: strList(LIST_MAX.sells), seen: bool };
 const SHAPES = {
   char: { class: str, classFile: str, race: str, raceFile: str, faction: str, level: int, xp: num, xpMax: num, rested: num, resting: bool, money: num, loc: shape(LOC) },
   stats: { hp: num, mana: num, str: num, agi: num, sta: num, int: num, spi: num, armor: num, ap: num, rap: num, crit: num, rcrit: num, scrit: num, dodge: num, parry: num, block: num, res: numMap },
@@ -77,6 +79,7 @@ const SHAPES = {
   skills: { prof: list(SKILL, LIST_MAX.skills), weapon: list(SKILL, LIST_MAX.skills) },
   quests: { count: int, max: int, unread: int, list: list(QUEST, LIST_MAX.quests) },
   rep: { list: list(REP, LIST_MAX.rep), collapsed: int },
+  world: { zone: str, sub: str, x: num, y: num, hearth: str, flights: strList(LIST_MAX.flights), npcs: list(WORLD_NPC, LIST_MAX.worldNpcs) },
   // What the player clicked Explain on (docs/milestone-5.md): a quest, for now.
   // A quest (milestone 5's Break it down, or a quest linked in the chat box) or an item (linked, milestone 6).
   focus: { kind: v => v === 'quest' || v === 'item', id: int, title: str, level: num, diff: str, trivial: bool, elite: bool, group: int, complete: bool,

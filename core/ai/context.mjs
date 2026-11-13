@@ -67,6 +67,8 @@ export function partNotes(state) {
 const FIT_STEPS = [
   ['bag items', g => Array.isArray(g.bags?.items) && g.bags.items.length > 0 && (g.bags.items.pop(), true)],
   ['reputations', g => Array.isArray(g.rep?.list) && g.rep.list.length > 0 && (g.rep.list.pop(), true)],
+  ["vendors' goods", g => { const l = Array.isArray(g.world?.npcs) ? g.world.npcs : []; for (const n of l) if (isObj(n) && 'sells' in n) { delete n.sells; return true; } return false; }],
+  ['NPCs nearby', g => Array.isArray(g.world?.npcs) && g.world.npcs.length > 0 && (g.world.npcs.pop(), true)],
   ['quest objectives', (g) => {
     const list = Array.isArray(g.quests?.list) ? g.quests.list : [];
     for (let i = list.length - 1; i >= 0; i--) if (isObj(list[i]) && 'obj' in list[i]) { delete list[i].obj; return true; }
@@ -74,7 +76,7 @@ const FIT_STEPS = [
   }],
   ['stats', g => 'stats' in g && (delete g.stats, true)],
   // Past the contract's order, for a state no real addon makes: whole parts, char last of all.
-  ...['bags', 'rep', 'skills', 'spells', 'talents', 'gear', 'quests'].map(p => [p, g => p in g && (delete g[p], true)]),
+  ...['world', 'bags', 'rep', 'skills', 'spells', 'talents', 'gear', 'quests'].map(p => [p, g => p in g && (delete g[p], true)]),
 ];
 
 /**

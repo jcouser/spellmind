@@ -12,8 +12,8 @@ const QUEST = { v: 1, kind: 'quest', id: 297, title: 'Gathering Idols', level: 1
   choices: [{ id: 7001, name: "Ironband's Gloves", q: 2, n: 1, usable: true }], where: { zone: 'Loch Modan', x: 70.6, y: 25, dist: 560 } };
 
 test('focus: the tenth part, optional; a quest focus and an empty one are valid, a wrong kind or field is not', () => {
-  assert.equal(PARTS.at(-1), 'focus');
-  assert.deepEqual(OPTIONAL_PARTS, ['focus']);
+  assert.ok(PARTS.includes('focus'));
+  assert.deepEqual(OPTIONAL_PARTS, ['focus', 'world'], 'world (milestone 17) is optional too');
   assert.ok(validatePart('focus', { v: 1 }).ok);
   assert.ok(validatePart('focus', QUEST).ok);
   assert.equal(validatePart('focus', { ...QUEST, kind: 'npc' }).reason, 'field focus.kind');

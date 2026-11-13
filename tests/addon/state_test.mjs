@@ -15,7 +15,7 @@ import { slotTable } from '../../core/link/luaenc.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'fixtures', 'state-parts.json'), 'utf8'));
-const PARTS = ['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep', 'focus'];
+const PARTS = ['char', 'stats', 'talents', 'spells', 'gear', 'bags', 'skills', 'quests', 'rep', 'focus', 'world'];
 const LIMITS = { maxBody: 2900, maxText: 8000 };
 
 // Saved data as an install that has sent six builds before (the fixture's parts are seq 7).
@@ -121,7 +121,7 @@ test('after the hello is answered with caps state and z, all ten parts come off 
     assert.deepEqual(r.part, FIXTURE.parts[p], p);
     assert.equal(r.json, JSON.stringify(FIXTURE.parts[p]), `${p}: the same bytes`);
     // An empty focus ({"v":1}) deflates no shorter, so it goes as plain JSON (S.Deflate's rule).
-    const z = p !== 'focus';
+    const z = p !== 'focus' && p !== 'world'; // world, short without NPCs, too
     assert.equal(r.args.z, z ? '1' : undefined, `${p} deflated: ${z}`);
     assert.deepEqual(Object.keys(r.args), z ? ['cur', 'sid', 'part', 'seq', 'z'] : ['cur', 'sid', 'part', 'seq'], 'the contract\'s args order');
     assert.equal(r.args.sid, hello.args.sid);
@@ -376,7 +376,7 @@ test('/sm data shows each part\'s size and whether the app has it; /sm data off 
     const bytes = JSON.stringify(FIXTURE.parts[p]).length;
     const shown = bytes >= 1000 ? `${Math.floor(bytes / 1000)},${String(bytes % 1000).padStart(3, '0')}` : String(bytes);
     if (p === 'char') assert.match(sizes[p], /bytes \(\d+ compressed\), on its way$/, 'the money changed: built again, not confirmed');
-    else if (p === 'focus') assert.equal(sizes[p], `Spellmind: focus: ${shown} bytes, the app has it`, 'empty focus: plain JSON');
+    else if (p === 'focus' || p === 'world') assert.equal(sizes[p], `Spellmind: ${p}: ${shown} bytes, the app has it`, 'short: plain JSON');
     else assert.match(sizes[p], new RegExp(`^Spellmind: ${p}: ${shown} bytes \\(\\d+ compressed\\), the app has it$`), sizes[p]);
   }
 

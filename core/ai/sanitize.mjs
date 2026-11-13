@@ -52,7 +52,7 @@ export function sanitizeGameString(s, max = GAME_STRING_MAX) {
 
 // List limits: the addon's own (docs/milestone-4.md), so a forged state can't be longer than a real
 // one. A list's limit is looked up by "<part>.<key>" first, then by its key; else 25.
-export const LIST_MAX = Object.freeze({ 'gear.items': 19, 'gear.empty': 19, 'bags.items': 40, 'quests.list': 100, obj: 5, 'rep.list': 40, nodes: 60, 'spells.tabs': 8, list: 100, 'spells.next': 10, omitted: 16, 'focus.obj': 8, 'focus.choices': 6, 'focus.items': 6 });
+export const LIST_MAX = Object.freeze({ 'gear.items': 19, 'gear.empty': 19, 'bags.items': 40, 'quests.list': 100, obj: 5, 'rep.list': 40, nodes: 60, 'spells.tabs': 8, list: 100, 'spells.next': 10, 'world.npcs': 20, 'world.flights': 40, omitted: 16, 'focus.obj': 8, 'focus.choices': 6, 'focus.items': 6 });
 // Strings longer than GAME_STRING_MAX, by "<part>.<key>": the quest text an Explain click sends.
 export const LONG_STRINGS = Object.freeze({ 'focus.text': 1200, 'focus.goal': 400 });
 const KEY_RE = /^[A-Za-z_][A-Za-z0-9_]{0,23}$/;

@@ -105,3 +105,13 @@ test('the minimap button: off hides it, as /sm minimap off does', () => {
   vm.slash('minimap on');
   assert.equal(label(vm, 'minimap'), '|cff19ff19On|r');
 });
+
+test('Double-check facts: on unless turned off; off sends check=0 with each message', () => {
+  const vm = session();
+  assert.equal(label(vm, 'check'), '|cff19ff19On|r');
+  flip(vm, 'check');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.ui.check)'), 'false');
+  vm.slash('where is the bank?');
+  const f = vm.outbox().at(-1).wire.split('\u001f');
+  assert.match(f[5], /(^|;)check=0(;|$)/);
+});

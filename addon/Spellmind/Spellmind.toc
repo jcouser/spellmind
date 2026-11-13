@@ -25,6 +25,7 @@ Settings.lua
 Dungeons.lua
 Gold.lua
 Guide.lua
+World.lua
 Panel.lua
 Nudges.lua
 Minimap.lua

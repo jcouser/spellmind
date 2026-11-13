@@ -20,6 +20,29 @@ function sourceName(text, url) {
   try { return new URL(url).hostname.replace(/^www\./i, ''); } catch { return 'the web'; }
 }
 
+/**
+ * Sources side by side made one (seen in game: "(Sources: WoWHead Classic; …) (source: wowhead.com)",
+ * the model's own words and the citation's). A site already named ("wowhead" in "WoWHead Classic")
+ * isn't named again.
+ */
+export function mergeSources(s) {
+  return String(s).replace(/\((?:sources?)\s*:\s*[^()]*\)(?:\s*\((?:sources?)\s*:\s*[^()]*\))+/gi, (run) => {
+    const groups = run.match(/\((?:sources?)\s*:\s*([^()]*)\)/gi) || [];
+    const names = [];
+    for (const g of groups) {
+      const inner = g.replace(/^\((?:sources?)\s*:\s*/i, '').replace(/\)$/, '');
+      for (const raw of inner.split(/\s*;\s*/)) {
+        const n = raw.trim().replace(/\.$/, '');
+        if (!n) continue;
+        const key = n.toLowerCase().replace(/^www\./, '').replace(/\.(com|org|net|gg|io|wiki|gg)$/, '').replace(/[^a-z0-9]/g, '');
+        if (names.some(x => x.key.includes(key) || key.includes(x.key))) continue;
+        names.push({ n, key });
+      }
+    }
+    return `(${names.length > 1 ? 'sources' : 'source'}: ${names.map(x => x.n).join('; ')})`;
+  });
+}
+
 /** Markdown to the plain text the window shows: headings, emphasis, code and links flattened; lists kept. */
 export function markdownToWow(md) {
   let s = String(md ?? '').replace(/\r\n?/g, '\n').replace(CONTROL, '');
@@ -36,6 +59,7 @@ export function markdownToWow(md) {
   s = s.replace(/\(\s*\[([^\]]+)\]\((https?:[^)\s]+)\)\s*\)/g, (_, text, url) => `(source: ${sourceName(text, url)})`);
   s = s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (_, text, url) => (looksLikeHost(text) ? `(source: ${sourceName(text, url)})` : text));
   s = s.replace(/https?:\/\/\S+/g, m => `(source: ${sourceName('', m)})`);
+  s = mergeSources(s);
   s = s.replace(/^\s*([-*_])\s*(?:\1\s*){2,}$/gm, '');
   s = s.replace(/\n{3,}/g, '\n\n');
   return s.trim();

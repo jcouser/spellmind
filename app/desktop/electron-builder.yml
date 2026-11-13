@@ -1,0 +1,82 @@
+# Spellmind's Windows installer (docs/milestone-3.md). Modeled on NeverQuestAlone's
+# app/desktop/electron-builder.yml (MIT; see NOTICE.md), much smaller: Windows only, unsigned.
+#
+# Inside app.asar the files keep the repo's layout, so main.mjs's '../../core/…' imports work the
+# same packed as from source:
+#   app/desktop/   main.mjs, worker.mjs, preload.cjs, renderer/, assets/
+#   core/          the link, the AI, the screen-reading helper
+#   addon/Spellmind/  the addon the app installs into WoW
+#   prompts/       the AI's prompt
+# Nothing runs from inside app.asar, so the helper (.exe) and the keychain binding (.node) are
+# unpacked beside it (core/link/capture.mjs looks under app.asar.unpacked).
+#
+# Unsigned: Windows SmartScreen warns on the first run ("More info", then "Run anyway").
+
+appId: gg.spellmind.app
+productName: Spellmind
+copyright: "Copyright © 2026 The Spellmind authors (MIT)"
+
+directories:
+  output: dist
+  buildResources: assets
+
+extraMetadata:
+  main: app/desktop/main.mjs
+
+asar: true
+asarUnpack:
+  - "**/spellmind-capture.exe"
+  - "**/*.node"
+
+# English only: Chromium's other locale packs stay out.
+electronLanguages:
+  - en-US
+
+files:
+  - package.json
+  - from: .
+    to: app/desktop
+    filter:
+      - main.mjs
+      - worker.mjs
+      - preload.cjs
+      - renderer/**/*
+      - assets/**/*
+  - from: ../../core
+    to: core
+    filter:
+      - "**/*.mjs"
+      - "**/*.json"
+      - capture/windows/build/spellmind-capture.exe
+      - "!capture/build.mjs"
+  - from: ../../addon/Spellmind
+    to: addon/Spellmind
+    filter:
+      - "**/*.lua"
+      - "**/*.toc"
+      - "**/*.xml"
+      - "**/*.tga"
+  - from: ../../prompts
+    to: prompts
+    filter:
+      - spellmind.md
+  # The project's MIT notice and the list of what came from other projects.
+  - from: ../..
+    to: .
+    filter:
+      - LICENSE
+      - NOTICE.md
+
+win:
+  icon: assets/icon.ico
+  target:
+    - nsis
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  # The settings and log in %APPDATA%\Spellmind stay on uninstall (a reinstall finds them).
+  deleteAppDataOnUninstall: false
+  artifactName: "${productName}-Setup-${version}.${ext}"
+  shortcutName: Spellmind

@@ -11,9 +11,16 @@
     "node": ">=22.19"
   },
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win nsis"
   },
   "devDependencies": {
-    "electron": "44.9.3"
-  }
+    "electron": "44.9.3",
+    "electron-builder": "26.16.1"
+  },
+  "dependencies": {
+    "@napi-rs/keyring": "2.1.0"
+  },
+  "author": "The Spellmind authors"
 }

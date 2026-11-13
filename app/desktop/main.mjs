@@ -9,7 +9,7 @@
 //   - One copy runs: a second launch opens the first one's window.
 //   - The window (renderer/): status, the AI and its sign-in, the WoW folder and the addon, the app.
 //     Closing it keeps Spellmind in the tray; Quit in the tray's menu ends it.
-import { app, BrowserWindow, Tray, Menu, nativeImage, dialog, ipcMain, shell, utilityProcess, Notification } from 'electron';
+import { app, BrowserWindow, Tray, Menu, nativeImage, nativeTheme, dialog, ipcMain, shell, utilityProcess, Notification } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +30,8 @@ const HIDDEN = process.argv.includes('--hidden');
 const ACTIVITY_MAX = 40;
 
 app.setAppUserModelId(IDENTITY.appId);
+// The window's title bar and menus dark, like the page.
+nativeTheme.themeSource = 'dark';
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 
 let win = null, tray = null, quitting = false;
@@ -39,7 +41,7 @@ let setupError = null; // what the worker needs before it can start
 const activity = []; // { at, line }
 
 // The app's own switches, in config.json under "app" (all on unless turned off).
-const APP_DEFAULTS = Object.freeze({ minimizeToTray: true, notifications: true, updateAddon: true });
+const APP_DEFAULTS = Object.freeze({ startAtLogin: true, minimizeToTray: true, notifications: true, updateAddon: true });
 const appSettings = () => ({ ...APP_DEFAULTS, ...(readConfig(DATA).app || {}) });
 
 // The sign-in is gone or refused (core/ai/providers/errors.mjs kinds): the player has to act.
@@ -207,7 +209,7 @@ function refreshTray() {
     { label: s.text, enabled: false },
     { type: 'separator' },
     { label: 'Open Spellmind', click: () => openWindow() },
-    { label: 'Start when I log in to Windows', type: 'checkbox', checked: loginItem.get(), click: (item) => { loginItem.set(item.checked); pushStatus(); } },
+    { label: 'Start when I log in to Windows', type: 'checkbox', checked: loginItem.get(), click: (item) => { CALLS.setApp({ startAtLogin: item.checked }); pushStatus(); } },
     { label: 'Restart the link', click: () => { note('Restarting the link.'); sup.restart(); } },
     { type: 'separator' },
     { label: 'Quit Spellmind', click: () => { quitting = true; app.quit(); } },
@@ -318,7 +320,7 @@ const CALLS = {
     return { ok: true, reload: running, note: running ? 'Type /reload in game to load the new files.' : r.note };
   },
 
-  setLoginItem: (on) => { loginItem.set(!!on); refreshTray(); return { ok: true, on: loginItem.get() }; },
+  setLoginItem: (on) => CALLS.setApp({ startAtLogin: !!on }),
   // The app's switches: only the known ones, only true or false.
   setApp: (change) => {
     const next = { ...appSettings() };
@@ -327,6 +329,7 @@ const CALLS = {
       next[k] = v;
     }
     writeConfig(DATA, { ...readConfig(DATA), app: next });
+    if (Object.hasOwn(change, 'startAtLogin')) { loginItem.set(next.startAtLogin); refreshTray(); }
     if (change?.updateAddon === true) updateAddonIfOld('turned on');
     return { ok: true };
   },
@@ -358,8 +361,9 @@ app.whenReady().then(() => {
   fs.mkdirSync(DATA, { recursive: true });
   const cfg = readConfig(DATA);
   // Start at login is on unless the player turned it off (the point of the app: the link is there
-  // when the game is).
-  if (!cfg.loginItemSet) { loginItem.set(true); writeConfig(DATA, { ...cfg, loginItemSet: true }); }
+  // when the game is). Written on every start, so the Run value names this copy: the installed one
+  // after an install, not a run from source before it.
+  loginItem.set(appSettings().startAtLogin);
   createTray();
   updateAddonIfOld('Spellmind started');
   sup.start();

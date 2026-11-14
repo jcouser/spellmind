@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/jcouser/spellmind/releases/latest">Download the app</a> ·
+  <a href="https://www.curseforge.com/wow/addons/spellmind-ai-companion">The addon on CurseForge</a> ·
   <a href="docs/install.md">Install guide</a> ·
   <a href="docs/privacy.md">Privacy</a> ·
   <a href="docs/screen-reading.md">How it reads the game</a> ·
@@ -114,7 +115,7 @@ Keys and sign-ins stay in Windows' Credential Manager on your PC. The game never
 
 ## Install
 
-**The addon:** from CurseForge (WoW Forever), or the `Spellmind-<version>.zip` on the [releases page](https://github.com/jcouser/spellmind/releases/latest), unzipped into `World of Warcraft\_forever_\Interface\AddOns`. The zip carries the addon and its parts (`Spellmind_S001` to `Spellmind_S200`, which bring answers in); keep them all.
+**The addon:** from [CurseForge](https://www.curseforge.com/wow/addons/spellmind-ai-companion) (WoW Forever), or the `Spellmind-<version>.zip` on the [releases page](https://github.com/jcouser/spellmind/releases/latest), unzipped into `World of Warcraft\_forever_\Interface\AddOns`. The zip carries the addon and its parts (`Spellmind_S001` to `Spellmind_S200`, which bring answers in); keep them all.
 
 **The app:** `Spellmind-Setup-<version>.exe` from the [releases page](https://github.com/jcouser/spellmind/releases/latest). It needs no admin rights, finds your WoW folder, installs the addon if it isn't there, and walks you through setting up your AI. [The install guide](docs/install.md) covers checking the download, the SmartScreen warning, updating and removing it.
 
@@ -154,9 +155,9 @@ The app's screen-reading helper is C, built with `npm run capture:build` (Git Ba
 
 ## Code signing policy
 
-The Windows installer is being set up for signing through [SignPath Foundation](https://signpath.org)'s free program for open-source projects. Until that's in place, releases are unsigned: check each download against its SHA-256 ([install guide](docs/install.md)).
+The Windows installer is unsigned for now, so Windows SmartScreen warns on its first run: check each download against its SHA-256 ([install guide](docs/install.md)). The project applied to [SignPath Foundation](https://signpath.org)'s free signing for open-source projects in November 2026; they asked it to come back once it has more of a community, and it will.
 
-Once it is: *Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).*
+When it's signed: *Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).*
 
 - **Only this project's own files are signed:** the installer built from this repository's source by [the release workflow](.github/workflows/release.yml) on GitHub's own runners, from a tagged commit.
 - **Committers and reviewers:** [jcouser](https://github.com/jcouser). Changes from anyone else come as pull requests and are reviewed before they're merged.

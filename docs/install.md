@@ -7,7 +7,7 @@ Spellmind is two parts: an addon in World of Warcraft: Forever, and a small app 
 
 ## The addon
 
-**From CurseForge:** search for Spellmind under World of Warcraft, WoW Forever, and install it with the CurseForge app.
+**From CurseForge:** [Spellmind: AI Companion](https://www.curseforge.com/wow/addons/spellmind-ai-companion), for WoW Forever. Install it with the CurseForge app, or any addon manager that uses CurseForge (WowUp, for one).
 
 **By hand:**
 

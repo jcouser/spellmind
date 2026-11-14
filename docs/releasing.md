@@ -58,7 +58,11 @@ What SignPath Foundation asks (signpath.org/terms, read 2026-11-13): an OSI lice
 - Tag and push as usual. The build stops at "Signed through SignPath Foundation" until you approve the request in SignPath (it waits up to an hour), then puts the signed installer in place, checks its signature, rewrites `latest.yml` for the signed bytes (dropping the `.blockmap`, so updates download the whole installer) and makes the checksums from it.
 - Change the README's code signing policy from "being set up" to "signed", keeping the credit line.
 
-The certificate names SignPath Foundation as the publisher, not Spellmind. A certificate in the project's own name later (Certum's open-source certificate is a one-off cost of about €50-70) would change `publisherName` again, the same way.
+The certificate names SignPath Foundation as the publisher, not Spellmind.
+
+**Status (2026-11-14):** applied; SignPath Foundation declined until the project has more community traction. Apply again once there's some to show: CurseForge downloads, GitHub stars, issues from players, threads about it. Until then releases are unsigned, and the signing steps in the release workflow stay off.
+
+**The paid fallback:** Certum's open-source code signing certificate. It's yearly, not one-off (roughly €30-70 a year, depending on the option; check their shop), and Certum verifies the maintainer personally, so the signature shows the maintainer's own name as the publisher. It would change `publisherName` the same way. Only worth it if the SmartScreen warning visibly costs installs.
 
 ## Building by hand
 

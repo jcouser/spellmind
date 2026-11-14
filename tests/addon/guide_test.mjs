@@ -137,3 +137,11 @@ test('a long plan: up to 10 next points go to the AI ("plan my next 5" got four,
   const rows = d.slice(at + 1).filter(x => /level \d+|behind/.test(String(x.right || '')));
   assert.equal(rows.length, 4, JSON.stringify(rows.map(r => r.text)));
 });
+
+test('a long guide step on the Spells tab is cut at a word, with "…" (seen: "…before the mob d")', () => {
+  const vm = session();
+  const line = 'Use Eviscerate when another Sinister Strike won\'t fit before the mob dies, at 3+ points.';
+  assert.equal(vm.evaluate(`NS.ShortLine("${line.replace(/'/g, "\'")}", 70)`), 'Use Eviscerate when another Sinister Strike won\'t fit before the…');
+  assert.equal(vm.evaluate('NS.ShortLine("Use Riposte.", 70)'), 'Use Riposte.');
+  assert.equal(vm.evaluate(`NS.ShortLine("${'x'.repeat(90)}", 70)`), `${'x'.repeat(67)}…`, 'one long word: cut where it must');
+});

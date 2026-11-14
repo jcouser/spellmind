@@ -21,7 +21,7 @@
 local ADDON_NAME, ns = ...
 
 ns.ADDON = ADDON_NAME or "Spellmind"
-ns.VERSION = "0.4.1"
+ns.VERSION = "0.4.2"
 -- Where the free Spellmind app is (the "Get the app" box, Marks.lua): the project's page, not a file.
 ns.APP_URL = "https://github.com/jcouser/spellmind"
 ns.PROTOCOL = 2
@@ -133,6 +133,17 @@ function ns.Utf8Cut(s, max)
 	local cut = max
 	while cut > 0 and s:byte(cut + 1) and s:byte(cut + 1) >= 128 and s:byte(cut + 1) < 192 do cut = cut - 1 end
 	return s:sub(1, cut)
+end
+
+-- A line for one row: whole if it fits, else cut at the last space before max bytes with "…" (the
+-- player's screenshot, 2026-11-13: "…before the mob d", cut mid-word with nothing to say so).
+function ns.ShortLine(s, max)
+	s = tostring(s or "")
+	if #s <= max then return s end
+	local cut = ns.Utf8Cut(s, max - 3)
+	local word = cut:match("^(.*%S)%s+%S*$")
+	if word and #word >= max / 2 then cut = word end
+	return (cut:gsub("[%s,;:%.%-]+$", "")) .. "…"
 end
 
 -- Quest text with the character's name blanked out (the privacy review, 2026-11-12): the game writes

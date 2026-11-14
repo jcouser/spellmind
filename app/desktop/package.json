@@ -1,7 +1,7 @@
 {
   "name": "spellmind-desktop",
   "productName": "Spellmind",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "description": "Spellmind: AI Companion for World of Warcraft: Forever (the desktop app)",
   "license": "MIT",

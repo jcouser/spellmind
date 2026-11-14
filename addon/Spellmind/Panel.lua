@@ -1008,7 +1008,7 @@ function Tabs.spells()
 			local right = ""
 			if st.have then right = "|cff19ff19you have it|r"
 			elseif st.train then right = "|cffff9933" .. ns.Escape(st.train) .. ": trains at " .. (st.level or "?") .. "|r" end
-			out[#out + 1] = { kind = "item", left = i .. ". " .. ns.Escape(ns.Utf8Cut(st.line, 70)), right = right }
+			out[#out + 1] = { kind = "item", left = i .. ". " .. ns.Escape(ns.ShortLine(st.line, 70)), right = right }
 		end
 	end
 	if type(plan) == "table" and (#(plan.stats or {}) > 0 or plan.weapons) then

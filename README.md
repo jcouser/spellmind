@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/chat-answer.png" alt="Spellmind's chat window answering how to get from Ironforge to the Deadmines quests in Westfall" width="760">
+  <img src="docs/images/chat-gear-and-route.png" alt="Spellmind's chat window: a shift-clicked quest reward judged against the gloves you wear, then what's left to do in Westfall, with the quest givers and the road to Lakeshire, and follow-up questions" width="760">
 </p>
 
 > **Unofficial.** Spellmind isn't made, reviewed or endorsed by Blizzard Entertainment. World of Warcraft is a trademark of Blizzard Entertainment, Inc.
@@ -38,30 +38,58 @@ Spellmind is two parts:
 | "Break it down" on quests, items, trainers and merchants | | ✓ |
 | Read your leveling guide's page (talents, rotation) | | ✓ |
 
+### Ask your AI, in game
+
 <table>
   <tr>
-    <td width="50%"><img width="1066" height="844" alt="The Dungeons tab: the Deadmines quests in your log, the questlines that lead there with the step you're on and who to hand it to, and the dungeons at your level" src="https://github.com/user-attachments/assets/ea80be2c-cb7b-4074-acd4-bbbc3c4a7720" /></td>
-    <td width="50%"><img src="docs/images/talents-tab.png" alt="The Talents tab: your guide's next points and other builds"></td>
+    <td width="55%"><img src="docs/images/break-it-down.png" alt="Break it down on a quest: beside the quest log, a card says to hand The Defias Brotherhood to Wiley the Black upstairs in the Lakeshire inn, and the road there from Duskwood"></td>
+    <td width="45%"><img src="docs/images/chat-auction-house.png" alt="The chat answering what in your bags is worth selling on the Auction House: gems, leather and a recipe, and to keep the leatherworking materials for your own skill-ups"></td>
   </tr>
   <tr>
-    <td><b>Dungeons:</b> which dungeons your quests are for, what each needs first and who gives it, and what's at your level.</td>
+    <td><b>Break it down:</b> click the Spellmind mark on a quest, an item, a trainer or a merchant, and your AI explains that exact thing.</td>
+    <td><b>Chat:</b> ask about your gear, bags, route, talents or gold. Shift-click items and quests into the box; the buttons under an answer ask the obvious next question.</td>
+  </tr>
+</table>
+
+### The panel, no AI needed
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/quests-tab.png" alt="The Quests tab: quests ready to turn in with their XP and distance, how far they take you into your level, and the dungeon your quests are for"></td>
+    <td width="50%"><img src="docs/images/dungeons-tab.png" alt="The Dungeons tab: the Deadmines quests in your log, the questlines that lead there with the step you're on and who to hand it to, and the dungeons at your level"></td>
+  </tr>
+  <tr>
+    <td><b>Quests:</b> what to turn in, what to do now and here, and what's worth skipping, with Go to set a waypoint.</td>
+    <td><b>Dungeons:</b> which dungeons your quests are for, the questlines that lead there, and what's at your level.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/spells-tab.png" alt="The Spells tab: what your trainer has for you now and what it costs, what comes next by level, and your guide's priority"></td>
+    <td><img src="docs/images/talents-tab.png" alt="The Talents tab: your guide's next points and other builds"></td>
+  </tr>
+  <tr>
+    <td><b>Spells:</b> what to train now and what it costs, what's coming, and your guide's rotation.</td>
     <td><b>Talents:</b> your leveling guide's build, read by your AI, with the next points to take.</td>
   </tr>
   <tr>
     <td><img src="docs/images/settings-tab.png" alt="The Settings tab: switches for each mark on the game's windows and each kind of nudge"></td>
-    <td><img src="docs/images/desktop-app.png" alt="The desktop app's window: Status, Your AI (signed in with a ChatGPT plan, GPT-6 Luna, Medium thinking, web search on) and the WoW folder"></td>
+    <td>
+      <img src="docs/images/nudge-toast.png" alt="A nudge: 5 spells to train, with Dismiss and Ask"><br><br>
+      <img src="docs/images/tooltip-quest.png" alt="Spellmind's tooltip on a quest: its level against yours, what's left, where it is on the map and the rewards">
+    </td>
   </tr>
   <tr>
     <td><b>Settings:</b> every mark and nudge has its own switch, and you choose which game data your AI gets.</td>
-    <td><b>The app:</b> pick your AI, its model and thinking level. It sits by the clock and keeps the addon up to date.</td>
+    <td><b>Nudges and tooltips:</b> a quiet toast when something's waiting, and Spellmind's lines on quests and items.</td>
   </tr>
 </table>
 
+### The app
+
 <p>
-  <img src="docs/images/nudge-toast.png" alt="A nudge: 5 spells to train, with Dismiss and Ask" height="80">
-  &nbsp;
-  <img src="docs/images/tooltip-quest.png" alt="Spellmind's tooltip on a quest: its level against yours, what's left, where it is on the map and the rewards" height="150">
+  <img src="docs/images/desktop-app.png" alt="The desktop app's window: connected to WoW, signed in with a ChatGPT plan, GPT-6 Luna at Medium thinking with web search on, and the addon up to date" width="420">
 </p>
+
+Pick your AI, its model and thinking level. It sits by the clock while you play, keeps the addon up to date and updates itself.
 
 ## Your AI, your choice
 

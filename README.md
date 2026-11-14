@@ -52,6 +52,15 @@ Spellmind is two parts:
   </tr>
 </table>
 
+Things to ask:
+
+- "Should I take [Dusty Mining Gloves] from this quest?"
+- "What should I do next here?" or "Plan my next hour"
+- "What in my bags is worth selling on the Auction House?"
+- "Plan my next 5 talent points"
+
+Answers use your real character: your gear, quest log, talents, gold and where you are. With web search on, your AI can check quest and NPC details online, and answers that name places, NPCs or routes are double-checked before you see them (a switch in Settings turns that off).
+
 ### The panel, no AI needed
 
 <table>
@@ -103,6 +112,23 @@ Spellmind is two parts:
   </tr>
 </table>
 
+Also in the panel:
+
+- **Professions:** what to do next for each profession, and when it's near its cap.
+- **Gold:** what came in and went out this session and today (and per hour), what's coming up (spells to train, repairs), and what your bags are worth at a vendor, and on the Auction House from Auctionator's last scan if you have Auctionator.
+
+#### In the game's own windows
+
+- **Quest log:** Spellmind's mark on a quest's details. Hover for its level against yours, what's left, where it is and its rewards; click to have your AI break it down.
+- **Item tooltips:** better or worse than what you wear and by how much, whether you can use it, and what to do with it, with its vendor price.
+- **Quest rewards:** which reward to pick when you turn a quest in.
+- **Character sheet:** a dot on a slot that has a better item waiting in your bags.
+- **Merchant** and **class trainer:** what to sell, and what to train first.
+
+#### Nudges
+
+A small toast by the minimap, never in combat and never a stream of them: spells to train, talent points to spend, gear about to break, bags nearly full, a dungeon you just entered, quests ready to turn in, professions near their cap. Each kind has its own switch, and **Dismiss** means not again for the same thing.
+
 ### The app
 
 <p>
@@ -127,7 +153,22 @@ Keys and sign-ins stay in Windows' Credential Manager on your PC. The game never
 
 **The app:** `Spellmind-Setup-<version>.exe` from the [releases page](https://github.com/jcouser/spellmind/releases/latest). It needs no admin rights, finds your WoW folder, installs the addon if it isn't there, and walks you through setting up your AI. [The install guide](docs/install.md) covers checking the download, the SmartScreen warning, updating and removing it.
 
-In game, `/sm` opens the chat and `/sm help` lists the commands. `/sm app` shows where to get the app.
+Spellmind works alongside Questie and Auctionator, and uses their data when they're installed, but needs neither. It's made for WoW Forever (1.60.1).
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `/sm` | Open or close the chat |
+| `/sm quests`, `dungeons`, `gear`, `talents`, `spells`, `professions`, `gold`, `settings` | Open that tab |
+| `/sm <question>` | Ask your AI (with the app) |
+| `/sm app` | Where to get the free app |
+| `/sm welcome` | The first-time welcome again |
+| `/sm guide <link>` | Import your leveling guide (with the app) |
+| `/sm nudges on`, `off`, `reset` | The nudges |
+| `/sm marks on`, `off` | Spellmind's marks on the game's windows and its tooltip lines |
+| `/sm minimap on`, `off` | The minimap button |
+| `/sm help` | All the commands |
 
 ## Privacy, in short
 

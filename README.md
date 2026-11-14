@@ -63,23 +63,28 @@ Spellmind is two parts:
     <td><b>Dungeons:</b> which dungeons your quests are for, the questlines that lead there, and what's at your level.</td>
   </tr>
   <tr>
+    <td><img src="docs/images/gear-tab.png" alt="The Gear tab: quest rewards within reach that upgrade your hands and wrists, your weakest slots, and what's worth a look in your bags, from a sword you can't use yet to Leatherworking materials"></td>
     <td><img src="docs/images/spells-tab.png" alt="The Spells tab: what your trainer has for you now and what it costs, what comes next by level, and your guide's priority"></td>
-    <td><img src="docs/images/talents-tab.png" alt="The Talents tab: your guide's next points and other builds"></td>
   </tr>
   <tr>
+    <td><b>Gear:</b> upgrades within reach from your quests' rewards, your weakest slots, and what your bags are good for.</td>
     <td><b>Spells:</b> what to train now and what it costs, what's coming, and your guide's rotation.</td>
-    <td><b>Talents:</b> your leveling guide's build, read by your AI, with the next points to take.</td>
   </tr>
   <tr>
+    <td><img src="docs/images/talents-tab.png" alt="The Talents tab: your guide's next points and other builds"></td>
     <td><img src="docs/images/settings-tab.png" alt="The Settings tab: switches for each mark on the game's windows and each kind of nudge"></td>
-    <td>
-      <img src="docs/images/nudge-toast.png" alt="A nudge: 5 spells to train, with Dismiss and Ask"><br><br>
-      <img src="docs/images/tooltip-quest.png" alt="Spellmind's tooltip on a quest: its level against yours, what's left, where it is on the map and the rewards">
-    </td>
   </tr>
   <tr>
+    <td><b>Talents:</b> your leveling guide's build, read by your AI, with the next points to take.</td>
     <td><b>Settings:</b> every mark and nudge has its own switch, and you choose which game data your AI gets.</td>
-    <td><b>Nudges and tooltips:</b> a quiet toast when something's waiting, and Spellmind's lines on quests and items.</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/nudge-toast.png" alt="A nudge: 5 spells to train, with Dismiss and Ask"></td>
+    <td align="center"><img src="docs/images/tooltip-quest.png" alt="Spellmind's tooltip on a quest: its level against yours, what's left, where it is on the map and the rewards"></td>
+  </tr>
+  <tr>
+    <td><b>Nudges:</b> a quiet toast by the minimap when something's waiting: spells to train, points to spend, gear about to break.</td>
+    <td><b>Tooltips:</b> Spellmind's lines on quests and items: difficulty, what's left, upgrades, what to sell.</td>
   </tr>
 </table>
 

@@ -30,6 +30,6 @@ Built 2026-11-13: what Spellmind needs to be on GitHub and CurseForge.
 
 ## Still to do
 
-- Screenshots still missing: the Gear tab in today's layout, the minimap button, and a talent plan answer (after 0.4.2, which sends the AI 10 next points).
+- Screenshots still missing: the minimap button, and a talent plan answer (after 0.4.2, which sends the AI 10 next points).
 - The SignPath application, then the signing step.
 - The CurseForge project (Beta), by hand.

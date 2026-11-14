@@ -40,7 +40,7 @@ Spellmind is two parts:
 
 <table>
   <tr>
-    <td width="50%"><img width="1066" height="844" alt="Screenshot 2026-11-13 202427" src="https://github.com/user-attachments/assets/ea80be2c-cb7b-4074-acd4-bbbc3c4a7720" /></td>
+    <td width="50%"><img width="1066" height="844" alt="The Dungeons tab: the Deadmines quests in your log, the questlines that lead there with the step you're on and who to hand it to, and the dungeons at your level" src="https://github.com/user-attachments/assets/ea80be2c-cb7b-4074-acd4-bbbc3c4a7720" /></td>
     <td width="50%"><img src="docs/images/talents-tab.png" alt="The Talents tab: your guide's next points and other builds"></td>
   </tr>
   <tr>

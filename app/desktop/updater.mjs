@@ -34,9 +34,11 @@ export function newer(candidate, current) {
 
 // What the player sees for an updater error: short, never the raw message (it can hold a URL or a path).
 export function errorWords(err) {
-  const s = String(err?.code || err?.message || err || '');
+  // The code and the message both (seen with 0.4.0: the code alone, ERR_UPDATER_CHANNEL_FILE_NOT_FOUND,
+  // matched nothing and the player read "didn't work" while the release was only a draft).
+  const s = `${err?.code || ''} ${err?.message || (typeof err === 'string' ? err : '')}`;
   if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|net::ERR_/i.test(s)) return 'No connection to GitHub right now.';
-  if (/404|latest\.yml|Cannot find/i.test(s)) return 'No release to update from yet.';
+  if (/ERR_UPDATER_(NO_PUBLISHED_VERSIONS|CHANNEL_FILE_NOT_FOUND|LATEST_VERSION_NOT_FOUND)|404|latest\.yml|Cannot find/i.test(s)) return 'No published release to update from yet.';
   if (/sha512|checksum|signature|publisher/i.test(s)) return 'The download didn\'t check out, so it wasn\'t installed.';
   return 'The update check didn\'t work. It tries again later.';
 }

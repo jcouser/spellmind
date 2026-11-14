@@ -61,7 +61,11 @@ test('errors in plain words, never the raw message; a failed download keeps the 
   await up.check();
   assert.equal(up.state().phase, 'error');
   assert.equal(up.state().error, 'No connection to GitHub right now.');
-  assert.equal(errorWords(new Error('HttpError: 404 latest.yml')), 'No release to update from yet.');
+  assert.equal(errorWords(new Error('HttpError: 404 latest.yml')), 'No published release to update from yet.');
+  // Seen with 0.4.0 installed and its release still a draft: the tag is listed, its files aren't.
+  for (const code of ['ERR_UPDATER_CHANNEL_FILE_NOT_FOUND', 'ERR_UPDATER_NO_PUBLISHED_VERSIONS', 'ERR_UPDATER_LATEST_VERSION_NOT_FOUND']) {
+    assert.equal(errorWords(Object.assign(new Error('some words'), { code })), 'No published release to update from yet.', code);
+  }
   assert.doesNotMatch(errorWords(new Error('C:\\Users\\someone\\AppData x')), /Users/);
 
   const u = fakeUpdater();

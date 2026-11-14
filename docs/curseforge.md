@@ -69,6 +69,8 @@ As published (Markdown), 2026-11-14. Keep it to what the addon does; anything th
 >
 > ![An item tooltip with Spellmind's lines: the stat changes against your belt, and sell advice with the vendor price](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/tooltip-item.png)
 >
+> ![A mace tooltip: no One-Handed Maces skill yet, a weapon master may teach it, so sell unless you'll learn it](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/tooltip-item-skill.png)
+>
 > ![Spellmind's tooltip on a quest](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/tooltip-quest.png)
 >
 > ## Nudges

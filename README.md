@@ -81,11 +81,19 @@ Spellmind is two parts:
   </tr>
   <tr>
     <td align="center"><img src="docs/images/nudge-toast.png" alt="A nudge: 5 spells to train, with Dismiss and Ask"></td>
-    <td align="center"><img src="docs/images/tooltip-quest.png" alt="Spellmind's tooltip on a quest: its level against yours, what's left, where it is on the map and the rewards"><br><br><img src="docs/images/tooltip-item.png" alt="An item tooltip with Spellmind's lines: the stat changes against the belt you wear, and worse than yours: sell, or the auction house, with its vendor price"></td>
+    <td align="center"><img src="docs/images/tooltip-quest.png" alt="Spellmind's tooltip on a quest: its level against yours, what's left, where it is on the map and the rewards"></td>
   </tr>
   <tr>
     <td><b>Nudges:</b> a quiet toast by the minimap when something's waiting: spells to train, points to spend, gear about to break.</td>
     <td><b>Tooltips:</b> Spellmind's lines on quests and items: difficulty, what's left, upgrades, and what to sell, with its vendor price.</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/tooltip-item.png" alt="An item tooltip with Spellmind's lines: the stat changes against the belt you wear, and worse than yours: sell, or the auction house, with its vendor price"></td>
+    <td align="center"><img src="docs/images/tooltip-item-skill.png" alt="A mace tooltip with Spellmind's lines: no One-Handed Maces skill yet, a weapon master may teach it, so sell unless you'll learn it, with its vendor price"></td>
+  </tr>
+  <tr>
+    <td><b>On items:</b> better or worse than what you wear, by how much, and what to do with it, with its vendor price.</td>
+    <td><b>Knows your skills:</b> a weapon you can't use yet but can learn says so, instead of just "sell".</td>
   </tr>
   <tr>
     <td colspan="2" align="center"><img src="docs/images/minimap-button.png" alt="Spellmind's minimap button with its tooltip: click for the chat, right-click for your last tab, drag to move it around the map"></td>

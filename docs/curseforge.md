@@ -34,7 +34,7 @@ Upload `Spellmind-<version>.zip` from the GitHub release, the same file, unchang
 
 > **Spellmind** is an AI companion for WoW Forever. Its panel shows what your quests lead to, which dungeons fit your level and what each needs first, gear and bag advice, the talents to take next, spells to train, profession caps and gold, and quiet nudges by the minimap. **All of that works on its own.**
 >
-> With the free **Spellmind app** for Windows, Spellmind becomes an AI chatbot for your character: ask **your own AI** anything about it, in the game's chat window: a ChatGPT plan, or an API key for Claude, ChatGPT, Grok or Gemini. Type `/sm app` in game to see where to get it.
+> With the free **Spellmind app** for Windows, Spellmind becomes an AI chatbot for your character. Ask **your own AI** anything about it in the game's chat window, with a ChatGPT plan or an API key for Claude, ChatGPT, Grok or Gemini. Type `/sm app` in game to see where to get it.
 >
 > **Advice only.** Spellmind never plays for you, never sends input to the game and never reads its memory. The app reads only Spellmind's own strip from the game's window.
 >

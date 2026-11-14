@@ -81,7 +81,7 @@ Spellmind is two parts:
   </tr>
   <tr>
     <td align="center"><img src="docs/images/nudge-toast.png" alt="A nudge: 5 spells to train, with Dismiss and Ask"></td>
-    <td align="center"><img src="docs/images/tooltip-quest.png" alt="Spellmind's tooltip on a quest: its level against yours, what's left, where it is on the map and the rewards"></td>
+    <td align="center"><img src="docs/images/tooltip-quest.png" alt="Spellmind's tooltip on a quest: its level against yours, what's left, where it is on the map and the rewards"><br><br><img src="docs/images/tooltip-item.png" alt="An item tooltip with Spellmind's lines: the stat changes against the belt you wear, and worse than yours: sell, or the auction house, with its vendor price"></td>
   </tr>
   <tr>
     <td><b>Nudges:</b> a quiet toast by the minimap when something's waiting: spells to train, points to spend, gear about to break.</td>

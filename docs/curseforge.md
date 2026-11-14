@@ -67,6 +67,8 @@ As published (Markdown), 2026-11-14. Keep it to what the addon does; anything th
 > - **Character sheet:** a dot on a slot that has a better item waiting in your bags.
 > - **Merchant** and **class trainer:** what to sell, and what to train first.
 >
+> ![An item tooltip with Spellmind's lines: the stat changes against your belt, and sell advice with the vendor price](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/tooltip-item.png)
+>
 > ![Spellmind's tooltip on a quest](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/tooltip-quest.png)
 >
 > ## Nudges

@@ -49,7 +49,8 @@ As published (Markdown), 2026-11-14. Keep it to what the addon does; anything th
 > - **Gear:** upgrades within reach from your quests' rewards with their stat changes, your weakest slots, and what your bags are good for: can't use yet, sell, or keep for your profession.
 > - **Talents:** what to spend your points on. Import your leveling guide from its link (your AI reads the page, so this one needs the app) and Spellmind follows its build: the next points to take, and when you're behind.
 > - **Spells:** what your trainer has for you now and what it costs, what comes at your next levels, and your imported guide's rotation.
-> - **Professions** and **Gold:** what to do next for each profession, and where your money is.
+> - **Professions:** what to do next for each profession, and when it's near its cap.
+> - **Gold:** what came in and went out this session and today (and per hour), what's coming up (spells to train, repairs), and what your bags are worth at a vendor, and on the Auction House from Auctionator's last scan if you have Auctionator.
 > - **Nudges** and **Settings:** what's waiting, and a switch for every part of Spellmind.
 >
 > ![The Quests tab: what's ready to turn in, with XP and distance](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/quests-tab.png)
@@ -61,7 +62,7 @@ As published (Markdown), 2026-11-14. Keep it to what the addon does; anything th
 > ## In the game's own windows
 >
 > - **Quest log:** Spellmind's mark on a quest's details. Hover for its level against yours, what's left, where it is and its rewards.
-> - **Item tooltips:** a line or two: upgrade or not and by how much, whether you can use it, sell it, or need it for your profession.
+> - **Item tooltips:** a line or two: upgrade or not and by how much, whether you can use it, and what to do with it: sell it, with its vendor price ("sell: grey junk (12c each)"), take it to the Auction House, or keep it for your profession.
 > - **Quest rewards:** which reward to pick when you turn a quest in.
 > - **Character sheet:** a dot on a slot that has a better item waiting in your bags.
 > - **Merchant** and **class trainer:** what to sell, and what to train first.

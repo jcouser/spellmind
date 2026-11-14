@@ -85,7 +85,7 @@ Spellmind is two parts:
   </tr>
   <tr>
     <td><b>Nudges:</b> a quiet toast by the minimap when something's waiting: spells to train, points to spend, gear about to break.</td>
-    <td><b>Tooltips:</b> Spellmind's lines on quests and items: difficulty, what's left, upgrades, what to sell.</td>
+    <td><b>Tooltips:</b> Spellmind's lines on quests and items: difficulty, what's left, upgrades, and what to sell, with its vendor price.</td>
   </tr>
   <tr>
     <td colspan="2" align="center"><img src="docs/images/minimap-button.png" alt="Spellmind's minimap button with its tooltip: click for the chat, right-click for your last tab, drag to move it around the map"></td>

@@ -32,11 +32,13 @@ Upload `Spellmind-<version>.zip` from the GitHub release, the same file, unchang
 
 ## Description
 
-As published (Markdown), 2026-11-14. Keep it to what the addon does; anything that needs the app says so.
+As published (Markdown), 2026-11-14. Keep it to what the addon does; anything that needs the app says so. The images come from this repository (raw.githubusercontent.com); renaming or moving one in docs/images breaks it here.
 
 > **Spellmind** is a companion for **WoW Forever** that knows your character as you play: your quests, gear, bags, talents, spells and professions. It tells you what to do next, and with the free Spellmind app, it becomes an **AI chatbot** you can ask anything about your character, right in the game.
 >
 > **Everything in the panel, the tooltips and the nudges works on its own.** No app, no AI, no account. The AI chat is an optional extra.
+>
+> ![Spellmind's chat: a quest reward judged against your gloves, then what's left to do in Westfall](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/chat-gear-and-route.png)
 >
 > ## The panel
 >
@@ -50,6 +52,12 @@ As published (Markdown), 2026-11-14. Keep it to what the addon does; anything th
 > - **Professions** and **Gold:** what to do next for each profession, and where your money is.
 > - **Nudges** and **Settings:** what's waiting, and a switch for every part of Spellmind.
 >
+> ![The Quests tab: what's ready to turn in, with XP and distance](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/quests-tab.png)
+>
+> ![The Dungeons tab: the questlines that lead to the Deadmines](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/dungeons-tab.png)
+>
+> ![The Gear tab: upgrades from quest rewards, weakest slots, and your bags](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/gear-tab.png)
+>
 > ## In the game's own windows
 >
 > - **Quest log:** Spellmind's mark on a quest's details. Hover for its level against yours, what's left, where it is and its rewards.
@@ -58,9 +66,13 @@ As published (Markdown), 2026-11-14. Keep it to what the addon does; anything th
 > - **Character sheet:** a dot on a slot that has a better item waiting in your bags.
 > - **Merchant** and **class trainer:** what to sell, and what to train first.
 >
+> ![Spellmind's tooltip on a quest](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/tooltip-quest.png)
+>
 > ## Nudges
 >
 > A small toast by the minimap when something's waiting, never in combat and never a stream of them: spells to train, talent points to spend, gear about to break, bags nearly full, a dungeon you just entered, professions near their cap. Each kind has its own switch, and **Dismiss** means not again for the same thing.
+>
+> ![A nudge: 5 spells to train](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/nudge-toast.png)
 >
 > ## Ask your AI (optional, with the free app)
 >
@@ -73,7 +85,11 @@ As published (Markdown), 2026-11-14. Keep it to what the addon does; anything th
 >
 > Its answers use your real character: your gear, quest log, talents, gold and where you are. Buttons under an answer ask the obvious next question.
 >
+> ![Asking what in your bags is worth selling on the Auction House](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/chat-auction-house.png)
+>
 > **Break it down:** click Spellmind's mark on a quest, and your AI explains it in steps beside the window: where to go, what you'll need, and whether it's worth doing now.
+>
+> ![Break it down on a quest, beside the quest log](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/break-it-down.png)
 >
 > **Your AI, your choice:**
 > - A **ChatGPT plan** (Plus or Pro): sign in in your browser, with no API key.
@@ -83,6 +99,8 @@ As published (Markdown), 2026-11-14. Keep it to what the addon does; anything th
 > Pick the model and thinking level; with web search on, your AI can check quest and NPC details online. Answers that name places, NPCs or routes get double-checked first (you can turn that off).
 >
 > Type `/sm app` in game to see where to get the app. It installs and updates the addon too, and updates itself.
+>
+> ![The Spellmind app: connected to WoW, with your AI, model and thinking level](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/desktop-app.png)
 >
 > ## Advice only, and private
 >

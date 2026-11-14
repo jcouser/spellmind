@@ -7,9 +7,9 @@ What to fill in on CurseForge for the addon, and the rules it has to follow. The
 - **Game:** World of Warcraft. **Game version / flavor:** WoW Forever (interface 16001).
 - **Name:** Spellmind: AI Companion
 - **Summary** (one sentence): *Quest, dungeon, gear and spell advice in game, and a chat with your own AI through the free Spellmind app.*
-- **Categories:** Quests & Leveling (main), Companions, Map & Minimap, Bags & Inventory.
+- **Categories:** Quests & Leveling (main), Bags & Inventory, Professions, Map & Minimap. (Not "Companions": on CurseForge that means battle pets.)
 - **License:** MIT.
-- **Avatar:** 400×400 PNG, from `art/source/logo.png` (scaled down).
+- **Avatar:** `art/curseforge-avatar.png` (400×400, from `art/source/logo.png`).
 - **Screenshots:** `docs/images/` (each checked for character, guild and realm names before upload).
 - **Release type:** Beta for the first files, until signing is set up and a few players have used it.
 

@@ -1,0 +1,58 @@
+name: Something isn't working
+description: A bug in the addon or the app, or an AI that answers wrongly or not at all.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Never paste an API key, a sign-in code, your character's name, realm or guild, or other players' names.** Security problems go through [SECURITY.md](https://github.com/jcouser/spellmind/blob/main/SECURITY.md), not here.
+  - type: dropdown
+    id: part
+    attributes:
+      label: Where
+      options:
+        - The addon in game
+        - The desktop app
+        - The answers from my AI
+        - Installing or updating
+    validations:
+      required: true
+  - type: dropdown
+    id: ai
+    attributes:
+      label: Your AI (if it's about answers or connecting)
+      options:
+        - ChatGPT plan (sign in)
+        - Claude (Anthropic API key)
+        - ChatGPT (OpenAI API key)
+        - Grok (xAI API key)
+        - Gemini (Google API key)
+        - Other (OpenRouter, Groq, Ollama, LM Studio…)
+        - Not about the AI
+  - type: input
+    id: model
+    attributes:
+      label: Model and thinking level
+      description: As the app's "Your AI" card shows them. For Other, the service too (e.g. Ollama, llama3.3).
+      placeholder: Gemini 4 Argon, Medium
+  - type: input
+    id: version
+    attributes:
+      label: Versions
+      description: The app's window shows its version at the top; in game, Settings shows the addon's.
+      placeholder: app 0.4.3, addon 0.4.3
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+      description: The question you asked helps, if it's about an answer. Screenshots welcome (check them for names first).
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: The exact error text, if any
+      description: From the chat, the app's pill or its Activity list. The app's log (Open the log folder) has no keys or questions in it; a few lines around the problem help.
+      render: text

@@ -86,6 +86,12 @@ Spellmind is two parts:
     <td><b>Nudges:</b> a quiet toast by the minimap when something's waiting: spells to train, points to spend, gear about to break.</td>
     <td><b>Tooltips:</b> Spellmind's lines on quests and items: difficulty, what's left, upgrades, what to sell.</td>
   </tr>
+  <tr>
+    <td colspan="2" align="center"><img src="docs/images/minimap-button.png" alt="Spellmind's minimap button with its tooltip: click for the chat, right-click for your last tab, drag to move it around the map"></td>
+  </tr>
+  <tr>
+    <td colspan="2"><b>Minimap button:</b> click for the chat, right-click for your last tab. <code>/sm minimap off</code> hides it.</td>
+  </tr>
 </table>
 
 ### The app
@@ -145,6 +151,17 @@ npm run dist                          # (in app/desktop) the Windows installer a
 ```
 
 The app's screen-reading helper is C, built with `npm run capture:build` (Git Bash with MinGW-w64's gcc) or `core/capture/windows/build.sh` (Zig 0.16.0). Releases are built by [GitHub Actions](.github/workflows/release.yml) from a tagged commit; [docs/releasing.md](docs/releasing.md) has the steps.
+
+## Code signing policy
+
+The Windows installer is being set up for signing through [SignPath Foundation](https://signpath.org)'s free program for open-source projects. Until that's in place, releases are unsigned: check each download against its SHA-256 ([install guide](docs/install.md)).
+
+Once it is: *Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).*
+
+- **Only this project's own files are signed:** the installer built from this repository's source by [the release workflow](.github/workflows/release.yml) on GitHub's own runners, from a tagged commit.
+- **Committers and reviewers:** [jcouser](https://github.com/jcouser). Changes from anyone else come as pull requests and are reviewed before they're merged.
+- **Approvers:** [jcouser](https://github.com/jcouser) approves each signing request by hand.
+- **Privacy:** Spellmind sends nothing to the Spellmind authors. It sends your questions and the game data you allow to the AI you chose, only when you ask, and checks this repository's releases for new versions (a switch turns that off). See [docs/privacy.md](docs/privacy.md).
 
 ## Support and security
 

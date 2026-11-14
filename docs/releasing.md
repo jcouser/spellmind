@@ -25,19 +25,38 @@ A draft release is invisible to the app's updater and to "latest" links, so noth
 
 ## Code signing: SignPath Foundation (free for open source)
 
-The installer is unsigned until this is set up, so Windows SmartScreen warns on first run.
+The installer is unsigned until this is set up, so Windows SmartScreen warns on first run. Everything on the repository's side is ready: the README's [code signing policy](../README.md#code-signing-policy), the SignPath steps in [the release workflow](../.github/workflows/release.yml) (off until the variables below exist), the artifact configuration in [`.signpath/artifact-configuration.xml`](../.signpath/artifact-configuration.xml), and `tools/update-feed.mjs`.
 
-**Applying** (needs the public repository, which exists, and an OSI license, which MIT is):
+What SignPath Foundation asks (signpath.org/terms, read 2026-11-13): an OSI license with no proprietary parts (MIT, yes), a project that's maintained and already released in the form to be signed (yes, on GitHub), its function described on the download page (the README), a privacy statement ([privacy.md](privacy.md)), an uninstaller (yes), multi-factor sign-in for every team member on GitHub and SignPath, builds on GitHub's own runners (yes), and a person approving every signing request.
 
-1. On [signpath.org](https://signpath.org/), apply for the Open Source program with this repository. They want: the project's purpose, that releases are built by GitHub Actions from the public source, and maintainers with multi-factor authentication on GitHub.
-2. Turn on two-factor authentication for every maintainer's GitHub account, if it isn't already.
-3. Add the credit SignPath asks for to the README and the release notes: *Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org)*.
+**1. Before applying**
 
-**Once approved**, SignPath gives an organization id, a project slug and a signing policy, and an API token to store as the repository secret `SIGNPATH_API_TOKEN`. Then the release workflow changes like this:
+- Turn on two-factor authentication on GitHub (Settings → Password and authentication), if it isn't on.
 
-- The build job uploads the unsigned installer as an artifact; a new step runs `signpath/github-action-submit-signing-request` (pinned to a commit) with the organization id, project slug, signing policy (`release-signing`) and that artifact's id, and waits for the signed file.
-- Because signing changes the installer's bytes, `latest.yml` (its `sha512` and `size`) and `SHA256SUMS.txt` are made again from the signed file before the draft release.
-- `electron-builder.yml` gets `win.publisherName: ["SignPath Foundation"]`, so the app's updater installs only installers signed by that publisher. **Ship this in a release before the first signed one** is published, so every installed app checks from then on.
+**2. Applying:** [signpath.org/apply](https://signpath.org/apply), as the maintainer. Give the repository's address, say releases are built by `release.yml` on GitHub-hosted runners from tagged commits, and point to the README's code signing policy. They decide in their own time and can say no without a reason.
+
+**3. Once approved, in SignPath:**
+
+- Turn on multi-factor sign-in for your SignPath account.
+- Add the predefined **GitHub.com** trusted build system and link it to the project.
+- Create the artifact configuration with the slug `installer` from `.signpath/artifact-configuration.xml`, and check it with **Upload an artifact sample** (an installer from a release, zipped).
+- Use (or create) the signing policy with the slug `release-signing`, with yourself as approver.
+- Create an API token for a user who can submit signing requests.
+
+**4. In GitHub** (repository Settings → Secrets and variables → Actions):
+
+- Variables `SIGNPATH_ORGANIZATION_ID` and `SIGNPATH_PROJECT_SLUG`.
+- Secret `SIGNPATH_API_TOKEN`.
+
+**5. The first signed release** (bump the minor version, e.g. 0.5.0):
+
+- In the same release, add `publisherName: ["SignPath Foundation"]` under `win:` in `app/desktop/electron-builder.yml`. Installed apps check every later update's installer against the publisher their own copy names, so:
+  - apps on 0.4.x take 0.5.0 without a check (they name none);
+  - from 0.5.0 on, an update installs only if it's signed by SignPath Foundation.
+
+  Don't add it earlier: an app naming a publisher refuses unsigned updates.
+- Tag and push as usual. The build stops at "Signed through SignPath Foundation" until you approve the request in SignPath (it waits up to an hour), then puts the signed installer in place, checks its signature, rewrites `latest.yml` for the signed bytes (dropping the `.blockmap`, so updates download the whole installer) and makes the checksums from it.
+- Change the README's code signing policy from "being set up" to "signed", keeping the credit line.
 
 The certificate names SignPath Foundation as the publisher, not Spellmind. A certificate in the project's own name later (Certum's open-source certificate is a one-off cost of about €50-70) would change `publisherName` again, the same way.
 

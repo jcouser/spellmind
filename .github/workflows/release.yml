@@ -5,11 +5,15 @@
 #      addon zip and SHA256SUMS.txt. A person reads it and publishes it; the app's updater and the
 #      download links only see published releases.
 #
-# Code signing (SignPath Foundation's free open-source signing) slots in between 2 and 3 once the
-# project is approved: docs/releasing.md says what changes. Until then the installer is unsigned.
+# Code signing (docs/releasing.md): with the repository variables SIGNPATH_ORGANIZATION_ID and
+# SIGNPATH_PROJECT_SLUG and the secret SIGNPATH_API_TOKEN set (after SignPath Foundation approves the
+# project), the installer goes to SignPath between 2 and 3, waits for a person to approve the request,
+# and comes back signed; the update feed is then written again for the signed bytes. Without them,
+# the installer is unsigned, as before.
 #
-# Hardening: no pull_request trigger; the build jobs have a read-only token and no secrets; only the
-# release job can write, and it runs nothing from the repository; every action pinned to a commit.
+# Hardening: no pull_request trigger; the build jobs have a read-only token, and the only secret is
+# the SignPath token, used by SignPath's own action alone; only the release job can write, and it runs
+# nothing from the repository; every action pinned to a commit.
 name: release
 
 on:
@@ -49,7 +53,11 @@ jobs:
   build:
     needs: capture-helper
     runs-on: windows-latest
-    timeout-minutes: 45
+    # The signing request can wait up to an hour for its approval.
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read # SignPath's action fetches the unsigned artifact through the API
     env:
       # Unsigned on purpose: electron-builder never signs with whatever a runner happens to hold.
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -62,12 +70,14 @@ jobs:
           node-version: 22
           package-manager-cache: false
       - name: The tag is the version the app and the addon say
+        id: version
         run: |
           tag="${GITHUB_REF_NAME#v}"
           app=$(node -p "require('./app/desktop/package.json').version")
           toc=$(sed -n 's/^## Version: *//p' addon/Spellmind/Spellmind.toc | tr -d '\r')
           echo "tag $tag, app $app, addon $toc"
           [ "$tag" = "$app" ] && [ "$tag" = "$toc" ] || { echo "::error::the tag, app/desktop/package.json and Spellmind.toc must all say the same version"; exit 1; }
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
       - run: npm ci --ignore-scripts
       - run: npm test
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -80,6 +90,43 @@ jobs:
           npm ci
           npx electron-builder --win nsis --publish never
           node scripts/hash.mjs
+      # Signing: only once SignPath is set up (the variables above); every request is approved by hand
+      # in SignPath (the code signing policy in the README).
+      - name: The unsigned installer, for SignPath
+        id: unsigned
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unsigned-installer
+          path: app/desktop/dist/Spellmind-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 7
+      - name: Signed through SignPath Foundation (waits for the approval)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: app/desktop/dist/signed
+          parameters: |
+            version: "${{ steps.version.outputs.version }}"
+      - name: The signed installer in place, checked, and the update feed written for it
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        run: |
+          v="${{ steps.version.outputs.version }}"
+          mv -f "app/desktop/dist/signed/Spellmind-Setup-$v.exe" app/desktop/dist/
+          rm -rf app/desktop/dist/signed
+          status=$(powershell -NoProfile -Command "(Get-AuthenticodeSignature 'app/desktop/dist/Spellmind-Setup-$v.exe').Status")
+          signer=$(powershell -NoProfile -Command "(Get-AuthenticodeSignature 'app/desktop/dist/Spellmind-Setup-$v.exe').SignerCertificate.Subject")
+          echo "signature: $status, $signer"
+          [ "$(echo "$status" | tr -d '\r')" = "Valid" ] || { echo "::error::the signed installer's signature isn't valid"; exit 1; }
+          node tools/update-feed.mjs app/desktop/dist
       - name: The addon zip
         run: node tools/package-addon.mjs --out app/desktop/dist
       - name: Checksums
@@ -123,7 +170,7 @@ jobs:
             echo "- **The app (Windows 10 and 11):** \`Spellmind-Setup-$v.exe\`. It installs the addon too."
             echo "- **The addon only:** \`Spellmind-$v.zip\`, unzipped into \`World of Warcraft\\_forever_\\Interface\\AddOns\`."
             echo
-            echo "Check a download before running it ([how](https://github.com/$GH_REPO/blob/main/docs/install.md)):"
+            echo "Check a download before running it ([how](https://github.com/$GH_REPO/blob/main/docs/install.md)). [Code signing policy](https://github.com/$GH_REPO#code-signing-policy)."
             echo
             echo '```'
             cat files/SHA256SUMS.txt

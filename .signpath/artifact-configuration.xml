@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration "installer" (docs/releasing.md): pasted into the SignPath project,
+  slug "installer". The release workflow (.github/workflows/release.yml) uploads the unsigned
+  installer as a GitHub artifact, which GitHub zips; SignPath signs the one exe inside.
+
+  SignPath Foundation's conditions: only this project's own file is signed, and its product name and
+  version are checked (the version is the workflow's "version" parameter, the release tag without v).
+  The installer's version resource says them as ProductName "Spellmind" and ProductVersion "0.4.2"
+  (electron-builder, checked 2026-11-13). Check with SignPath's "Upload an artifact sample" before
+  the first real request.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="Spellmind-Setup-${version}.exe" product-name="Spellmind" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

@@ -1,6 +1,6 @@
 # Privacy
 
-Spellmind has no server and no account. The Spellmind authors receive nothing from it: no telemetry, no analytics, no crash reports. What leaves your PC goes to the AI you chose, and only when you ask it something.
+Spellmind has no server and no account. The Spellmind authors receive nothing from it: no telemetry, no analytics, no crash reports. What leaves your PC goes to the AI you chose, only when you ask it something, plus the app's check for a new version on GitHub, which you can turn off.
 
 ## What the addon reads in the game
 
@@ -21,6 +21,7 @@ What your character is and has, so the panel and your AI can give advice that fi
 | Your question and that game data | **Your AI** (OpenAI, Anthropic, xAI, Google, or the service you set under Other) | Only when you ask something |
 | Your leveling guide's link | Your AI, which reads the page with its web search | Only when you import a guide |
 | Web searches your AI chooses to make | Your AI's own search | When web search is on and your AI decides to look something up |
+| A request for the newest version (no data about you or the game) | GitHub, this repository's releases page | 30 s after the app starts, then every 6 hours, while "Check for new versions of Spellmind" is on (it is by default) |
 
 Your AI's own privacy policy covers what it does with your messages. If you sign in with a ChatGPT plan, OpenAI's terms for that plan apply.
 

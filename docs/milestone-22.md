@@ -31,5 +31,5 @@ Built 2026-11-13: what Spellmind needs to be on GitHub and CurseForge.
 ## Still to do
 
 - Screenshot still missing: a talent plan answer (after 0.4.2, which sends the AI 10 next points).
-- The SignPath application, then the signing step.
+- SignPath: applied 2026-11-14 ("we'll be in touch soon"). Once approved: docs/releasing.md steps 3-5, then 0.5.0 as the first signed release.
 - The CurseForge project (Beta), by hand.

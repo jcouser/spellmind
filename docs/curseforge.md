@@ -4,6 +4,8 @@ What to fill in on CurseForge for the addon, and the rules it has to follow. The
 
 ## Project
 
+- **Page:** https://www.curseforge.com/wow/addons/spellmind-ai-companion (project ID 1804129, created 2026-11-14 by the maintainer; in moderation until approved). The ID is the TOC's `X-Curse-Project-ID`.
+
 - **Game:** World of Warcraft. **Game version / flavor:** WoW Forever (interface 16001).
 - **Name:** Spellmind: AI Companion
 - **Summary** (one sentence): *Quest, dungeon, gear and spell advice in game, and a chat with your own AI through the free Spellmind app.*

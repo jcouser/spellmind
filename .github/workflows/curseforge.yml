@@ -1,0 +1,86 @@
+# The addon zip to CurseForge (docs/curseforge.md), when a GitHub release is PUBLISHED: the draft the
+# release workflow made has been read by a person by then, and the zip is the release's own file,
+# unchanged. Run by hand (Actions > curseforge > Run workflow):
+#   - with no tag: lists CurseForge's game versions, to pick the repository variable
+#     CF_GAME_VERSION_IDS (comma-separated ids, WoW Forever's);
+#   - with a tag (v0.4.3): uploads that release's zip, e.g. one published before this existed.
+#
+# Needs the secret CF_API_TOKEN (a CurseForge author API token) and the variable CF_GAME_VERSION_IDS.
+# CF_RELEASE_TYPE (alpha | beta | release) defaults to beta. Without the version ids it lists them and
+# uploads nothing.
+#
+# Hardening: a read-only GitHub token; the CurseForge token only in the steps that call CurseForge and
+# never printed; every value from the release goes to curl as data (--form-string), never as an option.
+name: curseforge
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to upload (e.g. v0.4.3). Empty: only list the game versions.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: curseforge
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_PROJECT_ID: '1804129'
+      CF_API: https://wow.curseforge.com/api
+      TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+      CF_GAME_VERSION_IDS: ${{ vars.CF_GAME_VERSION_IDS }}
+      CF_RELEASE_TYPE: ${{ vars.CF_RELEASE_TYPE || 'beta' }}
+    steps:
+      - name: The token is set
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: '[ -n "$CF_API_TOKEN" ] || { echo "::error::Add the CF_API_TOKEN secret (Settings > Secrets and variables > Actions)."; exit 1; }'
+
+      - name: CurseForge's game versions (for CF_GAME_VERSION_IDS)
+        if: ${{ env.TAG == '' || env.CF_GAME_VERSION_IDS == '' }}
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: |
+          curl -fsS -H "X-Api-Token: $CF_API_TOKEN" "$CF_API/game/version-types" > types.json
+          curl -fsS -H "X-Api-Token: $CF_API_TOKEN" "$CF_API/game/versions" > versions.json
+          echo "Version types (id slug name):"
+          jq -r '.[] | "  \(.id) \(.slug) \(.name)"' types.json
+          echo "Versions of the types that look like Forever or Classic (id type name):"
+          ids=$(jq -c '[.[] | select((.name + " " + .slug) | test("forever|classic"; "i")) | .id]' types.json)
+          jq -r --argjson t "$ids" '.[] | select(.gameVersionTypeID as $g | $t | index($g)) | "  \(.id) type=\(.gameVersionTypeID) \(.name)"' versions.json
+          echo "Versions named 1.60 or 16001, any type:"
+          jq -r '.[] | select(.name | test("^1\\.60|16001")) | "  \(.id) type=\(.gameVersionTypeID) \(.name)"' versions.json
+          if [ -z "$CF_GAME_VERSION_IDS" ]; then echo "::notice::Set the variable CF_GAME_VERSION_IDS to WoW Forever's id(s) above; nothing was uploaded."; fi
+
+      - name: Upload the release's addon zip
+        if: ${{ env.TAG != '' && env.CF_GAME_VERSION_IDS != '' }}
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::not a release tag: $TAG"; exit 1; }
+          [[ "$CF_GAME_VERSION_IDS" =~ ^[0-9]+(,[0-9]+)*$ ]] || { echo "::error::CF_GAME_VERSION_IDS must be ids like 12345 or 12345,12346"; exit 1; }
+          [[ "$CF_RELEASE_TYPE" =~ ^(alpha|beta|release)$ ]] || { echo "::error::CF_RELEASE_TYPE must be alpha, beta or release"; exit 1; }
+          v="${TAG#v}"
+          gh release download "$TAG" -p "Spellmind-$v.zip"
+          gh release view "$TAG" --json body --jq .body > changelog.md
+          meta=$(jq -n --arg name "Spellmind $v" --rawfile log changelog.md --arg type "$CF_RELEASE_TYPE" \
+            --argjson versions "[$CF_GAME_VERSION_IDS]" \
+            '{displayName: $name, changelog: $log, changelogType: "markdown", gameVersions: $versions, releaseType: $type}')
+          curl -fsS -H "X-Api-Token: $CF_API_TOKEN" \
+            --form-string "metadata=$meta" -F "file=@Spellmind-$v.zip;type=application/zip" \
+            "$CF_API/projects/$CF_PROJECT_ID/upload-file" > response.json
+          echo "CurseForge file id: $(jq -r '.id // "?"' response.json)"
+          echo "::notice::Spellmind $v sent to CurseForge as $CF_RELEASE_TYPE; it shows once moderation passes."

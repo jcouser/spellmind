@@ -8,7 +8,7 @@ What to fill in on CurseForge for the addon, and the rules it has to follow. The
 
 - **Game:** World of Warcraft. **Game version / flavor:** WoW Forever (interface 16001).
 - **Name:** Spellmind: AI Companion
-- **Summary** (one sentence): *Quest, dungeon, gear and spell advice in game, and a chat with your own AI through the free Spellmind app.*
+- **Summary** (what CurseForge's search reads most; the names people search for, in a sentence, never a keyword list): *AI chat companion for WoW Forever: ask ChatGPT, Claude, Gemini or Grok about your quests, dungeons, gear and talents. The quest, gear and spell advice works on its own.*
 - **Categories:** Quests & Leveling (main), Bags & Inventory, Professions, Map & Minimap. (Not "Companions": on CurseForge that means battle pets.)
 - **License:** MIT.
 - **Avatar:** `art/curseforge-avatar.png` (400×400, from `art/source/logo.png`).
@@ -34,7 +34,7 @@ Upload `Spellmind-<version>.zip` from the GitHub release, the same file, unchang
 
 > **Spellmind** is an AI companion for WoW Forever. Its panel shows what your quests lead to, which dungeons fit your level and what each needs first, gear and bag advice, the talents to take next, spells to train, profession caps and gold, and quiet nudges by the minimap. **All of that works on its own.**
 >
-> With the free **Spellmind app** for Windows, you can also ask **your own AI** anything about your character, in the game's chat window: a ChatGPT plan, or an API key for Claude, ChatGPT, Grok or Gemini. Type `/sm app` in game to see where to get it.
+> With the free **Spellmind app** for Windows, Spellmind becomes an AI chatbot for your character: ask **your own AI** anything about it, in the game's chat window: a ChatGPT plan, or an API key for Claude, ChatGPT, Grok or Gemini. Type `/sm app` in game to see where to get it.
 >
 > **Advice only.** Spellmind never plays for you, never sends input to the game and never reads its memory. The app reads only Spellmind's own strip from the game's window.
 >

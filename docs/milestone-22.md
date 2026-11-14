@@ -23,9 +23,13 @@ Built 2026-11-13: what Spellmind needs to be on GitHub and CurseForge.
 - **Workflows:** `test.yml` (every push and pull request) and `release.yml` (a `v*` tag: the helper with the pinned Zig, the tests, the installer, the zip, checksums, then a draft release for a person to publish).
 - **Signing:** SignPath Foundation's free open-source program, applied for once the repository is public ([releasing.md](releasing.md)). Unsigned until then.
 
+## Seen working (2026-11-13)
+
+- v0.4.0 and v0.4.1 built by the release workflow, published by hand.
+- An installed 0.4.0 found 0.4.1 (Check now), downloaded it on a click, and restarted into 0.4.1 on Restart to update; the addon followed. (Not yet tried: the refusal while WoW runs.) Before 0.4.0 was published its check read "didn't work": the words matched only the error's code (fixed in 0.4.1).
+
 ## Still to do
 
 - Fresh screenshots of the Quests, Gear and Spells tabs in today's layout, and of the minimap button.
-- The first tagged release, and checking that an installed 0.4.0 offers the next one.
 - The SignPath application, then the signing step.
 - The CurseForge project (Beta), by hand.

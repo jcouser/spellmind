@@ -18,7 +18,7 @@ Built 2026-11-13: what Spellmind needs to be on GitHub and CurseForge.
 ## The app's own updates (`app/desktop/updater.mjs`)
 
 - electron-updater 6.8.9 against this repository's GitHub releases (`publish` in `electron-builder.yml`).
-- Checks 30 s after the start, then every 6 hours, while "Check for new versions of Spellmind" is on; **Check now** in the window.
+- Checks 30 s after the start, then every 6 hours, and when the window opens if the last check is over an hour old, while "Check for new versions of Spellmind" is on; **Check now** in the window. The window says when it last checked.
 - A newer version is offered (window, tray, one notification). Nothing downloads until the player clicks. **Restart to update** installs it, never while WoW is running; otherwise it installs when Spellmind quits.
 - Only forward, and errors in plain words (never a raw message, which can hold a path).
 

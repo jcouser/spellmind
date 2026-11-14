@@ -16,6 +16,7 @@
 //     state() → { phase, version?, percent?, error?, checkedAt? }
 //       phase: 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'error'
 //     check({ manual }) · download() · install() → { ok } | { ok: false, error }
+//     checkIfStale(now?) → a check when none has finished in STALE_MS (opening the window)
 //     schedule(on) · stop()
 //   }
 // updater is electron-updater's autoUpdater (an EventEmitter with checkForUpdates, downloadUpdate,
@@ -23,6 +24,9 @@
 
 export const FIRST_CHECK_MS = 30 * 1000;
 export const EVERY_MS = 6 * 3600 * 1000;
+// Opening the window checks too, when the last check is older than this (the player, 2026-11-14: with the
+// app running for hours, the 6-hour check hadn't come yet and "Check now" found the release first).
+export const STALE_MS = 3600 * 1000;
 
 /** a < b for versions like 0.4.10 (numbers part by part; anything after - or + ignored). */
 export function newer(candidate, current) {
@@ -106,5 +110,14 @@ export function createUpdater({ updater, current, wowRunning = () => false, onCh
     first?.unref?.(); every?.unref?.();
   }
 
-  return { state: () => ({ ...st }), check, download, install, schedule, stop: () => schedule(false) };
+  let lastChecked = 0;
+  const checkedNow = () => { lastChecked = Date.now(); };
+  updater.on('update-available', checkedNow);
+  updater.on('update-not-available', checkedNow);
+  function checkIfStale(now = Date.now()) {
+    if (now - lastChecked < STALE_MS) return { ok: true, phase: st.phase, fresh: true };
+    return check();
+  }
+
+  return { state: () => ({ ...st }), check, checkIfStale, download, install, schedule, stop: () => schedule(false) };
 }

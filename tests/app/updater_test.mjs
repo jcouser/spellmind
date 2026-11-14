@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { createUpdater, newer, errorWords, FIRST_CHECK_MS, EVERY_MS } from '../../app/desktop/updater.mjs';
+import { createUpdater, newer, errorWords, FIRST_CHECK_MS, EVERY_MS, STALE_MS } from '../../app/desktop/updater.mjs';
 
 function fakeUpdater({ feed = '0.5.0', failCheck = null } = {}) {
   const u = new EventEmitter();
@@ -91,4 +91,18 @@ test('checks: 30 s after the start, then every 6 hours; off stops them', () => {
   assert.deepEqual(t.intervals, [EVERY_MS]);
   up.schedule(false);
   assert.equal(t.cleared, 2);
+});
+
+test('opening the window checks when the last check is over an hour old, not otherwise', async () => {
+  const u = fakeUpdater({ feed: '0.4.0' });
+  const up = createUpdater({ updater: u, current: '0.4.0' });
+  await up.checkIfStale();
+  assert.deepEqual(u.calls, ['check'], 'never checked: checks');
+  assert.equal(up.state().phase, 'none');
+  assert.ok(up.state().checkedAt, 'when, for the window\'s line');
+  const r = await up.checkIfStale();
+  assert.equal(r.fresh, true);
+  assert.deepEqual(u.calls, ['check'], 'just checked: no second check');
+  await up.checkIfStale(Date.now() + STALE_MS + 1000);
+  assert.deepEqual(u.calls, ['check', 'check'], 'an hour on: checks again');
 });

@@ -326,6 +326,8 @@ function createTray() {
 // The window.
 
 function openWindow() {
+  // The app's own updates: a check if the last one is over an hour old (updater.mjs STALE_MS).
+  if (updates && appSettings().checkUpdates) updates.checkIfStale();
   if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); return; }
   win = new BrowserWindow({
     width: 620, height: 760, minWidth: 520, minHeight: 560,

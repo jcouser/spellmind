@@ -188,11 +188,12 @@ function draw(s) {
   $('loginItem').checked = !!s.loginItem;
   // Its own updates (updater.mjs): what's on offer, and the one button for the next step.
   const u = s.update || { phase: 'off' };
+  const at = u.checkedAt ? ` (checked ${new Date(u.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})` : '';
   const updateWords = {
     off: [`Version ${s.version}. ${s.packaged ? 'Updates aren\'t checked in this copy.' : 'From source: no updates.'}`, null],
     idle: [`Version ${s.version}.`, 'Check now'],
     checking: ['Checking for a new version…', null],
-    none: [`Version ${s.version}: the newest.`, 'Check now'],
+    none: [`Version ${s.version}: the newest${at}.`, 'Check now'],
     available: [`Version ${u.version} is available.${u.error ? ` ${u.error}` : ''}`, `Update to ${u.version}`],
     downloading: [`Downloading ${u.version}… ${u.percent || 0}%`, null],
     ready: [`Version ${u.version} is downloaded. It installs when Spellmind restarts.`, 'Restart to update'],

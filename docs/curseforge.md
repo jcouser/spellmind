@@ -17,7 +17,7 @@ What to fill in on CurseForge for the addon, and the rules it has to follow. The
 
 ## Files
 
-**Uploaded by GitHub Actions** ([curseforge.yml](../.github/workflows/curseforge.yml)) when a GitHub release is published: the release's own `Spellmind-<version>.zip`, its notes as the changelog, as Beta (the variable `CF_RELEASE_TYPE` changes that). It needs the secret `CF_API_TOKEN` and the variable `CF_GAME_VERSION_IDS`; run the workflow by hand with no tag to list the game versions. A release published before it existed is uploaded by running it with that tag.
+**Uploaded by GitHub Actions** ([curseforge.yml](../.github/workflows/curseforge.yml)) when a GitHub release is published: the release's own `Spellmind-<version>.zip`, its notes as the changelog, as Beta (the variable `CF_RELEASE_TYPE` changes that). It needs the secret `CF_API_TOKEN` and the variable `CF_GAME_VERSION_IDS`; run the workflow by hand with no tag to list the game versions (WoW Forever 1.60.1 is 17053, type 88568 "wow-forever", set 2026-11-14). A release published before it existed is uploaded by running it with that tag.
 
 
 Upload `Spellmind-<version>.zip` from the GitHub release, the same file, unchanged. It holds the `Spellmind` folder and the 200 `Spellmind_S001`…`Spellmind_S200` parts. The display name is `Spellmind <version>`; the changelog is the GitHub release's notes.

@@ -16,6 +16,8 @@ import { slotTable } from '../../core/link/luaenc.mjs';
 import { createService } from '../../core/link/service.mjs';
 
 const KEY = 'sk-ant-api03-' + 'Ab3dEf9hIj'.repeat(4);
+// The addon's version, as the hello says it (Core.lua's ns.VERSION; one per release).
+const ADDON_VERSION = fs.readFileSync(new URL('../../addon/Spellmind/Core.lua', import.meta.url), 'utf8').match(/^ns\.VERSION = "([^"]+)"/m)[1];
 
 // After login the hello goes up at 3 s, and the 2-second poll has armed the doorbells.
 function session(opts = {}) {
@@ -58,7 +60,7 @@ test('/sm hello puts a msg record on the strip, 272 px down, with the hello besi
   assert.deepEqual(before.map(r => r.type), ['hello']);
   const h = before[0];
   const { sid, ...rest } = h.args;
-  assert.deepEqual(rest, { cur: '0', ver: '0.4.0', build: '70009', iface: '16001', n: '0', ctx: '0', sig: 'ok', slots: '200', slot: '1', mode: 'pixel' });
+  assert.deepEqual(rest, { cur: '0', ver: ADDON_VERSION, build: '70009', iface: '16001', n: '0', ctx: '0', sig: 'ok', slots: '200', slot: '1', mode: 'pixel' });
   assert.match(sid, /^[0-9a-f]{16}$/, 'the character session id (milestone 4)');
   assert.deepEqual(Object.keys(h.args).slice(-1), ['sid'], 'last');
   assert.equal(h.key, vm.evaluate('NS.R.nonce'));

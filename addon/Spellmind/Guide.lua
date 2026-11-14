@@ -13,7 +13,10 @@ local _, ns = ...
 local GD = {}
 ns.Guide = GD
 
-GD.NEXT_MAX = 4
+-- The next points worked out: up to 10 go to the AI (the player, 2026-11-13: "Plan my next 5 talent
+-- points" got four, all it was sent); the Talents tab lists TAB_NEXT, or every unspent point's.
+GD.NEXT_MAX = 10
+GD.TAB_NEXT = 4
 
 local function Me() return ns.State and ns.State.Me and ns.State.Me() or nil end
 local function Level() return tonumber((ns.Try(UnitLevel, "player"))) or 1 end
@@ -233,7 +236,7 @@ function GD.ForState(have)
 		for i, s in ipairs(list or {}) do if i <= n then out[#out + 1] = s end end
 		return #out > 0 and out or nil
 	end
-	return O("build", plan.build, "source", plan.source, "next", cap(nextList, 4), "stats", cap(plan.stats, 8),
+	return O("build", plan.build, "source", plan.source, "next", cap(nextList, GD.NEXT_MAX), "stats", cap(plan.stats, 8),
 		"rotation", cap(plan.rotation, 8), "weapons", plan.weapons)
 end
 

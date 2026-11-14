@@ -125,3 +125,15 @@ test('behind and early (seen in game: 8 points at 17, not the guide\'s first 8):
   const early = d.find(x => /Taken early:.*Improved Sinister Strike 2/.test(x.text || ''));
   assert.match(early.sub, /takes it at level 14 to 15/);
 });
+
+test('a long plan: up to 10 next points go to the AI ("plan my next 5" got four, the player, 2026-11-13); the Talents tab still lists 4', () => {
+  const vm = session();
+  const more = Array.from({ length: 8 }, (_, i) => `{ level = ${17 + i}, name = "Precision", rank = ${i + 1} }`).join(', ');
+  vm.run(PLAN.replace('{ level = 16, name = "Malice", rank = 3 } }', `{ level = 16, name = "Malice", rank = 3 }, ${more} }`));
+  const sent = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Guide.ForState())'));
+  assert.equal(sent.next.length, 10);
+  const d = drawn(vm, 'talents');
+  const at = d.findIndex(x => x.text === 'Next points');
+  const rows = d.slice(at + 1).filter(x => /level \d+|behind/.test(String(x.right || '')));
+  assert.equal(rows.length, 4, JSON.stringify(rows.map(r => r.text)));
+});

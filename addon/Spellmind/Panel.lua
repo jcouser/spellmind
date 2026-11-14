@@ -892,6 +892,7 @@ function Tabs.talents()
 		if p and #p.next > 0 then
 			out[#out + 1] = { kind = "head", text = unspent > 0 and ("Spend your " .. (unspent == 1 and "point" or (unspent .. " points"))) or "Next points" }
 			for i, s in ipairs(p.next) do
+				if i > math.max(GD.TAB_NEXT or 4, unspent) then break end
 				local now = s.now and unspent >= i
 				-- Its level is past and no point is left for it: the guide had it by now (your points
 				-- went elsewhere; the next one you get fills it).

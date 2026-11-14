@@ -32,18 +32,85 @@ Upload `Spellmind-<version>.zip` from the GitHub release, the same file, unchang
 
 ## Description
 
-> **Spellmind** is an AI companion for WoW Forever. Its panel shows what your quests lead to, which dungeons fit your level and what each needs first, gear and bag advice, the talents to take next, spells to train, profession caps and gold, and quiet nudges by the minimap. **All of that works on its own.**
+As published (Markdown), 2026-11-14. Keep it to what the addon does; anything that needs the app says so.
+
+> **Spellmind** is a companion for **WoW Forever** that knows your character as you play: your quests, gear, bags, talents, spells and professions. It tells you what to do next, and with the free Spellmind app, it becomes an **AI chatbot** you can ask anything about your character, right in the game.
 >
-> With the free **Spellmind app** for Windows, Spellmind becomes an AI chatbot for your character. Ask **your own AI** anything about it in the game's chat window, with a ChatGPT plan or an API key for Claude, ChatGPT, Grok or Gemini. Type `/sm app` in game to see where to get it.
+> **Everything in the panel, the tooltips and the nudges works on its own.** No app, no AI, no account. The AI chat is an optional extra.
 >
-> **Advice only.** Spellmind never plays for you, never sends input to the game and never reads its memory. The app reads only Spellmind's own strip from the game's window.
+> ## The panel
 >
-> **Private.** Your character's name, realm and guild are never sent. Your questions go to the AI you chose, and nothing goes to the Spellmind authors.
+> Open it with the minimap button or `/sm`. Each tab shows what matters now and what to do next, live as you play.
 >
-> **Commands:** `/sm` opens the chat, `/sm quests`, `/sm dungeons`, `/sm gear` and the rest open a tab, `/sm help` lists them all.
+> - **Quests:** what's ready to turn in and how much of your level that is, what to do here and now, what can wait, and which quests are for a dungeon. **Go** sets the game's waypoint.
+> - **Dungeons:** which dungeons your quests are for, the questlines that lead there (the step you're on, who to hand it to, where to pick up the next one), and what's at your level. **LFG** starts a LookingForGroup message for you to send.
+> - **Gear:** upgrades within reach from your quests' rewards with their stat changes, your weakest slots, and what your bags are good for: can't use yet, sell, or keep for your profession.
+> - **Talents:** what to spend your points on. Import your leveling guide from its link (your AI reads the page, so this one needs the app) and Spellmind follows its build: the next points to take, and when you're behind.
+> - **Spells:** what your trainer has for you now and what it costs, what comes at your next levels, and your imported guide's rotation.
+> - **Professions** and **Gold:** what to do next for each profession, and where your money is.
+> - **Nudges** and **Settings:** what's waiting, and a switch for every part of Spellmind.
 >
-> **Keep all the "Spellmind Part" addons checked:** they carry the app's answers into the game.
+> ## In the game's own windows
 >
-> Spellmind is unofficial and not made or endorsed by Blizzard Entertainment.
+> - **Quest log:** Spellmind's mark on a quest's details. Hover for its level against yours, what's left, where it is and its rewards.
+> - **Item tooltips:** a line or two: upgrade or not and by how much, whether you can use it, sell it, or need it for your profession.
+> - **Quest rewards:** which reward to pick when you turn a quest in.
+> - **Character sheet:** a dot on a slot that has a better item waiting in your bags.
+> - **Merchant** and **class trainer:** what to sell, and what to train first.
 >
-> Source, the app, privacy and how it works: github.com/jcouser/spellmind
+> ## Nudges
+>
+> A small toast by the minimap when something's waiting, never in combat and never a stream of them: spells to train, talent points to spend, gear about to break, bags nearly full, a dungeon you just entered, professions near their cap. Each kind has its own switch, and **Dismiss** means not again for the same thing.
+>
+> ## Ask your AI (optional, with the free app)
+>
+> With the free **Spellmind app** for Windows, ask **your own AI** anything about your character in Spellmind's chat window:
+>
+> - "Should I take [Dusty Mining Gloves] from this quest?" (shift-click items and quests into the box)
+> - "What should I do next here?" / "Plan my next hour"
+> - "What in my bags is worth selling on the Auction House?"
+> - "Plan my next 5 talent points"
+>
+> Its answers use your real character: your gear, quest log, talents, gold and where you are. Buttons under an answer ask the obvious next question.
+>
+> **Break it down:** click Spellmind's mark on a quest, and your AI explains it in steps beside the window: where to go, what you'll need, and whether it's worth doing now.
+>
+> **Your AI, your choice:**
+> - A **ChatGPT plan** (Plus or Pro): sign in in your browser, with no API key.
+> - An **API key** for **Claude**, **ChatGPT**, **Grok** or **Gemini**.
+> - **Other:** OpenRouter, Groq, or a model on your own PC with Ollama or LM Studio.
+>
+> Pick the model and thinking level; with web search on, your AI can check quest and NPC details online. Answers that name places, NPCs or routes get double-checked first (you can turn that off).
+>
+> Type `/sm app` in game to see where to get the app. It installs and updates the addon too, and updates itself.
+>
+> ## Advice only, and private
+>
+> - **Advice only.** Spellmind never plays for you: it never sends input to the game, never clicks, casts, buys or equips. Waypoints are set only when you click **Go**.
+> - **The app reads only Spellmind's own signal strip** from the game's window, and never the game's memory.
+> - **Never sent anywhere:** your character's name, realm and guild, your account, other players' names or chat.
+> - **Your questions go only to the AI you chose,** only when you ask, with the game data you allow (a switch for each part in Settings). Nothing goes to the Spellmind authors: no telemetry, no account, no server.
+>
+> ## Commands
+>
+> | Command | What it does |
+> |---|---|
+> | `/sm` | Open or close the chat |
+> | `/sm quests`, `/sm dungeons`, `/sm gear`, `/sm talents`, `/sm spells`, `/sm professions`, `/sm gold`, `/sm settings` | Open that tab |
+> | `/sm <question>` | Ask your AI (with the app) |
+> | `/sm app` | Where to get the free app |
+> | `/sm welcome` | The first-time welcome again |
+> | `/sm nudges on`, `off`, `reset` | The nudges |
+> | `/sm minimap on`, `off` | The minimap button |
+> | `/sm help` | All the commands |
+>
+> ## Good to know
+>
+> - **Keep all the "Spellmind Part" addons checked.** They're tiny, load only when an answer comes in, and carry the app's answers into the game.
+> - **Works alongside Questie and Auctionator** and uses their data when they're installed, but needs neither.
+> - Made for **WoW Forever** (1.60.1).
+> - Spellmind is unofficial and not made or endorsed by Blizzard Entertainment.
+>
+> **Found a bug, or an answer that's wrong?** Tell us on GitHub (github.com/jcouser/spellmind/issues), and leave your character's name out of screenshots.
+>
+> Source code, the app, privacy and how it works: [github.com/jcouser/spellmind](https://github.com/jcouser/spellmind)

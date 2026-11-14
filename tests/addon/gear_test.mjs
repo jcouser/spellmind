@@ -139,3 +139,20 @@ test('the slot\'s line also survives a rebuild from the item\'s tooltip data (th
   vm.run('for _, c in ipairs(STUB.tipCalls) do c.fn(GameTooltip, { lines = {} }) end');
   assert.equal(list(vm, 'GameTooltip.added').filter(l => /durability 33%/.test(l)).length, 1, 'not twice');
 });
+
+test('hovering a Gear tab row shows that item\'s tooltip: a reward by its link, a worn item by its slot (the player, 2026-11-14)', () => {
+  const vm = session();
+  vm.run('QuestMapFrame_ShowQuestDetails(297); NS.Panel.Show("gear")');
+  const d = list(vm, 'SpellmindPanel.drawn');
+  const at = d.findIndex(x => /Ironband's Gloves/.test(x.text || '')) + 1;
+  assert.ok(at > 0);
+  vm.run(`local r = SpellmindPanel.rows[${at}]; r.scripts.OnEnter(r)`);
+  assert.equal(vm.evaluate('tostring(GameTooltip.shown)'), 'true');
+  assert.match(vm.evaluate('tostring(GameTooltip.hyperlink)'), /item:/);
+  vm.run(`local r = SpellmindPanel.rows[${at}]; r.scripts.OnLeave(r)`);
+  assert.equal(vm.evaluate('tostring(GameTooltip.shown)'), 'false');
+  // A row with no item (an empty slot) shows nothing.
+  const empty = d.findIndex(x => x.text === 'Head' && /empty/.test(x.right || '')) + 1;
+  vm.run(`local r = SpellmindPanel.rows[${empty}]; GameTooltip:Hide(); r.scripts.OnEnter(r)`);
+  assert.equal(vm.evaluate('tostring(GameTooltip.shown)'), 'false');
+});

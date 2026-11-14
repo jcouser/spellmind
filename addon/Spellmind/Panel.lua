@@ -145,12 +145,22 @@ local function NewRow(f)
 	r.rule:SetHeight(1)
 	r.rule:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 0, 0)
 	r.rule:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", 0, 0)
+	-- An item's row: the game's tooltip for it on hover, with Spellmind's lines as anywhere else (the
+	-- player, 2026-11-14: hovering the Gear tab showed nothing). Mouse only while the row has an item.
+	r:SetScript("OnEnter", function(self)
+		if not (self.link or self.invSlot) or not GameTooltip then return end
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		if self.invSlot then GameTooltip:SetInventoryItem("player", self.invSlot) else GameTooltip:SetHyperlink(self.link) end
+		GameTooltip:Show()
+	end)
+	r:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 	return r
 end
 
 -- The rows laid out from a list of specs:
 --   { kind = "head", text }                          a section title, gold, with a rule
 --   { kind = "item", icon, left, right, tag = { text, r, g, b }, quest = id }   a row; quest: a Break it down mark
+--   link = an item link, or invSlot = a worn slot: the item's tooltip on hover
 --   { kind = "text", text }                          a plain line
 --   indent = true: the row set in (a setting under its section's main switch)
 local function Draw(f, specs, keepScroll)
@@ -175,6 +185,9 @@ local function Draw(f, specs, keepScroll)
 		r.left:ClearAllPoints()
 		r.right:ClearAllPoints()
 		if r.mark then r.mark:Hide() end
+		r.link = s.kind == "item" and type(s.link) == "string" and s.link or nil
+		r.invSlot = s.kind == "item" and tonumber(s.invSlot) or nil
+		r:EnableMouse(r.link ~= nil or r.invSlot ~= nil)
 		if r.SetBackdrop then
 			if s.kind == "item" then
 				if not r.bd then r:SetBackdrop(BACKDROP); r.bd = true end
@@ -777,7 +790,7 @@ function Tabs.gear()
 		bySlot[c.slot] = true
 		out[#out + 1] = { kind = "item", icon = c.icon, left = (P.SLOT_NAMES[c.slot] or "?") .. " · " .. (QUALITY[c.q or 1] or "") .. ns.Escape(c.name) .. "|r",
 			sub = "|cffbbbbbb" .. (c.from == "bags" and "In your bags" or ("Reward of " .. ns.Escape(c.from))) .. ": |r" .. (c.reason or ""),
-			actions = c.quest and { { "Go", function() P.Go(c.quest) end } } or nil }
+			link = c.link, actions = c.quest and { { "Go", function() P.Go(c.quest) end } } or nil }
 	end
 	if #cands == 0 then
 		out[#out + 1] = { kind = "text", text = "|cff888888Nothing in your bags or your quests' rewards beats what you wear. Find my next upgrades asks where to look.|r" }
@@ -789,7 +802,7 @@ function Tabs.gear()
 			if shown == 0 then out[#out + 1] = { kind = "head", text = "Weakest slots" } end
 			shown = shown + 1
 			out[#out + 1] = { kind = "item", left = w.name .. (w.item and (" · " .. ns.Escape(w.item)) or ""),
-				right = "|cffff9933" .. w.why .. "|r" }
+				right = "|cffff9933" .. w.why .. "|r", invSlot = w.item and w.slot or nil }
 		end
 	end
 	-- What needs you, not what the character sheet and the bags already show (the review: "Your gear
@@ -805,7 +818,7 @@ function Tabs.gear()
 			if pct < 75 then
 				repairs[#repairs + 1] = { kind = "item", icon = ns.Try(GetInventoryItemTexture, "player", it.slot),
 					left = (P.SLOT_NAMES[it.slot] or "?") .. " · " .. (QUALITY[it.q or 1] or "") .. ns.Escape(it.name or "?") .. "|r",
-					right = (pct < 25 and "|cffff6060" or "|cffff9933") .. pct .. "% durability|r" }
+					right = (pct < 25 and "|cffff6060" or "|cffff9933") .. pct .. "% durability|r", invSlot = it.slot }
 			end
 		end
 	end
@@ -836,7 +849,7 @@ function Tabs.gear()
 		end
 		if right then
 			if #worth < P.BAG_ROWS then
-				worth[#worth + 1] = { kind = "item", icon = icon, left = (QUALITY[it.q or 1] or "") .. ns.Escape(it.name or "?") .. "|r" .. ((it.n or 1) > 1 and (" x" .. it.n) or ""), right = right }
+				worth[#worth + 1] = { kind = "item", icon = icon, left = (QUALITY[it.q or 1] or "") .. ns.Escape(it.name or "?") .. "|r" .. ((it.n or 1) > 1 and (" x" .. it.n) or ""), right = right, link = link }
 			else
 				extra = extra + 1
 			end

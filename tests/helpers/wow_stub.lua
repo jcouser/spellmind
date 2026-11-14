@@ -105,6 +105,7 @@ function Methods.GetEditBox(self) return self.editBox end
 function Methods.ClearLines(self) self.lines = {} end
 function Methods.NumLines(self) return #(self.lines or {}) end
 function Methods.SetHyperlink(self, link)
+	self.hyperlink, self.invSlot = link, nil
 	self.lines = {}
 	for _, l in ipairs(STUB.tooltips[link] or {}) do table.insert(self.lines, l) end
 	for _, l in ipairs(STUB.postCall or {}) do table.insert(self.lines, l) end
@@ -118,6 +119,9 @@ function Methods.SetHyperlink(self, link)
 		R.shown = right ~= nil
 	end
 end
+
+-- A worn item's tooltip: which slot was asked for.
+function Methods.SetInventoryItem(self, unit, slot) self.hyperlink, self.invSlot, self.lines = nil, slot, {} end
 
 -- The game's tooltip data for a link (C_TooltipInfo): STUB.tooltips's lines,
 -- before any frame or addon post-call touches them.

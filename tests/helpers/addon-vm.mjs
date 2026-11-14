@@ -301,6 +301,9 @@ export function newVM(opts = {}) {
     loadFile(src, f);
   }
   run(TRAPS, 'traps');
+  // The first-time welcome (Welcome.lua) stays out of every test but its own (opts.welcome): it opens 6 s
+  // after login and holds the nudges while it's open.
+  if (!opts.welcome) run('NS.Welcome.MaybeShow = function() end', 'no welcome');
   if (opts.before) run(opts.before, 'opts.before');
 
   const vm = {

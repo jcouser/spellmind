@@ -626,7 +626,7 @@ C.HELP = {
 	"  /sm quests, dungeons, gear, talents, spells, professions, gold, nudges, settings: open that tab.",
 	"  /sm guide <link>: your leveling guide, read by your AI.",
 	"  /sm nudges on/off/reset · /sm marks on/off · /sm data, or data on/off · /sm minimap on/off.",
-	"  /sm app: where to get the free Spellmind app (the chat needs it; every other tab works without).",
+	"  /sm app: where to get the free Spellmind app (the chat needs it; every other tab works without).  /sm welcome: the first-time welcome again.",
 }
 C.TAB_WORDS = { chat = "chat", quests = "quests", quest = "quests", dungeons = "dungeons", dungeon = "dungeons", gear = "gear",
 	talents = "talents", spells = "spells", professions = "professions", profs = "professions", gold = "gold", settings = "settings" }
@@ -674,6 +674,11 @@ SlashCmdList.SPELLMIND = function(msg)
 		local n = ns.Nudges.Reset()
 		ChatFrame(n > 0 and ("Spellmind: " .. n .. " nudge" .. (n > 1 and "s" or "") .. " to show.")
 			or "Spellmind: nothing to nudge about right now (no spells due, points to spend, broken gear, full bags or capped professions).")
+		return
+	end
+	-- /sm welcome: the first-time welcome again (Welcome.lua).
+	if lower == "welcome" and ns.Welcome and ns.db then
+		ns.Welcome.Show()
 		return
 	end
 	-- /sm app: the Get the app box, with the project's link to copy.

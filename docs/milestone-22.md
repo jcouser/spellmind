@@ -10,6 +10,11 @@ Built 2026-11-13: what Spellmind needs to be on GitHub and CurseForge.
 - **Get the app:** `/sm app`, a button on the Settings tab's App row while the app isn't heard, and a line under "Start the Spellmind app" open a box with the project's link to copy. It says every tab but the chat works without the app.
 - **TOC:** new Notes, `X-License: MIT`, `X-Website`.
 
+## The first-time welcome (0.4.3)
+
+- `Welcome.lua`: once per account (`SpellmindDB.welcomed`), 6 s after login, never in combat. What works with no setup (the minimap button, the tabs, nudges, tooltips), then the free app with the project's link to copy, or "connected" when the app already talks to the game. **Open the panel** and **Close**; nudges wait while it's open; `/sm welcome` shows it again.
+- Why (the player, 2026-11-14): a player who installs the addon from CurseForge only heard of the app by trying the chat or opening Settings.
+
 ## The app's own updates (`app/desktop/updater.mjs`)
 
 - electron-updater 6.8.9 against this repository's GitHub releases (`publish` in `electron-builder.yml`).

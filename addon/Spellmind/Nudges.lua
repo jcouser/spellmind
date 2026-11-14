@@ -391,6 +391,8 @@ end
 function N.Next()
 	Changed()
 	if not N.On() or InCombat() or R.nudgeGap or R.nudgeFaded then return end
+	-- The first-time welcome is open: the nudges wait for it (Welcome.lua calls Next when it closes).
+	if ns.Welcome and ns.Welcome.IsOpen and ns.Welcome.IsOpen() then return end
 	local f = N.Build()
 	local pending = Pending()
 	if f:IsShown() and f.nudge then

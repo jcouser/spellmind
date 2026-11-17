@@ -838,7 +838,7 @@ function Tabs.gear()
 			local data = C_TooltipInfo and type(C_TooltipInfo.GetHyperlink) == "function" and select(2, pcall(C_TooltipInfo.GetHyperlink, link)) or nil
 			if it.equip then
 				local reds = ns.Tooltip.RedTexts(type(data) == "table" and data or nil)
-				if #reds > 0 then right = "|cffff9933" .. ns.Tooltip.Why(reds, tonumber(info[13]), it.sub) .. "|r" end
+				if #reds > 0 then right = "|cffff9933" .. ns.Tooltip.Why(reds, tonumber(info[13]), it.sub, tonumber(info[14])) .. "|r" end
 			end
 			if not right then
 				-- The tooltip's own advice, so the two never disagree (seen in game).

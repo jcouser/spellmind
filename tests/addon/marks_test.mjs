@@ -217,3 +217,17 @@ test('a crafting reagent: nothing to say until every crafting profession of your
   vm.run('NS.Panel.Show("gear")');
   assert.equal(row().right, 'not used by your recipes: sell, or the auction house (2s 50c)', 'the Gear tab and the tooltip agree');
 });
+
+test('a weapon the class can never use: "your class cannot use", not "a weapon master may teach it" (the player, 2026-11-17: a rogue and a two-handed mace)', () => {
+  const vm = newVM().login().advance(3.1);
+  vm.run(`STUB.items[15259] = { "Hefty Battlehammer of the Whale", 2, 25, 20, "Weapon", "Two-Handed Maces", 1, "INVTYPE_2HWEAPON", 133052, 3306, 2, 5 }
+    STUB.tooltips[STUB.ItemLink(15259)] = { "Hefty Battlehammer of the Whale", "Binds when equipped", { "Two-Hand", "Mace", red = "both" }, "43 - 65 Damage", "Requires Level 20" }`);
+  const show = id => lines(vm, `STUB.ShowItem(GameTooltip, STUB.ItemLink(${id}))`);
+  assert.deepEqual(show(15259), ['|cff9d7dffSpellmind:|r your class can\'t use Two-Handed Maces',
+    "|cff9d7dffSpellmind:|r your class can't use it: sell, or the auction house (33s 6c)"]);
+  assert.match(show(2504)[0], /no Bows skill yet: a weapon master may teach it/, 'a bow a rogue can learn still says so');
+  assert.equal(vm.evaluate('tostring(NS.Tooltip.ClassCanUse(2, 5))'), 'false');
+  assert.equal(vm.evaluate('tostring(NS.Tooltip.ClassCanUse(2, 4))'), 'true', 'one-handed maces: yes');
+  assert.equal(vm.evaluate('tostring(NS.Tooltip.ClassCanUse(4, 3))'), 'false', 'mail: never, for a rogue');
+  assert.equal(vm.evaluate('tostring(NS.Tooltip.ClassCanUse(7, 1))'), 'nil', 'not a weapon or armor: unknown');
+});

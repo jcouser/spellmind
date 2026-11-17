@@ -63,14 +63,49 @@ end
 -- What the red texts mean, in a few words. A weapon type the character lacks is a skill a weapon
 -- master may teach: the game doesn't say which classes can learn which (and Forever differs from
 -- classic: its rogues learn Axes), so it says "may". classID 2 is a weapon, 4 armor.
-function T.Why(reds, classID, sub)
+-- What each class can ever learn to use (Classic's rules, which WoW Forever keeps), by the item's
+-- subclass id (GetItemInfo's 13th return), not its name: so "a weapon master may teach it" is said
+-- only when one can (the player, 2026-11-17: a rogue was told so for a two-handed mace).
+--   weapons (class 2): 0 1H axe, 1 2H axe, 2 bow, 3 gun, 4 1H mace, 5 2H mace, 6 polearm,
+--                      7 1H sword, 8 2H sword, 10 staff, 13 fist, 15 dagger, 16 thrown, 18 crossbow, 19 wand
+--   armor (class 4):   1 cloth, 2 leather, 3 mail, 4 plate, 6 shield
+local function Set(list) local t = {} for _, v in ipairs(list) do t[v] = true end return t end
+T.CAN_USE = {
+	WARRIOR = { [2] = Set({ 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 13, 15, 16, 18 }), [4] = Set({ 1, 2, 3, 4, 6 }) },
+	PALADIN = { [2] = Set({ 0, 1, 4, 5, 6, 7, 8 }), [4] = Set({ 1, 2, 3, 4, 6 }) },
+	HUNTER = { [2] = Set({ 0, 1, 2, 3, 6, 7, 8, 10, 13, 15, 16, 18 }), [4] = Set({ 1, 2, 3 }) },
+	ROGUE = { [2] = Set({ 2, 3, 4, 7, 13, 15, 16, 18 }), [4] = Set({ 1, 2 }) },
+	PRIEST = { [2] = Set({ 4, 10, 15, 19 }), [4] = Set({ 1 }) },
+	SHAMAN = { [2] = Set({ 0, 1, 4, 5, 10, 13, 15 }), [4] = Set({ 1, 2, 3, 6 }) },
+	MAGE = { [2] = Set({ 7, 10, 15, 19 }), [4] = Set({ 1 }) },
+	WARLOCK = { [2] = Set({ 7, 10, 15, 19 }), [4] = Set({ 1 }) },
+	DRUID = { [2] = Set({ 4, 5, 10, 13, 15 }), [4] = Set({ 1, 2 }) },
+}
+
+-- Whether the player's class can ever use a weapon or armor of this kind: true, false, or nil when
+-- it isn't known (another kind of item, a class or subclass not in the table).
+function T.ClassCanUse(classID, subID)
+	classID, subID = tonumber(classID), tonumber(subID)
+	if (classID ~= 2 and classID ~= 4) or not subID then return nil end
+	local token = type(UnitClass) == "function" and select(2, UnitClass("player")) or nil
+	local byClass = token and T.CAN_USE[token]
+	if not byClass or not byClass[classID] then return nil end
+	if classID == 2 and subID == 20 then return true end -- fishing poles: anyone
+	if classID == 4 and (subID == 0 or subID > 6) then return nil end -- miscellaneous, librams, idols, totems
+	return byClass[classID][subID] == true
+end
+
+function T.Why(reds, classID, sub, subID)
 	local bits, other = {}, nil
 	for _, t in ipairs(reds) do
 		local lvl = t:match("[Rr]equires [Ll]evel (%d+)")
 		if lvl then bits[#bits + 1] = "needs level " .. lvl elseif not other then other = t end
 	end
 	if other then
-		if classID == 2 and type(sub) == "string" and sub ~= "" then
+		local never = T.ClassCanUse(classID, subID) == false
+		if never and type(sub) == "string" and sub ~= "" then
+			bits[#bits + 1] = (classID == 2 and "your class can't use " or "your class can't wear ") .. sub
+		elseif classID == 2 and type(sub) == "string" and sub ~= "" then
 			bits[#bits + 1] = "no " .. sub .. " skill yet: a weapon master may teach it"
 		elseif classID == 4 and type(sub) == "string" and sub ~= "" then
 			bits[#bits + 1] = "can't wear " .. sub .. " yet"
@@ -101,7 +136,7 @@ function T.Line(link, data)
 	if #reds > 0 then
 		-- GetItemInfo's 7th return is the sub-type ("Bows"), its 12th the class id.
 		local sub = ns.State.Text(r[8], 30)
-		return T.PREFIX .. ns.Escape(T.Why(reds, tonumber(r[13]), sub))
+		return T.PREFIX .. ns.Escape(T.Why(reds, tonumber(r[13]), sub, tonumber(r[14])))
 	end
 	local id = tonumber(link:match("item:(%d+)"))
 	-- Worn already, in any of its slots: nothing to say.
@@ -144,7 +179,7 @@ function T.Focus(link)
 	local S = ns.State
 	local data = C_TooltipInfo and type(C_TooltipInfo.GetHyperlink) == "function" and select(2, pcall(C_TooltipInfo.GetHyperlink, link)) or nil
 	local reds = T.RedTexts(type(data) == "table" and data or nil)
-	local why = #reds > 0 and T.Why(reds, tonumber(r[13]), S.Text(r[8], 30)) or nil
+	local why = #reds > 0 and T.Why(reds, tonumber(r[13]), S.Text(r[8], 30), tonumber(r[14])) or nil
 	local equipLoc = type(r[10]) == "string" and r[10] or ""
 	local wearable = T.SLOTS[equipLoc] ~= nil
 	local vs
@@ -207,7 +242,7 @@ end
 local function ItemInfo(link)
 	local r = C_Item and type(C_Item.GetItemInfo) == "function" and { pcall(C_Item.GetItemInfo, link) } or {}
 	if not r[1] or not r[2] then return nil end
-	return { name = r[2], q = r[4], sub = r[8], equipLoc = r[10], sell = r[12], classID = r[13] }
+	return { name = r[2], q = r[4], sub = r[8], equipLoc = r[10], sell = r[12], classID = r[13], subID = r[14] }
 end
 
 local function Soulbound(data)
@@ -242,6 +277,10 @@ function T.SellLine(link, data)
 		end
 		-- Only a level away: it'll be usable, so no "sell".
 		if levelOnly then return nil end
+		-- A weapon or armor the class can never use: sell, without "unless you'll learn it".
+		if T.ClassCanUse(info.classID, info.subID) == false then
+			return T.PREFIX .. (bound and "safe to sell: your class can't use it" or "your class can't use it: sell, or the auction house") .. each
+		end
 		-- A weapon skill a weapon master may teach: sell unless they'll learn it.
 		if tonumber(info.classID) == 2 and type(info.sub) == "string" then
 			return T.PREFIX .. "sell unless you'll learn " .. ns.Escape(info.sub) .. (bound and "" or ", or the auction house") .. each

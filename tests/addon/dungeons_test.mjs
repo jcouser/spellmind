@@ -126,8 +126,10 @@ test('QuestieDB: what you haven\'t picked up, who gives it and where; locked one
   // Oh Brother... opens Underground Assault: one questline row, the locked quest on it.
   assert.match(oh.sub, /\n.cff888888Then: Underground Assault.r$/, 'the same giver isn\'t said twice');
   assert.ok(!d.some(x => x.text === 'Underground Assault'), 'on its questline\'s row, not its own');
-  const vault = d.find(x => x.text === 'The Deep Vault');
-  assert.match(vault.sub, /Opens at level 22/);
+  // Not yet: names by the level they open at, one line (the player, 2026-11-17: a row each was too much).
+  const vault = d.find(x => x.kind === 'text' && /The Deep Vault/.test(x.text || ''));
+  assert.match(vault.text, /Level 22:.*The Deep Vault/);
+  assert.ok(!d.some(x => x.kind === 'item' && x.text === 'The Deep Vault'), 'no row of its own');
   const labels = d.filter(x => x.kind === 'label').map(x => x.text);
   assert.deepEqual(labels, ['Questlines that lead here', 'Not yet: they open at a higher level'], 'grouped under small labels');
   assert.ok(d.indexOf(oh) < d.indexOf(vault));
@@ -251,8 +253,9 @@ test('Go on a quest to pick up: the game\'s map pin on its giver (QuestieDB\'s z
   assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1455, 'Ironforge');
   assert.equal(vm.evaluate('string.format("%.3f", STUB.waypoints[1].position.x)'), '0.452');
   assert.ok(vm.savedLines().some(l => /Map pin set for Thane Ironbelly: follow the arrow\./.test(l)));
-  const locked = d.findIndex(x => x.text === 'The Deep Vault');
-  assert.notEqual(vm.evaluate(`tostring(SpellmindPanel.rows[${locked + 1}].actions[1] and SpellmindPanel.rows[${locked + 1}].actions[1]:IsShown())`), 'true', 'a locked one has no Go');
+  // A locked one has no row, so no Go: it's a name on the "Not yet" line.
+  assert.ok(d.some(x => x.kind === 'text' && /The Deep Vault/.test(x.text || '')));
+  assert.ok(!d.some(x => x.kind === 'item' && x.text === 'The Deep Vault'), 'a locked one has no Go');
 });
 
 test('the AI gets what the Dungeons tab shows (seen in game: the tab named Testing the Wells\' giver, the AI couldn\'t)', async () => {
@@ -301,4 +304,35 @@ test('seen in game: a chain whose steps share a name says which step is in the l
   assert.match(row.sub, /^.cff19ff19In your log: step 2 of 3.r .cff888888hand it in to Gryan Stoutmantle, Westfall.r\n/);
   assert.match(row.sub, /\n.cff888888Then: Red Silk Bandanas, from Gryan Stoutmantle, Westfall \(56, 48\).r\n.cff888888Step 3 is the dungeon's quest.r$/);
   assert.match(vm.evaluate('NS.Dungeons.Briefing("The Deadmines")'), /Questline The Defias Brotherhood: I'm on step 2, in my log, handed in to Gryan Stoutmantle, Westfall; it opens Red Silk Bandanas after step 2, its step 3, the dungeon's quest\./);
+});
+
+test('a crowded dungeon reads short (the player, 2026-11-17, Gnomeregan): one row per name, no "?" title, "Not yet" as names by level, a few levels', () => {
+  const vm = withDB();
+  vm.run(`
+    local real = NS.Dungeons.Quests
+    NS.Dungeons.Quests = function(name, cb)
+      local qs = real(name, cb)
+      if not qs or name ~= "The Hall of Thanes" then return qs end
+      local spark = { name = "More Sparklematic Action", step = 2, same = true, at = 25 }
+      qs.chains = {
+        { id = 9001, name = "?", step = 1, level = 30, at = 25, from = "The Sparklematic 5200, Gnomeregan", opens = { spark, spark } },
+        { id = 9002, name = "The Sparklematic 5200!", step = 1, level = 30, at = 25, opens = { spark } },
+        { id = 9003, name = "The Sparklematic 5200!", step = 1, level = 30, at = 25, opens = { spark } },
+      }
+      for i = 1, 6 do table.insert(qs.pickup, { id = 9100 + i, name = "Later " .. i, at = 23 + i, level = 30 }) end
+      table.insert(qs.pickup, { id = 9200, name = "Later 1", at = 24, level = 30 })
+      return qs
+    end`);
+  const d = drawn(vm);
+  const lines = d.filter(x => x.kind === 'item').map(x => x.text);
+  assert.ok(!lines.includes('?'), 'no row titled "?"');
+  assert.ok(lines.includes('A questline to More Sparklematic Action'), 'named by where it leads');
+  assert.equal(lines.filter(t => t === 'The Sparklematic 5200!').length, 1, 'variants of one name: one row');
+  const row = d.find(x => x.text === 'A questline to More Sparklematic Action');
+  assert.equal((row.sub.match(/is the dungeon's quest/g) || []).length, 1, 'a line said once');
+  const later = d.filter(x => x.kind === 'text' && /Level \d+:/.test(x.text || '')).map(x => x.text);
+  assert.equal(later.length, 3, 'three opening levels listed');
+  assert.match(later[0], /Level 22:.*The Deep Vault/);
+  assert.equal((later.join(' ').match(/Later 1\b/g) || []).length, 1, 'a name once');
+  assert.ok(d.some(x => x.kind === 'text' && /and \d+ more at higher levels/.test(x.text || '')), 'the rest counted');
 });

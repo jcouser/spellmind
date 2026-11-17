@@ -598,6 +598,8 @@ end
 -- Dungeons (docs/milestone-13.md): the one you're in, the ones your quest log has quests for, and the
 -- ones at your level that the game's LFG tool lists. Each with Brief (the AI's briefing, in the card
 -- beside the window) and LFG; a quest row has Go and its Break it down mark.
+P.LATER_LEVELS = 3 -- "Not yet": this many opening levels listed, the rest counted
+
 function Tabs.dungeons()
 	local DG = ns.Dungeons
 	local out = {}
@@ -629,34 +631,46 @@ function Tabs.dungeons()
 		local list = qs and qs.chains or {}
 		if #list == 0 then return {} end
 		out[#out + 1] = { kind = "label", text = "Questlines that lead here" }
-		local starts = {}
+		local starts, named = {}, {}
 		for _, c in ipairs(list) do
 			starts[c.id] = true
-			local lines = {}
+			-- A questline the game names unknown ("?") goes by where it leads (the player, 2026-11-17:
+			-- a row titled "?"); one of the same name as another is a variant of it, shown once
+			-- (Gnomeregan's Sparklematic 5200 has one quest per item it takes).
+			local title = c.name
+			if type(title) ~= "string" or title == "" or title == "?" then
+				title = c.opens[1] and c.opens[1].name and ("A questline to " .. c.opens[1].name) or nil
+			end
+			if title and not named[title] then
+			named[title] = true
+			local lines, said = {}, {}
+			local function add(line) if not said[line] then said[line] = true; lines[#lines + 1] = line end end
 			-- How far it goes: its last step that opens one of the dungeon's quests.
 			local last = c.step
 			for _, o in ipairs(c.opens) do if o.step > last then last = o.step end end
 			local stepWord = " step " .. c.step .. " of " .. last
+			local from = c.from and (" |cff888888from " .. ns.Escape(c.from) .. "|r") or ""
 			if c.inLog then
-				lines[#lines + 1] = "|cff19ff19In your log:" .. stepWord .. "|r" .. (c.to and (" |cff888888hand it in to " .. ns.Escape(c.to) .. "|r") or "")
+				add("|cff19ff19In your log:" .. stepWord .. "|r" .. (c.to and (" |cff888888hand it in to " .. ns.Escape(c.to) .. "|r") or ""))
 			elseif c.at then
-				lines[#lines + 1] = "|cffff9933Opens at level " .. c.at .. "|r |cff888888from " .. ns.Escape(c.from or "a giver Spellmind doesn't know") .. "|r"
+				add("|cffff9933Opens at level " .. c.at .. "|r" .. from)
 			else
-				lines[#lines + 1] = "|cffffd100Pick up" .. stepWord .. "|r |cff888888from " .. ns.Escape(c.from or "a giver Spellmind doesn't know") .. "|r"
+				add("|cffffd100Pick up" .. stepWord .. "|r" .. from)
 			end
 			for _, o in ipairs(c.opens) do
 				local lvl = o.at and (" |cffff9933(level " .. o.at .. ")|r") or ""
 				if o.same then
-					lines[#lines + 1] = "|cff888888Step " .. o.step .. " is the dungeon's quest|r" .. lvl
+					add("|cff888888Step " .. o.step .. " is the dungeon's quest|r" .. lvl)
 				else
 					local after = o.step - 1
-					lines[#lines + 1] = "|cff888888" .. (after > c.step and ("After step " .. after) or "Then") .. ": " .. ns.Escape(o.name)
-						.. ((o.from and o.from ~= c.from) and (", from " .. ns.Escape(o.from)) or "") .. "|r" .. lvl
+					add("|cff888888" .. (after > c.step and ("After step " .. after) or "Then") .. ": " .. ns.Escape(o.name)
+						.. ((o.from and o.from ~= c.from) and (", from " .. ns.Escape(o.from)) or "") .. "|r" .. lvl)
 				end
 			end
 			local actions = (not c.inLog and not c.at and c.spot) and { goTo(c.spot, c.from) } or nil
-			out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(c.name), right = c.level and ("level " .. c.level) or "",
+			out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(title), right = c.level and ("level " .. c.level) or "",
 				sub = table.concat(lines, "\n"), actions = actions }
+			end
 		end
 		return starts
 	end
@@ -665,11 +679,14 @@ function Tabs.dungeons()
 	-- 2026-11-13: one crowded line ran under the level, with half the window empty below).
 	local function pickups(qs)
 		local starts = questlines(qs)
-		local ready, later = {}, {}
+		local ready, later, seen = {}, {}, {}
 		for _, q in ipairs(qs and qs.pickup or {}) do
-			-- A questline's quests are on its row.
-			if q.after or starts[q.id] then
-			elseif not q.at then ready[#ready + 1] = q else later[#later + 1] = q end
+			-- A questline's quests are on its row; a quest of the same name as one shown is a variant.
+			if q.after or starts[q.id] or seen[q.name or ""] then
+			else
+				seen[q.name or ""] = true
+				if not q.at then ready[#ready + 1] = q else later[#later + 1] = q end
+			end
 		end
 		local function Row(q)
 			local lines = {}
@@ -686,8 +703,28 @@ function Tabs.dungeons()
 		end
 		if #ready > 0 then out[#out + 1] = { kind = "label", text = "To pick up" } end
 		for _, q in ipairs(ready) do Row(q) end
-		if #later > 0 then out[#out + 1] = { kind = "label", text = "Not yet: they open at a higher level" } end
-		for _, q in ipairs(later) do Row(q) end
+		-- Not yet: their names by the level they open at, a few levels' worth (the player, 2026-11-17:
+		-- eighteen rows for a dungeon seven levels away). Who gives them can wait until they open.
+		if #later > 0 then
+			out[#out + 1] = { kind = "label", text = "Not yet: they open at a higher level" }
+			local byLevel, levels = {}, {}
+			for _, q in ipairs(later) do
+				if not byLevel[q.at] then byLevel[q.at] = {}; levels[#levels + 1] = q.at end
+				table.insert(byLevel[q.at], ns.Escape(q.name or "?"))
+			end
+			table.sort(levels)
+			local more = 0
+			for i, at in ipairs(levels) do
+				if i <= P.LATER_LEVELS then
+					out[#out + 1] = { kind = "text", text = "     |cffff9933Level " .. at .. ":|r |cffbbbbbb" .. table.concat(byLevel[at], ", ") .. "|r" }
+				else
+					more = more + #byLevel[at]
+				end
+			end
+			if more > 0 then
+				out[#out + 1] = { kind = "text", text = "     |cff888888and " .. more .. " more at higher levels|r" }
+			end
+		end
 	end
 	-- The status line: QuestieDB's count when it's there (while its first read runs, "reading…").
 	local function status(name, fallback)

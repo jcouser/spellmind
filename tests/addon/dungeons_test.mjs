@@ -126,13 +126,18 @@ test('QuestieDB: what you haven\'t picked up, who gives it and where; locked one
   // Oh Brother... opens Underground Assault: one questline row, the locked quest on it.
   assert.match(oh.sub, /\n.cff888888Then: Underground Assault.r$/, 'the same giver isn\'t said twice');
   assert.ok(!d.some(x => x.text === 'Underground Assault'), 'on its questline\'s row, not its own');
-  // Not yet: names by the level they open at, one line (the player, 2026-11-17: a row each was too much).
-  const vault = d.find(x => x.kind === 'text' && /The Deep Vault/.test(x.text || ''));
-  assert.match(vault.text, /Level 22:.*The Deep Vault/);
-  assert.ok(!d.some(x => x.kind === 'item' && x.text === 'The Deep Vault'), 'no row of its own');
+  // Not yet: one folded row (the player, 2026-11-17: "make those future quests a collapsed group").
+  const fold = d.find(x => /^.cff888888Not yet:.r \d+ quests?, opening at level/.test(x.text || ''));
+  assert.ok(fold, 'the folded row');
+  assert.ok(!d.some(x => /The Deep Vault/.test(x.text || '')), 'folded: no names');
   const labels = d.filter(x => x.kind === 'label').map(x => x.text);
-  assert.deepEqual(labels, ['Questlines that lead here', 'Not yet: they open at a higher level'], 'grouped under small labels');
-  assert.ok(d.indexOf(oh) < d.indexOf(vault));
+  assert.deepEqual(labels, ['Questlines that lead here'], 'the questlines under their label');
+  assert.ok(d.indexOf(oh) < d.indexOf(fold));
+  const at = d.indexOf(fold) + 1;
+  vm.run(`SpellmindPanel.rows[${at}].actions[1].scripts.OnClick(SpellmindPanel.rows[${at}].actions[1], "LeftButton")`);
+  const shown = list(vm, 'SpellmindPanel.drawn');
+  assert.ok(shown.some(x => x.kind === 'text' && /Level 22:.*The Deep Vault/.test(x.text || '')), 'Show: names by level');
+  assert.ok(!shown.some(x => x.kind === 'item' && x.text === 'The Deep Vault'), 'still no row of its own');
   for (const other of ['A Horde Errand', 'A Warrior\'s Trial', 'Shadowy Orders', 'Collecting Memories', 'Elwynn Wolves'])
     assert.ok(!d.some(x => x.text === other), `${other}: another race, class or faction, done, or another zone`);
 });
@@ -253,8 +258,7 @@ test('Go on a quest to pick up: the game\'s map pin on its giver (QuestieDB\'s z
   assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1455, 'Ironforge');
   assert.equal(vm.evaluate('string.format("%.3f", STUB.waypoints[1].position.x)'), '0.452');
   assert.ok(vm.savedLines().some(l => /Map pin set for Thane Ironbelly: follow the arrow\./.test(l)));
-  // A locked one has no row, so no Go: it's a name on the "Not yet" line.
-  assert.ok(d.some(x => x.kind === 'text' && /The Deep Vault/.test(x.text || '')));
+  // A locked one has no row, so no Go: it's folded under "Not yet".
   assert.ok(!d.some(x => x.kind === 'item' && x.text === 'The Deep Vault'), 'a locked one has no Go');
 });
 
@@ -306,7 +310,7 @@ test('seen in game: a chain whose steps share a name says which step is in the l
   assert.match(vm.evaluate('NS.Dungeons.Briefing("The Deadmines")'), /Questline The Defias Brotherhood: I'm on step 2, in my log, handed in to Gryan Stoutmantle, Westfall; it opens Red Silk Bandanas after step 2, its step 3, the dungeon's quest\./);
 });
 
-test('a crowded dungeon reads short (the player, 2026-11-17, Gnomeregan): one row per name, no "?" title, "Not yet" as names by level, a few levels', () => {
+test('a crowded dungeon reads short (the player, 2026-11-17, Gnomeregan): one row per name, no "?" title, "Not yet" folded, names by level when shown', () => {
   const vm = withDB();
   vm.run(`
     local real = NS.Dungeons.Quests
@@ -330,9 +334,12 @@ test('a crowded dungeon reads short (the player, 2026-11-17, Gnomeregan): one ro
   assert.equal(lines.filter(t => t === 'The Sparklematic 5200!').length, 1, 'variants of one name: one row');
   const row = d.find(x => x.text === 'A questline to More Sparklematic Action');
   assert.equal((row.sub.match(/is the dungeon's quest/g) || []).length, 1, 'a line said once');
-  const later = d.filter(x => x.kind === 'text' && /Level \d+:/.test(x.text || '')).map(x => x.text);
-  assert.equal(later.length, 3, 'three opening levels listed');
+  const fold = d.find(x => /Not yet:.* 7 quests, opening at levels 22-29/.test(x.text || ''));
+  assert.ok(fold, 'one folded row: the Deep Vault and six more, a repeated name once');
+  const at = d.indexOf(fold) + 1;
+  vm.run(`SpellmindPanel.rows[${at}].actions[1].scripts.OnClick(SpellmindPanel.rows[${at}].actions[1], "LeftButton")`);
+  const later = list(vm, 'SpellmindPanel.drawn').filter(x => x.kind === 'text' && /Level \d+:/.test(x.text || '')).map(x => x.text);
+  assert.equal(later.length, 7, 'shown: every opening level');
   assert.match(later[0], /Level 22:.*The Deep Vault/);
   assert.equal((later.join(' ').match(/Later 1\b/g) || []).length, 1, 'a name once');
-  assert.ok(d.some(x => x.kind === 'text' && /and \d+ more at higher levels/.test(x.text || '')), 'the rest counted');
 });

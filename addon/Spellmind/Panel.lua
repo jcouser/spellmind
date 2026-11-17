@@ -598,7 +598,6 @@ end
 -- Dungeons (docs/milestone-13.md): the one you're in, the ones your quest log has quests for, and the
 -- ones at your level that the game's LFG tool lists. Each with Brief (the AI's briefing, in the card
 -- beside the window) and LFG; a quest row has Go and its Break it down mark.
-P.LATER_LEVELS = 3 -- "Not yet": this many opening levels listed, the rest counted
 
 function Tabs.dungeons()
 	local DG = ns.Dungeons
@@ -677,7 +676,7 @@ function Tabs.dungeons()
 	-- The rest still to pick up (QuestieDB's list), under small labels: the ones you can take now, then
 	-- the ones waiting on a level. Each says its parts on lines of their own (the player asked,
 	-- 2026-11-13: one crowded line ran under the level, with half the window empty below).
-	local function pickups(qs)
+	local function pickups(qs, dname)
 		local starts = questlines(qs)
 		local ready, later, seen = {}, {}, {}
 		for _, q in ipairs(qs and qs.pickup or {}) do
@@ -703,26 +702,29 @@ function Tabs.dungeons()
 		end
 		if #ready > 0 then out[#out + 1] = { kind = "label", text = "To pick up" } end
 		for _, q in ipairs(ready) do Row(q) end
-		-- Not yet: their names by the level they open at, a few levels' worth (the player, 2026-11-17:
-		-- eighteen rows for a dungeon seven levels away). Who gives them can wait until they open.
+		-- Not yet: one folded row, "N quests, opening at levels A-B", with Show (the player, 2026-11-17:
+		-- eighteen rows for a dungeon seven levels away, then "make them a collapsed group"). Shown, their
+		-- names by the level they open at; who gives them can wait until they open.
 		if #later > 0 then
-			out[#out + 1] = { kind = "label", text = "Not yet: they open at a higher level" }
 			local byLevel, levels = {}, {}
 			for _, q in ipairs(later) do
 				if not byLevel[q.at] then byLevel[q.at] = {}; levels[#levels + 1] = q.at end
 				table.insert(byLevel[q.at], ns.Escape(q.name or "?"))
 			end
 			table.sort(levels)
-			local more = 0
-			for i, at in ipairs(levels) do
-				if i <= P.LATER_LEVELS then
+			local key = DG.Norm(dname or "") .. "|later"
+			local open = P.openDungeons[key]
+			local span = levels[1] == levels[#levels] and ("level " .. levels[1]) or ("levels " .. levels[1] .. "-" .. levels[#levels])
+			out[#out + 1] = { kind = "item", indent = true,
+				left = "|cff888888Not yet:|r " .. #later .. " quest" .. (#later > 1 and "s" or "") .. ", opening at " .. span,
+				actions = { { open and "Hide" or "Show", function()
+					P.openDungeons[key] = not open or nil
+					P.Show("dungeons", true)
+				end } } }
+			if open then
+				for _, at in ipairs(levels) do
 					out[#out + 1] = { kind = "text", text = "     |cffff9933Level " .. at .. ":|r |cffbbbbbb" .. table.concat(byLevel[at], ", ") .. "|r" }
-				else
-					more = more + #byLevel[at]
 				end
-			end
-			if more > 0 then
-				out[#out + 1] = { kind = "text", text = "     |cff888888and " .. more .. " more at higher levels|r" }
 			end
 		end
 	end
@@ -746,7 +748,7 @@ function Tabs.dungeons()
 				end
 			end
 		end
-		pickups(qs)
+		pickups(qs, here.name)
 		shown[DG.Norm(here.name)] = true
 	end
 	out[#out + 1] = { kind = "head", text = "Dungeons you have quests for" }
@@ -774,7 +776,7 @@ function Tabs.dungeons()
 					left = ns.Escape(q.title or "?"), right = q.complete and "|cff19ff19ready|r" or (q.level and ("level " .. q.level) or ""),
 					actions = { { "Go", function() P.Go(q.id) end } } }
 			end
-			pickups(qs)
+			pickups(qs, name)
 			shown[DG.Norm(name)] = true
 		end
 	end
@@ -797,7 +799,7 @@ function Tabs.dungeons()
 			end
 			out[#out + 1] = { kind = "item", left = ns.Escape(name), right = DG.Range(d.low, d.high) or "",
 				sub = line and ("|cff888888" .. line .. "|r") or nil, actions = actions }
-			if open then pickups(qs) end
+			if open then pickups(qs, name) end
 		end
 	end
 	if not DG.HasDB() then

@@ -299,3 +299,21 @@ test('a question waiting shows a "Thinking…" bubble last, and "Waiting for the
   vm.run('SpellmindWindow.input:SetText("where is the bank?"); SpellmindWindow.input.scripts.OnEnterPressed(SpellmindWindow.input)');
   assert.match(vm.windowLines().at(-1), /Thinking…|Waiting for the Spellmind app/);
 });
+
+test('a reply\'s Pin: line is a button before its chips; a click sets the game\'s map pin and says so (the player, 2026-11-18)', async (t) => {
+  const { vm, round } = rig(t, async () => ({ text: 'Thane Ironbelly is in Ironforge.\n\nPin: Thane Ironbelly | Ironforge | 45.2, 51.0\nNext: How do I get there?' }));
+  await round();
+  vm.slash('');
+  type(vm, 'Where is Thane Ironbelly?');
+  for (let i = 0; i < 16; i++) await round();
+  assert.deepEqual(vm.windowLines().at(-1), 'Thane Ironbelly is in Ironforge.', 'the Pin: line is off the text');
+  assert.deepEqual(list(vm, 'SpellmindWindow.chipTexts'), ['Pin: Thane Ironbelly', 'How do I get there?']);
+  vm.run('SpellmindWindow.chips[1].scripts.OnClick(SpellmindWindow.chips[1])');
+  assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1455, 'Ironforge');
+  assert.equal(vm.evaluate('string.format("%.3f", STUB.waypoints[1].position.x)'), '0.452');
+  assert.ok(vm.savedLines().some(l => /Map pin set for Thane Ironbelly \(Ironforge 45\.2, 51\.0\): follow the arrow\./.test(l)));
+  // A zone the game has no map for: nothing set, and it says so.
+  vm.run('NS.Window.PinTo({ n = "Nobody", z = "Nowhere Land", x = 10, y = 10 })');
+  assert.equal(vm.evaluate('tostring(STUB.waypoints[2])'), 'nil');
+  assert.ok(vm.savedLines().some(l => /can't pin Nowhere Land 10\.0, 10\.0 on its map/.test(l)));
+});

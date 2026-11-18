@@ -88,7 +88,7 @@ As published (Markdown), 2026-11-14. Keep it to what the addon does; anything th
 > - "What in my bags is worth selling on the Auction House?"
 > - "Plan my next 5 talent points"
 >
-> Its answers use your real character: your gear, quest log, talents, gold and where you are. Buttons under an answer ask the obvious next question.
+> Its answers use your real character: your gear, quest log, talents, gold and where you are. Buttons under an answer ask the obvious next question, and a **Pin** button sets the game's map pin when the answer sends you somewhere.
 >
 > ![Asking what in your bags is worth selling on the Auction House](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/chat-auction-house.png)
 >

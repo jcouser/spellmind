@@ -59,7 +59,7 @@ Things to ask:
 - "What in my bags is worth selling on the Auction House?"
 - "Plan my next 5 talent points"
 
-Answers use your real character: your gear, quest log, talents, gold and where you are. With web search on, your AI can check quest and NPC details online, and answers that name places, NPCs or routes are double-checked before you see them (a switch in Settings turns that off).
+Answers use your real character: your gear, quest log, talents, gold and where you are. When an answer sends you somewhere it knows the coordinates of, a **Pin** button under it sets the game's map pin and arrow. With web search on, your AI can check quest and NPC details online, and answers that name places, NPCs or routes are double-checked before you see them (a switch in Settings turns that off).
 
 ### The panel, no AI needed
 

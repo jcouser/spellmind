@@ -167,7 +167,7 @@ test("milestone 6: bridge.ai in the slot; a message's effort= and search= go to 
   const calls = [];
   const r = rig(t, {
     ai: { name: 'ChatGPT', model: 'GPT-6 Luna', efforts: ['low', 'medium', 'high', 'BAD!'], effort: 'medium', search: true, searchOn: true },
-    turn: async (a) => { calls.push(a); return { text: "Not yet: no Bows skill.\n\nNext: Where's Darnassus? / Compare with Cheese Knife / What do I train next?" }; },
+    turn: async (a) => { calls.push(a); return { text: "Not yet: no Bows skill.\n\nPin: Malissa | Duskwood | 79.4, 44.3\nNext: Where's Darnassus? / Compare with Cheese Knife / What do I train next?" }; },
   });
   r.hello();
   r.send({ token: TOKEN, key: `${NONCE}_1`, type: 'msg', chat: CHAT, args: { cur: 0, ctx: 0, effort: 'high', search: 0 }, text: 'Should I keep the bow?' });
@@ -187,6 +187,8 @@ test("milestone 6: bridge.ai in the slot; a message's effort= and search= go to 
   const reply = toArr(s.records).find(x => x.t === 'reply');
   assert.deepEqual(toArr(reply.chips), ["Where's Darnassus?", 'Compare with Cheese Knife', 'What do I train next?']);
   assert.equal(reply.text, 'Not yet: no Bows skill.', 'the Next: line is off the text');
+  assert.deepEqual(toArr(reply.pins).map(p => [p.n, p.z, p.x, p.y]), [['Malissa', 'Duskwood', 79.4, 44.3]], 'and its Pin: line is a pin');
+  assert.deepEqual(toArr(reply.pins).map(p => [p.n, p.z, p.x, p.y]), [['Malissa', 'Duskwood', 79.4, 44.3]], 'and its Pin: line is a pin');
 });
 
 test('without ai, the slot has no bridge.ai and effort= is ignored', async (t) => {

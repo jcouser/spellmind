@@ -300,9 +300,24 @@ local function NewChip(f)
 	c:SetHeight(22)
 	c.text:SetFontObject(GameFontHighlightSmall)
 	c:SetScript("OnClick", function(self)
-		if self.ask then ns.Chat.Send(self.ask, R.ask and { about = R.ask.about } or nil) end
+		if self.pin then W.PinTo(self.pin)
+		elseif self.ask then ns.Chat.Send(self.ask, R.ask and { about = R.ask.about } or nil) end
 	end)
 	return c
+end
+
+-- A reply's pin, clicked: the game's own map pin and arrow on that zone's map (the player asked,
+-- 2026-11-18: the AI had told them to type a map command), and a line saying what happened.
+function W.PinTo(p)
+	if type(p) ~= "table" then return nil end
+	local map = ns.Dungeons and ns.Dungeons.MapNamed and ns.Dungeons.MapNamed(p.z)
+	local where = ns.Escape(p.z) .. " " .. string.format("%.1f, %.1f", p.x, p.y)
+	if map and ns.Quests.Pin(map, p.x, p.y) then
+		ns.Chat.System("Map pin set for " .. p.n .. " (" .. where .. "): follow the arrow.")
+		return "pin"
+	end
+	ns.Chat.System("The game can't pin " .. where .. " on its map.")
+	return nil
 end
 
 -- Plain width of a text, for a short bubble that shouldn't span the list.
@@ -398,21 +413,34 @@ function W.Layout(stick)
 	local last = msgs[#msgs]
 	f.chipTexts = {}
 	local asks = #msgs == 0 and W.STARTERS or (last and last.w == "sm" and type(last.c) == "table" and #last.c > 0 and last.c) or nil
+	-- The last reply's pins come first: "Pin: Malissa", each a button.
+	local pins = last and last.w == "sm" and type(last.p) == "table" and #last.p > 0 and last.p or nil
+	if pins then
+		local list = {}
+		for _, p in ipairs(pins) do list[#list + 1] = { pin = p } end
+		for _, a in ipairs(asks or {}) do list[#list + 1] = a end
+		asks = list
+	end
 	if asks then
 		local x = #msgs == 0 and 10 or 30
 		y = y + W.GAP - 4
 		for i, ask in ipairs(asks) do
 			local c = f.chips[i] or NewChip(f)
 			f.chips[i] = c
-			c.text:SetText(ask)
-			c.ask = ask
+			if type(ask) == "table" and ask.pin then
+				c.text:SetText("|cff19ff19Pin:|r " .. ask.pin.n)
+				c.pin, c.ask = ask.pin, nil
+			else
+				c.text:SetText(ask)
+				c.pin, c.ask = nil, ask
+			end
 			local cw = math.min(listW - 34, TextWidth(c.text) + 18)
 			c:SetWidth(cw)
 			if x + cw > listW then x = 30; y = y - 26 end
 			c:ClearAllPoints()
 			c:SetPoint("TOPLEFT", f.content, "TOPLEFT", x, y)
 			c:Show()
-			f.chipTexts[#f.chipTexts + 1] = ask
+			f.chipTexts[#f.chipTexts + 1] = type(ask) == "table" and ask.pin and ("Pin: " .. ask.pin.n) or ask
 			x = x + cw + 6
 		end
 		y = y - 22 - W.GAP

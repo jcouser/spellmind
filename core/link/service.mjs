@@ -39,7 +39,7 @@ import { openStore } from './store.mjs';
 import { createSignals } from './signals.mjs';
 import { createPublisher } from './publisher.mjs';
 import { SLOT_COUNT } from './slots.mjs';
-import { renderReply, splitChips, systemLine } from './render.mjs';
+import { renderReply, splitChips, splitPins, systemLine } from './render.mjs';
 import { createRunQueue } from '../ai/runqueue.mjs';
 import { looksLikeKey } from '../ai/security/keycheck.mjs';
 import { writeFileQuick } from '../files.mjs';
@@ -460,10 +460,13 @@ export function createService({ addonsDir, stateDir, turn, log = () => {}, now =
       publisher.publish({ push: true });
       return;
     }
-    // The "Next: a / b / c" line becomes the reply's chips: off the text, and out of the history.
-    const { body, chips } = splitChips(raw);
+    // The "Next: a / b / c" line becomes the reply's chips, and its "Pin: who | zone | x, y" lines its
+    // map pins: off the text, and out of the history.
+    const pinned = splitPins(raw);
+    const { body, chips } = splitChips(pinned.body);
+    const pins = pinned.pins;
     const r = renderReply(body);
-    const rec = store.addRecord({ t: 'reply', chat: c.id, run: runId, agent: AGENT.id, text: r.text, summary: r.summary, more: r.more, ...(chips.length ? { chips } : {}) }, now());
+    const rec = store.addRecord({ t: 'reply', chat: c.id, run: runId, agent: AGENT.id, text: r.text, summary: r.summary, more: r.more, ...(chips.length ? { chips } : {}), ...(pins.length ? { pins } : {}) }, now());
     store.markRun(runId, rec.seq);
     store.saveState();
     remember(c.id, 'user', item.text);

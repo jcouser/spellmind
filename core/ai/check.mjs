@@ -38,7 +38,7 @@ export function checkAsk(search = true) {
     'Fix what\'s wrong. Keep every claim the game data supports, even when the web says nothing about it; hedge a claim you can\'t confirm ("from memory, …") rather than delete it.',
     'Also make sure it answers what the player asked, and doesn\'t contradict what you said earlier in this chat.',
     'If nothing needs changing, reply with just: OK',
-    'Otherwise reply with the corrected answer only, in the same style and about the same length, with its "Next:" line if it had one. Don\'t mention that you checked, and don\'t start with a line like "Here is the corrected answer:".',
+    'Otherwise reply with the corrected answer only, in the same style and about the same length, with its "Pin:" and "Next:" lines if it had them. Don\'t mention that you checked, and don\'t start with a line like "Here is the corrected answer:".',
   ].join(' ');
 }
 export const CHECK_ASK = checkAsk(true);

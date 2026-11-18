@@ -112,6 +112,28 @@ export function splitChips(raw) {
   return { body: lines.slice(0, i).join('\n').trimEnd(), chips };
 }
 
+export const PINS_MAX = 3;
+const PIN_LINE = /^\s*(?:\*\*|__)?\s*Pin\s*(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*(.+?)\s*$/i;
+const PIN_PARTS = /^(.{1,40}?)\s*\|\s*([A-Za-z][A-Za-z' .-]{1,39}?)\s*\|\s*\(?\s*(\d{1,3}(?:\.\d+)?)\s*,\s*(\d{1,3}(?:\.\d+)?)\s*\)?$/;
+/**
+ * The reply's map pins (the prompt asks for lines "Pin: who | zone | x, y"): those lines taken off the
+ * text, as at most PINS_MAX { n, z, x, y } with x and y 0-100 (one decimal). A line that doesn't read
+ * as a pin stays in the text. The player's click sets the game's pin; nothing here does.
+ */
+export function splitPins(raw) {
+  const pins = [];
+  const keep = [];
+  for (const line of String(raw ?? '').replace(/\r\n?/g, '\n').split('\n')) {
+    const m = line.match(PIN_LINE);
+    const p = m ? m[1].replace(/[*_`]/g, '').match(PIN_PARTS) : null;
+    const x = p ? Number(p[3]) : NaN, y = p ? Number(p[4]) : NaN;
+    if (p && x >= 0 && x <= 100 && y >= 0 && y <= 100) {
+      if (pins.length < PINS_MAX) pins.push({ n: escapePipes(p[1].trim()), z: p[2].trim(), x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 });
+    } else keep.push(line);
+  }
+  return { body: keep.join('\n').trimEnd(), pins };
+}
+
 /** A reply record's fields: {text, summary, more}. more: 1 when the text was cut to fit. */
 export function renderReply(raw) {
   const plain = markdownToWow(raw);

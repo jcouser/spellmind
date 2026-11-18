@@ -247,10 +247,10 @@ end
 
 -- One message of a chat (the current one by default): who ("you", "sm", "sys" or "err"), its shown
 -- text (escaped), and a reply's chips. Drawn as a bubble when it's the window's chat.
-local function AddMsg(who, text, chips, chatId)
+local function AddMsg(who, text, chips, chatId, pins)
 	local id = chatId or ns.db.chat
 	local e = Entry(id)
-	e.msgs[#e.msgs + 1] = { w = who, t = tostring(text), c = chips }
+	e.msgs[#e.msgs + 1] = { w = who, t = tostring(text), c = chips, p = pins }
 	while #e.msgs > C.MSGS_MAX do table.remove(e.msgs, 1) end
 	e.at = time()
 	if who == "you" and not e.title then e.title = C.Title(text) end
@@ -579,7 +579,15 @@ function C.OnRecord(r, replay)
 		for _, c in ipairs(type(r.chips) == "table" and r.chips or {}) do
 			if type(c) == "string" and c ~= "" and #chips < 3 then chips[#chips + 1] = ns.SafeText(ns.Utf8Cut(c, 60)) end
 		end
-		AddMsg("sm", whole, #chips > 0 and chips or nil, chatId)
+		-- Its map pins (the app's, from its "Pin:" lines): a click sets the game's pin, nothing else does.
+		local pins = {}
+		for _, p in ipairs(type(r.pins) == "table" and r.pins or {}) do
+			local x, y = tonumber(type(p) == "table" and p.x), tonumber(type(p) == "table" and p.y)
+			if x and y and x >= 0 and x <= 100 and y >= 0 and y <= 100 and type(p.n) == "string" and type(p.z) == "string" and #pins < 3 then
+				pins[#pins + 1] = { n = ns.SafeText(ns.Utf8Cut(p.n, 40)), z = ns.Utf8Cut(p.z, 40), x = x, y = y }
+			end
+		end
+		AddMsg("sm", whole, #chips > 0 and chips or nil, chatId, #pins > 0 and pins or nil)
 		if not replay then
 			-- A short reply goes to the chat frame whole, line by line: its first line alone can be
 			-- "…across three talents:" with the list below it (a player's, 2026-11-10). A longer one

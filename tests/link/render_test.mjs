@@ -28,3 +28,13 @@ test('other AIs\' writing (the audit): Grok\'s [[1]](url) citations, tables, thi
   assert.equal(markdownToWow('~~Thor~~ Kelsey sells it.'), 'Thor Kelsey sells it.');
   assert.equal(markdownToWow('a | b is no table'), 'a | b is no table');
 });
+
+test('map pins: "Pin: who | zone | x, y" lines off the text, three at most; a line that isn\'t one stays (the player, 2026-11-18)', async () => {
+  const { splitPins } = await import('../../core/link/render.mjs');
+  const r = splitPins('Malissa sells Thieves\' Tools in Darkshire.\n\n**Pin:** Malissa | Duskwood | 79.4, 44.3\nPin: Thane Ironbelly | Ironforge | (45.2, 51.0)\nNext: How do I get there?');
+  assert.deepEqual(r.pins, [{ n: 'Malissa', z: 'Duskwood', x: 79.4, y: 44.3 }, { n: 'Thane Ironbelly', z: 'Ironforge', x: 45.2, y: 51 }]);
+  assert.equal(r.body, 'Malissa sells Thieves\' Tools in Darkshire.\n\nNext: How do I get there?', 'the Next: line is left for splitChips');
+  assert.deepEqual(splitPins('Pin: somewhere | Duskwood | 120, 4').pins, [], 'off the map');
+  assert.equal(splitPins('Pin: the map at the inn').body, 'Pin: the map at the inn', 'not a pin: kept as text');
+  assert.equal(splitPins(['a', ...Array.from({ length: 5 }, (_, i) => `Pin: P${i} | Elwynn Forest | 1${i}, 20`)].join('\n')).pins.length, 3);
+});

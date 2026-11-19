@@ -164,6 +164,12 @@ test('a route vendor without the item (limited stock, the player 2026-11-19): th
   assert.ok(!JSON.stringify(vm.evaluate('(function() local o = {} for _, s in ipairs(NS.R.route.stops) do o[#o + 1] = s.key end return table.concat(o, " ") end)()')).includes('do:705'), 'off the route');
   assert.ok(vm.savedLines().some(l => /Tinkerwiz has no Bronze Tube right now.*Auction House/.test(l)) || vm.chatLines().some(l => /Tinkerwiz has no Bronze Tube right now/.test(l)));
   assert.match(vm.evaluate('NS.Route.GoalText(NS.R.route.elsewhere[""][1])'), /Tinkerwiz has none right now: try the Auction House or an engineer/);
+  // Kept through a /reload (the saved data), and tried again after a few hours (limited stock restocks).
+  assert.ok(vm.num('SpellmindDB.routeNoStock["804:900"]') > 0, 'in the saved data');
+  vm.run('NS.R.route = nil; NS.Route.Build()');
+  assert.ok(!vm.evaluate('(function() local o = {} for _, s in ipairs(NS.R.route.stops) do o[#o + 1] = s.key end return table.concat(o, " ") end)()').includes('do:705'), 'still off after a rebuild');
+  vm.run('SpellmindDB.routeNoStock["804:900"] = time() - 4 * 3600; NS.Route.Build()');
+  assert.ok(vm.evaluate('(function() local o = {} for _, s in ipairs(NS.R.route.stops) do o[#o + 1] = s.key end return table.concat(o, " ") end)()').includes('do:705'), 'back after the hours pass');
 });
 
 test('a giver who also takes the quest back, its mobs elsewhere (the player, 2026-11-19: Calor, Worgen in the Woods): two visits, the turn-in after the kills', () => {

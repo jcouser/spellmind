@@ -123,6 +123,16 @@ function RT.HasObjectives(Q, id)
 	return type(trig) == "table"
 end
 
+RT.NO_STOCK_HOURS = 3
+-- Was this vendor seen without this item lately? SpellmindDB.routeNoStock = { ["npc:item"] = time() }.
+function RT.NoStock(npc, item)
+	local t = ns.db and ns.db.routeNoStock
+	local at = t and t[npc .. ":" .. item]
+	if not at then return false end
+	if time() - at > RT.NO_STOCK_HOURS * 3600 then t[npc .. ":" .. item] = nil; return false end
+	return true
+end
+
 -- An item objective nothing here drops (the player, 2026-11-19: a Bronze Tube, bought or crafted):
 -- who sells it, { item, name, spot } in this area, else { item, name, zone } or { item } (no vendor known).
 function RT.Vendor(Q, id, area)
@@ -130,14 +140,13 @@ function RT.Vendor(Q, id, area)
 	local I, N = Q.Item, Q.Npc
 	if type(o) ~= "table" or type(o[3]) ~= "table" or not I or not N then return nil end
 	local away, empty
-	R.routeNoStock = R.routeNoStock or {}
 	for _, c in ipairs(o[3]) do
 		local itemID = type(c) == "table" and tonumber(c[1]) or nil
 		local item = itemID and Try(I.name, itemID) or nil
 		for _, npc in ipairs(itemID and type(I.vendors) == "function" and Try(I.vendors, itemID) or {}) do
 			local name = Try(N.name, npc)
 			-- Seen this session without it (limited stock sells out: the player, 2026-11-19).
-			if R.routeNoStock[npc .. ":" .. itemID] then
+			if RT.NoStock(npc, itemID) then
 				empty = empty or name
 			else
 				local sp = Try(N.spawns, npc)
@@ -841,14 +850,15 @@ function RT.OnMerchant()
 		local id = type(link) == "string" and tonumber(link:match("item:(%d+)")) or nil
 		if id then have[id] = true end
 	end
-	R.routeNoStock = R.routeNoStock or {}
+	ns.db.routeNoStock = ns.db.routeNoStock or {}
+	local stock = ns.db.routeNoStock
 	local gone
 	for _, s in ipairs(route.stops or {}) do
 		for _, g in ipairs(s.goals) do
 			if g.buyID and g.fromID == npc then
 				local key = npc .. ":" .. g.buyID
-				if have[g.buyID] then R.routeNoStock[key] = nil
-				elseif not R.routeNoStock[key] then R.routeNoStock[key] = true; gone = gone or g end
+				if have[g.buyID] then stock[key] = nil
+				elseif not RT.NoStock(npc, g.buyID) then stock[key] = time(); gone = gone or g end
 			end
 		end
 	end

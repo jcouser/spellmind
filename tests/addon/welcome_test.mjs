@@ -66,21 +66,25 @@ test('Open the panel: the welcome closes and the Quests tab opens', () => {
 // What's new (the player, 2026-11-19: the route is a big one). The addon at 0.5.0 here.
 const news = vm => vm.evaluate('tostring(SpellmindNews ~= nil and SpellmindNews.shown)') === 'true';
 
-test('updated from an earlier version: What\'s new once, 6 s after login, with the route\'s buttons; /sm news again', () => {
+test('updated from an earlier version: What\'s new once, 6 s after login, an announcement; Try it now; /sm news again', () => {
   const vm = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true, seenVersion = "0.4.7" }', before: 'NS.VERSION = "0.5.0"' }).login();
   vm.advance(7);
   assert.ok(news(vm));
   assert.ok(!open(vm), 'not the welcome');
   assert.equal(vm.evaluate('SpellmindNews.title:GetText()'), 'What\'s new in Spellmind 0.5.0');
-  assert.match(vm.evaluate('SpellmindNews.body:GetText()'), /The quest route[\s\S]*An arrow points at the current step/);
+  assert.equal(vm.evaluate('SpellmindNews.headline:GetText()'), 'Meet your quest route');
+  assert.match(vm.evaluate('SpellmindNews.tagline:GetText()'), /plans your leveling for you/);
+  assert.equal(vm.evaluate('SpellmindNews.features[2].title:GetText()'), 'Never lose your way');
+  assert.equal(vm.evaluate('tostring(SpellmindNews.features[4].icon.shown)'), 'true');
+  assert.match(vm.evaluate('SpellmindNews.note:GetText()'), /Questie/);
   assert.equal(vm.evaluate('SpellmindDB.seenVersion'), '0.5.0');
-  // Turn on the route, from here.
-  assert.equal(vm.evaluate('tostring(SpellmindNews.route.shown)'), 'true');
-  vm.run('SpellmindNews.route.scripts.OnClick(SpellmindNews.route)');
-  assert.equal(vm.evaluate('tostring(NS.Route.On())'), 'true');
-  assert.equal(vm.evaluate('tostring(SpellmindNews.route.shown)'), 'false');
-  vm.run('SpellmindNews.tab.scripts.OnClick(SpellmindNews.tab)');
+  // Each highlight below the last, with room between.
+  const top = k => vm.num(`select(5, SpellmindNews.features[${k}].title:GetPoint())`);
+  assert.ok(top(1) - top(2) >= 50, `room between: ${top(1) - top(2)}`);
+  // Try it now: the route on, and its tab.
+  vm.run('SpellmindNews.go.scripts.OnClick(SpellmindNews.go)');
   assert.ok(!news(vm));
+  assert.equal(vm.evaluate('tostring(NS.Route.On())'), 'true');
   assert.equal(vm.evaluate('NS.Panel.tab'), 'route');
   // Not again for this version; /sm news shows it.
   vm.run('NS.Welcome.MaybeShow()');

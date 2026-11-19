@@ -24,9 +24,13 @@ test('the addon\'s words are the app\'s, word for word', () => {
   const lua = vm.json('NS.Welcome.NEWS');
   const list = Array.isArray(lua) ? lua : Object.values(lua);
   assert.equal(list.length, NEWS.length);
+  const arr = v => (Array.isArray(v) ? v : Object.values(v || {}));
   list.forEach((n, i) => {
-    assert.equal(n.version, NEWS[i].version);
-    assert.equal(n.title, NEWS[i].title);
-    assert.deepEqual(Array.isArray(n.lines) ? n.lines : Object.values(n.lines), [...NEWS[i].lines]);
+    const want = NEWS[i];
+    assert.equal(n.version, want.version);
+    assert.equal(n.headline, want.headline);
+    assert.equal(n.tagline, want.tagline);
+    assert.equal(n.note, want.note);
+    assert.deepEqual(arr(n.features).map(f => [f.title, f.text]), want.features.map(f => [f.title, f.text]));
   });
 });

@@ -40,15 +40,27 @@ function WL.IsOpen()
 	return (WL.frame and WL.frame:IsShown() or WL.news and WL.news:IsShown()) and true or false
 end
 
--- Each version's news, oldest first (core/news.mjs, word for word). route: the route's two buttons.
+-- Each version's news, oldest first (core/news.mjs, word for word): a headline, a line under it, a few
+-- highlights (each with a game icon here), a footnote, and what "Try it now" does.
 WL.NEWS = {
-	{ version = "0.5.0", title = "The quest route", route = true, lines = {
-		"Your next steps from your quest log and where you stand: pick up, do and turn in, in a short order, ticked off as you go.",
-		"An arrow points at the current step, and the world map numbers the steps and shades where each objective is.",
-		"Where next ranks the zones by what is left for your level, with your flight paths and hearthstone.",
-		"Best with Questie installed: it adds the quests to pick up and where the mobs are.",
-		"Turn it on in the new Route tab. Your AI gets the route too: try Review my route.",
-	} },
+	{ version = "0.5.0", try = "route",
+		headline = "Meet your quest route",
+		tagline = "Spellmind now plans your leveling for you: built from your own quest log, and kept up to date as you play.",
+		features = {
+			{ icon = "Interface\\Icons\\INV_Misc_Map_01", title = "A plan that knows your character", text = "Every pickup, objective and turn-in around you, in the shortest order, ticked off the moment you finish it." },
+			{ icon = "Interface\\Icons\\Ability_Hunter_Pathfinding", title = "Never lose your way", text = "An arrow on screen points to your next step, and the world map numbers each step and shades where to go." },
+			{ icon = "Interface\\Icons\\Spell_Arcane_PortalStormWind", title = "Always know where to go next", text = "When a zone runs dry, Spellmind ranks the best zones for your level, counting your flight paths and hearthstone." },
+			{ icon = "Interface\\AddOns\\Spellmind\\Media\\Portrait", title = "Ask your AI about it", text = "Your AI sees the same route. Ask \"Review my route\" for what to skip, and why." },
+		},
+		note = "Works best with Questie installed. Find it all in the new Route tab." },
+}
+
+-- What each news's "Try it now" does: the route on, and its tab.
+WL.TRY = {
+	route = function()
+		if ns.Route and not ns.Route.On() then ns.Route.SetOn(true) end
+		if ns.Panel and ns.Panel.Show then ns.Panel.Show("route") end
+	end,
 }
 
 local function Parts(v)
@@ -180,12 +192,14 @@ function WL.Show()
 	return f
 end
 
--- What's new: the news since the version last seen (newest first, three at most); the route's buttons
--- when one is the route's.
+-- What's new (the maintainer, 2026-11-19: "it needs to breathe more", "more producty"): the newest
+-- news since the version last seen, as an announcement: a headline and its line, each highlight with
+-- its icon, a footnote; Try it now and Close.
+WL.NEWS_W, WL.NEWS_PAD = 540, 22
 local function BuildNews()
 	if WL.news then return WL.news end
 	local f = CreateFrame("Frame", "SpellmindNews", UIParent, "BackdropTemplate")
-	f:SetSize(460, 300)
+	f:SetSize(WL.NEWS_W, 420)
 	f:SetFrameStrata("DIALOG")
 	f:SetClampedToScreen(true)
 	f:EnableMouse(true)
@@ -201,36 +215,42 @@ local function BuildNews()
 	end
 	if ns.Window and ns.Window.Fill then ns.Window.Fill(f, 4, 0.035, 0.025, 0.08, 0.97) end
 	if ns.Window and ns.Window.Corners then ns.Window.Corners(f, 18) end
+	local P, inner = WL.NEWS_PAD, WL.NEWS_W - 2 * WL.NEWS_PAD
 	f.portrait = f:CreateTexture(nil, "ARTWORK")
-	f.portrait:SetSize(28, 28)
-	f.portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -8)
+	f.portrait:SetSize(24, 24)
+	f.portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -10)
 	f.portrait:SetTexture(ns.Marks and ns.Marks.PORTRAIT or "Interface\\AddOns\\Spellmind\\Media\\Portrait")
-	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 44, -14)
+	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+	f.title:SetPoint("LEFT", f.portrait, "RIGHT", 8, 0)
 	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
 	f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
-	f.body = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	f.body:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -46)
-	f.body:SetWidth(428)
-	f.body:SetJustifyH("LEFT")
-	if f.body.SetWordWrap then f.body:SetWordWrap(true) end
+	f.headline = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+	f.headline:SetPoint("TOPLEFT", f, "TOPLEFT", P, -52)
+	f.headline:SetWidth(inner)
+	f.headline:SetJustifyH("LEFT")
+	f.tagline = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	f.tagline:SetPoint("TOPLEFT", f.headline, "BOTTOMLEFT", 0, -10)
+	f.tagline:SetWidth(inner)
+	f.tagline:SetJustifyH("LEFT")
+	if f.tagline.SetWordWrap then f.tagline:SetWordWrap(true) end
+	if f.tagline.SetSpacing then f.tagline:SetSpacing(3) end
+	f.features = {}
+	f.note = f:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+	f.note:SetWidth(inner)
+	f.note:SetJustifyH("LEFT")
+	if f.note.SetWordWrap then f.note:SetWordWrap(true) end
 	f.again = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	f.again:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 16, 20)
+	f.again:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", P, 22)
 	f.again:SetText("/sm news shows this again.")
-	f.ok = ns.GearUI.Button(f, "Close", 70)
-	f.ok:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 14)
+	f.ok = ns.GearUI.Button(f, "Close", 80)
+	f.ok:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -P + 4, 16)
 	f.ok:SetScript("OnClick", function() f:Hide() end)
-	f.tab = ns.GearUI.Button(f, "Open the Route tab", 140)
-	f.tab:SetPoint("RIGHT", f.ok, "LEFT", -8, 0)
-	f.tab:SetScript("OnClick", function()
+	f.go = ns.GearUI.Button(f, "Try it now", 110)
+	f.go:SetPoint("RIGHT", f.ok, "LEFT", -10, 0)
+	f.go:SetScript("OnClick", function()
 		f:Hide()
-		if ns.Panel and ns.Panel.Show then ns.Panel.Show("route") end
-	end)
-	f.route = ns.GearUI.Button(f, "Turn on the route", 130)
-	f.route:SetPoint("RIGHT", f.tab, "LEFT", -8, 0)
-	f.route:SetScript("OnClick", function()
-		if ns.Route then ns.Route.SetOn(true) end
-		f.route:Hide()
+		local run = f.try and WL.TRY[f.try]
+		if run then run() end
 	end)
 	f:SetScript("OnHide", function() if ns.Nudges and ns.Nudges.Next then ns.Nudges.Next() end end)
 	f:Hide()
@@ -238,27 +258,62 @@ local function BuildNews()
 	return f
 end
 
+-- One highlight: its icon, its title (gold, larger) and its line.
+local function Feature(f, k)
+	local row = f.features[k]
+	if row then return row end
+	local inner = WL.NEWS_W - 2 * WL.NEWS_PAD
+	row = {}
+	row.icon = f:CreateTexture(nil, "ARTWORK")
+	row.icon:SetSize(34, 34)
+	row.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	row.title:SetJustifyH("LEFT")
+	row.title:SetWidth(inner - 48)
+	row.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	row.text:SetJustifyH("LEFT")
+	row.text:SetWidth(inner - 48)
+	if row.text.SetWordWrap then row.text:SetWordWrap(true) end
+	if row.text.SetSpacing then row.text:SetSpacing(2) end
+	f.features[k] = row
+	return row
+end
+
 function WL.ShowNews(list)
 	list = list or WL.Since("0", ns.VERSION)
 	if #list == 0 then list = { WL.NEWS[#WL.NEWS] } end
+	local n = list[#list]
 	local f = BuildNews()
-	local newest = list[#list]
-	f.title:SetText("What's new in Spellmind " .. newest.version)
-	local text, route = {}, false
-	for k = #list, math.max(1, #list - 2), -1 do
-		local n = list[k]
-		if n.route then route = true end
-		text[#text + 1] = "|cffffd100" .. n.title .. "|r" .. (#list > 1 and (" |cff888888(" .. n.version .. ")|r") or "")
-		for _, l in ipairs(n.lines) do text[#text + 1] = "|cffffd100•|r " .. l end
-		text[#text + 1] = ""
+	local P = WL.NEWS_PAD
+	f.title:SetText("What's new in Spellmind " .. n.version)
+	f.headline:SetText(n.headline)
+	f.tagline:SetText(n.tagline)
+	-- The highlights, each under the last, with room between them.
+	local y = -52 - (tonumber(f.headline:GetStringHeight()) or 22) - 10 - (tonumber(f.tagline:GetStringHeight()) or 30) - 22
+	for _, row in ipairs(f.features) do row.icon:Hide(); row.title:Hide(); row.text:Hide() end
+	for k, ft in ipairs(n.features) do
+		local row = Feature(f, k)
+		row.icon:SetTexture(ft.icon)
+		row.icon:ClearAllPoints()
+		row.icon:SetPoint("TOPLEFT", f, "TOPLEFT", P, y)
+		row.title:SetText(ft.title)
+		row.title:ClearAllPoints()
+		row.title:SetPoint("TOPLEFT", f, "TOPLEFT", P + 48, y)
+		row.text:SetText(ft.text)
+		row.text:ClearAllPoints()
+		row.text:SetPoint("TOPLEFT", row.title, "BOTTOMLEFT", 0, -4)
+		row.icon:Show(); row.title:Show(); row.text:Show()
+		local h = (tonumber(row.title:GetStringHeight()) or 16) + 4 + (tonumber(row.text:GetStringHeight()) or 28)
+		y = y - math.max(36, h) - 18
 	end
-	f.body:SetText(table.concat(text, "\n"))
-	local on = ns.Route and ns.Route.On and ns.Route.On()
-	if route then f.tab:Show() else f.tab:Hide() end
-	if route and not on then f.route:Show() else f.route:Hide() end
-	f:SetHeight(math.max(220, 46 + (tonumber(f.body:GetStringHeight()) or 160) + 60))
+	f.note:SetText(n.note or "")
+	f.note:ClearAllPoints()
+	f.note:SetPoint("TOPLEFT", f, "TOPLEFT", P, y - 2)
+	if n.note then y = y - 2 - (tonumber(f.note:GetStringHeight()) or 14) end
+	f.try = n.try
+	if n.try and WL.TRY[n.try] then f.go:Show() else f.go:Hide() end
+	f:SetHeight(math.max(300, -y + 70))
 	f:ClearAllPoints()
-	f:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+	f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
 	f:Show()
 	return f
 end

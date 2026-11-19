@@ -64,20 +64,22 @@ function draw(s) {
   pill.className = `pill ${s.summary.tone}`;
   $('pillText').textContent = s.summary.text;
 
-  // What's new since the version last seen (core/news.mjs), newest first, until Got it.
+  // What's new since the version last seen (core/news.mjs): the newest, as an announcement, until Got it.
   const news = Array.isArray(s.news) ? s.news : [];
   $('newsCard').hidden = news.length === 0;
   if (news.length) {
+    const n = news[news.length - 1];
     $('newsTitle').textContent = `Updated to ${s.version}: what's new`;
     const body = $('newsBody');
     body.replaceChildren();
-    for (const n of news.slice().reverse()) {
-      const h = document.createElement('h3');
-      h.textContent = n.title;
-      const ul = document.createElement('ul');
-      for (const line of n.lines) { const li = document.createElement('li'); li.textContent = line; ul.append(li); }
-      body.append(h, ul);
+    const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+    body.append(el('p', 'headline', n.headline), el('p', 'tagline', n.tagline));
+    for (const ft of n.features || []) {
+      const row = el('div', 'feature');
+      row.append(el('strong', null, ft.title), el('span', null, ft.text));
+      body.append(row);
     }
+    if (n.note) body.append(el('p', 'note', n.note));
   }
 
   // Setup: what's still to do, in order.

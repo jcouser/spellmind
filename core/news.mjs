@@ -37,18 +37,21 @@ export function newer(a, b) {
   return false;
 }
 
-/** What one window shows for the entries since the version last seen: the newest one's headline,
- * line, highlights and footnote ("What's changed" when it has none), and every entry's changes,
- * newest first (each with its version when there's more than one). */
+/** What one window shows for the entries since the version last seen: the newest headline (with its
+ * line and footnote; "What's changed" when none has one), every entry's highlights and changes, newest
+ * first (a change with its version when there's more than one entry). */
 export function digest(list) {
   if (!list?.length) return null;
   const n = list[list.length - 1];
-  const changes = [];
-  for (const e of list.slice().reverse()) {
+  const newestFirst = list.slice().reverse();
+  const lead = newestFirst.find((e) => e.headline) || null;
+  const features = [], changes = [];
+  for (const e of newestFirst) {
+    for (const f of e.features || []) features.push(f);
     for (const c of e.changes || []) changes.push({ version: e.version, text: c });
   }
-  return { version: n.version, headline: n.headline || "What's changed", tagline: n.tagline || null,
-    features: n.features || [], note: n.note || null, changes, versions: list.length };
+  return { version: n.version, headline: lead?.headline || "What's changed", tagline: lead?.tagline || null,
+    features, note: lead?.note || null, changes, versions: list.length };
 }
 
 /** The entries after the version last seen, up to the one running now, oldest first. */

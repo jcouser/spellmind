@@ -11,6 +11,11 @@
 -- updates wouldn't know it's there): once per version (SpellmindDB.seenVersion), the same way;
 -- /sm news shows it again. The words are core/news.mjs's (the app's card after it updates), kept the
 -- same by a test.
+--
+-- Both are one kind of window, an announcement (the maintainer: "more producty"): a headline and a
+-- line under it, highlights with icons, then what's particular to each. The welcome's highlights are
+-- what's new since the last version players had (WL.FRESH_SINCE: every feature added before the next
+-- public release shows there too, the maintainer's ask), then what's always there, then the app.
 
 local _, ns = ...
 local WL = {}
@@ -19,13 +24,16 @@ ns.Welcome = WL
 WL.DELAY = 6 -- seconds after login: the app's first answer to the hello comes in by then
 WL.RETRY = 5 -- seconds, while in combat
 WL.TITLE = "Welcome to Spellmind"
-WL.INTRO = "Your companion for WoW Forever. With no setup at all:\n\n"
-	.. "|cffffd100•|r The minimap button, or |cffffd100/sm|r, opens it. Right-click the button for your last tab.\n"
-	.. "|cffffd100•|r Quests, Dungeons, Gear, Talents, Spells, Professions and Gold say what to do next.\n"
-	.. "|cffffd100•|r Nudges by the minimap tell you when spells wait at your trainer, talent points are unspent or gear is about to break.\n"
-	.. "|cffffd100•|r Spellmind's lines on quest and item tooltips.\n"
-	.. "|cffffd100•|r The quest route: your next steps, an arrow and the map's areas. Turn it on in the Route tab."
-WL.APP = "|cff9d7dffWant to ask your own AI anything about your character?|r Get the free Spellmind app for Windows. It works with a ChatGPT plan, or an API key for Claude, ChatGPT, Grok or Gemini, and sends nothing to the Spellmind authors."
+WL.INTRO = "Your companion for WoW Forever. It knows your character as you play, and says what to do next. Everything here works with no setup at all."
+-- The welcome shows the highlights of every version after this one (the last that players had): set it
+-- to the version before the one being published (docs/releasing.md).
+WL.FRESH_SINCE = "0.4.7"
+-- What's always there, after what's new.
+WL.BASICS = {
+	{ icon = "Interface\\Icons\\INV_Misc_Book_09", title = "A panel that knows your character", text = "Quests, Dungeons, Gear, Talents, Spells, Professions and Gold, each saying what to do next. The minimap button or /sm opens it; right-click the button for your last tab." },
+	{ icon = "Interface\\AddOns\\Spellmind\\Media\\Mark", title = "Nudges and tooltips", text = "A quiet nudge by the minimap when spells wait at your trainer, talent points are unspent or gear is about to break, and Spellmind's lines on quest and item tooltips." },
+}
+WL.APP = "Get the free Spellmind app for Windows, and ask your own AI anything about your character. It works with a ChatGPT plan, or an API key for Claude, ChatGPT, Grok or Gemini, and sends nothing to the Spellmind authors."
 WL.CONNECTED = "|cff19ff19The Spellmind app is connected.|r Ask anything in the Chat tab, or click the Spellmind mark on a quest to have it broken down."
 
 local function InCombat()
@@ -91,10 +99,21 @@ function WL.Since(seen, current)
 	return out
 end
 
-local function Build()
-	if WL.frame then return WL.frame end
-	local f = CreateFrame("Frame", "SpellmindWelcome", UIParent, "BackdropTemplate")
-	f:SetSize(460, 330)
+---------------------------------------------------------------------------
+-- The announcement: a window for the welcome and for What's new
+---------------------------------------------------------------------------
+
+WL.W, WL.PAD = 560, 22
+WL.NEWS_W, WL.NEWS_PAD = WL.W, WL.PAD
+local INNER = WL.W - 2 * WL.PAD
+local BACK = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+	tile = true, tileSize = 16, edgeSize = 14, insets = { left = 4, right = 4, top = 4, bottom = 4 } }
+
+-- The frame: the owl and a small line at the top, the close button, the headline and the line under
+-- it; pools for highlights, section labels and change lines.
+local function Window(name)
+	local f = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
+	f:SetSize(WL.W, 420)
 	f:SetFrameStrata("DIALOG")
 	f:SetClampedToScreen(true)
 	f:EnableMouse(true)
@@ -103,38 +122,156 @@ local function Build()
 	f:SetScript("OnDragStart", function(self) self:StartMoving() end)
 	f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
 	if f.SetBackdrop then
-		f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-			tile = true, tileSize = 16, edgeSize = 14, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
+		f:SetBackdrop(BACK)
 		f:SetBackdropColor(0.05, 0.04, 0.1, 0.98)
 		f:SetBackdropBorderColor(0.62, 0.49, 1, 1)
 	end
 	if ns.Window and ns.Window.Fill then ns.Window.Fill(f, 4, 0.035, 0.025, 0.08, 0.97) end
 	if ns.Window and ns.Window.Corners then ns.Window.Corners(f, 18) end
 	f.portrait = f:CreateTexture(nil, "ARTWORK")
-	f.portrait:SetSize(28, 28)
-	f.portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -8)
+	f.portrait:SetSize(24, 24)
+	f.portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -10)
 	f.portrait:SetTexture(ns.Marks and ns.Marks.PORTRAIT or "Interface\\AddOns\\Spellmind\\Media\\Portrait")
-	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 44, -14)
-	f.title:SetText(WL.TITLE)
+	f.top = f:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+	f.top:SetPoint("LEFT", f.portrait, "RIGHT", 8, 0)
 	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
 	f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
-	f.intro = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	f.intro:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -46)
-	f.intro:SetWidth(428)
-	f.intro:SetJustifyH("LEFT")
-	if f.intro.SetWordWrap then f.intro:SetWordWrap(true) end
-	f.intro:SetText(WL.INTRO)
+	f.headline = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+	f.headline:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD, -52)
+	f.headline:SetWidth(INNER)
+	f.headline:SetJustifyH("LEFT")
+	f.tagline = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	f.tagline:SetPoint("TOPLEFT", f.headline, "BOTTOMLEFT", 0, -10)
+	f.tagline:SetWidth(INNER)
+	f.tagline:SetJustifyH("LEFT")
+	if f.tagline.SetWordWrap then f.tagline:SetWordWrap(true) end
+	if f.tagline.SetSpacing then f.tagline:SetSpacing(3) end
+	f.features, f.labels, f.changes = {}, {}, {}
+	return f
+end
+
+-- One highlight: its icon, its title (gold, larger) and its line.
+local function Feature(f, k)
+	local row = f.features[k]
+	if row then return row end
+	row = {}
+	row.icon = f:CreateTexture(nil, "ARTWORK")
+	row.icon:SetSize(34, 34)
+	row.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	row.title:SetJustifyH("LEFT")
+	row.title:SetWidth(INNER - 48)
+	row.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	row.text:SetJustifyH("LEFT")
+	row.text:SetWidth(INNER - 48)
+	if row.text.SetWordWrap then row.text:SetWordWrap(true) end
+	if row.text.SetSpacing then row.text:SetSpacing(2) end
+	f.features[k] = row
+	return row
+end
+local function Label(f, k)
+	local l = f.labels[k]
+	if l then return l end
+	l = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	l:SetJustifyH("LEFT")
+	f.labels[k] = l
+	return l
+end
+local function Change(f, k)
+	local l = f.changes[k]
+	if l then return l end
+	l = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	l:SetJustifyH("LEFT")
+	l:SetWidth(INNER - 14)
+	if l.SetWordWrap then l:SetWordWrap(true) end
+	f.changes[k] = l
+	return l
+end
+
+-- The headline and its line; then the sections ({ label?, features }), each highlight under the last
+-- with room between them. Returns the y below them.
+local function Fill(f, headline, tagline, sections)
+	f.headline:SetText(headline or "")
+	f.tagline:SetText(tagline or "")
+	if tagline then f.tagline:Show() else f.tagline:Hide() end
+	local y = -52 - (tonumber(f.headline:GetStringHeight()) or 22) - 10 - (tagline and (tonumber(f.tagline:GetStringHeight()) or 30) or 0) - 22
+	for _, row in ipairs(f.features) do row.icon:Hide(); row.title:Hide(); row.text:Hide() end
+	for _, l in ipairs(f.labels) do l:Hide() end
+	local k, nl = 0, 0
+	for _, sec in ipairs(sections) do
+		if #(sec.features or {}) > 0 then
+			if sec.label then
+				nl = nl + 1
+				local l = Label(f, nl)
+				l:SetText(sec.label)
+				l:ClearAllPoints()
+				l:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD, y)
+				l:Show()
+				y = y - 24
+			end
+			for _, ft in ipairs(sec.features) do
+				k = k + 1
+				local row = Feature(f, k)
+				row.icon:SetTexture(ft.icon)
+				row.icon:ClearAllPoints()
+				row.icon:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD, y)
+				row.title:SetText(ft.title)
+				row.title:ClearAllPoints()
+				row.title:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD + 48, y)
+				row.text:SetText(ft.text)
+				row.text:ClearAllPoints()
+				row.text:SetPoint("TOPLEFT", row.title, "BOTTOMLEFT", 0, -4)
+				row.icon:Show(); row.title:Show(); row.text:Show()
+				local h = (tonumber(row.title:GetStringHeight()) or 16) + 4 + (tonumber(row.text:GetStringHeight()) or 28)
+				y = y - math.max(36, h) - 18
+			end
+			y = y - 4
+		end
+	end
+	return y
+end
+
+local function Center(f, h)
+	f:SetHeight(h)
+	f:ClearAllPoints()
+	f:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
+	f:Show()
+end
+
+-- The highlights of the news after a version (newest first) and the news they came from.
+function WL.FeaturesSince(seen, current)
+	local out, newest = {}, nil
+	local list = WL.Since(seen, current)
+	for k = #list, 1, -1 do
+		for _, ft in ipairs(list[k].features or {}) do out[#out + 1] = ft end
+		if not newest and list[k].headline then newest = list[k] end
+	end
+	return out, newest
+end
+
+---------------------------------------------------------------------------
+-- The welcome: what's new, what's always there, the app
+---------------------------------------------------------------------------
+
+local function Build()
+	if WL.frame then return WL.frame end
+	local f = Window("SpellmindWelcome")
+	f.title, f.intro = f.headline, f.tagline
+	f.title:SetText(WL.TITLE)
+	-- The app: its own highlight (the owl), then the link to copy when it isn't there yet.
+	f.appIcon = f:CreateTexture(nil, "ARTWORK")
+	f.appIcon:SetSize(34, 34)
+	f.appIcon:SetTexture(ns.Marks and ns.Marks.PORTRAIT or "Interface\\AddOns\\Spellmind\\Media\\Portrait")
+	f.appTitle = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	f.appTitle:SetJustifyH("LEFT")
+	f.appTitle:SetText("Ask your own AI")
 	f.app = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	f.app:SetPoint("TOPLEFT", f.intro, "BOTTOMLEFT", 0, -12)
-	f.app:SetWidth(428)
+	f.app:SetWidth(INNER - 48)
 	f.app:SetJustifyH("LEFT")
 	if f.app.SetWordWrap then f.app:SetWordWrap(true) end
+	if f.app.SetSpacing then f.app:SetSpacing(2) end
 	-- The project's link, selected to copy; typing can't change it (as in /sm app's box).
 	f.link = CreateFrame("EditBox", nil, f, "BackdropTemplate")
-	f.link:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 52)
-	f.link:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 52)
-	f.link:SetHeight(24)
+	f.link:SetSize(INNER - 48, 24)
 	if f.link.SetBackdrop then
 		f.link:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
 			tile = true, tileSize = 16, edgeSize = 10, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
@@ -153,19 +290,25 @@ local function Build()
 	end)
 	f.link:SetScript("OnEditFocusGained", function(self) if self.HighlightText then self:HighlightText() end end)
 	f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	f.hint:SetPoint("BOTTOMLEFT", f.link, "TOPLEFT", 2, 4)
 	f.hint:SetText("Click the link, press Ctrl+C, then paste it in your browser.")
 	f.again = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	f.again:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 16, 20)
+	f.again:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", WL.PAD, 22)
 	f.again:SetText("/sm welcome shows this again.")
 	f.ok = ns.GearUI.Button(f, "Close", 80)
-	f.ok:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 14)
+	f.ok:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -WL.PAD + 4, 16)
 	f.ok:SetScript("OnClick", function() f:Hide() end)
 	f.panel = ns.GearUI.Button(f, "Open the panel", 130)
-	f.panel:SetPoint("RIGHT", f.ok, "LEFT", -8, 0)
+	f.panel:SetPoint("RIGHT", f.ok, "LEFT", -10, 0)
 	f.panel:SetScript("OnClick", function()
 		f:Hide()
 		if ns.Panel and ns.Panel.Show then ns.Panel.Show("quests") end
+	end)
+	f.go = ns.GearUI.Button(f, "Try the route", 120)
+	f.go:SetPoint("RIGHT", f.panel, "LEFT", -10, 0)
+	f.go:SetScript("OnClick", function()
+		f:Hide()
+		local run = f.try and WL.TRY[f.try]
+		if run then run() end
 	end)
 	-- Closed: the nudges that waited go on.
 	f:SetScript("OnHide", function()
@@ -177,79 +320,61 @@ local function Build()
 	return f
 end
 
--- The app's part says what's true now: connected, or where to get it.
-local function Fill(f)
-	local heard = AppHeard()
-	f.app:SetText(heard and WL.CONNECTED or WL.APP)
-	if heard then f.link:Hide(); f.hint:Hide() else f.link:Show(); f.hint:Show() end
-	f.link:SetText(ns.APP_URL)
-	-- Tall enough for its text at any UI scale: the title, the two texts, then the link and buttons.
-	local textH = (tonumber(f.intro:GetStringHeight()) or 130) + 12 + (tonumber(f.app:GetStringHeight()) or 50)
-	f:SetHeight(math.max(heard and 260 or 320, 46 + textH + (heard and 56 or 108)))
-end
-
 function WL.Show()
 	local f = Build()
-	Fill(f)
-	f:ClearAllPoints()
-	f:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
-	f:Show()
+	local fresh, newest = WL.FeaturesSince(WL.FRESH_SINCE, ns.VERSION)
+	f.top:SetText("Spellmind " .. tostring(ns.VERSION or ""))
+	local y = Fill(f, WL.TITLE, WL.INTRO, {
+		{ label = #fresh > 0 and ("New in " .. tostring(ns.VERSION or "")) or nil, features = fresh },
+		{ label = #fresh > 0 and "Always in Spellmind" or nil, features = WL.BASICS },
+	})
+	-- The app: connected, or where to get it.
+	local heard = AppHeard()
+	f.appIcon:ClearAllPoints()
+	f.appIcon:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD, y)
+	f.appTitle:ClearAllPoints()
+	f.appTitle:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD + 48, y)
+	f.app:SetText(heard and WL.CONNECTED or WL.APP)
+	f.app:ClearAllPoints()
+	f.app:SetPoint("TOPLEFT", f.appTitle, "BOTTOMLEFT", 0, -4)
+	y = y - (tonumber(f.appTitle:GetStringHeight()) or 16) - 4 - (tonumber(f.app:GetStringHeight()) or 42) - 10
+	f.link:SetText(ns.APP_URL)
+	f.link:ClearAllPoints()
+	f.hint:ClearAllPoints()
+	if heard then
+		f.link:Hide(); f.hint:Hide()
+	else
+		f.hint:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD + 50, y)
+		f.hint:Show()
+		y = y - 16
+		f.link:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD + 46, y)
+		f.link:Show()
+		y = y - 30
+	end
+	f.try = newest and newest.try or nil
+	if f.try and WL.TRY[f.try] then f.go:Show() else f.go:Hide() end
+	Center(f, math.max(360, -y + 66))
 	return f
 end
 
--- What's new (the maintainer, 2026-11-19: "it needs to breathe more", "more producty"): the newest
--- news since the version last seen, as an announcement: a headline and its line, each highlight with
--- its icon, a footnote; Try it now and Close.
-WL.NEWS_W, WL.NEWS_PAD = 540, 22
+---------------------------------------------------------------------------
+-- What's new: the news since the version last seen
+---------------------------------------------------------------------------
+
 local function BuildNews()
 	if WL.news then return WL.news end
-	local f = CreateFrame("Frame", "SpellmindNews", UIParent, "BackdropTemplate")
-	f:SetSize(WL.NEWS_W, 420)
-	f:SetFrameStrata("DIALOG")
-	f:SetClampedToScreen(true)
-	f:EnableMouse(true)
-	f:SetMovable(true)
-	f:RegisterForDrag("LeftButton")
-	f:SetScript("OnDragStart", function(self) self:StartMoving() end)
-	f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
-	if f.SetBackdrop then
-		f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-			tile = true, tileSize = 16, edgeSize = 14, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
-		f:SetBackdropColor(0.05, 0.04, 0.1, 0.98)
-		f:SetBackdropBorderColor(0.62, 0.49, 1, 1)
-	end
-	if ns.Window and ns.Window.Fill then ns.Window.Fill(f, 4, 0.035, 0.025, 0.08, 0.97) end
-	if ns.Window and ns.Window.Corners then ns.Window.Corners(f, 18) end
-	local P, inner = WL.NEWS_PAD, WL.NEWS_W - 2 * WL.NEWS_PAD
-	f.portrait = f:CreateTexture(nil, "ARTWORK")
-	f.portrait:SetSize(24, 24)
-	f.portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -10)
-	f.portrait:SetTexture(ns.Marks and ns.Marks.PORTRAIT or "Interface\\AddOns\\Spellmind\\Media\\Portrait")
-	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-	f.title:SetPoint("LEFT", f.portrait, "RIGHT", 8, 0)
-	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-	f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
-	f.headline = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
-	f.headline:SetPoint("TOPLEFT", f, "TOPLEFT", P, -52)
-	f.headline:SetWidth(inner)
-	f.headline:SetJustifyH("LEFT")
-	f.tagline = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	f.tagline:SetPoint("TOPLEFT", f.headline, "BOTTOMLEFT", 0, -10)
-	f.tagline:SetWidth(inner)
-	f.tagline:SetJustifyH("LEFT")
-	if f.tagline.SetWordWrap then f.tagline:SetWordWrap(true) end
-	if f.tagline.SetSpacing then f.tagline:SetSpacing(3) end
-	f.features = {}
-	f.changes = {}
+	local f = Window("SpellmindNews")
+	f.title = f.top
 	f.note = f:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-	f.note:SetWidth(inner)
+	f.note:SetWidth(INNER)
 	f.note:SetJustifyH("LEFT")
 	if f.note.SetWordWrap then f.note:SetWordWrap(true) end
+	f.alsoLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	f.again = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	f.again:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", P, 22)
+	f.again:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", WL.PAD, 22)
 	f.again:SetText("/sm news shows this again.")
 	f.ok = ns.GearUI.Button(f, "Close", 80)
-	f.ok:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -P + 4, 16)
+	f.ok:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -WL.PAD + 4, 16)
 	f.ok:SetScript("OnClick", function() f:Hide() end)
 	f.go = ns.GearUI.Button(f, "Try it now", 110)
 	f.go:SetPoint("RIGHT", f.ok, "LEFT", -10, 0)
@@ -264,65 +389,22 @@ local function BuildNews()
 	return f
 end
 
--- One highlight: its icon, its title (gold, larger) and its line.
-local function Feature(f, k)
-	local row = f.features[k]
-	if row then return row end
-	local inner = WL.NEWS_W - 2 * WL.NEWS_PAD
-	row = {}
-	row.icon = f:CreateTexture(nil, "ARTWORK")
-	row.icon:SetSize(34, 34)
-	row.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	row.title:SetJustifyH("LEFT")
-	row.title:SetWidth(inner - 48)
-	row.text = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	row.text:SetJustifyH("LEFT")
-	row.text:SetWidth(inner - 48)
-	if row.text.SetWordWrap then row.text:SetWordWrap(true) end
-	if row.text.SetSpacing then row.text:SetSpacing(2) end
-	f.features[k] = row
-	return row
-end
-
-local function Change(f, k)
-	local l = f.changes[k]
-	if l then return l end
-	l = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	l:SetJustifyH("LEFT")
-	l:SetWidth(WL.NEWS_W - 2 * WL.NEWS_PAD - 14)
-	if l.SetWordWrap then l:SetWordWrap(true) end
-	f.changes[k] = l
-	return l
-end
-
+-- Several versions since the one last seen: the newest headline, every version's highlights (newest
+-- first) and every version's changes.
 function WL.ShowNews(list)
 	list = list or WL.Since("0", ns.VERSION)
 	if #list == 0 then list = { WL.NEWS[#WL.NEWS] } end
 	local n = list[#list]
-	local f = BuildNews()
-	local P = WL.NEWS_PAD
-	f.title:SetText("What's new in Spellmind " .. n.version)
-	f.headline:SetText(n.headline or "What's changed")
-	f.tagline:SetText(n.tagline or "")
-	if n.tagline then f.tagline:Show() else f.tagline:Hide() end
-	-- The highlights, each under the last, with room between them.
-	local y = -52 - (tonumber(f.headline:GetStringHeight()) or 22) - 10 - (n.tagline and (tonumber(f.tagline:GetStringHeight()) or 30) or 0) - 22
-	for _, row in ipairs(f.features) do row.icon:Hide(); row.title:Hide(); row.text:Hide() end
-	for k, ft in ipairs(n.features or {}) do
-		local row = Feature(f, k)
-		row.icon:SetTexture(ft.icon)
-		row.icon:ClearAllPoints()
-		row.icon:SetPoint("TOPLEFT", f, "TOPLEFT", P, y)
-		row.title:SetText(ft.title)
-		row.title:ClearAllPoints()
-		row.title:SetPoint("TOPLEFT", f, "TOPLEFT", P + 48, y)
-		row.text:SetText(ft.text)
-		row.text:ClearAllPoints()
-		row.text:SetPoint("TOPLEFT", row.title, "BOTTOMLEFT", 0, -4)
-		row.icon:Show(); row.title:Show(); row.text:Show()
-		local h = (tonumber(row.title:GetStringHeight()) or 16) + 4 + (tonumber(row.text:GetStringHeight()) or 28)
-		y = y - math.max(36, h) - 18
+	local features, lead = {}, nil
+	for k = #list, 1, -1 do
+		for _, ft in ipairs(list[k].features or {}) do features[#features + 1] = ft end
+		if not lead and list[k].headline then lead = list[k] end
 	end
+	lead = lead or n
+	local f = BuildNews()
+	local P = WL.PAD
+	f.title:SetText("What's new in Spellmind " .. n.version)
+	local y = Fill(f, lead.headline or "What's changed", lead.tagline, { { features = features } })
 	-- The changes: every version's since the one last seen, newest first ("Also in this update" under
 	-- highlights; on their own, the headline says it).
 	local lines = {}
@@ -332,9 +414,8 @@ function WL.ShowNews(list)
 		end
 	end
 	for _, l in ipairs(f.changes) do l:Hide() end
-	f.alsoLabel = f.alsoLabel or f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	f.alsoLabel:Hide()
-	if #lines > 0 and #(n.features or {}) > 0 then
+	if #lines > 0 and #features > 0 then
 		f.alsoLabel:SetText("Also in this update")
 		f.alsoLabel:ClearAllPoints()
 		f.alsoLabel:SetPoint("TOPLEFT", f, "TOPLEFT", P, y)
@@ -350,16 +431,13 @@ function WL.ShowNews(list)
 		y = y - (tonumber(l:GetStringHeight()) or 14) - 8
 	end
 	if #lines > 0 then y = y - 10 end
-	f.note:SetText(n.note or "")
+	f.note:SetText(lead.note or "")
 	f.note:ClearAllPoints()
 	f.note:SetPoint("TOPLEFT", f, "TOPLEFT", P, y - 2)
-	if n.note then y = y - 2 - (tonumber(f.note:GetStringHeight()) or 14) end
-	f.try = n.try
-	if n.try and WL.TRY[n.try] then f.go:Show() else f.go:Hide() end
-	f:SetHeight(math.max(300, -y + 70))
-	f:ClearAllPoints()
-	f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
-	f:Show()
+	if lead.note then y = y - 2 - (tonumber(f.note:GetStringHeight()) or 14) end
+	f.try = lead.try
+	if lead.try and WL.TRY[lead.try] then f.go:Show() else f.go:Hide() end
+	Center(f, math.max(300, -y + 70))
 	return f
 end
 

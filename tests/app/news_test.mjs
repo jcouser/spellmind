@@ -43,8 +43,10 @@ test('the digest: the newest headline; every version\'s changes newest first, ea
   ];
   const d = digest(list);
   assert.equal(d.version, '0.5.1');
-  assert.equal(d.headline, 'What\'s changed', 'a version with only changes');
-  assert.deepEqual(d.features, []);
+  assert.equal(d.headline, 'Meet your quest route', 'skipped 0.5.0: its headline still leads');
+  assert.deepEqual(d.features.map(f => f.title), ['A'], 'and its highlights');
+  assert.equal(digest([list[1]]).headline, 'What\'s changed', 'a version with only changes, seen alone');
+  assert.deepEqual(digest([list[1]]).features, []);
   assert.deepEqual(d.changes.map(c => c.version + ' ' + c.text), ['0.5.1 a fix', '0.5.1 another', '0.5.0 first']);
   assert.equal(d.versions, 2);
   assert.equal(digest([]), null);

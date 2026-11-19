@@ -1470,6 +1470,7 @@ RT.UPNEXT_LINES = 3 -- until the player sizes the window; then as many as fit
 RT.NEXT_MAX = 12
 RT.THEN_LINES = 2
 RT.AWAY_LINES = 5
+RT.WAY_LINES = 6
 RT.MIN_W, RT.MIN_H, RT.MAX_W, RT.MAX_H = 260, 150, 640, 720
 -- The window's size and fold, kept: SpellmindDB.routeUI = { w, h, compact }.
 local function UI()
@@ -1584,6 +1585,16 @@ local function Build()
 		local l = Line(C, "GameFontHighlightSmall", RT.W - 40)
 		if l.SetMaxLines then l:SetMaxLines(3) end
 		f.thens[i] = l
+	end
+	-- The way there (the player, 2026-11-19: list the travel steps under "Done here" when the way is to
+	-- another zone): its legs in order, the one to do now in gold.
+	f.wayLabel = C:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	f.wayLabel:SetText("The way there")
+	f.way = {}
+	for i = 1, RT.WAY_LINES do
+		local l = Line(C, "GameFontHighlightSmall", RT.W - 40)
+		if l.SetMaxLines then l:SetMaxLines(2) end
+		f.way[i] = l
 	end
 	f.nextLabel = C:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	f.nextLabel:SetText("Up next")
@@ -1771,12 +1782,13 @@ function RT.Draw()
 	if sub then f.nowSub:Show() else f.nowSub:Hide() end
 	local bandH = 16 + math.max(20, tonumber(f.now:GetStringHeight()) or 20) + (sub and (3 + (tonumber(f.nowSub:GetStringHeight()) or 12)) or 0)
 	f.band:SetHeight(bandH)
-	local rest = { f.nextLabel, f.whereLabel, f.awayLabel, f.credit, f.back, f.skip, f.rebuild, f.grip }
+	local rest = { f.nextLabel, f.wayLabel, f.whereLabel, f.awayLabel, f.credit, f.back, f.skip, f.rebuild, f.grip }
 	-- Folded: the current step alone.
 	if ui.compact then
 		for _, l in ipairs(f.thens) do l:Hide() end
 		for _, l in ipairs(f.next) do l:Hide() end
 		for _, l in ipairs(f.away) do l:Hide() end
+		for _, l in ipairs(f.way) do l:Hide() end
 		for _, b in ipairs(f.where) do b:Hide() end
 		for _, r in ipairs(rest) do r:Hide() end
 		f.scroll:Hide()
@@ -1804,6 +1816,33 @@ function RT.Draw()
 		end
 	end
 	y = y - 6
+	-- The way there: the legs of the arrow's way when it leads to another zone.
+	local wt = RT.ArrowTarget()
+	local wayLegs = (wt and (wt.away or wt.zone) and wt.legs) or {}
+	f.wayLabel:ClearAllPoints()
+	if #wayLegs > 0 then
+		y = y - 8
+		f.wayLabel:SetPoint("TOPLEFT", f.content, "TOPLEFT", 6, y - top)
+		f.wayLabel:Show()
+		y = y - 16
+	else
+		f.wayLabel:Hide()
+	end
+	for k, l in ipairs(f.way) do
+		local leg = wayLegs[k]
+		l:ClearAllPoints()
+		l:SetPoint("TOPLEFT", f.content, "TOPLEFT", 12, y - top)
+		if leg then
+			local more = k == RT.WAY_LINES and #wayLegs > RT.WAY_LINES
+			l:SetText((k == 1 and "|cffffd100" or "|cffffffff") .. k .. ".|r " .. (leg.tip and leg.tip[1] or "?") .. (more and (" |cff888888(+" .. (#wayLegs - RT.WAY_LINES) .. ")|r") or ""))
+			l:Show()
+			y = y - Row(l)
+		else
+			l:SetText("")
+			l:Hide()
+		end
+	end
+	if #wayLegs > 0 then y = y - 4 end
 	-- How many of Up next: three, or as many as the player's size of the window holds.
 	local away = RT.AwayLines(route)
 	local credit = RT.Credit(route)

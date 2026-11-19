@@ -590,6 +590,15 @@ function Tabs.route()
 	out[#out + 1] = { kind = "item", indent = true, left = "Ask about your route", sub = "|cff888888Anything: your AI has the route. Or the two questions below.|r",
 		actions = { { "Ask", function() ns.Chat.Open("About my route: ") end, tip = "The chat, ready for your question." } } }
 	if not route or route.nowhere then return out end
+	-- The way there, when the arrow leads to another zone: its legs.
+	local wt = RT.ArrowTarget()
+	if wt and (wt.away or wt.zone) and wt.legs and #wt.legs > 0 then
+		out[#out + 1] = { kind = "head", text = "The way there" }
+		for k, leg in ipairs(wt.legs) do
+			out[#out + 1] = { kind = "item", left = (k == 1 and "|cffffd100" or "|cffffffff") .. k .. ".|r " .. (leg.tip and leg.tip[1] or "?"),
+				sub = leg.tip and leg.tip[2] and ("|cff888888" .. leg.tip[2] .. "|r") or nil, right = k == 1 and "|cffffd100now|r" or nil }
+		end
+	end
 	-- Every step: done, now, skipped, or to come.
 	out[#out + 1] = { kind = "head", text = "Steps" }
 	local cur = RT.Current()

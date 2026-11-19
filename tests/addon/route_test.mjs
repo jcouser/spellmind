@@ -1263,3 +1263,25 @@ test('a trail far from the way is left: the straight way stands', () => {
   const c = vm.json('NS.Route.Current()');
   assert.equal(vm.evaluate(`tostring(NS.Route.TrailBetween(NS.Route.PlayerWorld(), NS.Route.World(1432, ${c.x}, ${c.y})))`), 'nil');
 });
+
+test('the way there, listed under "Done here" and on the Route tab (the player, 2026-11-19)', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run('STUB.quests = {}; for id = 700, 704 do STUB.completed[id] = true end');
+  vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED")');
+  vm.slash('route');
+  vm.run('NS.R.routePlan = nil; NS.Route.Draw()');
+  assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /Done here at your level.*Next: .*Westfall/);
+  assert.equal(vm.evaluate('SpellmindRoute.wayLabel:GetText()'), 'The way there');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.wayLabel.shown)'), 'true');
+  const lines = [1, 2, 3].map(k => vm.evaluate(`SpellmindRoute.way[${k}]:GetText()`));
+  assert.match(lines[0], /^\|cffffd1001\.\|r Flight master at Thelsamar/);
+  assert.match(lines[1], /2\.\|r Fly to Sentinel Hill/);
+  assert.match(lines[2], /3\.\|r Westfall: Gryan Stoutmantle/);
+  // The Route tab too.
+  vm.run('NS.Panel.Show("route")');
+  const v = vm.json('SpellmindPanel.drawn'); const d = Array.isArray(v) ? v : Object.values(v || {});
+  assert.ok(d.some(x => x.kind === 'head' && x.text === 'The way there'));
+  // Questing here again (steps left): no way there.
+  vm.run('NS.Route.Aim(nil); STUB.completed = {}; table.insert(STUB.quests, { title = "Kobold Candles", questID = 700, level = 14 }); NS.Route.Build(); NS.Route.Draw()');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.wayLabel.shown)'), 'false');
+});

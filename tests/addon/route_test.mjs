@@ -872,3 +872,8 @@ test('the minimap (the player, 2026-11-19): the current step, on the rim with an
   vm.slash('route');
   assert.equal(vm.evaluate(`tostring(${P}[1].shown)`), 'false');
 });
+
+test('a zone on another continent says how: "by boat" (the player, 2026-11-19: Ashenvale\'s minutes didn\'t say)', () => {
+  const vm = session();
+  assert.equal(vm.evaluate('NS.Route.WhereText({ quests = 6, inLog = 0, minutes = 12, how = "boat" })'), '6 quests to pick up · about 12 min away by boat');
+});

@@ -857,7 +857,7 @@ function RT.Zones(fresh)
 				local there = World(map, z.spot.x, z.spot.y)
 				local way = RT.Travel(me, there, speed)
 				if way then travel, z.how, z.via, z.leg = way.minutes, way.how, way.via, way.leg
-				elseif me and there then travel = RT.SEA_MINUTES
+				elseif me and there then travel, z.how, z.via = RT.SEA_MINUTES, "boat", "a boat or the tram to another continent"
 				else travel = nil end
 			end
 			z.minutes = travel and math.max(isHere and 0 or 1, math.floor(travel + 0.5)) or nil
@@ -906,7 +906,9 @@ function RT.WhereText(z)
 	local bits = {}
 	if z.quests > 0 then bits[#bits + 1] = z.quests .. (z.quests == 1 and " quest" or " quests") .. " to pick up" end
 	if z.inLog > 0 then bits[#bits + 1] = z.inLog .. " in your log" end
-	local how = z.how == "fly" and " away by flight" or (z.how == "hearth" and " away by hearthstone" or " away")
+	-- (the player, 2026-11-19: Ashenvale's "about 12 min away" didn't say it's over the sea)
+	local how = z.how == "fly" and " away by flight" or (z.how == "hearth" and " away by hearthstone")
+		or (z.how == "boat" and " away by boat") or " away"
 	return table.concat(bits, ", ") .. (z.minutes and (" · about " .. z.minutes .. " min" .. how) or "")
 end
 

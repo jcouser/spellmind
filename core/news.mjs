@@ -2,7 +2,9 @@
 // WL.NEWS, kept word for word the same by tests/app/news_test.mjs) and the app's card after it
 // updates itself (main.mjs, renderer/app.js). Newest last; a version's entry is written when it's
 // released (docs/releasing.md). Written to say what each thing does for the player (the maintainer,
-// 2026-11-19: "more producty"): a headline, a line under it, a few highlights, a footnote.
+// 2026-11-19: "more producty"): a headline, a line under it, a few highlights, a footnote. Any version
+// can instead (or as well) list its changes, plainly (the maintainer: "release note changes as things
+// change from version to version"); a version without a headline shows "What's changed".
 
 export const NEWS = Object.freeze([
   Object.freeze({
@@ -16,6 +18,10 @@ export const NEWS = Object.freeze([
       Object.freeze({ title: 'Ask your AI about it', text: 'Your AI sees the same route. Ask "Review my route" for what to skip, and why.' }),
     ]),
     note: 'Works best with Questie installed. Find it all in the new Route tab.',
+    changes: Object.freeze([
+      'The Quests tab\'s "Plan my next hour" is now "Review my route".',
+      'After each update, this window says what\'s new. /sm news shows it again.',
+    ]),
   }),
 ]);
 
@@ -29,6 +35,20 @@ export function newer(a, b) {
     if (p !== q) return p > q;
   }
   return false;
+}
+
+/** What one window shows for the entries since the version last seen: the newest one's headline,
+ * line, highlights and footnote ("What's changed" when it has none), and every entry's changes,
+ * newest first (each with its version when there's more than one). */
+export function digest(list) {
+  if (!list?.length) return null;
+  const n = list[list.length - 1];
+  const changes = [];
+  for (const e of list.slice().reverse()) {
+    for (const c of e.changes || []) changes.push({ version: e.version, text: c });
+  }
+  return { version: n.version, headline: n.headline || "What's changed", tagline: n.tagline || null,
+    features: n.features || [], note: n.note || null, changes, versions: list.length };
 }
 
 /** The entries after the version last seen, up to the one running now, oldest first. */

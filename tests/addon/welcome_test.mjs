@@ -107,3 +107,17 @@ test('no news for this version: nothing shows, and the version is noted', () => 
   assert.ok(!news(vm));
   assert.equal(vm.evaluate('SpellmindDB.seenVersion'), '0.5.1');
 });
+
+test('What\'s new: the changes under the highlights; a version with only changes says "What\'s changed"; skipped versions\' changes too', () => {
+  const vm = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true, seenVersion = "0.4.7" }', before: 'NS.VERSION = "0.5.0"' }).login().advance(7);
+  assert.equal(vm.evaluate('SpellmindNews.alsoLabel:GetText()'), 'Also in this update');
+  assert.match(vm.evaluate('SpellmindNews.changes[1]:GetText()'), /Review my route/);
+  // Two versions later, the second with only changes.
+  const v2 = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true, seenVersion = "0.4.7" }', before: `NS.VERSION = "0.5.1"
+    table.insert(NS.Welcome.NEWS, { version = "0.5.1", changes = { "The arrow turns smoother." } })` }).login().advance(7);
+  assert.equal(v2.evaluate('SpellmindNews.headline:GetText()'), 'What\'s changed');
+  assert.equal(v2.evaluate('tostring(SpellmindNews.features[1] == nil or not SpellmindNews.features[1].title.shown)'), 'true', 'no highlights of its own');
+  assert.match(v2.evaluate('SpellmindNews.changes[1]:GetText()'), /0\.5\.1.*The arrow turns smoother/);
+  assert.match(v2.evaluate('SpellmindNews.changes[2]:GetText()'), /0\.5\.0.*Review my route/);
+  assert.equal(v2.evaluate('tostring(SpellmindNews.go.shown)'), 'false', 'nothing to try');
+});

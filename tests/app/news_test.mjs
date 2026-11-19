@@ -2,7 +2,7 @@
 // addon's copy of the words (Welcome.lua's WL.NEWS) the same as the app's.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { NEWS, newer, newsSince } from '../../core/news.mjs';
+import { NEWS, newer, newsSince, digest } from '../../core/news.mjs';
 import { newVM } from '../helpers/addon-vm.mjs';
 
 test('versions: newer by each number, not by text', () => {
@@ -31,6 +31,21 @@ test('the addon\'s words are the app\'s, word for word', () => {
     assert.equal(n.headline, want.headline);
     assert.equal(n.tagline, want.tagline);
     assert.equal(n.note, want.note);
-    assert.deepEqual(arr(n.features).map(f => [f.title, f.text]), want.features.map(f => [f.title, f.text]));
+    assert.deepEqual(arr(n.features).map(f => [f.title, f.text]), (want.features || []).map(f => [f.title, f.text]));
+    assert.deepEqual(arr(n.changes), [...(want.changes || [])]);
   });
+});
+
+test('the digest: the newest headline; every version\'s changes newest first, each with its version when there are more', () => {
+  const list = [
+    { version: '0.5.0', headline: 'Meet your quest route', features: [{ title: 'A', text: 'a' }], changes: ['first'] },
+    { version: '0.5.1', changes: ['a fix', 'another'] },
+  ];
+  const d = digest(list);
+  assert.equal(d.version, '0.5.1');
+  assert.equal(d.headline, 'What\'s changed', 'a version with only changes');
+  assert.deepEqual(d.features, []);
+  assert.deepEqual(d.changes.map(c => c.version + ' ' + c.text), ['0.5.1 a fix', '0.5.1 another', '0.5.0 first']);
+  assert.equal(d.versions, 2);
+  assert.equal(digest([]), null);
 });

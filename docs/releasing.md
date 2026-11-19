@@ -5,7 +5,7 @@ One version number for both parts: `app/desktop/package.json`, the addon's `## V
 ## A release
 
 1. Bump the version in the three places above (and `app/desktop/package-lock.json`'s top two `"version"` lines). Run `npm test`.
-   A version with something players should know about gets its What's new entry: `core/news.mjs` (the app's card after it updates) and the same words in `Welcome.lua`'s `WL.NEWS` (the game's window after the addon updates; a test keeps them equal). A version without one shows nothing.
+   A version with something players should know about gets its What's new entry: `core/news.mjs` (the app's card after it updates) and the same words in `Welcome.lua`'s `WL.NEWS` (the game's window after the addon updates; a test keeps them equal). A big feature gets a headline, a line under it and a few highlights (each saying what it does for the player); any version can list its changes plainly (`changes`), and one with only changes shows "What's changed". A player who skipped versions sees every change since theirs. A version without an entry shows nothing.
 2. Commit, then tag and push:
 
    ```

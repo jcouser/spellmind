@@ -104,3 +104,6 @@ input[type="text"]::placeholder, input[type="password"]::placeholder { color: #8
 .news .feature { display: flex; flex-direction: column; gap: 3px; margin: 0 0 12px; padding-left: 10px; border-left: 2px solid var(--line); }
 .news .feature strong { font-size: 13px; }
 .news .feature span { line-height: 1.45; opacity: .9; }
+.news h3 { margin: 6px 0 4px; font-size: 13px; color: var(--gold); font-weight: 600; }
+.news ul.changes { margin: 0 0 10px; padding-left: 18px; }
+.news ul.changes li { margin: 3px 0; line-height: 1.45; }

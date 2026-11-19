@@ -64,20 +64,27 @@ function draw(s) {
   pill.className = `pill ${s.summary.tone}`;
   $('pillText').textContent = s.summary.text;
 
-  // What's new since the version last seen (core/news.mjs): the newest, as an announcement, until Got it.
-  const news = Array.isArray(s.news) ? s.news : [];
-  $('newsCard').hidden = news.length === 0;
-  if (news.length) {
-    const n = news[news.length - 1];
+  // What's new since the version last seen (core/news.mjs's digest): the newest as an announcement,
+  // then every version's changes, until Got it.
+  const n = s.news && typeof s.news === 'object' && !Array.isArray(s.news) ? s.news : null;
+  $('newsCard').hidden = !n;
+  if (n) {
     $('newsTitle').textContent = `Updated to ${s.version}: what's new`;
     const body = $('newsBody');
     body.replaceChildren();
     const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-    body.append(el('p', 'headline', n.headline), el('p', 'tagline', n.tagline));
+    body.append(el('p', 'headline', n.headline));
+    if (n.tagline) body.append(el('p', 'tagline', n.tagline));
     for (const ft of n.features || []) {
       const row = el('div', 'feature');
       row.append(el('strong', null, ft.title), el('span', null, ft.text));
       body.append(row);
+    }
+    if (n.changes?.length) {
+      if (n.features?.length) body.append(el('h3', null, 'Also in this update'));
+      const ul = el('ul', 'changes');
+      for (const c of n.changes) ul.append(el('li', null, (n.versions > 1 ? c.version + '  ' : '') + c.text));
+      body.append(ul);
     }
     if (n.note) body.append(el('p', 'note', n.note));
   }

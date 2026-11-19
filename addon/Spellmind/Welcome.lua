@@ -41,7 +41,8 @@ function WL.IsOpen()
 end
 
 -- Each version's news, oldest first (core/news.mjs, word for word): a headline, a line under it, a few
--- highlights (each with a game icon here), a footnote, and what "Try it now" does.
+-- highlights (each with a game icon here), a footnote, and what "Try it now" does; and its changes,
+-- plainly (a version can have only those: "What's changed").
 WL.NEWS = {
 	{ version = "0.5.0", try = "route",
 		headline = "Meet your quest route",
@@ -52,7 +53,11 @@ WL.NEWS = {
 			{ icon = "Interface\\Icons\\Spell_Arcane_PortalStormWind", title = "Always know where to go next", text = "When a zone runs dry, Spellmind ranks the best zones for your level, counting your flight paths and hearthstone." },
 			{ icon = "Interface\\AddOns\\Spellmind\\Media\\Portrait", title = "Ask your AI about it", text = "Your AI sees the same route. Ask \"Review my route\" for what to skip, and why." },
 		},
-		note = "Works best with Questie installed. Find it all in the new Route tab." },
+		note = "Works best with Questie installed. Find it all in the new Route tab.",
+		changes = {
+			"The Quests tab's \"Plan my next hour\" is now \"Review my route\".",
+			"After each update, this window says what's new. /sm news shows it again.",
+		} },
 }
 
 -- What each news's "Try it now" does: the route on, and its tab.
@@ -235,6 +240,7 @@ local function BuildNews()
 	if f.tagline.SetWordWrap then f.tagline:SetWordWrap(true) end
 	if f.tagline.SetSpacing then f.tagline:SetSpacing(3) end
 	f.features = {}
+	f.changes = {}
 	f.note = f:CreateFontString(nil, "OVERLAY", "GameFontDisable")
 	f.note:SetWidth(inner)
 	f.note:SetJustifyH("LEFT")
@@ -278,6 +284,17 @@ local function Feature(f, k)
 	return row
 end
 
+local function Change(f, k)
+	local l = f.changes[k]
+	if l then return l end
+	l = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	l:SetJustifyH("LEFT")
+	l:SetWidth(WL.NEWS_W - 2 * WL.NEWS_PAD - 14)
+	if l.SetWordWrap then l:SetWordWrap(true) end
+	f.changes[k] = l
+	return l
+end
+
 function WL.ShowNews(list)
 	list = list or WL.Since("0", ns.VERSION)
 	if #list == 0 then list = { WL.NEWS[#WL.NEWS] } end
@@ -285,12 +302,13 @@ function WL.ShowNews(list)
 	local f = BuildNews()
 	local P = WL.NEWS_PAD
 	f.title:SetText("What's new in Spellmind " .. n.version)
-	f.headline:SetText(n.headline)
-	f.tagline:SetText(n.tagline)
+	f.headline:SetText(n.headline or "What's changed")
+	f.tagline:SetText(n.tagline or "")
+	if n.tagline then f.tagline:Show() else f.tagline:Hide() end
 	-- The highlights, each under the last, with room between them.
-	local y = -52 - (tonumber(f.headline:GetStringHeight()) or 22) - 10 - (tonumber(f.tagline:GetStringHeight()) or 30) - 22
+	local y = -52 - (tonumber(f.headline:GetStringHeight()) or 22) - 10 - (n.tagline and (tonumber(f.tagline:GetStringHeight()) or 30) or 0) - 22
 	for _, row in ipairs(f.features) do row.icon:Hide(); row.title:Hide(); row.text:Hide() end
-	for k, ft in ipairs(n.features) do
+	for k, ft in ipairs(n.features or {}) do
 		local row = Feature(f, k)
 		row.icon:SetTexture(ft.icon)
 		row.icon:ClearAllPoints()
@@ -305,6 +323,33 @@ function WL.ShowNews(list)
 		local h = (tonumber(row.title:GetStringHeight()) or 16) + 4 + (tonumber(row.text:GetStringHeight()) or 28)
 		y = y - math.max(36, h) - 18
 	end
+	-- The changes: every version's since the one last seen, newest first ("Also in this update" under
+	-- highlights; on their own, the headline says it).
+	local lines = {}
+	for k = #list, 1, -1 do
+		for _, c in ipairs(list[k].changes or {}) do
+			lines[#lines + 1] = (#list > 1 and ("|cff888888" .. list[k].version .. "|r  ") or "") .. c
+		end
+	end
+	for _, l in ipairs(f.changes) do l:Hide() end
+	f.alsoLabel = f.alsoLabel or f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	f.alsoLabel:Hide()
+	if #lines > 0 and #(n.features or {}) > 0 then
+		f.alsoLabel:SetText("Also in this update")
+		f.alsoLabel:ClearAllPoints()
+		f.alsoLabel:SetPoint("TOPLEFT", f, "TOPLEFT", P, y)
+		f.alsoLabel:Show()
+		y = y - 22
+	end
+	for k, text in ipairs(lines) do
+		local l = Change(f, k)
+		l:SetText("|cffffd100•|r  " .. text)
+		l:ClearAllPoints()
+		l:SetPoint("TOPLEFT", f, "TOPLEFT", P + 4, y)
+		l:Show()
+		y = y - (tonumber(l:GetStringHeight()) or 14) - 8
+	end
+	if #lines > 0 then y = y - 10 end
 	f.note:SetText(n.note or "")
 	f.note:ClearAllPoints()
 	f.note:SetPoint("TOPLEFT", f, "TOPLEFT", P, y - 2)

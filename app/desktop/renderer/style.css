@@ -98,3 +98,7 @@ input[type="text"]::placeholder, input[type="password"]::placeholder { color: #8
 .steps li button { float: right; margin-left: 10px; padding: 2px 10px; line-height: 1.45; }
 .note.err { color: var(--bad); }
 .note.good { color: var(--good); }
+/* What's new after an update. */
+.news h3 { margin: 8px 0 4px; font-size: 13px; color: var(--gold); font-weight: 600; }
+.news ul { margin: 0 0 8px; padding-left: 18px; }
+.news li { margin: 2px 0; line-height: 1.4; }

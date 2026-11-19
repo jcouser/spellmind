@@ -64,6 +64,22 @@ function draw(s) {
   pill.className = `pill ${s.summary.tone}`;
   $('pillText').textContent = s.summary.text;
 
+  // What's new since the version last seen (core/news.mjs), newest first, until Got it.
+  const news = Array.isArray(s.news) ? s.news : [];
+  $('newsCard').hidden = news.length === 0;
+  if (news.length) {
+    $('newsTitle').textContent = `Updated to ${s.version}: what's new`;
+    const body = $('newsBody');
+    body.replaceChildren();
+    for (const n of news.slice().reverse()) {
+      const h = document.createElement('h3');
+      h.textContent = n.title;
+      const ul = document.createElement('ul');
+      for (const line of n.lines) { const li = document.createElement('li'); li.textContent = line; ul.append(li); }
+      body.append(h, ul);
+    }
+  }
+
   // Setup: what's still to do, in order.
   // Each step with its own button, so nothing says "below" (the review: the folder's button was under
   // the fold). Only the next step to do has one.
@@ -293,6 +309,7 @@ function saveKey() {
     return `${other}${r.card}: key saved and working.`;
   }, { box: 'keyErr', busyText: 'Testing…' });
 }
+$('newsOk').addEventListener('click', () => act($('newsOk'), () => sm.seenNews()));
 $('saveKey').addEventListener('click', saveKey);
 $('keyInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveKey(); });
 $('removeKey').addEventListener('click', () => act($('removeKey'), () => sm.removeKey(viewing), 'Key removed.', { box: 'keyErr' }));

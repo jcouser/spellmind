@@ -634,7 +634,7 @@ C.HELP = {
 	"  /sm quests, dungeons, gear, talents, spells, professions, gold, nudges, settings: open that tab.",
 	"  /sm guide <link>: your leveling guide, read by your AI.",
 	"  /sm nudges on/off/reset · /sm marks on/off · /sm data, or data on/off · /sm minimap on/off.",
-	"  /sm app: where to get the free Spellmind app (the chat needs it; every other tab works without).  /sm welcome: the first-time welcome again.",
+	"  /sm app: where to get the free Spellmind app (the chat needs it; every other tab works without).  /sm welcome: the first-time welcome again.  /sm news: what's new in this version.",
 }
 C.TAB_WORDS = { chat = "chat", quests = "quests", quest = "quests", dungeons = "dungeons", dungeon = "dungeons", gear = "gear",
 	talents = "talents", spells = "spells", professions = "professions", profs = "professions", gold = "gold", settings = "settings" }
@@ -692,6 +692,11 @@ SlashCmdList.SPELLMIND = function(msg)
 	-- /sm arrow: the route's arrow (Route.lua), shown (with the tracker) or hidden.
 	if lower == "arrow" and ns.Route and ns.db then
 		ns.Route.ToggleArrow()
+		return
+	end
+	-- /sm news: what's new in this version (Welcome.lua).
+	if lower == "news" and ns.Welcome and ns.db then
+		ns.Welcome.ShowNews()
 		return
 	end
 	-- /sm welcome: the first-time welcome again (Welcome.lua).

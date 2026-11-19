@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dataDir, readConfig, writeConfig } from '../../core/app/runner.mjs';
+import { newsSince } from '../../core/news.mjs';
 import { createSupervisor } from '../../core/app/supervisor.mjs';
 import { aiChoices, applyAI } from '../../core/app/settings.mjs';
 import { createAISetup } from '../../core/app/ai.mjs';
@@ -254,6 +255,19 @@ function summary() {
   return { tone: 'idle', text: 'Waiting for WoW' };
 }
 
+// What's new after the app updated itself (core/news.mjs): the entries after config.json's seenVersion.
+// A first run (nothing set up yet) has none to show; a setup from before seenVersion existed shows this
+// version's (the player, 2026-11-19: updating from 0.4 to the route should say so).
+function newsState() {
+  const cfg = readConfig(DATA);
+  const current = app.getVersion();
+  if (!cfg.seenVersion) {
+    if (Object.keys(cfg).length === 0) { writeConfig(DATA, { seenVersion: current }); return []; }
+    return newsSince('0', current);
+  }
+  return cfg.seenVersion === current ? [] : newsSince(cfg.seenVersion, current);
+}
+
 async function fullStatus() {
   const cfg = readConfig(DATA);
   const wow = cfg.wow || null;
@@ -275,6 +289,7 @@ async function fullStatus() {
     app: appSettings(),
     update: updates ? updates.state() : { phase: 'off' },
     activity: activity.slice().reverse(),
+    news: newsState(),
   };
 }
 
@@ -520,6 +535,8 @@ const CALLS = {
     return r;
   },
   restartLink: async () => { note('Restarting the link.'); await sup.restart(); return { ok: true }; },
+  // What's new, read: not shown again until the next version.
+  seenNews: async () => { writeConfig(DATA, { ...readConfig(DATA), seenVersion: app.getVersion() }); pushStatus(); return { ok: true }; },
   openLogs: async () => { await shell.openPath(DATA); return { ok: true }; },
 };
 

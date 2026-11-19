@@ -62,3 +62,44 @@ test('Open the panel: the welcome closes and the Quests tab opens', () => {
   assert.ok(!open(vm));
   assert.equal(vm.evaluate('NS.Panel.tab'), 'quests');
 });
+
+// What's new (the player, 2026-11-19: the route is a big one). The addon at 0.5.0 here.
+const news = vm => vm.evaluate('tostring(SpellmindNews ~= nil and SpellmindNews.shown)') === 'true';
+
+test('updated from an earlier version: What\'s new once, 6 s after login, with the route\'s buttons; /sm news again', () => {
+  const vm = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true, seenVersion = "0.4.7" }', before: 'NS.VERSION = "0.5.0"' }).login();
+  vm.advance(7);
+  assert.ok(news(vm));
+  assert.ok(!open(vm), 'not the welcome');
+  assert.equal(vm.evaluate('SpellmindNews.title:GetText()'), 'What\'s new in Spellmind 0.5.0');
+  assert.match(vm.evaluate('SpellmindNews.body:GetText()'), /The quest route[\s\S]*An arrow points at the current step/);
+  assert.equal(vm.evaluate('SpellmindDB.seenVersion'), '0.5.0');
+  // Turn on the route, from here.
+  assert.equal(vm.evaluate('tostring(SpellmindNews.route.shown)'), 'true');
+  vm.run('SpellmindNews.route.scripts.OnClick(SpellmindNews.route)');
+  assert.equal(vm.evaluate('tostring(NS.Route.On())'), 'true');
+  assert.equal(vm.evaluate('tostring(SpellmindNews.route.shown)'), 'false');
+  vm.run('SpellmindNews.tab.scripts.OnClick(SpellmindNews.tab)');
+  assert.ok(!news(vm));
+  assert.equal(vm.evaluate('NS.Panel.tab'), 'route');
+  // Not again for this version; /sm news shows it.
+  vm.run('NS.Welcome.MaybeShow()');
+  assert.ok(!news(vm));
+  vm.slash('news');
+  assert.ok(news(vm));
+});
+
+test('a new account: the welcome (which names the route), not What\'s new; an old account from before seenVersion gets it', () => {
+  const fresh = newVM({ welcome: true, before: 'NS.VERSION = "0.5.0"' }).login().advance(7);
+  assert.ok(open(fresh) && !news(fresh));
+  assert.match(fresh.evaluate('SpellmindWelcome.intro:GetText()'), /The quest route/);
+  assert.equal(fresh.evaluate('SpellmindDB.seenVersion'), '0.5.0');
+  const old = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true }', before: 'NS.VERSION = "0.5.0"' }).login().advance(7);
+  assert.ok(news(old), 'welcomed before seenVersion existed: an update');
+});
+
+test('no news for this version: nothing shows, and the version is noted', () => {
+  const vm = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true, seenVersion = "0.5.0" }', before: 'NS.VERSION = "0.5.1"' }).login().advance(7);
+  assert.ok(!news(vm));
+  assert.equal(vm.evaluate('SpellmindDB.seenVersion'), '0.5.1');
+});

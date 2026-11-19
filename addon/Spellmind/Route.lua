@@ -1334,13 +1334,26 @@ end
 
 -- Something changed what the route should be (the log, the zone, a level): rebuilt a moment later,
 -- once however many events came, never in combat (it waits for the fight to end).
+-- On a flight path (the player, 2026-11-19: the route kept changing to each zone flown over): the
+-- route holds still, and is built again where the player lands.
+function RT.OnTaxi() return Try(rawget(_G, "UnitOnTaxi"), "player") and true or false end
+function RT.Landed()
+	R.routeAfterTaxi = nil
+	R.routePlan, R.routeWay, R.routeTrailWay, R.routeWhere = nil, nil, nil, nil
+	RT.Dirty()
+end
+ns.On("PLAYER_CONTROL_GAINED", function() if R.routeAfterTaxi and not RT.OnTaxi() then RT.Landed() end end)
+
 function RT.Dirty()
+	if RT.OnTaxi() then R.routeAfterTaxi = true; return end
 	if not RT.Shown() then R.routeStale = true; return end
 	if R.routeTimer then return end
 	R.routeTimer = true
 	C_Timer.After(RT.REBUILD_DELAY, function()
 		R.routeTimer = nil
 		if InCombat() then R.routeStale = true; return end
+		-- A rebuild asked for just before takeoff waits for the landing too.
+		if RT.OnTaxi() then R.routeAfterTaxi = true; return end
 		RT.Build()
 		RT.Refresh()
 	end)
@@ -2084,7 +2097,7 @@ RT.AHEAD = 0.35 -- radians either side of straight on: the arrow goes green
 RT.WAY_KEEP = 5
 function RT.WayTo(key, target)
 	local c = R.routeWay
-	if c and c.key == key and GetTime() - c.at < RT.WAY_KEEP then return c.way end
+	if c and c.key == key and (GetTime() - c.at < RT.WAY_KEEP or RT.OnTaxi()) then return c.way end
 	local me = RT.PlayerWorld()
 	local way = me and target and RT.Travel(me, target, RT.Speed()) or nil
 	R.routeWay = { key = key, at = GetTime(), way = way }
@@ -2275,6 +2288,7 @@ function RT.ArrowUpdate()
 		a.text:SetText(text or "")
 		a.sub:SetText(sub or "")
 	end
+	if RT.OnTaxi() then return Still("", "|cff9d7dffIn flight|r", "The route picks up where you land.") end
 	if not t then return Still("", "|cff19ff19Nothing left on the route here.|r") end
 	if t.hearth then return Still("", t.text, t.sub) end
 	local me = RT.PlayerWorld()
@@ -2742,6 +2756,7 @@ function RT.NoteFlight()
 			ns.db.routeFlightTimes = type(ns.db.routeFlightTimes) == "table" and ns.db.routeFlightTimes or {}
 			ns.db.routeFlightTimes[t.from .. ">" .. to.name] = math.floor(GetTime() - t.at + 0.5)
 		end
+		if R.routeAfterTaxi then RT.Landed() end
 	end
 	if not onTaxi then R.routeGround = w end
 end
@@ -3145,7 +3160,7 @@ end
 -- second; as the player goes, the next plan starts where they are, so the legs advance).
 function RT.PlanTo(key, to, destTip, destZone)
 	local c = R.routePlan
-	if c and c.key == key and GetTime() - c.at < RT.WAY_KEEP then return c.legs end
+	if c and c.key == key and (GetTime() - c.at < RT.WAY_KEEP or RT.OnTaxi()) then return c.legs end
 	local here = RT.Here()
 	local legs
 	if here and to.map then
@@ -3389,7 +3404,7 @@ end
 -- The trail from where the player stands to a world spot, kept a few seconds per target.
 function RT.TrailTo(key, target)
 	local c = R.routeTrailWay
-	if c and c.key == key and GetTime() - c.at < RT.WAY_KEEP then return c.path end
+	if c and c.key == key and (GetTime() - c.at < RT.WAY_KEEP or RT.OnTaxi()) then return c.path end
 	local me = RT.PlayerWorld()
 	local path = me and target and RT.TrailBetween(me, target) or nil
 	R.routeTrailWay = { key = key, at = GetTime(), path = path }

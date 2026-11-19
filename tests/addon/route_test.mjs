@@ -1386,3 +1386,21 @@ test('done here with a zone chosen: the band names the chosen one, "Or" offers t
   assert.ok(or.some(x => /Ironforge/.test(x)), `Ironforge under Or now: ${JSON.stringify(or)}`);
   assert.ok(!or.some(x => /Westfall/.test(x)), 'not Westfall twice');
 });
+
+test('on a flight path the route holds still; it\'s built again where you land (the player, 2026-11-19: it changed with each zone flown over)', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run('STUB.onTaxi = false; UnitOnTaxi = function() return STUB.onTaxi end');
+  vm.slash('route');
+  assert.equal(vm.evaluate('NS.R.route.zone'), 'Loch Modan');
+  // Taking off; flying over Westfall.
+  vm.run('STUB.onTaxi = true; NS.Route.NoteFlight()');
+  vm.run('STUB.player.map, STUB.player.zone, STUB.player.x, STUB.player.y = 1436, "Westfall", 0.5, 0.5; STUB.FireEvent("ZONE_CHANGED_NEW_AREA")');
+  vm.advance(3);
+  assert.equal(vm.evaluate('NS.R.route.zone'), 'Loch Modan', 'held');
+  vm.run('NS.Route.ArrowUpdate()');
+  assert.match(vm.evaluate('SpellmindArrow.text:GetText()'), /In flight/);
+  // Landed: built again here.
+  vm.run('STUB.onTaxi = false; STUB.FireEvent("PLAYER_CONTROL_GAINED")');
+  vm.advance(3);
+  assert.equal(vm.evaluate('NS.R.route.zone'), 'Westfall');
+});

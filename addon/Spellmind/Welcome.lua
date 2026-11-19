@@ -68,6 +68,7 @@ WL.NEWS = {
 			"The Quests tab's \"Plan my next hour\" is now \"Review my route\".",
 			"After each update, this window says what's new. /sm news shows it again.",
 			"A quest handed in in another zone is planned as a trip there and back when what it opens here makes it worth it.",
+			"The arrow and the map's lines follow the roads you've walked: Spellmind learns them as you go, on your PC only.",
 		} },
 }
 

@@ -555,7 +555,15 @@ function Tabs.route()
 	Switch("The arrow", "Points at the current step, with the yards to it.", RT.ArrowOn(), RT.SetArrow, true, not on)
 	Switch("Steps on the world map", "Numbered, with each objective's area shaded.", RT.MapOn(), RT.SetMap, true, not on)
 	Switch("Current step on the minimap", "Your current step, and the next one when it's in view. On the edge with an arrow when it's farther.", RT.MinimapOn(), RT.SetMinimap, true, not on)
-	Switch("Lines on the world map", "From you to the current step, and on through the next ones (straight, for now).", RT.LinesOn(), RT.SetLines, true, not on or not RT.MapOn())
+	Switch("Lines on the world map", "From you to the current step, and on through the next ones, along the trails you've walked.", RT.LinesOn(), RT.SetLines, true, not on or not RT.MapOn())
+	-- Trails learned from walking: on this PC only.
+	local trailN = RT.TrailCount and RT.TrailCount() or 0
+	Switch("Learn trails as I walk", "The roads you walk become the arrow's and the lines' way, on this PC only. " .. trailN .. " point" .. (trailN == 1 and "" or "s") .. " so far.",
+		not ns.db.routeTrailsOff, function(v) ns.db.routeTrailsOff = (not v) or nil end, true, not on)
+	if trailN > 0 then
+		out[#out + 1] = { kind = "item", indent = true, left = "Forget my trails", sub = "|cff888888Every trail on this PC, for every character.|r",
+			actions = { { "Forget", function() RT.ForgetTrails(); P.Show("route", true) end, tip = "They're gone for good." } } }
+	end
 	-- What the route plans for: questing here, or a dungeon's prep (the player, 2026-11-19).
 	local mode, prep = RT.Mode()
 	out[#out + 1] = { kind = "item", left = "Plan for", sub = "|cff888888" .. (mode == "dungeon" and ("Getting ready for " .. ns.Escape(prep) .. ": its quests and the questlines that open them, then the way in.")

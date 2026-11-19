@@ -1201,3 +1201,65 @@ test('travel times as measured (AzerothGPS\'s planner): 32 yards a second and 15
   assert.equal(vm.num('SpellmindDB.routeFlightTimes["Thelsamar, Loch Modan>Sentinel Hill, Westfall"]'), 200);
   assert.ok(Math.abs(vm.num(`NS.Route.FlightMinutes({ name = "Thelsamar, Loch Modan", x = 0, y = 0 }, { name = "Sentinel Hill, Westfall", x = 1, y = 0 })`) - (200 / 60 + 0.25)) < 1e-9, 'its own time next');
 });
+
+// Trails: a walk recorded, then the way that follows it. Loch Modan is 3000 x 2000 yards in the stub:
+// 1% is 30 yards east-west, 20 yards north-south.
+const WALK = (vm, pts) => { for (const [x, y] of pts) vm.run(`STUB.player.x, STUB.player.y = ${x}, ${y}; NS.Route.NoteOutside()`); };
+
+test('trails (the player, 2026-11-19): a point every 10 yards as you walk, the same road walked again merged into it; Forget', () => {
+  const vm = session();
+  vm.slash('route');
+  // East along y = 40%, from 40% to 50% (300 yards), a step of 0.5% (15 yards) at a time.
+  const east = []; for (let x = 40; x <= 50; x += 0.5) east.push([x / 100, 0.40]);
+  WALK(vm, east);
+  const n1 = vm.num('NS.Route.TrailCount()');
+  assert.ok(n1 >= 19 && n1 <= 22, `a point a step: ${n1}`);
+  // Back the same way, 8 yards to the north: the same points.
+  WALK(vm, east.slice().reverse().map(([x, y]) => [x, y - 0.004]));
+  assert.ok(vm.num('NS.Route.TrailCount()') <= n1 + 2, 'merged, not a second road');
+  // A jump (a portal, a loading screen) breaks it: no line across.
+  vm.run('NS.Route.ForgetTrails()');
+  assert.equal(vm.num('NS.Route.TrailCount()'), 0);
+});
+
+test('the way along a trail: around a bend instead of straight over it; the arrow aims ahead along it, the yards along it', () => {
+  const vm = session();
+  vm.run(MAP);
+  vm.slash('route');
+  // A trail from where the player stands (40, 40) south to (40, 60), then west to the rats' (20, 60) and north to them (20, 21).
+  const pts = [];
+  for (let y = 40; y <= 60; y += 0.5) pts.push([0.40, y / 100]);
+  for (let x = 40; x >= 20; x -= 0.5) pts.push([x / 100, 0.60]);
+  for (let y = 60; y >= 21; y -= 0.5) pts.push([0.20, y / 100]);
+  WALK(vm, pts);
+  // Back where we started.
+  vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40; NS.R.routeTrailWay = nil; NS.R.routeTrailAt = nil');
+  const c = vm.json('NS.Route.Current()');
+  const path = vm.json(`NS.Route.TrailBetween(NS.Route.PlayerWorld(), NS.Route.World(1432, ${c.x}, ${c.y}))`);
+  const list = Array.isArray(path) ? path : Object.values(path || {});
+  assert.ok(list.length >= 3 && list.length <= 6, `its bends kept, the rest simplified: ${list.length}`);
+  // The arrow aims south, along the trail, not north-west straight at the rats.
+  vm.run('STUB.player.facing = 0; NS.Route.ArrowUpdate()');
+  const turn = vm.num('SpellmindArrow.tex.rotation');
+  assert.ok(Math.abs(Math.abs(turn) - Math.PI) < 0.3, `south: ${turn}`);
+  assert.ok(vm.num('SpellmindArrow.yards') > 1000, `the yards along the trail (400 + 600 + 780), not the 710 straight: ${vm.num('SpellmindArrow.yards')}`);
+  // The map's gold line follows it: more than one part.
+  vm.run('NS.Route.DrawMap()');
+  assert.ok(vm.num('NS.Route.marks.linesShown') >= 4, 'the trail\'s bends drawn');
+  // No trail near: straight, as before.
+  vm.run('NS.Route.ForgetTrails(); NS.R.routeTrailWay = nil; NS.Route.ArrowUpdate()');
+  const straight = Math.atan2((40 - c.x) * 30, (40 - c.y) * 20);
+  assert.ok(Math.abs(vm.num('SpellmindArrow.tex.rotation') - straight) < 1e-6);
+});
+
+test('a trail far from the way is left: the straight way stands', () => {
+  const vm = session();
+  vm.slash('route');
+  // A long loop far east, away from the way to the rats.
+  const pts = [];
+  for (let x = 40; x <= 90; x += 0.5) pts.push([x / 100, 0.40]);
+  WALK(vm, pts);
+  vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40');
+  const c = vm.json('NS.Route.Current()');
+  assert.equal(vm.evaluate(`tostring(NS.Route.TrailBetween(NS.Route.PlayerWorld(), NS.Route.World(1432, ${c.x}, ${c.y})))`), 'nil');
+});

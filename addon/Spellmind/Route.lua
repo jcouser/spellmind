@@ -2006,7 +2006,7 @@ function RT.ArrowTarget()
 			local dir = RT.Heading(target)
 			return { world = target, text = text, sub = dir and ("head " .. dir .. " to " .. (cur.zoneName or "the next zone")) or nil, legs = legs, away = true }
 		end
-		return { world = target, text = text }
+		return { world = target, text = text, path = RT.TrailTo(cur.key, target), step = cur }
 	end
 	z = z or RT.WhereLines(route)[1]
 	if not z then return nil end
@@ -2145,7 +2145,10 @@ function RT.ArrowUpdate()
 	if not me or type(facing) ~= "number" then return Still("|cff888888No position in here|r", t.text, t.sub) end
 	if not t.world then return Still("", t.text, t.sub) end
 	if t.world.c ~= me.c then return Still("|cff888888On another continent|r", t.text, t.sub) end
-	local turn, yards = RT.Bearing(me, t.world, facing)
+	local aim, along = t.world, nil
+	if t.path then aim, along = RT.LookAhead(me, t.path, t.world) end
+	local turn, yards = RT.Bearing(me, aim, facing)
+	yards = along or yards
 	if yards <= RT.ARRIVE_YARDS then return Still("|cff19ff19You're there|r", t.text, t.sub) end
 	a.tex:Show()
 	a.tex:SetRotation(turn)
@@ -2391,12 +2394,29 @@ function RT.DrawMap()
 	marks.shown = nd
 	local lines = RT.LinesOn()
 	local me = lines and PlayerOnMap(shownMap, route, cw, ch) or nil
+	-- A line from a point to another along a trail's points between them (world spots) when there's one,
+	-- else straight; live: its first part is the one that follows the player.
+	local function Along(from, to, interior, r, g, b, live)
+		local pts = {}
+		for _, w in ipairs(interior or {}) do
+			local x, y = OnMapRaw(w, shownMap)
+			if x then pts[#pts + 1] = { x / 100 * cw, y / 100 * ch } end
+		end
+		pts[#pts + 1] = to
+		local at = from
+		for k, c in ipairs(pts) do
+			local first = live and k == 1
+			local l = MapLine(layer, at[1], at[2], c[1], c[2], r, g, b, first and 0.9 or 0.7, live and 3 or 2)
+			if first then marks.live = { line = l, to = c } end
+			at = c
+		end
+	end
 	local t = RT.ArrowTarget()
 	local away = t and t.zone
 	-- The route's line (the player, 2026-11-19, as NeverQuestAlone draws its): from the player to the
 	-- current step in gold, kept live as they move, then on through the next steps in purple.
 	if lines then
-		if me and path[1] and not away then marks.live = { line = MapLine(layer, me[1], me[2], path[1][1], path[1][2], 1, 0.82, 0, 0.9, 3), to = path[1] } end
+		if me and path[1] and not away then Along(me, path[1], path[1].now and t and t.path or nil, 1, 0.82, 0, true) end
 		for k = 1, #path - 1 do MapLine(layer, path[k][1], path[k][2], path[k + 1][1], path[k + 1][2], 0.62, 0.49, 1, 0.7, 2) end
 	end
 	-- The way somewhere else (the player, 2026-11-19: with the pins gone a chosen zone showed nothing, and
@@ -2414,7 +2434,7 @@ function RT.DrawMap()
 		local edge = false
 		if x and leg.dest and stepHere then
 			-- Its numbered dot is here already: the line ends on it, no second mark.
-			legPts[#legPts + 1] = { x / 100 * cw, y / 100 * ch }
+			legPts[#legPts + 1] = { x / 100 * cw, y / 100 * ch, path = leg.path }
 			break
 		end
 		if not x and prev then
@@ -2436,7 +2456,7 @@ function RT.DrawMap()
 			last.num:SetText("\194\187" .. last.count)
 			if edge then break end
 		elseif x then
-			legPts[#legPts + 1] = { x / 100 * cw, y / 100 * ch }
+			legPts[#legPts + 1] = { x / 100 * cw, y / 100 * ch, path = leg.path }
 			marks.legsShown = marks.legsShown + 1
 			local d = Dot(layer, marks.legsShown, marks.legs)
 			d.at, d.count = { x / 100 * cw, y / 100 * ch }, 1
@@ -2456,8 +2476,8 @@ function RT.DrawMap()
 	end
 	-- Its line, in green: from the player (live) through each leg this map shows.
 	if lines and #legPts > 0 then
-		if me then marks.live = { line = MapLine(layer, me[1], me[2], legPts[1][1], legPts[1][2], 0.3, 0.95, 0.4, 0.9, 3), to = legPts[1] } end
-		for k = 1, #legPts - 1 do MapLine(layer, legPts[k][1], legPts[k][2], legPts[k + 1][1], legPts[k + 1][2], 0.3, 0.95, 0.4, 0.7, 2) end
+		if me then Along(me, legPts[1], legPts[1].path, 0.3, 0.95, 0.4, true) end
+		for k = 1, #legPts - 1 do Along(legPts[k], legPts[k + 1], legPts[k + 1].path, 0.3, 0.95, 0.4) end
 	end
 end
 
@@ -2599,6 +2619,7 @@ function RT.NoteOutside()
 		if a and b and a.c == b.c and Dist(a, b) <= RT.CROSS_YARDS then RT.LearnCrossing(prev, here) end
 	end
 	R.routeOutside = { map = here.map, x = here.x, y = here.y, zone = here.zone }
+	pcall(RT.NoteTrail, World(here.map, here.x, here.y))
 end
 local function Inside()
 	local inst, kind = Try(rawget(_G, "IsInInstance"))
@@ -2948,19 +2969,20 @@ function RT.PlanLegs(path, destTip, destZone)
 	for k = 2, #path do
 		local p, n = path[k], path[k].node
 		local nxt = path[k + 1]
+		local walked = p.how == "walk" and path[k - 1].node.w and RT.TrailBetween(path[k - 1].node.w, n.w) or nil
 		if n.kind == "dest" then
-			legs[#legs + 1] = { world = n.w, map = n.map, tip = destTip, zone = destZone, dest = true }
+			legs[#legs + 1] = { path = walked, world = n.w, map = n.map, tip = destTip, zone = destZone, dest = true }
 		elseif p.how == "hearth" then
-			legs[#legs + 1] = { world = n.w, map = n.map, hearth = true, tip = { "Use your hearthstone", "To " .. tostring(n.name) }, zone = ZoneOf(n.map) }
+			legs[#legs + 1] = { path = walked, world = n.w, map = n.map, hearth = true, tip = { "Use your hearthstone", "To " .. tostring(n.name) }, zone = ZoneOf(n.map) }
 		elseif n.kind == "fp" and p.how == "fly" then
-			legs[#legs + 1] = { world = n.w, map = n.map, tip = { "Fly to " .. Short(n.name), "Land at the flight master there" }, zone = ZoneOf(n.map) }
+			legs[#legs + 1] = { path = walked, world = n.w, map = n.map, tip = { "Fly to " .. Short(n.name), "Land at the flight master there" }, zone = ZoneOf(n.map) }
 		elseif n.kind == "fp" and nxt and nxt.how == "fly" then
-			legs[#legs + 1] = { world = n.w, map = n.map, tip = { (n.npc and (n.npc .. ", the flight master at ") or "Flight master at ") .. Short(n.name), "Fly to " .. Short(nxt.node.name) }, zone = ZoneOf(n.map) }
+			legs[#legs + 1] = { path = walked, world = n.w, map = n.map, tip = { (n.npc and (n.npc .. ", the flight master at ") or "Flight master at ") .. Short(n.name), "Fly to " .. Short(nxt.node.name) }, zone = ZoneOf(n.map) }
 		elseif n.kind == "link" and nxt and nxt.node == n.other then
 			-- The near side of a crossing (the far side is the same place): cross, or take the tram or boat.
 			local l, into = n.link, ZoneOf(n.other.map) or "the next zone"
 			local title = (l.how == "tram" or l.how == "boat") and ("Take " .. (l.name or ("the " .. l.how))) or ("Cross into " .. into)
-			legs[#legs + 1] = { world = n.w, map = n.map, tip = { title, (l.how == "road" and l.name) and ("By " .. l.name .. (l.learned and "" or " (about here)")) or ("To " .. into) }, zone = ZoneOf(n.map), crossing = true }
+			legs[#legs + 1] = { path = walked, world = n.w, map = n.map, tip = { title, (l.how == "road" and l.name) and ("By " .. l.name .. (l.learned and "" or " (about here)")) or ("To " .. into) }, zone = ZoneOf(n.map), crossing = true }
 		end
 	end
 	return legs
@@ -2987,5 +3009,255 @@ function RT.PlanTarget(legs)
 	if not first then return nil end
 	local thenLine = second and ("then " .. second.tip[1]:gsub("^%u", string.lower)) or first.tip[2]
 	if first.hearth then return { hearth = true, text = first.tip[1], sub = first.tip[2] .. (second and (", " .. thenLine) or ""), legs = legs, away = true } end
-	return { world = first.world, text = first.tip[1], sub = thenLine, legs = legs, away = true }
+	return { world = first.world, text = first.tip[1], sub = thenLine, legs = legs, away = true, path = first.path }
+end
+
+---------------------------------------------------------------------------
+-- Trails learned from walking (the player, 2026-11-19: "learned trails, offline for now"): the paths the
+-- player walks while the route is on, kept as a road network on this PC only, so the arrow and the
+-- lines follow them instead of a straight line over a ridge. Ideas from studying AzerothGPS (none of
+-- its code or data): a point every 10 yards, a walk near an old one merged into it, the ends joined to
+-- the nearest trail, walking off it dearer than along it and a straight line dearest, and the arrow
+-- aimed a little way ahead along the way.
+---------------------------------------------------------------------------
+
+RT.TRAIL_STEP = 10 -- yards between a trail's points
+RT.TRAIL_MERGE = 12 -- a point this near an old one is that one (the same road walked again)
+RT.TRAIL_JUMP = 40 -- farther in one tick is a loading screen, a flight or a portal: the trail breaks
+RT.TRAIL_CELL = 25 -- the index's cells
+RT.TRAIL_JOIN = 150 -- how far to look for a trail from where a way starts or ends
+RT.TRAIL_ENDS = 4 -- the trail points tried at each end
+RT.TRAIL_MAX = 15000 -- points kept, at most (a saved file holds about 262,000 values in all, AzerothGPS's notes say)
+-- yards cost: off a trail, and a straight line with no trail. A straight line costs 3 here, not the 2 AzerothGPS
+-- uses: it knows whether the straight line is blocked (its terrain), Spellmind doesn't, and a trail walked is a way
+-- that exists.
+RT.OFF_TRAIL, RT.STRAIGHT = 1.25, 3
+RT.LOOK_NEAR, RT.LOOK_FAR = 36, 84 -- the arrow aims at the trail's points this far ahead, averaged
+
+-- SpellmindDB.routeTrails[continent] = { x = {}, y = {}, e = { a1, b1, a2, b2, … } } (world yards); the
+-- session's adjacency and index built from it on first use.
+local trails = {}
+local function Trail(c)
+	ns.db.routeTrails = type(ns.db.routeTrails) == "table" and ns.db.routeTrails or {}
+	local saved = ns.db.routeTrails[c]
+	if type(saved) ~= "table" then saved = { x = {}, y = {}, e = {} }; ns.db.routeTrails[c] = saved end
+	local T = trails[c]
+	if T and T.saved == saved then return T end
+	T = { saved = saved, adj = {}, grid = {} }
+	trails[c] = T
+	local function Cell(x, y) return math.floor(x / RT.TRAIL_CELL) .. ":" .. math.floor(y / RT.TRAIL_CELL) end
+	T.Cell = Cell
+	for i = 1, #saved.x do
+		local k = Cell(saved.x[i], saved.y[i])
+		T.grid[k] = T.grid[k] or {}
+		table.insert(T.grid[k], i)
+		T.adj[i] = {}
+	end
+	for k = 1, #saved.e, 2 do
+		local a, b = saved.e[k], saved.e[k + 1]
+		if T.adj[a] and T.adj[b] then table.insert(T.adj[a], b); table.insert(T.adj[b], a) end
+	end
+	return T
+end
+RT.Trail = Trail
+
+-- The trail points within r yards of a spot, nearest first: { { i, d } }.
+local function Near(T, x, y, r, max)
+	local out = {}
+	local cx, cy = math.floor(x / RT.TRAIL_CELL), math.floor(y / RT.TRAIL_CELL)
+	local reach = math.ceil(r / RT.TRAIL_CELL)
+	for i = cx - reach, cx + reach do
+		for j = cy - reach, cy + reach do
+			for _, n in ipairs(T.grid[i .. ":" .. j] or {}) do
+				local d = math.sqrt((T.saved.x[n] - x) ^ 2 + (T.saved.y[n] - y) ^ 2)
+				if d <= r then out[#out + 1] = { n, d } end
+			end
+		end
+	end
+	table.sort(out, function(a, b) return a[2] < b[2] end)
+	while max and #out > max do table.remove(out) end
+	return out
+end
+
+local function AddPoint(T, x, y)
+	local s = T.saved
+	if #s.x >= RT.TRAIL_MAX then return nil end
+	local i = #s.x + 1
+	s.x[i], s.y[i] = math.floor(x * 10 + 0.5) / 10, math.floor(y * 10 + 0.5) / 10
+	local k = T.Cell(s.x[i], s.y[i])
+	T.grid[k] = T.grid[k] or {}
+	table.insert(T.grid[k], i)
+	T.adj[i] = {}
+	return i
+end
+local function Join(T, a, b)
+	if not a or not b or a == b then return end
+	for _, n in ipairs(T.adj[a]) do if n == b then return end end
+	table.insert(T.adj[a], b)
+	table.insert(T.adj[b], a)
+	local e = T.saved.e
+	e[#e + 1], e[#e + 2] = a, b
+end
+
+-- One tick of walking: a point every RT.TRAIL_STEP yards, merged into the trail it's on.
+function RT.NoteTrail(w)
+	if not w or (ns.db and ns.db.routeTrailsOff) or Try(rawget(_G, "UnitOnTaxi"), "player") then R.routeTrailAt = nil; return end
+	local last = R.routeTrailAt
+	if not last or last.c ~= w.c then R.routeTrailAt = { c = w.c, x = w.x, y = w.y }; R.routeTrailNode = nil; return end
+	local d = Dist(last, w)
+	if d > RT.TRAIL_JUMP then R.routeTrailAt = { c = w.c, x = w.x, y = w.y }; R.routeTrailNode = nil; return end
+	if d < RT.TRAIL_STEP then return end
+	local T = Trail(w.c)
+	local near = Near(T, w.x, w.y, RT.TRAIL_MERGE, 1)[1]
+	local node = near and near[1] or AddPoint(T, w.x, w.y)
+	if R.routeTrailNode == nil and last then
+		-- The first step: where it began joins too.
+		local back = Near(T, last.x, last.y, RT.TRAIL_MERGE, 1)[1]
+		R.routeTrailNode = back and back[1] or AddPoint(T, last.x, last.y)
+	end
+	Join(T, R.routeTrailNode, node)
+	R.routeTrailNode = node
+	R.routeTrailAt = { c = w.c, x = w.x, y = w.y }
+end
+
+-- Noted four times a second while the route is on, the arrow shown or not (crossings, flights, trails).
+RT.NOTE_TICK = 0.25
+if C_Timer and C_Timer.NewTicker then
+	C_Timer.NewTicker(RT.NOTE_TICK, function() if RT.Shown() and ns.db then pcall(RT.NoteOutside) end end)
+end
+
+-- How many trail points this PC knows (the Route tab).
+function RT.TrailCount()
+	local n = 0
+	for _, t in pairs(ns.db and type(ns.db.routeTrails) == "table" and ns.db.routeTrails or {}) do
+		if type(t) == "table" and type(t.x) == "table" then n = n + #t.x end
+	end
+	return n
+end
+function RT.ForgetTrails()
+	if ns.db then ns.db.routeTrails = {} end
+	trails = {}
+	R.routeTrailAt, R.routeTrailNode, R.routeTrailWay = nil, nil, nil
+	RT.Refresh()
+end
+
+-- A small binary heap for the search.
+local function Push(h, v, f) h[#h + 1] = { v, f }; local i = #h; while i > 1 do local p = math.floor(i / 2); if h[p][2] <= h[i][2] then break end; h[p], h[i] = h[i], h[p]; i = p end end
+local function Pop(h)
+	local top = h[1]
+	if not top then return nil end
+	h[1] = h[#h]; h[#h] = nil
+	local i = 1
+	while true do
+		local l, r, m = 2 * i, 2 * i + 1, i
+		if h[l] and h[l][2] < h[m][2] then m = l end
+		if h[r] and h[r][2] < h[m][2] then m = r end
+		if m == i then break end
+		h[m], h[i] = h[i], h[m]; i = m
+	end
+	return top[1], top[2]
+end
+
+-- The way from one world spot to another over the trails: the points between them (world spots) when
+-- the trails make it cheaper than the straight line, else nil.
+RT.TRAIL_EXPAND = 20000 -- search steps, at most
+function RT.TrailBetween(a, b)
+	if not a or not b or a.c ~= b.c then return nil end
+	local T = Trail(a.c)
+	if #T.saved.x == 0 then return nil end
+	local starts = Near(T, a.x, a.y, RT.TRAIL_JOIN, RT.TRAIL_ENDS)
+	local ends = Near(T, b.x, b.y, RT.TRAIL_JOIN, RT.TRAIL_ENDS)
+	if #starts == 0 or #ends == 0 then return nil end
+	local X, Y = T.saved.x, T.saved.y
+	local goal = {}
+	for _, e in ipairs(ends) do goal[e[1]] = e[2] * RT.OFF_TRAIL end
+	local g, prev, done, heap = {}, {}, {}, {}
+	local function H(i) return math.sqrt((X[i] - b.x) ^ 2 + (Y[i] - b.y) ^ 2) end
+	for _, s0 in ipairs(starts) do g[s0[1]] = s0[2] * RT.OFF_TRAIL; Push(heap, s0[1], g[s0[1]] + H(s0[1])) end
+	local best, bestCost
+	local steps = 0
+	while true do
+		local u = Pop(heap)
+		if not u then break end
+		if not done[u] then
+			done[u] = true
+			steps = steps + 1
+			if steps > RT.TRAIL_EXPAND then break end
+			if goal[u] then
+				local total = g[u] + goal[u]
+				if not bestCost or total < bestCost then best, bestCost = u, total end
+			end
+			if bestCost and g[u] + H(u) >= bestCost then break end
+			for _, v in ipairs(T.adj[u]) do
+				local c = g[u] + math.sqrt((X[u] - X[v]) ^ 2 + (Y[u] - Y[v]) ^ 2)
+				if not g[v] or c < g[v] then g[v], prev[v] = c, u; Push(heap, v, c + H(v)) end
+			end
+		end
+	end
+	if not best then return nil end
+	if bestCost >= Dist(a, b) * RT.STRAIGHT then return nil end
+	local pts, n = {}, best
+	while n do table.insert(pts, 1, { c = a.c, x = X[n], y = Y[n] }); n = prev[n] end
+	-- Fewer points to draw: those that bend the way (within 3 yards of the line otherwise).
+	local function Simplify(list, tol)
+		if #list < 3 then return list end
+		local keep, out = { [1] = true, [#list] = true }, {}
+		local function Seg(i, j)
+			local ax, ay, bx, by = list[i].x, list[i].y, list[j].x, list[j].y
+			local dx, dy = bx - ax, by - ay
+			local len = math.sqrt(dx * dx + dy * dy)
+			local far, at = 0, nil
+			for k = i + 1, j - 1 do
+				local d = len > 0 and math.abs((list[k].x - ax) * dy - (list[k].y - ay) * dx) / len or math.sqrt((list[k].x - ax) ^ 2 + (list[k].y - ay) ^ 2)
+				if d > far then far, at = d, k end
+			end
+			if at and far > tol then keep[at] = true; Seg(i, at); Seg(at, j) end
+		end
+		Seg(1, #list)
+		for k, p in ipairs(list) do if keep[k] then out[#out + 1] = p end end
+		return out
+	end
+	return Simplify(pts, 3)
+end
+
+-- The trail from where the player stands to a world spot, kept a few seconds per target.
+function RT.TrailTo(key, target)
+	local c = R.routeTrailWay
+	if c and c.key == key and GetTime() - c.at < RT.WAY_KEEP then return c.path end
+	local me = RT.PlayerWorld()
+	local path = me and target and RT.TrailBetween(me, target) or nil
+	R.routeTrailWay = { key = key, at = GetTime(), path = path }
+	return path
+end
+
+-- Where the arrow aims on a way along points (world spots) to a target: the average of the points
+-- RT.LOOK_NEAR to RT.LOOK_FAR yards ahead of the player along it (so a bend doesn't swing it), and the
+-- yards still to go along it.
+function RT.LookAhead(me, path, target)
+	local pts = {}
+	for _, p in ipairs(path) do pts[#pts + 1] = p end
+	pts[#pts + 1] = target
+	-- From the nearest point of the way, onward.
+	local from, fd = 1, nil
+	for k, p in ipairs(pts) do local d = Dist(me, p); if not fd or d < fd then from, fd = k, d end end
+	local ahead, along, sx, sy, n = 0, fd, 0, 0, 0
+	local at = me
+	for k = from, #pts do
+		local p = pts[k]
+		local seg = Dist(at, p)
+		ahead = ahead + seg
+		if ahead >= RT.LOOK_NEAR and ahead <= RT.LOOK_FAR then sx, sy, n = sx + p.x, sy + p.y, n + 1 end
+		at = p
+	end
+	along = 0
+	at = me
+	for k = from, #pts do along = along + Dist(at, pts[k]); at = pts[k] end
+	if n == 0 then
+		-- Nothing in the window: the first point past it, or the target.
+		local acc = 0
+		at = me
+		for k = from, #pts do acc = acc + Dist(at, pts[k]); at = pts[k]; if acc >= RT.LOOK_NEAR then return pts[k], along end end
+		return target, along
+	end
+	return { c = me.c, x = sx / n, y = sy / n }, along
 end

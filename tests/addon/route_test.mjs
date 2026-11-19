@@ -529,6 +529,11 @@ test('levels: a quest in the log to +3 is done on the route; +4 and up wait for 
   vm.run('STUB.grouped = true');
   ks = keys(vm).join(' ');
   assert.ok(ks.includes('do:720') && ks.includes('do:721'), 'in a group: both');
+  // Done in the group, then solo again: the turn-in is still on the route (free XP at any level).
+  vm.run('STUB.grouped = false; STUB.quests[#STUB.quests].complete = true; STUB.qdb.quests[721] = { name = "Red Errand", zone = 38, level = 20, ender = 801 }');
+  ks = keys(vm).join(' ');
+  assert.ok(ks.includes('turnin:721'), `a done one above the level: its turn-in stays: ${ks}`);
+  assert.ok(!vm.json('NS.R.route.later').includes('Red Errand'));
 });
 
 test('talking to a giver to turn in doesn\'t mark the follow-up he\'ll give after as one he doesn\'t offer (the player, 2026-11-19: Calor); what he shows clears an old mark', () => {

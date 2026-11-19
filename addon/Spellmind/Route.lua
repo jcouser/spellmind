@@ -441,7 +441,8 @@ function RT.Build()
 	for id, q in pairs(log) do
 		local title = q.title or ("quest " .. id)
 		local qlevel = (Q and tonumber((Try(Q.Quest.questLevel, id)))) or q.level or level
-		if qlevel > level + RT.Above(true) then
+		-- Above the level: for later, unless it's done and only the turn-in is left (free XP at any level).
+		if qlevel > level + RT.Above(true) and not Complete(id) then
 			route.later[#route.later + 1] = title
 		else
 			local complete = Complete(id)
@@ -802,7 +803,7 @@ function RT.Zones(fresh)
 	-- In the log: where its objectives are, or where it's handed in once complete.
 	for id, q in pairs(log) do
 		local ql = tonumber((Try(Q.Quest.questLevel, id))) or q.level or level
-		if ql <= level + RT.Above(true) then
+		if ql <= level + RT.Above(true) or Complete(id) then
 			local area
 			if Complete(id) then local fin = RT.TurnIn(Q, id, -1); area = fin and tonumber(fin.zone)
 			else area = tonumber((Try(Q.Quest.zoneOrSort, id))) end

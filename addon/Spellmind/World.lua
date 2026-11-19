@@ -129,6 +129,7 @@ function WD.OnTaxi()
 		if type(name) == "string" and name ~= "" and (kind == "CURRENT" or kind == "REACHABLE") then me.flights[ns.State.Text(name)] = true end
 	end
 	pcall(WD.TaxiSpots, me, n)
+	if ns.Route and ns.Route.TravelChanged then ns.Route.TravelChanged() end
 	WD.Note("flight")
 end
 
@@ -168,7 +169,10 @@ function WD.NoteHearth()
 	if not me or not RT or not RT.PlayerWorld then return end
 	local w = RT.PlayerWorld()
 	local bind = ns.State.Text(ns.Try(GetBindLocation))
-	if w and bind ~= "" then me.hearthSpot = { name = bind, c = w.c, x = w.x, y = w.y } end
+	if w and bind ~= "" then
+		me.hearthSpot = { name = bind, c = w.c, x = w.x, y = w.y }
+		if RT.TravelChanged then RT.TravelChanged() end
+	end
 end
 ns.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, _, spellID)
 	if unit == "player" and spellID == WD.HEARTH_SPELL then C_Timer.After(5, function() pcall(WD.NoteHearth) end) end

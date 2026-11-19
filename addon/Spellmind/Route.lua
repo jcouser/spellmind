@@ -717,8 +717,28 @@ function RT.Hearth()
 	local cd = rawget(_G, "GetItemCooldown") or (type(C) == "table" and C.GetItemCooldown) or nil
 	local start, dur = Try(cd, RT.HEARTHSTONE)
 	start, dur = tonumber(start), tonumber(dur)
-	if not start or (dur and dur > 0 and start + dur - GetTime() > 0) then return nil end
+	if not start then return nil end
+	local left = (dur and dur > 0) and (start + dur - GetTime()) or 0
+	if left > 0 then
+		-- Ready again later: Where next is worked out again then (nothing else would say so).
+		if not R.routeHearthWake then
+			R.routeHearthWake = true
+			C_Timer.After(math.min(left + 1, 3600), function()
+				R.routeHearthWake = nil
+				R.routeWhere = nil
+				RT.Dirty()
+			end)
+		end
+		return nil
+	end
 	return h
+end
+
+-- Something that changes the way to other zones (a flight map's paths noted, the hearthstone's landing
+-- spot): Where next worked out again.
+function RT.TravelChanged()
+	R.routeWhere = nil
+	RT.Dirty()
 end
 
 -- The quickest way from one world spot to another: { minutes, how = "walk" | "fly" | "hearth",

@@ -888,3 +888,26 @@ test('done here: no Up next, and no gap where it would be', () => {
   const orY = vm.num('select(5, SpellmindRoute.whereLabel:GetPoint())');
   assert.ok(orY > -24, `"Or" right under the band: ${orY} (band ends at ${bandBottom}, scroll at -${top})`);
 });
+
+test('Where next is worked out again when the hearthstone comes off its cooldown, and when a flight map notes paths', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run(`GetBindLocation = function() return "Sentinel Hill" end
+    GetItemCount = function(id) return id == 6948 and 1 or 0 end
+    STUB.hearthStart = GetTime()
+    GetItemCooldown = function(id) return STUB.hearthStart, 60 end
+    STUB.player.map, STUB.player.zone, STUB.player.x, STUB.player.y = 1436, "Westfall", 0.56, 0.48`);
+  vm.run('NS.World.NoteHearth()');
+  vm.run('STUB.player.map, STUB.player.zone, STUB.player.x, STUB.player.y = 1432, "Loch Modan", 0.40, 0.40');
+  vm.slash('route');
+  const west = () => JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Route.ZonesPart())')).find(z => z.zone === 'Westfall');
+  assert.equal(west().via, undefined, 'on its cooldown: on foot');
+  // The minute passes: the route is built again, and the hearthstone counts.
+  vm.advance(63);
+  assert.equal(vm.evaluate('NS.R.route.where and (function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z.via end end end)()'), 'hearthstone to Sentinel Hill');
+  // A flight map opened: worked out again too.
+  vm.run('NS.R.routeWhere = { at = GetTime(), area = 38, level = 15, list = {} }');
+  vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED")');
+  vm.advance(2);
+  assert.ok(vm.num('#NS.R.routeWhere.list') > 0, 'the stale (empty) count replaced');
+  assert.ok(vm.num('#NS.R.route.where') > 0, 'and the route built again');
+});

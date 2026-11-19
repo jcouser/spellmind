@@ -1287,3 +1287,27 @@ test('the way there, listed under "Done here" and on the Route tab (the player, 
   vm.run('NS.Route.Aim(nil); STUB.completed = {}; table.insert(STUB.quests, { title = "Kobold Candles", questID = 700, level = 14 }); NS.Route.Build(); NS.Route.Draw()');
   assert.equal(vm.evaluate('tostring(SpellmindRoute.wayLabel.shown)'), 'false');
 });
+
+test('a swim on a trail counts at the swim\'s pace: taken only when it\'s really faster than going round (the player, 2026-11-19)', () => {
+  const vm = session();
+  vm.slash('route');
+  vm.run('STUB.swimming = false; IsSwimming = function() return STUB.swimming end');
+  // Two ways from (40, 40) to (40, 60), 400 yards straight south: a swim straight across, and a walk round
+  // by (46, 50): 2 x 220 = 440 yards.
+  const swim = []; for (let y = 40; y <= 60; y += 0.5) swim.push([0.40, y / 100]);
+  vm.run('STUB.swimming = true'); WALK(vm, swim); vm.run('STUB.swimming = false; NS.R.routeTrailAt = nil');
+  const round = [];
+  for (let k = 0; k <= 20; k++) round.push([(40 + 6 * k / 20) / 100, (40 + 10 * k / 20) / 100]);
+  for (let k = 1; k <= 20; k++) round.push([(46 - 6 * k / 20) / 100, (50 + 10 * k / 20) / 100]);
+  WALK(vm, round); vm.run('NS.R.routeTrailAt = nil');
+  const via = () => {
+    const p = vm.json('NS.Route.TrailBetween(NS.Route.World(1432, 40, 40), NS.Route.World(1432, 40, 60))');
+    const list = Array.isArray(p) ? p : Object.values(p || {});
+    return list.some(q => -q.y > 0.43 * 3000) ? 'round' : 'swim';
+  };
+  // 400 yards swum at 1.48 a yard (~593) against 440 walked: round.
+  assert.equal(via(), 'round');
+  // A fast swimmer (the game says 7 and 7): the swim.
+  vm.run('GetUnitSpeed = function() return 0, 7, 0, 7 end');
+  assert.equal(via(), 'swim');
+});

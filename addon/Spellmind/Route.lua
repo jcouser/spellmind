@@ -3072,6 +3072,15 @@ RT.TRAIL_MAX = 15000 -- points kept, at most (a saved file holds about 262,000 v
 -- that exists.
 RT.OFF_TRAIL, RT.STRAIGHT = 1.25, 3
 RT.LOOK_NEAR, RT.LOOK_FAR = 36, 84 -- the arrow aims at the trail's points this far ahead, averaged
+-- A stretch swum (the player, 2026-11-19: "if I walk across the water because it's faster"): dearer by
+-- running speed over swimming speed (the game's two when it says, about 7 against 4.7, so 1.5 a yard).
+RT.SWIM_SPEED = 4.72
+function RT.SwimCost()
+	local _, run, _, swim = Try(rawget(_G, "GetUnitSpeed"), "player")
+	run, swim = tonumber(run), tonumber(swim)
+	if run and swim and run > 0 and swim > 0 then return math.max(1, run / swim) end
+	return RT.RUN_SPEED / RT.SWIM_SPEED
+end
 
 -- SpellmindDB.routeTrails[continent] = { x = {}, y = {}, e = { a1, b1, a2, b2, … } } (world yards); the
 -- session's adjacency and index built from it on first use.
@@ -3118,11 +3127,12 @@ local function Near(T, x, y, r, max)
 	return out
 end
 
-local function AddPoint(T, x, y)
+local function AddPoint(T, x, y, wet)
 	local s = T.saved
 	if #s.x >= RT.TRAIL_MAX then return nil end
 	local i = #s.x + 1
 	s.x[i], s.y[i] = math.floor(x * 10 + 0.5) / 10, math.floor(y * 10 + 0.5) / 10
+	if wet then s.w = s.w or {}; s.w[i] = true end
 	local k = T.Cell(s.x[i], s.y[i])
 	T.grid[k] = T.grid[k] or {}
 	table.insert(T.grid[k], i)
@@ -3147,12 +3157,13 @@ function RT.NoteTrail(w)
 	if d > RT.TRAIL_JUMP then R.routeTrailAt = { c = w.c, x = w.x, y = w.y }; R.routeTrailNode = nil; return end
 	if d < RT.TRAIL_STEP then return end
 	local T = Trail(w.c)
+	local wet = Try(rawget(_G, "IsSwimming")) and true or false
 	local near = Near(T, w.x, w.y, RT.TRAIL_MERGE, 1)[1]
-	local node = near and near[1] or AddPoint(T, w.x, w.y)
+	local node = near and near[1] or AddPoint(T, w.x, w.y, wet)
 	if R.routeTrailNode == nil and last then
 		-- The first step: where it began joins too.
 		local back = Near(T, last.x, last.y, RT.TRAIL_MERGE, 1)[1]
-		R.routeTrailNode = back and back[1] or AddPoint(T, last.x, last.y)
+		R.routeTrailNode = back and back[1] or AddPoint(T, last.x, last.y, wet)
 	end
 	Join(T, R.routeTrailNode, node)
 	R.routeTrailNode = node
@@ -3211,6 +3222,8 @@ function RT.TrailBetween(a, b)
 	local goal = {}
 	for _, e in ipairs(ends) do goal[e[1]] = e[2] * RT.OFF_TRAIL end
 	local g, prev, done, heap = {}, {}, {}, {}
+	local Wet = T.saved.w or {}
+	local swim = RT.SwimCost()
 	local function H(i) return math.sqrt((X[i] - b.x) ^ 2 + (Y[i] - b.y) ^ 2) end
 	for _, s0 in ipairs(starts) do g[s0[1]] = s0[2] * RT.OFF_TRAIL; Push(heap, s0[1], g[s0[1]] + H(s0[1])) end
 	local best, bestCost
@@ -3228,7 +3241,7 @@ function RT.TrailBetween(a, b)
 			end
 			if bestCost and g[u] + H(u) >= bestCost then break end
 			for _, v in ipairs(T.adj[u]) do
-				local c = g[u] + math.sqrt((X[u] - X[v]) ^ 2 + (Y[u] - Y[v]) ^ 2)
+				local c = g[u] + math.sqrt((X[u] - X[v]) ^ 2 + (Y[u] - Y[v]) ^ 2) * ((Wet[u] or Wet[v]) and swim or 1)
 				if not g[v] or c < g[v] then g[v], prev[v] = c, u; Push(heap, v, c + H(v)) end
 			end
 		end

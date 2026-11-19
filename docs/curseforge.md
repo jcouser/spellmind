@@ -32,13 +32,29 @@ Upload `Spellmind-<version>.zip` from the GitHub release, the same file, unchang
 
 ## Description
 
-As published (Markdown), 2026-11-14. Keep it to what the addon does; anything that needs the app says so. The images come from this repository (raw.githubusercontent.com); renaming or moving one in docs/images breaks it here.
+As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19, to publish with that release). Keep it to what the addon does; anything that needs the app says so. The images come from this repository (raw.githubusercontent.com); renaming or moving one in docs/images breaks it here.
 
-> **Spellmind** is a companion for **WoW Forever** that knows your character as you play: your quests, gear, bags, talents, spells and professions. It tells you what to do next, and with the free Spellmind app, it becomes an **AI chatbot** you can ask anything about your character, right in the game.
+> **Spellmind** is a companion for **WoW Forever** that knows your character as you play: your quests, gear, bags, talents, spells and professions. It plans your quest route, tells you what to do next, and with the free Spellmind app, it becomes an **AI chatbot** you can ask anything about your character, right in the game.
 >
 > **Everything in the panel, the tooltips and the nudges works on its own.** No app, no AI, no account. The AI chat is an optional extra.
 >
 > ![Spellmind's chat: a quest reward judged against your gloves, then what's left to do in Westfall](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/chat-gear-and-route.png)
+>
+> ## Your quest route
+>
+> Turn it on in the **Route tab**. Spellmind plans your leveling from your own quest log and where you stand: every pickup, objective and turn-in around you, in the shortest order, ticked off the moment you finish it. Follow-up quests are planned after the turn-in that opens them, and quests above your level wait until you're ready (or in a group).
+>
+> - **Never lose your way:** an arrow on screen points to your next step with the yards to it. The world map numbers the steps, shades where each objective is and draws a line from you through them. The minimap shows the current step.
+> - **Always know where to go next:** when a zone runs dry, Spellmind ranks the best zones for your level by the quests actually left for you, counting the flight paths you know and your hearthstone.
+> - **Ask about it:** with the free app, your AI sees the same route. "Review my route" says what to skip and why.
+>
+> **Works best with Questie installed:** it adds the quests to pick up and where the mobs are. Without it, the route covers the quests in your log.
+>
+> ![The world map in Redridge: a gold line from you to your next step, then on through the route](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-map-line.png)
+>
+> ![The route tracker: the current step, up next, and where to go next with travel times](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-tracker.png)
+>
+> ![Done in a zone: the best next zone for your level, by flight](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-where-next.png)
 >
 > ## The panel
 >
@@ -122,6 +138,9 @@ As published (Markdown), 2026-11-14. Keep it to what the addon does; anything th
 > | `/sm quests`, `/sm dungeons`, `/sm gear`, `/sm talents`, `/sm spells`, `/sm professions`, `/sm gold`, `/sm settings` | Open that tab |
 > | `/sm <question>` | Ask your AI (with the app) |
 > | `/sm app` | Where to get the free app |
+> | `/sm route` | The quest route on or off (the Route tab has its switches) |
+> | `/sm arrow` | The route's arrow on or off |
+> | `/sm news` | What's new in this version |
 > | `/sm welcome` | The first-time welcome again |
 > | `/sm nudges on`, `off`, `reset` | The nudges |
 > | `/sm minimap on`, `off` | The minimap button |

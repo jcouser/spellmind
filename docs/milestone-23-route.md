@@ -1,6 +1,6 @@
 # Milestone 23: the route (design)
 
-*Status: design 2026-11-18; built on the route branch 2026-11-19 (the notes marked "Built" below), tried in game by the maintainer.*
+*Status: design 2026-11-18; built 2026-11-19 (the notes marked "Built" below), tried in game by the maintainer; released in 0.5.0. Still to come: paths learned from where the player walks and roads traced by hand (the line and arrow bending around terrain), the AI's suggestions as one-click skips.*
 
 The player (2026-11-18), after a fixed leveling guide's "Redridge 25-26" sent them to Stormwind for a turn-in across the world, with quests still open around them: a route that follows **this character** (its quest log, where it stands, what it has done), efficient like a hand-tuned guide, with navigation (a step tracker, an arrow, the world map), steps that advance by themselves, and the AI where judgment helps.
 

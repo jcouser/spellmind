@@ -632,6 +632,7 @@ C.HELP = {
 	"Spellmind commands:",
 	"  /sm: open or close the chat.  /sm <question>: ask.",
 	"  /sm quests, dungeons, gear, talents, spells, professions, gold, nudges, settings: open that tab.",
+	"  /sm route: the quest route on or off (the Route tab has its switches).  /sm arrow: its arrow.",
 	"  /sm guide <link>: your leveling guide, read by your AI.",
 	"  /sm nudges on/off/reset · /sm marks on/off · /sm data, or data on/off · /sm minimap on/off.",
 	"  /sm app: where to get the free Spellmind app (the chat needs it; every other tab works without).  /sm welcome: the first-time welcome again.  /sm news: what's new in this version.",

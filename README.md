@@ -5,7 +5,7 @@
 <h1 align="center">Spellmind: AI Companion</h1>
 
 <p align="center">
-  An AI companion for <b>World of Warcraft: Forever</b>. It knows your character as you play and helps with what you're deciding: quests, dungeons, gear, talents, spells, professions and gold.<br>
+  An AI companion for <b>World of Warcraft: Forever</b>. It knows your character as you play and helps with what you're deciding: your quest route, dungeons, gear, talents, spells, professions and gold.<br>
   <b>Free and open source. Advice only: it never plays for you.</b>
 </p>
 
@@ -28,16 +28,39 @@
 
 Spellmind is two parts:
 
-- **The addon**, in the game. Its panel works on its own, with no app and no AI: what your quests lead to, which dungeons fit your level, gear and bag advice, talents to take next, spells to train, profession caps and gold. Quiet nudges by the minimap tell you when something's waiting.
+- **The addon**, in the game. It works on its own, with no app and no AI: a quest route built from your own quest log, what your quests lead to, which dungeons fit your level, gear and bag advice, talents to take next, spells to train, profession caps and gold. Quiet nudges by the minimap tell you when something's waiting.
 - **The free desktop app** (Windows 10 and 11). It sends your question, with the game data you allow, to **your own AI**, and brings the answer back into the game's chat window.
 
 | | Addon alone | Addon + app |
 |---|---|---|
+| The quest route: your steps, an arrow, the world map and minimap, where to go next | ✓ | ✓ |
 | Quests, Dungeons, Gear, Talents, Spells, Professions, Gold tabs | ✓ | ✓ |
 | Tooltip lines, nudges, waypoints on click | ✓ | ✓ |
 | Chat: ask anything about your character | | ✓ |
 | "Break it down" on quests, items, trainers and merchants | | ✓ |
+| "Review my route": what to skip, and why | | ✓ |
 | Read your leveling guide's page (talents, rotation) | | ✓ |
+
+### Your quest route
+
+Turn it on in the **Route tab**. Spellmind plans your leveling from your own quest log and where you stand: every pickup, objective and turn-in around you, in the shortest order, ticked off the moment you finish it. Follow-up quests are planned after the turn-in that opens them, and quests above your level wait until you're ready (or in a group).
+
+- **Never lose your way:** an arrow on screen points to your next step with the yards to it. The world map numbers the steps, shades where each objective is and draws a line from you through them. The minimap shows the current step.
+- **Always know where to go next:** when a zone runs dry, Spellmind ranks the best zones for your level by the quests actually left for you, counting the flight paths you know and your hearthstone.
+- **Ask about it:** with the app, your AI sees the same route. "Review my route" says what to skip and why.
+
+Works best with [Questie](https://www.curseforge.com/wow/addons/questie) installed: it adds the quests to pick up and where the mobs are. Without it, the route covers the quests in your log.
+
+<table>
+  <tr>
+    <td width="58%"><img src="docs/images/route-map-line.png" alt="The world map in Redridge: a gold line from you to step 1, turning in Tharil'zun to Marshal Marris, then on to step 2 in Lakeshire"></td>
+    <td width="42%"><img src="docs/images/route-tracker.png" alt="The route tracker in Redridge Mountains: the current step, up next, where next ranked with travel times, and quests elsewhere"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/route-map-steps.png" alt="The world map in Duskwood: numbered steps, the current one gold, and the area where step 2's skeletons are, shaded"></td>
+    <td><img src="docs/images/route-where-next.png" alt="Done in Redridge: next, Wetlands, with 13 quests to pick up about 8 minutes away by flight; or Stormwind City or Ashenvale by boat"></td>
+  </tr>
+</table>
 
 ### Ask your AI, in game
 
@@ -163,6 +186,9 @@ Spellmind works alongside Questie and Auctionator, and uses their data when they
 | `/sm quests`, `dungeons`, `gear`, `talents`, `spells`, `professions`, `gold`, `settings` | Open that tab |
 | `/sm <question>` | Ask your AI (with the app) |
 | `/sm app` | Where to get the free app |
+| `/sm route` | The quest route on or off (the Route tab has its switches) |
+| `/sm arrow` | The route's arrow on or off |
+| `/sm news` | What's new in this version |
 | `/sm welcome` | The first-time welcome again |
 | `/sm guide <link>` | Import your leveling guide (with the app) |
 | `/sm nudges on`, `off`, `reset` | The nudges |

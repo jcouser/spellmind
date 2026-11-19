@@ -980,6 +980,13 @@ local function AlsoText(route)
 	if #(route.later or {}) > 0 then
 		text = (text and (text .. "\n") or "") .. #route.later .. " quest" .. (#route.later > 1 and "s" or "") .. " in your log for later (above your level)"
 	end
+	-- Where the route's knowledge comes from, said plainly (the player, 2026-11-19: Questie is the
+	-- popular choice; credit it, and say what it adds when it isn't there).
+	if not route.nowhere then
+		local source = route.db and "Quest data from Questie"
+			or "Questie adds quests to pick up here and exact objective spots"
+		text = (text and (text .. "\n") or "") .. source
+	end
 	return text
 end
 

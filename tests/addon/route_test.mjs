@@ -103,6 +103,7 @@ test('/sm route: the tracker with the zone, the step, its goals, Go, Up next; Go
   vm.run('SpellmindRoute.go.scripts.OnClick(SpellmindRoute.go)');
   assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1432);
   assert.equal(vm.evaluate('string.format("%.2f", STUB.waypoints[1].position.x)'), '0.20', 'the rats\' densest spot, not the stray one');
+  assert.match(vm.evaluate('SpellmindRoute.also:GetText()'), /Quest data from Questie/, 'the credit');
   vm.slash('route');
   assert.equal(vm.evaluate('tostring(SpellmindRoute.shown)'), 'false', 'and closes it');
 });

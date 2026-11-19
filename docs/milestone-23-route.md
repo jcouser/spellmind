@@ -56,6 +56,8 @@ The events: quest log and objective updates, quest accepted and turned in, bag u
 - **The quest log and the game's quest map markers:** always; enough to route the log's quests and their turn-ins.
 - **Questie's database (optional, its runtime interface only):** quest givers and turn-ins with coordinates, NPC and object spawns, quest levels, prerequisites, the zone's other quests; the completed quests from the game. What makes efficient routing and "Where next" possible.
 - Without Questie: the route covers the quests in the log; "Where next" counts only those.
+- **Questie first, said openly** (the maintainer, 2026-11-19): Questie is the popular choice, so the route is built for it and credits it ("Quest data from Questie" in the tracker; OptionalDeps in the TOC so it loads first). Questie's own hidden-quest list (QuestieCorrections.hiddenQuests) is read, read only, the one exception to "public interfaces only": the quest database has quests that aren't in Forever (Season of Discovery's), the server even knows their titles, and nothing else marks them. Without Questie, on Forever, Season of Discovery's ids (76000-91999) are left out as a fallback, and the tracker says what Questie would add.
+- **A Forever source of what players have seen** (AHledger's "what players see in game": quests and NPCs) would confirm what really exists; it has no API for it yet (asked for, 2026-11-19).
 
 ## Phases (a release each, tried in game before the next)
 

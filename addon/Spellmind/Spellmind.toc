@@ -8,6 +8,7 @@
 ## X-Curse-Project-ID: 1804129
 ## IconTexture: Interface\AddOns\Spellmind\Media\Spellmind
 ## SavedVariables: SpellmindDB
+## OptionalDeps: QuestieDB, Questie, Auctionator
 
 Codec.lua
 Inbox.lua

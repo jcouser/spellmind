@@ -556,6 +556,29 @@ function Tabs.route()
 	Switch("Steps on the world map", "Numbered, with each objective's area shaded.", RT.MapOn(), RT.SetMap, true, not on)
 	Switch("Current step on the minimap", "Your current step, and the next one when it's in view. On the edge with an arrow when it's farther.", RT.MinimapOn(), RT.SetMinimap, true, not on)
 	Switch("Lines on the world map", "From you to the current step, and on through the next ones (straight, for now).", RT.LinesOn(), RT.SetLines, true, not on or not RT.MapOn())
+	-- What the route plans for: questing here, or a dungeon's prep (the player, 2026-11-19).
+	local mode, prep = RT.Mode()
+	out[#out + 1] = { kind = "item", left = "Plan for", sub = "|cff888888" .. (mode == "dungeon" and ("Getting ready for " .. ns.Escape(prep) .. ": its quests and the questlines that open them, then the way in.")
+		or "Questing where you are. Or pick a dungeon below: its quests, their questlines, the way in.") .. "|r",
+		right = mode == "dungeon" and ("|cffffd100" .. ns.Escape(prep) .. " prep|r") or "|cffffd100Questing here|r",
+		actions = mode == "dungeon" and { { "Questing", function() RT.SetMode("questing"); P.Show("route", true) end, tip = "Back to questing where you are." } } or nil }
+	local seenD = {}
+	local function Prep(dname, range)
+		local key = ns.Dungeons.Norm(dname)
+		if seenD[key] then return end
+		seenD[key] = true
+		local qs = ns.Dungeons.Quests(dname)
+		if not qs or qs.total == 0 then return end
+		local on = mode == "dungeon" and ns.Dungeons.Norm(prep) == key
+		out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(dname), right = range,
+			sub = "|cff888888" .. (ns.Dungeons.Summary(qs) or "") .. "|r",
+			actions = { { on and "Planned" or "Prep", function()
+				if on then RT.SetMode("questing") else RT.SetMode("dungeon", dname); if not RT.On() then RT.SetOn(true) end end
+				P.Show("route", true)
+			end, tip = on and "Back to questing where you are." or "Plan the route to get ready for it." } } }
+	end
+	for _, d in ipairs(ns.Dungeons.FromLog()) do Prep(d.name, ns.Dungeons.Range(d.low, d.high)) end
+	for _, d in ipairs(ns.Dungeons.AtLevel()) do Prep(d.name, ns.Dungeons.Range(d.low, d.high)) end
 	out[#out + 1] = { kind = "item", indent = true, left = "Ask about your route", sub = "|cff888888Anything: your AI has the route. Or the two questions below.|r",
 		actions = { { "Ask", function() ns.Chat.Open("About my route: ") end, tip = "The chat, ready for your question." } } }
 	if not route or route.nowhere then return out end
@@ -704,6 +727,16 @@ end
 -- beside the window) and LFG; a quest row has Go and its Break it down mark.
 
 function Tabs.dungeons()
+	-- Route: this dungeon's prep on the route (the player, 2026-11-19), and the Route tab.
+	local function prepRoute(name)
+		return { "Route", function()
+			if ns.Route then
+				ns.Route.SetMode("dungeon", name)
+				if not ns.Route.On() then ns.Route.SetOn(true) end
+			end
+			P.Show("route")
+		end, tip = "Plan the route to get ready for it: its quests, the questlines that open them, the way in." }
+	end
 	local DG = ns.Dungeons
 	local out = {}
 	local here = DG.Here()
@@ -874,7 +907,7 @@ function Tabs.dungeons()
 			if not DG.HasDB() then table.insert(bits, 1, #d.quests .. " in your log") end
 			local line, qs = status(name, #bits > 0 and table.concat(bits, " · ") or nil)
 			out[#out + 1] = { kind = "item", left = ns.Escape(name), sub = "|cff888888" .. line .. "|r",
-				tag = d.raid and { "Raid", 1, 0.5, 0.2 } or nil, actions = { lfg(name), brief(name) } }
+				tag = d.raid and { "Raid", 1, 0.5, 0.2 } or nil, actions = { lfg(name), brief(name), prepRoute(name) } }
 			for _, q in ipairs(d.quests) do
 				out[#out + 1] = { kind = "item", indent = true, quest = q.id,
 					left = ns.Escape(q.title or "?"), right = q.complete and "|cff19ff19ready|r" or (q.level and ("level " .. q.level) or ""),
@@ -893,7 +926,7 @@ function Tabs.dungeons()
 			local name = d.name
 			local line, qs = status(name, nil)
 			local open = P.openDungeons[DG.Norm(name)]
-			local actions = { lfg(name), brief(name) }
+			local actions = { lfg(name), brief(name), prepRoute(name) }
 			-- Quests to pick up: a click lists them under the row (and hides them again).
 			if qs and #qs.pickup > 0 then
 				table.insert(actions, 1, { open and "Hide" or "Quests", function()

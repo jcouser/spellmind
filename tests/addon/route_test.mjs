@@ -971,3 +971,74 @@ test('the map shows a stop on its own map: the Ironforge turn-in on Ironforge\'s
   assert.equal(vm.num('NS.Route.marks.shown'), 1, 'the one in Ironforge');
   assert.ok(shownHere >= 3, `Loch Modan's: ${shownHere}`);
 });
+
+// The Deadmines (area 1581; its way in is in Westfall): Red Silk Bandanas (1001) from Gryan at Sentinel
+// Hill, open now; Collecting Memories (1002) opens after The Defias Brotherhood (1003), from Gryan too,
+// whose trappers are in Westfall.
+const PREP = `
+  local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+  N[810] = { name = "Gryan Stoutmantle", zone = 40, spawns = { [40] = { { 56, 48 } } }, friendly = "A" }
+  N[830] = { name = "Defias Trapper", zone = 40, spawns = { [40] = { { 50, 60 }, { 51, 61 } } } }
+  Q[1001].npc, Q[1001].ender = 810, 810
+  Q[1003] = { name = "The Defias Brotherhood", zone = 40, level = 14, npc = 810, obj = { { { 830 } }, {}, {} }, ender = 810 }
+  Q[1002].npc, Q[1002].ender, Q[1002].single = 810, 810, { 1003 }`;
+
+test('dungeon prep (the player, 2026-11-19): its quests, the questline that opens the locked one, across zones, then the way in', () => {
+  const vm = newVM({ before: ZONE + PREP }).login().advance(9);
+  vm.run('NS.Route.SetMode("dungeon", "The Deadmines")');
+  const ks = keys(vm);
+  const at = k => ks.findIndex(x => x.split(',').includes(k));
+  for (const k of ['pickup:1001', 'pickup:1003', 'do:1003', 'turnin:1003', 'pickup:1002', 'enter:0']) assert.ok(at(k) >= 0, `${k}: ${ks}`);
+  assert.ok(at('pickup:1003') < at('do:1003') && at('do:1003') < at('turnin:1003') && at('turnin:1003') <= at('pickup:1002'), `the questline in order: ${ks}`);
+  assert.equal(at('enter:0'), ks.length - 1, 'the way in last');
+  assert.ok(!ks.join(' ').includes('turnin:1001'), 'the dungeon\'s own turn-ins wait for the run');
+  assert.ok(!ks.join(' ').includes(':700'), 'not this zone\'s quests: it\'s the dungeon\'s plan');
+  // Westfall's stops say so; the tracker says what it's for.
+  vm.slash('route');
+  assert.equal(vm.evaluate('SpellmindRoute.title:GetText()'), 'Route · The Deadmines prep');
+  assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /In Westfall:/);
+  const door = vm.json(`(function() for _, s in ipairs(NS.R.route.stops) do if s.key == "enter:0" then return { map = s.map, x = s.x, y = s.y, text = NS.Route.StopText(s) } end end end)()`);
+  assert.deepEqual([door.map, door.x, door.y], [1436, 42.6, 71.8]);
+  assert.match(door.text, /In Westfall:.*Enter The Deadmines/);
+});
+
+test('dungeon prep: inside, the way in is done and its spot learned; done quests are turned in after the run; back to questing', () => {
+  const vm = newVM({ before: ZONE + PREP + `
+    table.insert(STUB.quests, { title = "Red Silk Bandanas", questID = 1001, level = 17 })` }).login().advance(9);
+  vm.run('NS.Route.SetMode("dungeon", "The Deadmines")');
+  vm.slash('route');
+  // Standing at the door in Westfall, then inside.
+  vm.run('STUB.player.map, STUB.player.zone, STUB.player.x, STUB.player.y = 1436, "Westfall", 0.43, 0.72; NS.Route.ArrowUpdate()');
+  vm.run('STUB.instance = { name = "The Deadmines", type = "party" }; STUB.FireEvent("PLAYER_ENTERING_WORLD")');
+  assert.equal(vm.evaluate('tostring(NS.Route.Entered("The Deadmines"))'), 'true');
+  const learned = vm.json('SpellmindDB.routeEntrances.deadmines');
+  assert.deepEqual([learned.map, Math.round(learned.x), Math.round(learned.y)], [1436, 43, 72], 'where you went in');
+  // The run's done: back outside with the bandanas.
+  vm.run('STUB.instance = nil; STUB.quests[#STUB.quests].complete = true; NS.Route.Build()');
+  const ks = keys(vm);
+  assert.ok(ks.some(k => k.includes('turnin:1001')), `the turn-in after the run: ${ks}`);
+  assert.ok(!ks.some(k => k.includes('enter:0')), 'the way in done');
+  // Back in Loch Modan, questing again.
+  vm.run('STUB.player.map, STUB.player.zone, STUB.player.x, STUB.player.y = 1432, "Loch Modan", 0.40, 0.40; NS.Route.SetMode("questing")');
+  assert.ok(keys(vm).some(k => k.includes('do:700')), 'this zone\'s quests again');
+  assert.equal(vm.evaluate('SpellmindRoute.title:GetText()'), 'Route · Loch Modan');
+});
+
+test('the Route tab and the Dungeons tab: Prep a dungeon, back to questing', () => {
+  const vm = newVM({ before: ZONE + PREP + `
+    table.insert(STUB.quests, { title = "Red Silk Bandanas", questID = 1001, level = 17 })` }).login().advance(9);
+  // The Deadmines in the log (the game tags its quests Dungeon, under its header).
+  vm.run('NS.Dungeons.FromLog = function() return { { name = "The Deadmines", quests = {}, ready = 0, low = 17, high = 17 } } end');
+  vm.run('NS.Route.SetOn(true); NS.Panel.Show("route")');
+  const drawn = () => { const v = vm.json('SpellmindPanel.drawn'); return Array.isArray(v) ? v : Object.values(v || {}); };
+  const rowOf = text => drawn().findIndex(x => x.kind === 'item' && typeof x.text === 'string' && x.text.includes(text)) + 1;
+  const click = (row, k = 1) => vm.run(`SpellmindPanel.rows[${row}].actions[${k}].scripts.OnClick(SpellmindPanel.rows[${row}].actions[${k}], "LeftButton")`);
+  assert.ok(rowOf('Plan for') > 0);
+  const d = rowOf('The Deadmines');
+  assert.ok(d > 0, JSON.stringify(drawn().map(x => x.text)));
+  click(d);
+  assert.equal(vm.evaluate('select(2, NS.Route.Mode())'), 'The Deadmines');
+  assert.match(drawn()[rowOf('Plan for') - 1].right, /The Deadmines prep/);
+  click(rowOf('Plan for'));
+  assert.equal(vm.evaluate('NS.Route.Mode()'), 'questing');
+});

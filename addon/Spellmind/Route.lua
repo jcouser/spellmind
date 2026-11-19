@@ -287,7 +287,7 @@ end
 -- The order
 ---------------------------------------------------------------------------
 
-local RANK = { pickup = 1, ["do"] = 2, turnin = 3 }
+local RANK = { pickup = 1, ["do"] = 2, turnin = 3, enter = 5 }
 RT.RANK = RANK
 
 -- The order rules as pairs { before, after } of goal keys ("pickup:123"): a quest's pick up, do and
@@ -433,6 +433,7 @@ end
 
 -- A goal is done by the game's state, whatever order things happened in.
 function RT.GoalDone(g)
+	if g.kind == "enter" then return RT.Entered(g.title) end
 	if g.kind == "pickup" then return Have(g.q) or Done(g.q) end
 	if g.kind == "do" then return Done(g.q) or (Have(g.q) and Complete(g.q)) end
 	return Done(g.q)
@@ -464,7 +465,23 @@ end
 
 -- R.route = { zone, map, area, stops = { { x, y, goals = { { kind, q, title, to } } } }, elsewhere =
 -- { [zone name] = { goals } }, later = { titles }, db = true when QuestieDB placed things }.
+-- What the route plans for (the player, 2026-11-19): the quests where you stand ("questing", the
+-- default), or everything to get ready for one dungeon ("dungeon": UI().dungeon, its name).
+local function ModeUI()
+	ns.db.routeUI = type(ns.db.routeUI) == "table" and ns.db.routeUI or {}
+	return ns.db.routeUI
+end
+function RT.Mode() local ui = ModeUI(); return ui.mode == "dungeon" and ui.dungeon and "dungeon" or "questing", ui.dungeon end
+function RT.SetMode(mode, name)
+	local ui = ModeUI()
+	if mode == "dungeon" and name then ui.mode, ui.dungeon = "dungeon", name else ui.mode, ui.dungeon = nil, nil end
+	R.routeSkip, R.routeSkipped, R.routeAim = {}, {}, nil
+	RT.Build()
+	RT.Refresh()
+end
+
 function RT.Build()
+	if RT.Mode() == "dungeon" then return RT.BuildPrep(select(2, RT.Mode())) end
 	local here = RT.Here()
 	local route = { stops = {}, elsewhere = {}, later = {}, built = GetTime() }
 	R.route = route
@@ -1097,6 +1114,7 @@ function RT.LevelTag(level)
 	return hex .. "[" .. level .. "]|r "
 end
 function RT.GoalText(g)
+	if g.kind == "enter" then return "Enter " .. ns.Escape(g.title) .. (g.to and (" |cff888888(" .. ns.Escape(g.to) .. ")|r") or "") end
 	if g.kind == "pickup" then return "Pick up " .. RT.LevelTag(g.level) .. ns.Escape(g.title) .. (g.later and " |cff888888(for later)|r" or "") end
 	if g.kind == "turnin" then return "Turn in " .. ns.Escape(g.title) .. (g.to and (" to " .. ns.Escape(g.to)) or "") end
 	local left = ns.Quests and ns.Quests.Left and ns.Quests.Left({ obj = ns.State and ns.State.Objectives and ns.State.Objectives(g.q) }) or nil
@@ -1702,7 +1720,7 @@ function RT.Draw()
 	for _, l in ipairs(f.next) do l:SetWidth(W - 40) end
 	f.fold:SetNormalTexture(ui.compact and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
 	f.fold.tip = ui.compact and "Show Up next" or "Only the current step"
-	f.title:SetText("Route" .. (route.zone and (" · " .. ns.Escape(route.zone)) or ""))
+	f.title:SetText("Route" .. (route.prep and (" · " .. ns.Escape(route.prep) .. " prep") or (route.zone and (" · " .. ns.Escape(route.zone)) or "")))
 	local cur, i = RT.Current()
 	local done, total = RT.Progress()
 	f.step:SetText(total > 0 and ("Step " .. (i or math.min(done + 1, total)) .. " of " .. total) or "")
@@ -2017,6 +2035,7 @@ function RT.ToggleArrow()
 end
 
 function RT.ArrowUpdate()
+	pcall(RT.NoteOutside)
 	local a = RT.arrow
 	if not a or not a:IsShown() then return end
 	local t = RT.ArrowTarget()
@@ -2360,4 +2379,243 @@ function RT.Part()
 	for _, t in ipairs(route.later or {}) do if #later < 6 then later[#later + 1] = ns.State.Text(t, 80) end end
 	return O("zone", route.zone, "step", i, "of", total, "steps", #steps > 0 and steps or nil,
 		"later", #later > 0 and later or nil, "skipped", skipped > 0 and skipped or nil)
+end
+
+---------------------------------------------------------------------------
+-- Dungeon prep (the player, 2026-11-19): every quest for one dungeon, the questlines that open them,
+-- across zones, then the way in; after the run, the turn-ins
+---------------------------------------------------------------------------
+
+-- Where each dungeon's way in is (Spellmind's own table, approximate: the game didn't say where its
+-- entrance markers come from): { zone, x, y } by the dungeon's name. Replaced by where the player
+-- really stood just outside, the first time they go in (SpellmindDB.routeEntrances).
+RT.ENTRANCES = {
+	["The Deadmines"] = { "Westfall", 42.6, 71.8 },
+	["The Stockade"] = { "Stormwind City", 41.0, 57.5 },
+	["Gnomeregan"] = { "Dun Morogh", 24.4, 39.8 },
+	["Shadowfang Keep"] = { "Silverpine Forest", 44.8, 67.8 },
+	["Scarlet Monastery"] = { "Tirisfal Glades", 84.5, 31.0 },
+	["Uldaman"] = { "Badlands", 42.4, 13.0 },
+	["The Temple of Atal'Hakkar"] = { "Swamp of Sorrows", 69.7, 53.6 },
+	["Ragefire Chasm"] = { "Orgrimmar", 52.8, 49.1 },
+	["Wailing Caverns"] = { "The Barrens", 46.0, 36.4 },
+	["Razorfen Kraul"] = { "The Barrens", 42.3, 89.9 },
+	["Razorfen Downs"] = { "The Barrens", 49.0, 93.9 },
+	["Blackfathom Deeps"] = { "Ashenvale", 14.1, 13.9 },
+	["Zul'Farrak"] = { "Tanaris", 39.2, 21.3 },
+	["Maraudon"] = { "Desolace", 29.2, 62.5 },
+	["The Hall of Thanes"] = { "Dun Morogh", 47.0, 52.0 },
+}
+
+-- The way in: the player's own (learned), else the table's. { map, x, y, zoneName, learned }.
+function RT.Entrance(name)
+	local key = DG().Norm(name)
+	local mine = ns.db and type(ns.db.routeEntrances) == "table" and ns.db.routeEntrances[key]
+	if type(mine) == "table" and mine.map then return { map = mine.map, x = mine.x, y = mine.y, zoneName = mine.zone, learned = true } end
+	for n, e in pairs(RT.ENTRANCES) do
+		if DG().Norm(n) == key then
+			local map = DG().MapNamed(e[1])
+			if map then return { map = map, x = e[2], y = e[3], zoneName = e[1] } end
+		end
+	end
+	return nil
+end
+
+-- Kept a few times a second while the route is on: where the player stands outside, so that going
+-- into a dungeon notes its way in.
+function RT.NoteOutside()
+	local here = RT.Here()
+	if here then R.routeOutside = { map = here.map, x = here.x, y = here.y, zone = here.zone } end
+end
+local function Inside()
+	local inst, kind = Try(rawget(_G, "IsInInstance"))
+	if not inst or (kind ~= "party" and kind ~= "raid") then return nil end
+	local name = Try(rawget(_G, "GetInstanceInfo"))
+	return type(name) == "string" and name or nil
+end
+function RT.OnEnterWorld()
+	local name = Inside()
+	if not name then return end
+	R.routeEntered = R.routeEntered or {}
+	R.routeEntered[DG().Norm(name)] = true
+	local out = R.routeOutside
+	if out and ns.db then
+		ns.db.routeEntrances = type(ns.db.routeEntrances) == "table" and ns.db.routeEntrances or {}
+		ns.db.routeEntrances[DG().Norm(name)] = { map = out.map, x = out.x, y = out.y, zone = out.zone }
+	end
+	RT.Refresh()
+end
+for _, ev in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }) do ns.On(ev, function() pcall(RT.OnEnterWorld) end) end
+-- Been in this session (or every quest for it done: the run is over).
+function RT.Entered(name)
+	return (R.routeEntered and R.routeEntered[DG().Norm(name)]) and true or false
+end
+
+-- A quest's three places, wherever they are: its giver, its objectives' area, its finisher; each
+-- { x, y, map (nil when it's the player's), zoneName } or nil.
+local function SpotOn(area, x, y, here)
+	if not area or not x or not y then return nil end
+	if here and area == here.area then return { x = x, y = y } end
+	local map = DG().MapForArea(area)
+	if not map then return nil end
+	local M = rawget(_G, "C_Map")
+	local zname = M and type(M.GetAreaInfo) == "function" and Try(M.GetAreaInfo, area) or nil
+	return { x = x, y = y, map = map, zoneName = zname }
+end
+function RT.QuestPlaces(Q, id, here)
+	local out = {}
+	local _, _, g = DG().Giver(Q, id)
+	if g then out.giver = SpotOn(g.zone, g.x, g.y, here); if out.giver then out.giver.name, out.giver.npc = g.name, g.npc end end
+	local area = tonumber((Try(Q.Quest.zoneOrSort, id)))
+	if area and area > 0 then
+		local c = RT.Area(RT.ObjectiveSpots(Q, id, area))
+		if c then out.area = SpotOn(area, c.x, c.y, here); if out.area then out.area.rx, out.area.ry, out.area.cx, out.area.cy = c.rx, c.ry, c.x, c.y end end
+	end
+	local fin = RT.TurnIn(Q, id, -1)
+	if fin and fin.zone then
+		local at = RT.TurnIn(Q, id, fin.zone)
+		if at and at.spot then out.fin = SpotOn(tonumber(fin.zone), at.spot.x, at.spot.y, here); if out.fin then out.fin.name = at.name end end
+	end
+	return out
+end
+
+-- The questline from a step to a dungeon quest: the quests between them, in order (follow-ups walked
+-- forward, at most eight deep), or nil.
+local function Path(from, to)
+	local seen, queue = { [from] = true }, { { from } }
+	while #queue > 0 do
+		local p = table.remove(queue, 1)
+		local last = p[#p]
+		if last == to then return p end
+		if #p < 9 then
+			for _, f in ipairs(RT.FollowUps(last)) do
+				if not seen[f] then seen[f] = true; local q = {}; for k, v in ipairs(p) do q[k] = v end; q[#q + 1] = f; queue[#queue + 1] = q end
+			end
+		end
+	end
+	return nil
+end
+
+-- The prep route: R.route as RT.Build makes it (stops, rules), with prep = the dungeon's name.
+function RT.BuildPrep(name)
+	local here = RT.Here()
+	local route = { stops = {}, elsewhere = {}, later = {}, built = GetTime(), prep = name }
+	R.route = route
+	if not here then route.nowhere = true; return route end
+	route.zone, route.map, route.area = here.zone, here.map, here.area
+	local Q = L()
+	route.db = Q ~= nil
+	local qs = Q and DG().Quests(name)
+	if not qs then route.noData = true; return route end
+	local log = ReadLog()
+	local raw, chains, extra = {}, {}, {}
+	local placed = {}
+	local function Place(kind, id, title, spot, to, x)
+		if not spot then return false end
+		local g = { kind = kind, q = id, title = title, to = to }
+		for k, v in pairs(x or {}) do g[k] = v end
+		raw[#raw + 1] = { x = spot.x, y = spot.y, map = spot.map, zoneName = spot.zoneName, goals = { g } }
+		placed[kind .. ":" .. id] = true
+		return true
+	end
+	-- One quest, as far as it goes: picked up (unless in the log), its objectives (when outside), its
+	-- turn-in (unless it's this dungeon's and not done yet: that's after the run).
+	local function Quest(id, title, dungeonQuest)
+		local p = RT.QuestPlaces(Q, id, here)
+		if not log[id] and not Done(id) then
+			local lv = tonumber((Try(Q.Quest.questLevel, id)))
+			if not Place("pickup", id, title, p.giver, p.giver and p.giver.name, { fromID = p.giver and p.giver.npc, level = lv }) then
+				route.elsewhere[""] = route.elsewhere[""] or {}
+				table.insert(route.elsewhere[""], { kind = "pickup", q = id, title = title })
+				return false
+			end
+		end
+		if p.area and not (log[id] and Complete(id)) then
+			Place("do", id, title, p.area, nil, { ax = p.area.cx, ay = p.area.cy, rx = p.area.rx, ry = p.area.ry })
+		end
+		if not dungeonQuest or (log[id] and Complete(id)) then Place("turnin", id, title, p.fin, p.fin and p.fin.name) end
+		return true
+	end
+	local dungeonIds = {}
+	-- This dungeon's quests open now, and the questlines to the locked ones.
+	for _, q in ipairs(qs.pickup) do
+		if not q.at then
+			if q.after or q.first then
+				-- The chain's step to do now, then each quest after it up to this one.
+				local start = q.first and q.id or nil
+				if not start then
+					for _, c in ipairs(qs.chains) do for _, o in ipairs(c.opens) do if o.id == q.id then start = c.id end end end
+				end
+				local path = start and Path(start, q.id) or (q.first and { q.id }) or nil
+				for k, step in ipairs(path or {}) do
+					if not placed["pickup:" .. step] and not placed["turnin:" .. step] then
+						local last = k == #path and not q.first
+						Quest(step, DG().Name(Q, step) or ("quest " .. step), last)
+						if last then dungeonIds[#dungeonIds + 1] = step end
+					end
+					if k > 1 then chains[#chains + 1] = { path[k - 1], step } end
+				end
+			else
+				Quest(q.id, q.name, true)
+				dungeonIds[#dungeonIds + 1] = q.id
+			end
+		else
+			route.later[#route.later + 1] = q.name
+		end
+	end
+	-- Its quests already in the log: their turn-ins once done (after the run).
+	for id, q in pairs(log) do
+		if tonumber((Try(Q.Quest.zoneOrSort, id))) == qs.area then
+			dungeonIds[#dungeonIds + 1] = id
+			Quest(id, q.title or ("quest " .. id), true)
+		end
+	end
+	-- The way in.
+	local door = RT.Entrance(name)
+	if door then
+		local spot = door.map == here.map and { x = door.x, y = door.y } or door
+		raw[#raw + 1] = { x = spot.x, y = spot.y, map = spot.map, zoneName = spot.zoneName,
+			goals = { { kind = "enter", q = 0, title = name, to = door.learned and nil or ("around " .. math.floor(door.x + 0.5) .. ", " .. math.floor(door.y + 0.5) .. " in " .. (door.zoneName or "?")) } } }
+		for _, id in ipairs(dungeonIds) do
+			if not log[id] then extra[#extra + 1] = { "pickup:" .. id, "enter:0" } end
+			extra[#extra + 1] = { "enter:0", "turnin:" .. id }
+		end
+	end
+	-- As the questing route does: what's done never shows; close ones are one stop when they can be.
+	local keep = {}
+	for _, s in ipairs(raw) do if not RT.StopDone(s) then keep[#keep + 1] = s end end
+	local function Rules(stops)
+		local rules = RT.Rules(stops, chains)
+		local have = {}
+		for _, s in ipairs(stops) do for _, g in ipairs(s.goals) do have[g.kind .. ":" .. g.q] = true end end
+		for _, r in ipairs(extra) do if have[r[1]] and have[r[2]] then rules[#rules + 1] = r end end
+		return rules
+	end
+	local rules = Rules(keep)
+	local stops, stopOf = {}, {}
+	for _, s in ipairs(keep) do
+		local joined
+		for _, t in ipairs(stops) do
+			if RT.Yards(s, t, here) <= RT.GROUP_YARDS then
+				for _, g in ipairs(s.goals) do stopOf[g.kind .. ":" .. g.q] = t end
+				if RT.Orderable(stops, rules, stopOf) then joined = t; break end
+			end
+		end
+		if joined then
+			for _, g in ipairs(s.goals) do joined.goals[#joined.goals + 1] = g end
+		else
+			stops[#stops + 1] = s
+			for _, g in ipairs(s.goals) do stopOf[g.kind .. ":" .. g.q] = s end
+		end
+	end
+	for _, s in ipairs(stops) do
+		table.sort(s.goals, function(a, b) return (RANK[a.kind] or 9) < (RANK[b.kind] or 9) end)
+		local keys = {}
+		for _, g in ipairs(s.goals) do keys[#keys + 1] = g.kind .. ":" .. g.q end
+		s.key = table.concat(keys, ",")
+	end
+	rules = Rules(stops)
+	route.stops = RT.Order(stops, { x = here.x, y = here.y }, here, rules)
+	route.rules = rules
+	return route
 end

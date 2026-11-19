@@ -100,7 +100,7 @@ test('a new account: the welcome (which names the route), not What\'s new; an ol
   assert.equal(fresh.evaluate('SpellmindWelcome.labels[1]:GetText()'), 'New in 0.5.0');
   assert.equal(fresh.evaluate('SpellmindWelcome.features[1].title:GetText()'), 'A plan that knows your character');
   assert.equal(fresh.evaluate('SpellmindWelcome.labels[2]:GetText()'), 'Always in Spellmind');
-  assert.equal(fresh.evaluate('SpellmindWelcome.features[5].title:GetText()'), 'A panel that knows your character');
+  assert.equal(fresh.evaluate('SpellmindWelcome.features[6].title:GetText()'), 'A panel that knows your character');
   assert.equal(fresh.evaluate('SpellmindWelcome.appTitle:GetText()'), 'Ask your own AI');
   // Try the route, from the welcome.
   assert.equal(fresh.evaluate('tostring(SpellmindWelcome.go.shown)'), 'true');

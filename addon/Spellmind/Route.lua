@@ -822,8 +822,15 @@ function RT.Flights()
 	local me = ns.State and ns.State.Me and ns.State.Me()
 	local out = {}
 	local known = me and type(me.flights) == "table" and me.flights or {}
+	R.routeSnapTried = R.routeSnapTried or {}
 	for name, w in pairs(me and type(me.flightSpots) == "table" and me.flightSpots or {}) do
-		if known[name] and type(w) == "table" and w.c and w.x and w.y then out[#out + 1] = { name = name, c = w.c, x = w.x, y = w.y } end
+		if known[name] and type(w) == "table" and w.c and w.x and w.y then
+			if not w.snapped and not R.routeSnapTried[name] and ns.World and ns.World.SnapFlight then
+				local s = ns.World.SnapFlight(w)
+				if s then me.flightSpots[name] = s; w = s else R.routeSnapTried[name] = true end
+			end
+			out[#out + 1] = { name = name, c = w.c, x = w.x, y = w.y, npc = w.npc }
+		end
 	end
 	return out
 end
@@ -1930,7 +1937,7 @@ function RT.ArrowTarget()
 		return { hearth = true, zone = z, text = "Use your hearthstone", sub = (z.via and (z.via:gsub("^hearthstone ", "")) or "") .. ", then on to " .. z.zone }
 	end
 	if type(z.leg) == "table" then
-		return { world = z.leg, zone = z, text = "Flight master at " .. Short(z.leg.name), sub = RT.LandText(z) }
+		return { world = z.leg, zone = z, text = (z.leg.npc and (z.leg.npc .. ", the flight master at ") or "Flight master at ") .. Short(z.leg.name), sub = RT.LandText(z) }
 	end
 	return { world = z.spot and World(z.map, z.spot.x, z.spot.y), zone = z, text = z.zone .. (z.spot and z.spot.giver and (": " .. z.spot.giver) or "") }
 end

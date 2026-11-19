@@ -272,6 +272,38 @@ function WD.Index()
 	return WD.index
 end
 
+-- A flight path's spot on its own flight master (the player, 2026-11-19: the flight map is drawn at a
+-- continent's scale, and in a city a small error there put Ironforge's at the Great Forge): the
+-- nearest friendly flight master QuestieDB has within WD.SNAP_YARDS on its continent. Returns the
+-- moved spot (with the master's name) or nil.
+WD.SNAP_YARDS = 700
+function WD.SnapFlight(spot)
+	local L = DB()
+	local index = L and WD.Index()
+	local RT = ns.Route
+	if not index or not RT or not RT.World or type(spot) ~= "table" or not spot.c then return nil end
+	local F = type(L.Enum) == "table" and type(L.Enum.npcFlags) == "table" and tonumber(L.Enum.npcFlags.FLIGHT_MASTER) or nil
+	if not F then return nil end
+	local best, bd
+	for zone, ids in pairs(index) do
+		local map = ns.Dungeons and ns.Dungeons.MapForArea(zone)
+		if map then
+			for _, id in ipairs(ids) do
+				if Has(ns.Try(L.Npc.npcFlags, id), F) then
+					local sp = ns.Try(L.Npc.spawns, id)
+					local at = type(sp) == "table" and type(sp[zone]) == "table" and sp[zone][1]
+					local w = type(at) == "table" and tonumber(at[1]) and tonumber(at[2]) and RT.World(map, at[1], at[2])
+					if w and w.c == spot.c then
+						local d = math.sqrt((w.x - spot.x) ^ 2 + (w.y - spot.y) ^ 2)
+						if d <= WD.SNAP_YARDS and (not bd or d < bd) then best, bd = { c = w.c, x = w.x, y = w.y, npc = ns.Try(L.Npc.name, id), snapped = true }, d end
+					end
+				end
+			end
+		end
+	end
+	return best
+end
+
 -- The zone's area ID for a ui map (QuestieDB's own table), or nil.
 -- By the map's name (QuestieDB's own table is Lua source text, not a table: seen in game), through
 -- the area lookup Dungeons.lua already does by name.

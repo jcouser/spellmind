@@ -1042,3 +1042,28 @@ test('the Route tab and the Dungeons tab: Prep a dungeon, back to questing', () 
   click(rowOf('Plan for'));
   assert.equal(vm.evaluate('NS.Route.Mode()'), 'questing');
 });
+
+test('a flight path sits on its own flight master (the player, 2026-11-19: Ironforge\'s was at the Great Forge)', () => {
+  const vm = newVM({ before: ZONE + MORE + `
+    LibQuestieDB.Enum.npcFlags = { FLIGHT_MASTER = 8192 }
+    local Npc = LibQuestieDB.Npc
+    local extra = { [352] = { name = "Thor", flags = 8192, zone = 40, spawns = { [40] = { { 56.6, 52.6 } } }, friendly = "A" } }
+    Npc.GetAllIds = function() return { 352 } end
+    Npc.npcFlags = function(id) return extra[id] and extra[id].flags end
+    local name, zone, spawns, friendly = Npc.name, Npc.zoneID, Npc.spawns, Npc.friendlyToFaction
+    Npc.name = function(id) return extra[id] and extra[id].name or name(id) end
+    Npc.zoneID = function(id) return extra[id] and extra[id].zone or zone(id) end
+    Npc.spawns = function(id) return extra[id] and extra[id].spawns or spawns(id) end
+    Npc.friendlyToFaction = function(id) return extra[id] and extra[id].friendly or friendly(id) end` }).login().advance(9);
+  vm.run('NS.World.Index()');
+  vm.advance(1);
+  // The flight map put Sentinel Hill's path at (56, 48) in Westfall; Thor stands at (56.6, 52.6), 92 yards off.
+  vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED")');
+  const f = vm.json('(function() for _, f in ipairs(NS.Route.Flights()) do if f.name == "Sentinel Hill, Westfall" then return f end end end)()');
+  assert.equal(f.npc, 'Thor');
+  assert.equal(Math.round(-f.y), Math.round(9000 + 0.566 * 3000), 'on Thor');
+  // The arrow's line names him.
+  vm.slash('route');
+  vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)()); NS.Route.ArrowUpdate()');
+  assert.match(vm.evaluate('SpellmindArrow.text:GetText()'), /flight master at Thelsamar|Flight master at Thelsamar/);
+});

@@ -3416,3 +3416,59 @@ function RT.LookAhead(me, path, target)
 	end
 	return { c = me.c, x = sx / n, y = sy / n }, along
 end
+
+---------------------------------------------------------------------------
+-- Skip chips (the player, 2026-11-19): the route review asks the AI to end with "Skip: <quest>" lines;
+-- each one naming a quest on the route becomes a button that skips its steps
+---------------------------------------------------------------------------
+
+RT.SKIPS_MAX = 3
+-- The quest on the route with this name (any case, colour codes and quotes aside), or nil.
+local function OnRoute(name)
+	local want = DG().Norm(name)
+	if want == "" then return nil end
+	for _, st in ipairs(R.route and R.route.stops or {}) do
+		for _, g in ipairs(st.goals) do
+			if g.title and DG().Norm(g.title) == want then return g.q, g.title end
+		end
+	end
+	return nil
+end
+-- A reply's text without its "Skip:" lines, and the quests they name that are on the route: { { q, title } }.
+function RT.SkipLines(text)
+	local keep, skips, seen = {}, {}, {}
+	for line in (tostring(text or "") .. "\n"):gmatch("(.-)\n") do
+		local plain = line:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+		local name = plain:match("^[%s%-%*•]*[Ss]kip:%s*(.-)%s*$")
+		if name then
+			name = name:gsub("^[\"'“‘]+", ""):gsub("[\"'”’%.!]+$", "")
+			local q, title = OnRoute(name)
+			if q and not seen[q] and #skips < RT.SKIPS_MAX then seen[q] = true; skips[#skips + 1] = { q = q, title = title } end
+		else
+			keep[#keep + 1] = line
+		end
+	end
+	return table.concat(keep, "\n"):gsub("%s+$", ""), skips
+end
+-- Every step of a quest skipped (its other quests' goals in a shared stop stay; that stop isn't
+-- skipped). Returns how many steps.
+function RT.SkipQuest(q)
+	-- The quest and the follow-ups planned after it (they can't come without it).
+	local set, after = { [q] = true }, R.route and R.route.after or {}
+	local grew = true
+	while grew do
+		grew = false
+		for f, pres in pairs(after) do
+			if not set[f] then
+				for _, p in ipairs(pres) do if set[p] then set[f], grew = true, true end end
+			end
+		end
+	end
+	local n = 0
+	for _, st in ipairs(R.route and R.route.stops or {}) do
+		local only = #st.goals > 0
+		for _, g in ipairs(st.goals) do if not set[g.q] then only = false end end
+		if only and not (R.routeSkip and R.routeSkip[st.key]) and not RT.StopDone(st) then RT.SetSkip(st.key, true); n = n + 1 end
+	end
+	return n
+end

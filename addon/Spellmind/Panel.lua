@@ -525,7 +525,7 @@ function P.RouteQuestion(kind)
 		return on and "Why is my quest route in this order? Explain its first few steps briefly, from the route in my game data."
 			or "The route is off. In what order should I do my quests here, and why?"
 	end
-	return on and "Review my quest route (the route in my game data): is the order good, which steps are worth skipping or leaving for later (and why), and where should I go after this zone? Keep it short."
+	return on and "Review my quest route (the route in my game data): is the order good, which steps are worth skipping or leaving for later (and why), and where should I go after this zone? Keep it short. For each quest you'd skip, end with a line of its own: Skip: <the quest's exact name>."
 		or "Plan my next hour of questing: which of my quests to do, in what order, and where."
 end
 

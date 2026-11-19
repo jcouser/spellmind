@@ -1355,3 +1355,22 @@ test('XP for the walk (the player, 2026-11-19): a far quest with little XP is "w
   const v = vm.json('SpellmindPanel.drawn'); const d = Array.isArray(v) ? v : Object.values(v || {});
   assert.ok(d.some(x => /Kobold Candles|Mountaineer Kadrell/.test(x.text || '') && /XP/.test(x.right || '')), 'a turn-in step\'s XP');
 });
+
+test('skip chips (the player, 2026-11-19): the review\'s "Skip: <quest>" lines become buttons that skip that quest\'s steps', () => {
+  const vm = session();
+  vm.slash('route');
+  vm.run('NS.Route.Build()');
+  // The lines out of the text; only quests on the route; quotes and colour aside.
+  const r = vm.json(`(function() local t, s = NS.Route.SkipLines("Looks good.\\nSkip: \\"Ironband's Excavation\\"\\n- Skip: |cffffd100Nope Quest|r\\nThen Wetlands.") return { t = t, s = s } end)()`);
+  assert.equal(r.t, 'Looks good.\nThen Wetlands.');
+  const s = Array.isArray(r.s) ? r.s : Object.values(r.s || {});
+  assert.deepEqual(s.map(x => x.title), ["Ironband's Excavation"], 'not one off the route');
+  // Its steps skipped.
+  const n = vm.num(`NS.Route.SkipQuest(${s[0].q})`);
+  assert.equal(n, 1, 'its one stop (pick up, do, turn in at Ironband)');
+  assert.ok(!vm.evaluate('NS.Route.UpNext(5) and (function() local o = {} for _, x in ipairs(NS.Route.UpNext(5)) do o[#o + 1] = x.key end return table.concat(o, " ") end)()').includes('702'));
+  vm.run('NS.Route.Back()');
+  assert.ok(vm.evaluate('(function() local o = {} for _, x in ipairs(NS.Route.UpNext(5)) do o[#o + 1] = x.key end return table.concat(o, " ") end)()').includes('702'), 'Back brings it back');
+  // The review question asks for the lines.
+  assert.match(vm.evaluate('NS.Panel.RouteQuestion("ROUTE_REVIEW")'), /Skip: <the quest's exact name>/);
+});

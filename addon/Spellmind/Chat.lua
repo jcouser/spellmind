@@ -247,10 +247,10 @@ end
 
 -- One message of a chat (the current one by default): who ("you", "sm", "sys" or "err"), its shown
 -- text (escaped), and a reply's chips. Drawn as a bubble when it's the window's chat.
-local function AddMsg(who, text, chips, chatId, pins)
+local function AddMsg(who, text, chips, chatId, pins, skips)
 	local id = chatId or ns.db.chat
 	local e = Entry(id)
-	e.msgs[#e.msgs + 1] = { w = who, t = tostring(text), c = chips, p = pins }
+	e.msgs[#e.msgs + 1] = { w = who, t = tostring(text), c = chips, p = pins, s = skips }
 	while #e.msgs > C.MSGS_MAX do table.remove(e.msgs, 1) end
 	e.at = time()
 	if who == "you" and not e.title then e.title = C.Title(text) end
@@ -571,6 +571,13 @@ function C.OnRecord(r, replay)
 		-- An imported guide (docs/milestone-15.md): its plan saved for this character.
 		if type(r.plan) == "table" and ns.Guide then pcall(ns.Guide.OnPlan, r.plan) end
 		text = ns.SafeText(r.text)
+		-- The steps it says to skip (the route review's "Skip: <quest>" lines, the player, 2026-11-19): out
+		-- of the text, each a button (Route.lua).
+		local skips
+		if ns.Route and ns.Route.SkipLines then
+			local ok, t2, sk = pcall(ns.Route.SkipLines, text)
+			if ok and type(t2) == "string" then text = t2; skips = type(sk) == "table" and #sk > 0 and sk or nil end
+		end
 		local more = math.max(0, math.floor(tonumber(r.more) or 0))
 		local whole = text .. (more > 0 and " |cff888888(cut short: ask for the rest)|r" or "")
 		AddText(WHO, whole)
@@ -587,7 +594,7 @@ function C.OnRecord(r, replay)
 				pins[#pins + 1] = { n = ns.SafeText(ns.Utf8Cut(p.n, 40)), z = ns.Utf8Cut(p.z, 40), x = x, y = y }
 			end
 		end
-		AddMsg("sm", whole, #chips > 0 and chips or nil, chatId, #pins > 0 and pins or nil)
+		AddMsg("sm", whole, #chips > 0 and chips or nil, chatId, #pins > 0 and pins or nil, skips)
 		if not replay then
 			-- A short reply goes to the chat frame whole, line by line: its first line alone can be
 			-- "…across three talents:" with the list below it (a player's, 2026-11-10). A longer one

@@ -301,9 +301,22 @@ local function NewChip(f)
 	c.text:SetFontObject(GameFontHighlightSmall)
 	c:SetScript("OnClick", function(self)
 		if self.pin then W.PinTo(self.pin)
+		elseif self.skip then W.SkipQuest(self.skip, self)
 		elseif self.ask then ns.Chat.Send(self.ask, R.ask and { about = R.ask.about } or nil) end
 	end)
 	return c
+end
+
+-- A reply's Skip, clicked: that quest's steps off the route (Back or the Route tab brings them back).
+function W.SkipQuest(k, button)
+	local RT = ns.Route
+	local n = RT and RT.SkipQuest and RT.SkipQuest(k.q) or 0
+	if n > 0 then
+		ns.Chat.System("Skipped on the route: " .. ns.Escape(k.title or "?") .. ". Back, or Unskip on the Route tab, brings it back.")
+		if button then button:Disable() end
+	else
+		ns.Chat.System(ns.Escape(k.title or "?") .. " has no step left on the route to skip.")
+	end
 end
 
 -- A reply's pin, clicked: the game's own map pin and arrow on that zone's map (the player asked,
@@ -415,9 +428,11 @@ function W.Layout(stick)
 	local asks = #msgs == 0 and W.STARTERS or (last and last.w == "sm" and type(last.c) == "table" and #last.c > 0 and last.c) or nil
 	-- The last reply's pins come first: "Pin: Malissa", each a button.
 	local pins = last and last.w == "sm" and type(last.p) == "table" and #last.p > 0 and last.p or nil
-	if pins then
+	local skips = last and last.w == "sm" and type(last.s) == "table" and #last.s > 0 and last.s or nil
+	if pins or skips then
 		local list = {}
-		for _, p in ipairs(pins) do list[#list + 1] = { pin = p } end
+		for _, p in ipairs(pins or {}) do list[#list + 1] = { pin = p } end
+		for _, k in ipairs(skips or {}) do list[#list + 1] = { skip = k } end
 		for _, a in ipairs(asks or {}) do list[#list + 1] = a end
 		asks = list
 	end
@@ -429,10 +444,13 @@ function W.Layout(stick)
 			f.chips[i] = c
 			if type(ask) == "table" and ask.pin then
 				c.text:SetText("|cff19ff19Pin:|r " .. ask.pin.n)
-				c.pin, c.ask = ask.pin, nil
+				c.pin, c.ask, c.skip = ask.pin, nil, nil
+			elseif type(ask) == "table" and ask.skip then
+				c.text:SetText("|cffff9933Skip:|r " .. ns.Escape(ask.skip.title or "?"))
+				c.pin, c.ask, c.skip = nil, nil, ask.skip
 			else
 				c.text:SetText(ask)
-				c.pin, c.ask = nil, ask
+				c.pin, c.ask, c.skip = nil, ask, nil
 			end
 			local cw = math.min(listW - 34, TextWidth(c.text) + 18)
 			c:SetWidth(cw)
@@ -440,7 +458,7 @@ function W.Layout(stick)
 			c:ClearAllPoints()
 			c:SetPoint("TOPLEFT", f.content, "TOPLEFT", x, y)
 			c:Show()
-			f.chipTexts[#f.chipTexts + 1] = type(ask) == "table" and ask.pin and ("Pin: " .. ask.pin.n) or ask
+			f.chipTexts[#f.chipTexts + 1] = type(ask) == "table" and (ask.pin and ("Pin: " .. ask.pin.n) or (ask.skip and ("Skip: " .. tostring(ask.skip.title)))) or ask
 			x = x + cw + 6
 		end
 		y = y - 22 - W.GAP

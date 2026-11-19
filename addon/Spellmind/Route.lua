@@ -489,6 +489,8 @@ function RT.Build()
 	R.route = route
 	if not here then route.nowhere = true; return route end
 	route.zone, route.map, route.area = here.zone, here.map, here.area
+	-- Arrived in the zone the player chose: the choice is done, the route plans its quests.
+	if R.routeAim and R.routeAim == here.area then R.routeAim = nil end
 	local Q = L()
 	route.db = Q ~= nil
 	local level = Level()
@@ -1125,7 +1127,12 @@ function RT.Zones(fresh)
 	end
 	local function Better(a, b) if a.rate ~= b.rate then return a.rate > b.rate end return a.zone < b.zone end
 	table.sort(others, Better)
-	while #others > RT.WHERE_MAX do table.remove(others) end
+	-- The zone the player chose stays, however it ranks (or it would drop out of the list on the way).
+	while #others > RT.WHERE_MAX do
+		local k = #others
+		if R.routeAim and others[k].area == R.routeAim then k = k - 1 end
+		table.remove(others, k)
+	end
 	if mine then others[#others + 1] = mine; table.sort(others, Better) end
 	R.routeWhere = { at = GetTime(), area = here.area, level = level, list = others }
 	return others
@@ -1146,17 +1153,18 @@ function RT.ZonesPart()
 end
 
 -- A zone chosen from Where next: the arrow points the way there instead of at the route's steps,
--- until it's clicked again or the player reaches a new zone. R.routeAim = its area ID.
+-- until it's clicked again or the player arrives there (the player, 2026-11-19: flying to Wetlands
+-- through Loch Modan, the choice ended at Loch Modan and the route had them questing there).
+-- R.routeAim = its area ID.
 function RT.Aim(z)
 	if type(z) ~= "table" then return end
 	if R.routeAim == z.area then
 		R.routeAim = nil
 	else
-		R.routeAim = z.area
+		R.routeAim, R.routeAimFrom = z.area, R.route and R.route.area
 	end
 	RT.Refresh()
 end
-ns.On("ZONE_CHANGED_NEW_AREA", function() R.routeAim = nil end)
 
 -- "Westfall: 3 quests to pick up, 1 in your log · about 4 min away"
 function RT.WhereText(z)
@@ -1174,6 +1182,14 @@ function RT.NextZone(route)
 	if not R.routeAim then return nil end
 	for _, z in ipairs(route and route.where or {}) do if z.area == R.routeAim then return z end end
 	return nil
+end
+
+-- On the way to the zone the player chose (in another zone): that zone, else nil. The steps here are
+-- set aside meanwhile: the arrow, the band, the map and the minimap show the way there.
+function RT.Traveling(route)
+	route = route or R.route
+	if not R.routeAim or not route or route.nowhere or route.prep or route.area == R.routeAim then return nil end
+	return RT.NextZone(route)
 end
 
 -- The other zones for the tracker: once few steps are left here (or none), the best few.
@@ -1868,11 +1884,19 @@ function RT.Draw()
 	f.title:SetText("Route" .. (route.prep and (" · " .. ns.Escape(route.prep) .. " prep") or (route.zone and (" · " .. ns.Escape(route.zone)) or "")))
 	local cur, i = RT.Current()
 	local done, total = RT.Progress()
-	f.step:SetText(total > 0 and ("Step " .. (i or math.min(done + 1, total)) .. " of " .. total) or "")
+	-- On the way to a chosen zone: the steps here wait. Done in the zone it was chosen in, the band says
+	-- so as ever ("Done here ... Next: Westfall (your choice)").
+	local going = RT.Traveling(route)
+	if going and not cur and route.area == R.routeAimFrom then going = nil end
+	if going then cur = nil end
+	f.step:SetText(going and "" or total > 0 and ("Step " .. (i or math.min(done + 1, total)) .. " of " .. total) or "")
 	local groups = cur and RT.Groups(cur) or {}
 	local sub
 	if route.nowhere then
 		f.now:SetText("|cff888888No map position here (an instance or a loading screen): the route waits until you're outside.|r")
+	elseif going then
+		f.now:SetText("|cff19ff19On the way to|r |cffffd100" .. ns.Escape(going.zone) .. "|r |cff888888(your choice)|r")
+		sub = RT.WhereText(going)
 	elseif not cur and wl[1] then
 		-- The zone the player chose, else the best (the player, 2026-11-19: Wetlands chosen, the band still
 		-- said Stormwind City).
@@ -1959,14 +1983,27 @@ function RT.Draw()
 	f.credit:SetText(credit and ("|cff777777" .. credit .. "|r") or "")
 	-- Where next, when the band isn't already saying it: the zones after the first.
 	local shownWhere = {}
-	local named = not cur and (RT.NextZone(route) or wl[1]) or nil
-	for _, z in ipairs(wl) do if z ~= named then shownWhere[#shownWhere + 1] = z end end
+	if going then
+		-- Quest here instead: ends the choice (Aim on the chosen zone again), the steps here back.
+		local left = total - done
+		if left > 0 then shownWhere[1] = { instead = true, area = going.area, zone = route.zone, left = left } end
+		for _, z in ipairs(route.where or {}) do
+			if not z.here and z ~= going and #shownWhere < RT.WHERE_SHOWN then shownWhere[#shownWhere + 1] = z end
+		end
+	else
+		local named = not cur and (RT.NextZone(route) or wl[1]) or nil
+		for _, z in ipairs(wl) do if z ~= named then shownWhere[#shownWhere + 1] = z end end
+	end
 	local whereH, awayH = 0, 0
 	for k, b in ipairs(f.where) do
 		local z = shownWhere[k]
 		b.zone = z
 		local aimed = z and R.routeAim == z.area
-		b.text:SetText(z and ((aimed and "|cff19ff19\194\187|r " or "") .. "|cffffd100" .. ns.Escape(z.zone) .. ":|r " .. RT.WhereText(z)) or "")
+		if z and z.instead then
+			b.text:SetText("|cff19ff19Quest here instead:|r |cffffd100" .. ns.Escape(z.zone or "here") .. "|r, " .. z.left .. (z.left == 1 and " step" or " steps"))
+		else
+			b.text:SetText(z and ((aimed and "|cff19ff19\194\187|r " or "") .. "|cffffd100" .. ns.Escape(z.zone) .. ":|r " .. RT.WhereText(z)) or "")
+		end
 		if z then b:SetHeight(Row(b.text)); whereH = whereH + Row(b.text) end
 	end
 	for k, l in ipairs(f.away) do
@@ -1978,7 +2015,7 @@ function RT.Draw()
 	local fixedH = f.sizing and (tonumber(f:GetHeight()) or RT.H) or ui.h
 	-- Room for Up next: three, or as many as the player's size of the window holds (one at least).
 	local room = fixedH and (fixedH + y - 16 - alsoH - 44) or nil
-	local upnext = RT.UpNext(fixedH and RT.NEXT_MAX or RT.UPNEXT_LINES)
+	local upnext = going and {} or RT.UpNext(fixedH and RT.NEXT_MAX or RT.UPNEXT_LINES)
 	f.nextLabel:ClearAllPoints()
 	f.nextLabel:SetPoint("TOPLEFT", f.content, "TOPLEFT", 14 - 8, y - top)
 	-- No Up next: no heading, and no room kept for it (the player's screenshot, 2026-11-19: a gap
@@ -2003,7 +2040,7 @@ function RT.Draw()
 	f.whereLabel:ClearAllPoints()
 	if #shownWhere > 0 then
 		y = y - 14
-		f.whereLabel:SetText(cur and "Where next" or "Or")
+		f.whereLabel:SetText((cur and "Where next") or (going and "Or") or "Or")
 		f.whereLabel:SetPoint("TOPLEFT", f.content, "TOPLEFT", 14 - 8, y - top)
 		f.whereLabel:Show()
 		y = y - 16
@@ -2042,7 +2079,7 @@ function RT.Draw()
 	if not f.sizing then f:SetHeight(ui.h and math.max(RT.MIN_H, math.min(RT.MAX_H, ui.h)) or math.max(RT.MIN_H, -y + 44)) end
 	if f.bar and f.bar.Update then f.bar.Update() end
 	if R.routeSkipped and #R.routeSkipped > 0 then f.back:Enable() else f.back:Disable() end
-	if cur then f.skip:Enable() else f.skip:Disable() end
+	if cur and not going then f.skip:Enable() else f.skip:Disable() end
 end
 
 -- The route on or off, kept (SpellmindDB.routeUI.on): on, the tracker is open through /reload and
@@ -2512,7 +2549,8 @@ function RT.DrawMap()
 		placed[#placed + 1] = { px, py }
 		return px, py
 	end
-	for i, s in ipairs(route.stops or {}) do
+	local going = RT.Traveling(route)
+	for i, s in ipairs(going and {} or route.stops or {}) do
 		if nd >= RT.MAP_STEPS then break end
 		if RT.StopMap(s) == shownMap and not RT.StopDone(s) and not (R.routeSkip and R.routeSkip[s.key]) then
 			local now = s == cur
@@ -2686,8 +2724,10 @@ function RT.Part()
 	end
 	local later = {}
 	for _, t in ipairs(route.later or {}) do if #later < 6 then later[#later + 1] = ns.State.Text(t, 80) end end
+	local going = RT.Traveling(route)
 	return O("zone", route.zone, "step", i, "of", total, "steps", #steps > 0 and steps or nil,
-		"later", #later > 0 and later or nil, "skipped", skipped > 0 and skipped or nil)
+		"later", #later > 0 and later or nil, "skipped", skipped > 0 and skipped or nil,
+		"headingTo", going and going.zone or nil)
 end
 
 ---------------------------------------------------------------------------

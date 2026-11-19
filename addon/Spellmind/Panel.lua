@@ -476,7 +476,8 @@ function Tabs.quests()
 			local cur, i = RT.Current()
 			local _, total = RT.Progress()
 			local zone = R.route and R.route.zone
-			sub = (cur and ("Step " .. i .. " of " .. total) or "Nothing left here") .. (zone and (" · " .. ns.Escape(zone)) or "")
+			local going = RT.Traveling()
+			sub = going and ("On the way to " .. ns.Escape(going.zone)) or ((cur and ("Step " .. i .. " of " .. total) or "Nothing left here") .. (zone and (" · " .. ns.Escape(zone)) or ""))
 		else
 			sub = "Your next steps, an arrow and the map's areas, from your quest log" .. (ns.Dungeons.HasDB() and " and Questie." or ".")
 		end
@@ -547,7 +548,9 @@ function Tabs.route()
 	if route then
 		local cur, i = RT.Current()
 		local _, total = RT.Progress()
+		local going = RT.Traveling(route)
 		status = route.nowhere and "Waiting for a position (an instance or a loading screen)."
+			or (going and ("On the way to " .. ns.Escape(going.zone) .. " (your choice). The steps in " .. ns.Escape(route.zone or "this zone") .. " wait."))
 			or ((cur and ("Step " .. i .. " of " .. total) or "Nothing left here") .. (route.zone and (" · " .. ns.Escape(route.zone)) or ""))
 	end
 	Switch("Quest route", status or ("Your next steps in a small window that stays on screen, an arrow and the steps on the world map, from your quest log"
@@ -599,9 +602,15 @@ function Tabs.route()
 				sub = leg.tip and leg.tip[2] and ("|cff888888" .. leg.tip[2] .. "|r") or nil, right = k == 1 and "|cffffd100now|r" or nil }
 		end
 	end
+	-- On the way to a chosen zone: the steps here wait; one click brings them back.
+	local going = RT.Traveling(route)
+	if going then
+		out[#out + 1] = { kind = "item", left = "|cff19ff19Quest here instead|r", sub = "|cff888888The steps in " .. ns.Escape(route.zone or "this zone") .. ", and the arrow back on them.|r",
+			actions = { { "Quest here", function() RT.Aim(going); P.Show("route", true) end, tip = "Ends the trip to " .. ns.Escape(going.zone) .. "." } } }
+	end
 	-- Every step: done, now, skipped, or to come.
-	out[#out + 1] = { kind = "head", text = "Steps" }
-	local cur = RT.Current()
+	out[#out + 1] = { kind = "head", text = going and ("Steps in " .. ns.Escape(route.zone or "this zone") .. " (waiting)") or "Steps" }
+	local cur = not going and RT.Current() or nil
 	local skips = R.routeSkip or {}
 	for i, s in ipairs(route.stops or {}) do
 		local done, skipped = RT.StopDone(s), skips[s.key]

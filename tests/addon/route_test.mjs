@@ -326,15 +326,17 @@ test('Where next: the zones by quests left for this character and the time to ge
   assert.equal(vm.evaluate('SpellmindRoute.whereLabel:GetText()'), 'Where next');
   assert.equal(vm.evaluate('SpellmindRoute.where[1].text:GetText()'), '|cffffd100Ironforge:|r 2 quests to pick up · about 10 min away');
   // A click on a zone: the arrow points the way there (steps still left here), marked; again: back.
+  // (The steps here wait: the band says where you're going, and the first line is "Quest here instead".)
   vm.run('SpellmindRoute.where[2].scripts.OnClick(SpellmindRoute.where[2]); NS.Route.ArrowUpdate()');
   assert.equal(vm.evaluate('SpellmindArrow.text:GetText()'), 'Westfall: Gryan Stoutmantle');
-  assert.match(vm.evaluate('SpellmindRoute.where[2].text:GetText()'), /^\|cff19ff19»\|r \|cffffd100Westfall/);
+  assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /On the way to.*Westfall/);
+  assert.match(vm.evaluate('SpellmindRoute.where[1].text:GetText()'), /Quest here instead/);
   assert.equal(vm.evaluate('tostring(STUB.waypoints[1])'), 'nil', 'no pin');
-  vm.run('SpellmindRoute.where[2].scripts.OnClick(SpellmindRoute.where[2]); NS.Route.ArrowUpdate()');
+  vm.run('SpellmindRoute.where[1].scripts.OnClick(SpellmindRoute.where[1]); NS.Route.ArrowUpdate()');
   assert.match(vm.evaluate('SpellmindArrow.text:GetText()'), /Kobold Candles/, 'back to the steps');
-  // Chosen, then a new zone reached: the choice is done.
+  // Chosen, then a zone change that isn't the chosen zone: the choice holds (until you arrive).
   vm.run('SpellmindRoute.where[2].scripts.OnClick(SpellmindRoute.where[2]); STUB.FireEvent("ZONE_CHANGED_NEW_AREA")');
-  assert.equal(vm.evaluate('tostring(NS.R.routeAim)'), 'nil');
+  assert.notEqual(vm.evaluate('tostring(NS.R.routeAim)'), 'nil');
 });
 
 test('Where next: done here, the band names the next zone and Go pins it', () => {
@@ -776,9 +778,9 @@ test('the way to a chosen zone on the map (the player, 2026-11-19: with the pins
   vm.slash('route');
   vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)())');
   const M = 'NS.Route.marks';
-  // On Loch Modan's map: the steps; Gryan is off this map, so a mark on its edge toward Westfall.
+  // On Loch Modan's map: its steps set aside on the way; Gryan is off this map, so a mark on its edge toward Westfall.
   vm.run('NS.Route.DrawMap()');
-  assert.equal(vm.num(`${M}.shown`), 3);
+  assert.equal(vm.num(`${M}.shown`), 0);
   assert.equal(vm.num(`${M}.legsShown`), 1);
   assert.equal(vm.evaluate(`${M}.legs[1].tip[1]`), 'Toward Westfall');
   // On Westfall's: Gryan, where the arrow heads; no steps (they're Loch Modan's).
@@ -1403,4 +1405,37 @@ test('on a flight path the route holds still; it\'s built again where you land (
   vm.run('STUB.onTaxi = false; STUB.FireEvent("PLAYER_CONTROL_GAINED")');
   vm.advance(3);
   assert.equal(vm.evaluate('NS.R.route.zone'), 'Westfall');
+});
+
+test('a zone chosen holds on the way, through other zones, until you arrive (the player, 2026-11-19: flying to Wetlands through Loch Modan, the route had them questing there)', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.slash('route');
+  assert.ok(vm.evaluate('NS.Route.Current() ~= nil'), 'steps here');
+  vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)())');
+  // The steps here set aside: the band, Up next, the map's dots.
+  assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /On the way to.*Westfall/);
+  assert.equal(String(vm.evaluate('SpellmindRoute.next[1]:IsShown()')), 'false', 'no Up next');
+  assert.match(vm.evaluate('SpellmindRoute.where[1].text:GetText()'), /Quest here instead:.*Loch Modan.*steps?/);
+  assert.equal(vm.evaluate('NS.State.JSON.encode(NS.Route.Part())').includes('"headingTo":"Westfall"'), true, 'the AI told');
+  // Through Ironforge: still on the way.
+  vm.run('STUB.player.map, STUB.player.zone, STUB.player.x, STUB.player.y = 1455, "Ironforge", 0.5, 0.5; STUB.FireEvent("ZONE_CHANGED_NEW_AREA")');
+  vm.advance(3);
+  assert.equal(vm.evaluate('NS.R.route.zone'), 'Ironforge');
+  assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /On the way to.*Westfall/, 'held through Ironforge');
+  // Arrived: the choice done, Westfall's own route.
+  vm.run('STUB.player.map, STUB.player.zone = 1436, "Westfall"; STUB.FireEvent("ZONE_CHANGED_NEW_AREA")');
+  vm.advance(3);
+  assert.equal(vm.evaluate('NS.R.route.zone'), 'Westfall');
+  assert.equal(vm.evaluate('tostring(NS.R.routeAim)'), 'nil', 'arrived');
+  assert.doesNotMatch(vm.evaluate('SpellmindRoute.now:GetText()'), /On the way to/);
+});
+
+test('quest here instead: one click ends the trip, the steps here come back', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.slash('route');
+  vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)())');
+  vm.run('SpellmindRoute.where[1]:GetScript("OnClick")(SpellmindRoute.where[1])');
+  assert.equal(vm.evaluate('tostring(NS.R.routeAim)'), 'nil');
+  assert.doesNotMatch(vm.evaluate('SpellmindRoute.now:GetText()'), /On the way to/);
+  assert.equal(String(vm.evaluate('SpellmindRoute.next[1]:IsShown()')), 'true', 'Up next back');
 });

@@ -551,11 +551,17 @@ test('talking to a giver to turn in doesn\'t mark the follow-up he\'ll give afte
   assert.ok(keys(vm).join(' ').includes('pickup:706'), 'back on the route');
 });
 
-test('a pick up up to orange (+4) is on the route, as one in the log is; red (+5) isn\'t', () => {
+test('a pick up is suggested to +3 solo (the player, 2026-11-19: +4 is a lot alone), +5 in a group', () => {
   const vm = newVM({ before: ZONE + `
+    STUB.qdb.quests[729] = { name = "Hard Pick Up", zone = 38, level = 18, npc = 802, ender = 802 }
     STUB.qdb.quests[730] = { name = "Orange Pick Up", zone = 38, level = 19, npc = 802, ender = 802 }
-    STUB.qdb.quests[731] = { name = "Red Pick Up", zone = 38, level = 20, npc = 802, ender = 802 }` }).login().advance(9);
-  const ks = keys(vm).join(' ');
-  assert.ok(ks.includes('pickup:730'), ks);
-  assert.ok(!ks.includes('pickup:731'), ks);
+    STUB.qdb.quests[731] = { name = "Red Pick Up", zone = 38, level = 20, npc = 802, ender = 802 }
+    STUB.grouped = false
+    IsInGroup = function() return STUB.grouped end` }).login().advance(9);
+  let ks = keys(vm).join(' ');
+  assert.ok(ks.includes('pickup:729'), ks);
+  assert.ok(!ks.includes('pickup:730') && !ks.includes('pickup:731'), `solo: not +4 or +5: ${ks}`);
+  vm.run('STUB.grouped = true');
+  ks = keys(vm).join(' ');
+  assert.ok(ks.includes('pickup:730') && ks.includes('pickup:731'), `in a group: ${ks}`);
 });

@@ -22,10 +22,10 @@ local R = ns.R
 RT.GROUP_YARDS = 90 -- stops this close are one stop
 RT.SPOTS_MAX = 80 -- an objective's spawn points read, at most
 RT.CLUSTER = 7 -- map percent: the radius of an objective's densest spot
-RT.BELOW, RT.ABOVE = 5, 4 -- pickups this far below (grey) or above (past orange) the character's level are left out
--- A quest already taken stays on the route up to orange (+4), as one to pick up does (the player,
--- 2026-11-19: Calor's +4 follow-up was left out until taken); red ones wait for a level. In a group,
--- two levels more for both.
+RT.BELOW, RT.ABOVE = 5, 3 -- pickups this far below (grey) or above the character's level are left out
+-- A quest already taken stays on the route up to orange (+4): the player chose it. One to pick up is
+-- suggested to +3 only (the player, 2026-11-19: a +4 one is a lot solo); red ones wait for a level. In a
+-- group, two levels more for both.
 RT.LOG_ABOVE, RT.GROUP_ABOVE = 4, 2
 RT.STOPS_MAX = 40
 RT.CHAIN_PASSES = 3 -- follow-ups planned this many steps down a chain

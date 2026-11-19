@@ -825,6 +825,12 @@ C_Map.GetWorldPosFromMapPos = function(map, v)
 	-- As the game has it: x to the north (up the map), y to the west (left on the map).
 	return 0, { x = -(o[2] + v.y * size[2]), y = -(o[1] + v.x * size[1]) }
 end
+C_Map.GetMapPosFromWorldPos = function(c, w, map)
+	local o = STUB.mapOrigins[map]
+	if not o then return nil end
+	local size = STUB.mapSizes[map] or { 3000, 2000 }
+	return map, { x = (-w.y - o[1]) / size[1], y = (-w.x - o[2]) / size[2] }
+end
 -- The facing: 0 to the north, counterclockwise in radians; none in an instance (facing = false).
 function GetPlayerFacing()
 	if STUB.player.facing == false then return nil end

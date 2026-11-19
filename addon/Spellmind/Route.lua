@@ -1770,12 +1770,12 @@ function RT.ArrowTarget()
 	z = z or RT.WhereLines(route)[1]
 	if not z then return nil end
 	if z.leg == "hearth" then
-		return { hearth = true, text = "Use your hearthstone", sub = (z.via and (z.via:gsub("^hearthstone ", "")) or "") .. ", then on to " .. z.zone }
+		return { hearth = true, zone = z, text = "Use your hearthstone", sub = (z.via and (z.via:gsub("^hearthstone ", "")) or "") .. ", then on to " .. z.zone }
 	end
 	if type(z.leg) == "table" then
-		return { world = z.leg, text = "Flight master at " .. Short(z.leg.name), sub = "then fly on to " .. z.zone }
+		return { world = z.leg, zone = z, text = "Flight master at " .. Short(z.leg.name), sub = "then fly on to " .. z.zone }
 	end
-	return { world = z.spot and World(z.map, z.spot.x, z.spot.y), text = z.zone .. (z.spot and z.spot.giver and (": " .. z.spot.giver) or "") }
+	return { world = z.spot and World(z.map, z.spot.x, z.spot.y), zone = z, text = z.zone .. (z.spot and z.spot.giver and (": " .. z.spot.giver) or "") }
 end
 
 -- The arrow's turn (radians, counterclockwise from straight up) and the yards from the player to a
@@ -1939,8 +1939,9 @@ local function AreaTex(layer, k)
 	end
 	return t
 end
-local function Dot(layer, k)
-	local d = marks.dots[k]
+local function Dot(layer, k, pool)
+	pool = pool or marks.dots
+	local d = pool[k]
 	if d then return d end
 	d = CreateFrame("Button", nil, layer)
 	d:SetSize(RT.DOT, RT.DOT)
@@ -1950,6 +1951,13 @@ local function Dot(layer, k)
 	d.num = d:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	d.num:SetPoint("CENTER", d, "CENTER", 0, 0)
 	d:SetScript("OnEnter", function(self)
+		if GameTooltip and self.tip then
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetText(self.tip[1])
+			for k = 2, #self.tip do GameTooltip:AddLine(self.tip[k], 1, 1, 1, true) end
+			GameTooltip:Show()
+			return
+		end
 		if not GameTooltip or not self.stop then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		GameTooltip:SetText("Step " .. self.index)
@@ -1957,9 +1965,25 @@ local function Dot(layer, k)
 		GameTooltip:Show()
 	end)
 	d:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-	marks.dots[k] = d
+	pool[k] = d
 	return d
 end
+
+-- A world spot on the map shown (0-100), or nil when it's off that map.
+local function OnMap(world, mapID)
+	local M = rawget(_G, "C_Map")
+	if not world or not mapID or type(M) ~= "table" or type(M.GetMapPosFromWorldPos) ~= "function" then return nil end
+	local V = rawget(_G, "CreateVector2D")
+	local v = type(V) == "function" and V(world.x, world.y) or { x = world.x, y = world.y }
+	local ok, _, pos = pcall(M.GetMapPosFromWorldPos, world.c, v, mapID)
+	if not ok or type(pos) ~= "table" then return nil end
+	local x, y
+	if type(pos.GetXY) == "function" then x, y = pos:GetXY() else x, y = pos.x, pos.y end
+	if type(x) ~= "number" or type(y) ~= "number" or x < 0 or x > 1 or y < 0 or y > 1 then return nil end
+	return x * 100, y * 100
+end
+marks.legs = {}
+marks.legsShown = 0
 
 -- Drawn again when the map opens, changes map or changes size.
 local hooked
@@ -1981,9 +2005,12 @@ function RT.DrawMap()
 	local layer = Layer(W, canvas)
 	for _, t in pairs(marks.areas) do t:Hide() end
 	for _, d in pairs(marks.dots) do d:Hide(); d.stop = nil end
-	marks.shown = 0
+	for _, d in pairs(marks.legs) do d:Hide(); d.tip = nil end
+	marks.shown, marks.legsShown = 0, 0
 	local route = R.route
-	if not RT.Shown() or not RT.MapOn() or not W:IsShown() or not route or not route.map or W:GetMapID() ~= route.map then return end
+	if not RT.Shown() or not RT.MapOn() or not W:IsShown() or not route or not route.map then return end
+	local shownMap = W:GetMapID()
+	local onRouteMap = shownMap == route.map
 	local cw, ch = tonumber((canvas:GetWidth())) or 0, tonumber((canvas:GetHeight())) or 0
 	if cw <= 0 or ch <= 0 then return end
 	local cur = RT.Current()
@@ -2003,7 +2030,7 @@ function RT.DrawMap()
 		placed[#placed + 1] = { px, py }
 		return px, py
 	end
-	for i, s in ipairs(route.stops or {}) do
+	for i, s in ipairs(onRouteMap and route.stops or {}) do
 		if nd >= RT.MAP_STEPS then break end
 		if not RT.StopDone(s) and not (R.routeSkip and R.routeSkip[s.key]) then
 			local now = s == cur
@@ -2033,6 +2060,32 @@ function RT.DrawMap()
 		end
 	end
 	marks.shown = nd
+	-- The way to another zone (the player, 2026-11-19: with the pins gone, a chosen zone showed nothing
+	-- on the map): its first leg (the flight master to fly from) and the quest giver it ends at, a green
+	-- » on whichever map shows them (the zone's, the destination's, the continent's).
+	local t = RT.ArrowTarget()
+	local z = t and t.zone
+	if not z then return end
+	local legs = {}
+	if t.world and type(z.leg) == "table" then legs[#legs + 1] = { world = t.world, tip = { t.text, t.sub } } end
+	local dest = z.spot and World(z.map, z.spot.x, z.spot.y)
+	if dest then legs[#legs + 1] = { world = dest, tip = { z.zone .. (z.spot.giver and (": " .. z.spot.giver) or ""), RT.WhereText(z), "Where the arrow is heading." } } end
+	for _, leg in ipairs(legs) do
+		local x, y = OnMap(leg.world, shownMap)
+		if x then
+			marks.legsShown = marks.legsShown + 1
+			local d = Dot(layer, marks.legsShown, marks.legs)
+			d:ClearAllPoints()
+			local px, py = Free(x / 100 * cw, y / 100 * ch)
+			d:SetPoint("CENTER", layer, "TOPLEFT", px, -py)
+			d.tex:SetVertexColor(0.3, 0.95, 0.4)
+			d.num:SetText("\194\187")
+			d.num:SetTextColor(0.05, 0.15, 0.05)
+			d.tip = leg.tip
+			d:SetFrameLevel(base + 4)
+			d:Show()
+		end
+	end
 end
 
 ---------------------------------------------------------------------------

@@ -769,3 +769,29 @@ test('two steps at one spot (a pick up and its turn-in, the objectives between):
   const b = at(2);
   assert.deepEqual(b, [300, -200.1], 'one on its own spot stays there');
 });
+
+test('the way to a chosen zone on the map (the player, 2026-11-19: with the pins gone it showed nothing): a green » on each map that has it', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run(MAP);
+  vm.slash('route');
+  vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)())');
+  const M = 'NS.Route.marks';
+  // On Loch Modan's map: the steps; Gryan is off this map.
+  vm.run('NS.Route.DrawMap()');
+  assert.equal(vm.num(`${M}.shown`), 3);
+  assert.equal(vm.num(`${M}.legsShown`), 0);
+  // On Westfall's: Gryan, where the arrow heads; no steps (they're Loch Modan's).
+  vm.run('STUB.mapShown = 1436; NS.Route.DrawMap()');
+  assert.equal(vm.num(`${M}.shown`), 0);
+  assert.equal(vm.num(`${M}.legsShown`), 1);
+  const at = vm.json(`(function() local _, _, _, x, y = ${M}.legs[1]:GetPoint(); return { x, y } end)()`);
+  assert.ok(Math.abs(at[0] - 560) < 0.5 && Math.abs(at[1] + 320.2) < 0.5, JSON.stringify(at));
+  assert.equal(vm.evaluate(`${M}.legs[1].tip[1]`), 'Westfall: Gryan Stoutmantle');
+  // By air: the flight master on Loch Modan's map too.
+  vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED"); NS.Route.Build(); STUB.mapShown = 1432; NS.Route.DrawMap()');
+  assert.equal(vm.num(`${M}.legsShown`), 1);
+  assert.equal(vm.evaluate(`${M}.legs[1].tip[1]`), 'Flight master at Thelsamar');
+  // Back to the steps: none.
+  vm.run('NS.R.routeAim = nil; NS.Route.DrawMap()');
+  assert.equal(vm.num(`${M}.legsShown`), 0);
+});

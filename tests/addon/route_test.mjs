@@ -578,3 +578,42 @@ test('a pick up is suggested to +3 solo (the player, 2026-11-19: +4 is a lot alo
   ks = keys(vm).join(' ');
   assert.ok(ks.includes('turnin:730') && ks.includes('turnin:731'), `in a group: done: ${ks}`);
 });
+
+// The world map: a canvas 1000 x 667 showing Loch Modan.
+const MAP = `
+  WorldMapFrame.canvas = CreateFrame("Frame", nil, WorldMapFrame)
+  WorldMapFrame.canvas:SetSize(1000, 667)
+  function WorldMapFrame:GetCanvas() return self.canvas end
+  STUB.mapShown = 1432
+  function WorldMapFrame:GetMapID() return STUB.mapShown end`;
+
+test('the world map: each step still to do numbered at its spot, its objective\'s area shaded (the player, 2026-11-19)', () => {
+  const vm = session();
+  vm.run(MAP);
+  vm.slash('route');
+  const M = 'NS.Route.marks';
+  assert.equal(vm.num(`${M}.shown`), 3, 'three steps, three dots');
+  assert.equal(vm.evaluate(`${M}.dots[1].num:GetText()`), '1');
+  // The rats' area (around 20.2, 20.5): at least 2.5% each way, so 50 x 33 on the canvas.
+  const a = vm.json(`(function() local t = ${M}.areas[1]; local _, _, _, x, y = t:GetPoint(); return { x = x, y = y, w = t.width, h = t.height, shown = t.shown } end)()`);
+  assert.ok(Math.abs(a.x - 201.7) < 0.5 && Math.abs(a.y + 136.7) < 0.5, JSON.stringify(a));
+  assert.ok(Math.abs(a.w - 50) < 0.01 && Math.abs(a.h - 33.35) < 0.01, JSON.stringify(a));
+  assert.equal(a.shown, true);
+  assert.equal(vm.evaluate(`tostring(${M}.areas[2] and ${M}.areas[2].shown)`), 'true', 'Ironband\'s troggs too');
+  // A click on a dot: the game's pin there.
+  vm.run(`${M}.dots[2].scripts.OnClick(${M}.dots[2])`);
+  assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1432);
+  // The rats done: their dot and area go; the numbers stay the tracker's.
+  vm.run('STUB.objectives[700][1].numFulfilled = 8; STUB.quests[2].complete = true; STUB.FireEvent("QUEST_LOG_UPDATE")');
+  assert.equal(vm.num(`${M}.shown`), 2);
+  assert.equal(vm.evaluate(`${M}.dots[1].num:GetText()`), '2');
+  assert.equal(vm.evaluate('SpellmindRoute.step:GetText()'), 'Step 2 of 3');
+  // Another map shown: none; the tracker closed: none.
+  vm.run('STUB.mapShown = 1436; NS.Route.DrawMap()');
+  assert.equal(vm.num(`${M}.shown`), 0);
+  vm.run('STUB.mapShown = 1432; NS.Route.DrawMap()');
+  assert.equal(vm.num(`${M}.shown`), 2);
+  vm.slash('route');
+  assert.equal(vm.num(`${M}.shown`), 0, 'closed with the tracker');
+  assert.equal(vm.evaluate(`tostring(${M}.dots[1].shown)`), 'false');
+});

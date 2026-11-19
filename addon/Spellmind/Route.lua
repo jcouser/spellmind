@@ -192,6 +192,24 @@ function RT.Center(pts, radius)
 	return { x = sx / c, y = sy / c }
 end
 
+-- An objective's area for the world map: the densest group's middle and its reach each way (map
+-- percent), at least RT.AREA_MIN, with RT.AREA_PAD around the outer spawns.
+RT.AREA_MIN, RT.AREA_PAD = 2.5, 1.5
+function RT.Area(pts, radius)
+	local c = RT.Center(pts, radius)
+	if not c then return nil end
+	radius = radius or RT.CLUSTER
+	local r2, rx, ry = radius * radius, 0, 0
+	for _, q in ipairs(pts) do
+		if (q[1] - c.x) ^ 2 + (q[2] - c.y) ^ 2 <= r2 then
+			rx, ry = math.max(rx, math.abs(q[1] - c.x)), math.max(ry, math.abs(q[2] - c.y))
+		end
+	end
+	c.rx, c.ry = math.max(RT.AREA_MIN, rx + RT.AREA_PAD), math.max(RT.AREA_MIN, ry + RT.AREA_PAD)
+	return c
+end
+local function AreaOf(c) return c and c.rx and { ax = c.x, ay = c.y, rx = c.rx, ry = c.ry } or nil end
+
 -- Who takes a quest back: { name, spot = { x, y } in this area } or { name, zone = areaID } elsewhere.
 function RT.TurnIn(Q, id, area)
 	local by = Try(Q.Quest.finishedBy, id)
@@ -449,10 +467,10 @@ function RT.Build()
 			local fin = Q and here.area and RT.TurnIn(Q, id, here.area) or nil
 			local doHere = false
 			if not complete then
-				local center = Q and here.area and RT.Center(RT.ObjectiveSpots(Q, id, here.area)) or nil
+				local center = Q and here.area and RT.Area(RT.ObjectiveSpots(Q, id, here.area)) or nil
 				center = center or GameSpot(id)
 				if center then
-					Place("do", id, title, center); doHere = true
+					Place("do", id, title, center, nil, AreaOf(center)); doHere = true
 				else
 					-- An item nothing here drops: bought here, or got elsewhere.
 					local v = Q and here.area and RT.Vendor(Q, id, here.area) or nil
@@ -509,7 +527,7 @@ function RT.Build()
 						forLater[#forLater + 1] = { id = id, title = DG().Name(Q, id) or ("quest " .. id), spot = spot, needs = needs }
 					elseif mine and spot and spot.zone == here.area then
 						local title = DG().Name(Q, id) or ("quest " .. id)
-						local center = RT.Center(RT.ObjectiveSpots(Q, id, here.area))
+						local center = RT.Area(RT.ObjectiveSpots(Q, id, here.area))
 						local fin = RT.TurnIn(Q, id, here.area)
 						-- Its objectives have to be doable here (mobs, objects, a vendor), or it has none.
 						local hasObjectives = RT.HasObjectives(Q, id)
@@ -518,7 +536,7 @@ function RT.Build()
 						if (hasObjectives and doable) or (not hasObjectives and fin and fin.spot) then
 							taken[id], added = true, true
 							Place("pickup", id, title, spot, spot.name, { fromID = spot.npc })
-							if center then Place("do", id, title, center)
+							if center then Place("do", id, title, center, nil, AreaOf(center))
 							elseif v and v.spot then Place("do", id, title, v.spot, nil, { buy = v.item, buyID = v.itemID, from = v.name, fromID = v.npc, empty = v.empty }) end
 							if fin and fin.spot then Place("turnin", id, title, fin.spot, fin.name) end
 							local pre = Try(Q.Quest.preQuestSingle, id)
@@ -1404,7 +1422,7 @@ local function Build()
 		RT.Draw()
 	end)
 	f:SetScript("OnSizeChanged", function() if f.sizing then RT.Draw() end end)
-	f:SetScript("OnHide", function() if RT.arrow then RT.arrow:Hide() end end)
+	f:SetScript("OnHide", function() if RT.arrow then RT.arrow:Hide() end pcall(RT.DrawMap) end)
 	local ui = UI()
 	if ui.w then f:SetWidth(math.max(RT.MIN_W, math.min(RT.MAX_W, ui.w))) end
 	f:Hide()
@@ -1487,6 +1505,7 @@ function RT.Draw()
 	local route = R.route or {}
 	local ui = UI()
 	RT.ArrowSync()
+	pcall(RT.DrawMap)
 	local W = tonumber(f:GetWidth()) or RT.W
 	f.now:SetWidth(W - 96); f.nowSub:SetWidth(W - 96); f.credit:SetWidth(W - 28)
 	for _, l in ipairs(f.away) do l:SetWidth(W - 40) end
@@ -1499,7 +1518,7 @@ function RT.Draw()
 	f.title:SetText("Route" .. (route.zone and (" · " .. ns.Escape(route.zone)) or ""))
 	local cur, i = RT.Current()
 	local done, total = RT.Progress()
-	f.step:SetText(total > 0 and ("Step " .. math.min(done + 1, total) .. " of " .. total) or "")
+	f.step:SetText(total > 0 and ("Step " .. (i or math.min(done + 1, total)) .. " of " .. total) or "")
 	local groups = cur and RT.Groups(cur) or {}
 	local sub
 	if route.nowhere then
@@ -1792,4 +1811,120 @@ function RT.ArrowUpdate()
 	a.text:SetText(t.text or "")
 	a.sub:SetText(t.sub or "")
 	a.turn, a.yards = turn, yards
+end
+
+---------------------------------------------------------------------------
+-- The world map (phase 2): the next steps numbered, their objectives' areas shaded
+---------------------------------------------------------------------------
+
+-- The player (2026-11-19): "shaded areas with numbers indicating which step they're for". On the
+-- route's own zone map, while the tracker is open: a numbered dot at each step still to do (the
+-- tracker's Step numbers; hover for what it is, click for the game's pin), and over each kill or loot
+-- objective the area its mobs or objects are in (the current step gold, the rest Spellmind's purple).
+-- Drawn on the map's canvas, under the map's own pins (Questie's spawn marks stay on top).
+RT.MAP_STEPS = 12
+RT.DOT = 18
+local AREA_TEX = "Interface\\AddOns\\Spellmind\\Media\\Area"
+local DOT_TEX = "Interface\\AddOns\\Spellmind\\Media\\Dot"
+local marks = { areas = {}, dots = {}, shown = 0 }
+RT.marks = marks
+
+local function Layer(canvas)
+	if marks.layer then return marks.layer end
+	local l = CreateFrame("Frame", "SpellmindRouteMap", canvas)
+	l:SetAllPoints(canvas)
+	l:SetFrameLevel((tonumber((canvas:GetFrameLevel())) or 1) + 2)
+	marks.layer = l
+	return l
+end
+local function AreaTex(layer, k)
+	local t = marks.areas[k]
+	if not t then
+		t = layer:CreateTexture(nil, "BACKGROUND")
+		t:SetTexture(AREA_TEX)
+		marks.areas[k] = t
+	end
+	return t
+end
+local function Dot(layer, k)
+	local d = marks.dots[k]
+	if d then return d end
+	d = CreateFrame("Button", nil, layer)
+	d:SetSize(RT.DOT, RT.DOT)
+	d.tex = d:CreateTexture(nil, "ARTWORK")
+	d.tex:SetAllPoints(d)
+	d.tex:SetTexture(DOT_TEX)
+	d.num = d:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	d.num:SetPoint("CENTER", d, "CENTER", 0, 0)
+	d:SetScript("OnEnter", function(self)
+		if not GameTooltip or not self.stop then return end
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetText("Step " .. self.index)
+		for _, gr in ipairs(RT.Groups(self.stop)) do GameTooltip:AddLine(RT.GroupText(gr), 1, 1, 1, true) end
+		GameTooltip:AddLine("Click: the game's map pin here.", 0.6, 0.6, 0.6)
+		GameTooltip:Show()
+	end)
+	d:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+	d:SetScript("OnClick", function(self) if self.stop then RT.Go(self.stop) end end)
+	marks.dots[k] = d
+	return d
+end
+
+-- Drawn again when the map opens, changes map or changes size.
+local hooked
+local function Hook(W)
+	if hooked then return end
+	hooked = true
+	local function Again() pcall(RT.DrawMap) end
+	if type(W.HookScript) == "function" then W:HookScript("OnShow", Again) end
+	if type(W.OnMapChanged) == "function" then hooksecurefunc(W, "OnMapChanged", Again) end
+	if type(W.OnCanvasSizeChanged) == "function" then hooksecurefunc(W, "OnCanvasSizeChanged", Again) end
+end
+
+function RT.DrawMap()
+	local W = rawget(_G, "WorldMapFrame")
+	if type(W) ~= "table" or type(W.GetCanvas) ~= "function" then return end
+	Hook(W)
+	local canvas = W:GetCanvas()
+	if not canvas then return end
+	local layer = Layer(canvas)
+	for _, t in pairs(marks.areas) do t:Hide() end
+	for _, d in pairs(marks.dots) do d:Hide(); d.stop = nil end
+	marks.shown = 0
+	local route = R.route
+	if not RT.Shown() or not W:IsShown() or not route or not route.map or W:GetMapID() ~= route.map then return end
+	local cw, ch = tonumber((canvas:GetWidth())) or 0, tonumber((canvas:GetHeight())) or 0
+	if cw <= 0 or ch <= 0 then return end
+	local cur = RT.Current()
+	local base = tonumber((layer:GetFrameLevel())) or 1
+	local na, nd = 0, 0
+	for i, s in ipairs(route.stops or {}) do
+		if nd >= RT.MAP_STEPS then break end
+		if not RT.StopDone(s) and not (R.routeSkip and R.routeSkip[s.key]) then
+			local now = s == cur
+			local r, g, b = now and 1 or 0.62, now and 0.82 or 0.49, now and 0 or 1
+			for _, goal in ipairs(s.goals) do
+				if goal.kind == "do" and goal.rx and not RT.GoalDone(goal) then
+					na = na + 1
+					local t = AreaTex(layer, na)
+					t:ClearAllPoints()
+					t:SetPoint("CENTER", layer, "TOPLEFT", goal.ax / 100 * cw, -goal.ay / 100 * ch)
+					t:SetSize(2 * goal.rx / 100 * cw, 2 * goal.ry / 100 * ch)
+					t:SetVertexColor(r, g, b, now and 0.55 or 0.35)
+					t:Show()
+				end
+			end
+			nd = nd + 1
+			local d = Dot(layer, nd)
+			d:ClearAllPoints()
+			d:SetPoint("CENTER", layer, "TOPLEFT", s.x / 100 * cw, -s.y / 100 * ch)
+			d.tex:SetVertexColor(r, g, b)
+			d.num:SetText(tostring(i))
+			if now then d.num:SetTextColor(0.1, 0.05, 0) else d.num:SetTextColor(1, 1, 1) end
+			d.stop, d.index = s, i
+			d:SetFrameLevel(base + (now and 3 or 1))
+			d:Show()
+		end
+	end
+	marks.shown = nd
 end

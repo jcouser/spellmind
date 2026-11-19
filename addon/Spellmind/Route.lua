@@ -1355,26 +1355,41 @@ local function Build()
 	f.now = Line(f.band, "GameFontHighlight", RT.W - 32)
 	f.now:SetPoint("TOPLEFT", f.band, "TOPLEFT", 8, -8)
 	f.nowSub = Line(f.band, "GameFontDisableSmall", RT.W - 32)
+	-- Everything under the band scrolls when the window is shorter than it (the player, 2026-11-19:
+	-- the text ran out of the window). The bar shows only then.
+	f.scroll = CreateFrame("ScrollFrame", nil, f)
+	f.content = CreateFrame("Frame", nil, f.scroll)
+	f.content:SetSize(RT.W - 22, 10)
+	f.scroll:SetScrollChild(f.content)
+	f.scroll:EnableMouseWheel(true)
+	f.scroll:SetScript("OnMouseWheel", function(self, delta)
+		local range = tonumber((self:GetVerticalScrollRange())) or 0
+		local y = (tonumber((self:GetVerticalScroll())) or 0) - delta * 30
+		self:SetVerticalScroll(math.max(0, math.min(range, y)))
+		if f.bar and f.bar.Update then f.bar.Update() end
+	end)
+	f.bar = ns.Window and ns.Window.ScrollBar and ns.Window.ScrollBar(f.scroll, 4) or nil
+	local C = f.content
 	f.thens = {}
 	for i = 1, RT.THEN_LINES do
-		local l = Line(f, "GameFontHighlightSmall", RT.W - 40)
+		local l = Line(C, "GameFontHighlightSmall", RT.W - 40)
 		if l.SetMaxLines then l:SetMaxLines(3) end
 		f.thens[i] = l
 	end
-	f.nextLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	f.nextLabel = C:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	f.nextLabel:SetText("Up next")
 	f.next = {}
 	for i = 1, RT.NEXT_MAX do
-		local l = Line(f, "GameFontHighlightSmall", RT.W - 40)
+		local l = Line(C, "GameFontHighlightSmall", RT.W - 40)
 		if l.SetMaxLines then l:SetMaxLines(3) end
 		f.next[i] = l
 	end
 	-- Where next: the best zones to go on to, each a line to click for a pin at its quest givers.
-	f.whereLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	f.whereLabel = C:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	f.whereLabel:SetText("Where next")
 	f.where = {}
 	for i = 1, RT.WHERE_SHOWN do
-		local b = CreateFrame("Button", nil, f)
+		local b = CreateFrame("Button", nil, C)
 		b:SetSize(RT.W - 40, 15)
 		b.text = Line(b, "GameFontHighlightSmall", RT.W - 40)
 		if b.text.SetMaxLines then b.text:SetMaxLines(3) end
@@ -1385,11 +1400,11 @@ local function Build()
 	end
 	-- Elsewhere: its own heading and lines (the player, 2026-11-19: one crammed line was hard to read),
 	-- and where the route's data comes from, on a line of its own above the buttons.
-	f.awayLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	f.awayLabel = C:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	f.awayLabel:SetText("Elsewhere")
 	f.away = {}
 	for i = 1, RT.AWAY_LINES do
-		local l = Line(f, "GameFontHighlightSmall", RT.W - 40)
+		local l = Line(C, "GameFontHighlightSmall", RT.W - 40)
 		if l.SetMaxLines then l:SetMaxLines(3) end
 		f.away[i] = l
 	end
@@ -1550,16 +1565,20 @@ function RT.Draw()
 		for _, l in ipairs(f.away) do l:Hide() end
 		for _, b in ipairs(f.where) do b:Hide() end
 		for _, r in ipairs(rest) do r:Hide() end
+		f.scroll:Hide()
+		if f.bar then f.bar:Hide() end
 		if not f.sizing then f:SetHeight(36 + bandH + 10) end
 		return
 	end
 	for _, r in ipairs({ f.credit, f.back, f.skip, f.rebuild, f.grip }) do r:Show() end
+	f.scroll:Show()
+	local top = -36 - bandH - 4 -- the scroll's top, from the window's
 	local y = -36 - bandH - 8
 	-- Then: the rest of this stop, two lines at most.
 	for k, l in ipairs(f.thens) do
 		local gr = groups[k + 1]
 		l:ClearAllPoints()
-		l:SetPoint("TOPLEFT", f, "TOPLEFT", 16, y)
+		l:SetPoint("TOPLEFT", f.content, "TOPLEFT", 16 - 8, y - top)
 		if gr then
 			local last = k == RT.THEN_LINES and #groups > RT.THEN_LINES + 1
 			l:SetText("|cff888888Then:|r " .. RT.GroupText(gr) .. (last and (" |cff888888(+" .. (#groups - RT.THEN_LINES - 1) .. ")|r") or ""))
@@ -1597,14 +1616,14 @@ function RT.Draw()
 	local room = fixedH and (fixedH + y - 16 - alsoH - 44) or nil
 	local upnext = RT.UpNext(fixedH and RT.NEXT_MAX or RT.UPNEXT_LINES)
 	f.nextLabel:ClearAllPoints()
-	f.nextLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
+	f.nextLabel:SetPoint("TOPLEFT", f.content, "TOPLEFT", 14 - 8, y - top)
 	if #upnext > 0 then f.nextLabel:Show() else f.nextLabel:Hide() end
 	y = y - 16
 	local used = 0
 	for k, l in ipairs(f.next) do
 		local s = upnext[k]
 		l:ClearAllPoints()
-		l:SetPoint("TOPLEFT", f, "TOPLEFT", 20, y)
+		l:SetPoint("TOPLEFT", f.content, "TOPLEFT", 20 - 8, y - top)
 		if s then l:SetText(RT.StopText(s)) else l:SetText("") end
 		local h = s and Row(l)
 		if s and (k == 1 or not room or used + h <= room) then
@@ -1620,7 +1639,7 @@ function RT.Draw()
 	if #shownWhere > 0 then
 		y = y - 14
 		f.whereLabel:SetText(cur and "Where next" or "Or")
-		f.whereLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
+		f.whereLabel:SetPoint("TOPLEFT", f.content, "TOPLEFT", 14 - 8, y - top)
 		f.whereLabel:Show()
 		y = y - 16
 	else
@@ -1629,14 +1648,14 @@ function RT.Draw()
 	for k, b in ipairs(f.where) do
 		local z = shownWhere[k]
 		b:ClearAllPoints()
-		b:SetPoint("TOPLEFT", f, "TOPLEFT", 20, y)
+		b:SetPoint("TOPLEFT", f.content, "TOPLEFT", 20 - 8, y - top)
 		if z then b:Show(); y = y - Row(b.text) else b:Hide() end
 	end
 	-- Elsewhere: a gap, its heading, its lines.
 	f.awayLabel:ClearAllPoints()
 	if #away > 0 then
 		y = y - 14
-		f.awayLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
+		f.awayLabel:SetPoint("TOPLEFT", f.content, "TOPLEFT", 14 - 8, y - top)
 		f.awayLabel:Show()
 		y = y - 16
 	else
@@ -1644,13 +1663,19 @@ function RT.Draw()
 	end
 	for k, l in ipairs(f.away) do
 		l:ClearAllPoints()
-		l:SetPoint("TOPLEFT", f, "TOPLEFT", 20, y)
+		l:SetPoint("TOPLEFT", f.content, "TOPLEFT", 20 - 8, y - top)
 		if away[k] then l:Show(); y = y - Row(l) else l:Hide() end
 	end
+	-- The content's height (what scrolls), and the scroll between the band and the credit line.
+	f.content:SetSize(W - 22, math.max(1, top - y + 4))
+	f.scroll:ClearAllPoints()
+	f.scroll:SetPoint("TOPLEFT", f, "TOPLEFT", 8, top)
+	f.scroll:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, credit and 50 or 38)
 	if credit then y = y - 16 end
 	-- As tall as what it shows, with room for the buttons (the player, 2026-11-19: text ran out of it),
 	-- or the player's own size.
 	if not f.sizing then f:SetHeight(ui.h and math.max(RT.MIN_H, math.min(RT.MAX_H, ui.h)) or math.max(RT.MIN_H, -y + 44)) end
+	if f.bar and f.bar.Update then f.bar.Update() end
 	if R.routeSkipped and #R.routeSkipped > 0 then f.back:Enable() else f.back:Disable() end
 	if cur then f.skip:Enable() else f.skip:Disable() end
 end

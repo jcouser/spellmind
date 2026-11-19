@@ -691,3 +691,27 @@ test('the tracker\'s place is kept through a /reload (the player, 2026-11-19), a
   assert.equal(vm.num('SpellmindRoute:GetWidth()'), 400);
   assert.equal(vm.num('SpellmindRoute:GetHeight()'), 420);
 });
+
+test('a window shorter than what it shows scrolls (the player, 2026-11-19: the text ran out of it)', () => {
+  const vm = session();
+  vm.slash('route');
+  // The sections are the scroll's content, so the window clips them.
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.next[1].parent == SpellmindRoute.content)'), 'true');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.away[1].parent == SpellmindRoute.content)'), 'true');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.where[1].parent == SpellmindRoute.content)'), 'true');
+  // Sized short: the content is taller than the room between the band and the credit line.
+  vm.run('SpellmindDB.routeUI.h = 160; NS.Route.Draw()');
+  assert.equal(vm.num('SpellmindRoute:GetHeight()'), 160);
+  const contentH = vm.num('SpellmindRoute.content:GetHeight()');
+  const bandH = vm.num('SpellmindRoute.band:GetHeight()');
+  const room = 160 - (36 + bandH + 4) - 50;
+  assert.ok(contentH > room, `content ${contentH} > room ${room}: it scrolls`);
+  // The wheel scrolls it, within its range.
+  vm.run('SpellmindRoute.scroll.GetVerticalScrollRange = function() return 40 end; SpellmindRoute.scroll.scripts.OnMouseWheel(SpellmindRoute.scroll, -1)');
+  assert.equal(vm.num('SpellmindRoute.scroll.vscroll'), 30);
+  vm.run('SpellmindRoute.scroll.GetVerticalScroll = function() return 30 end; SpellmindRoute.scroll.scripts.OnMouseWheel(SpellmindRoute.scroll, -1)');
+  assert.equal(vm.num('SpellmindRoute.scroll.vscroll'), 40, 'not past its end');
+  // Folded: no scroll.
+  vm.run('SpellmindRoute.fold.scripts.OnClick(SpellmindRoute.fold)');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.scroll.shown)'), 'false');
+});

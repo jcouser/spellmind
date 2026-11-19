@@ -390,6 +390,38 @@ local function Name(L, id)
 	return type(n) == "string" and n ~= "" and n or nil
 end
 
+-- Shared with the route (Route.lua): the database, the character's context, and one rule for
+-- whether a quest is this character's at all.
+DG.DB, DG.Done, DG.Giver, DG.Name, DG.StepOf = DB, Done, Giver, Name, StepOf
+function DG.Missing(id) local L = DB(); return L and Missing(L, id) or {} end
+
+-- { level, faction, class mask, race mask } for DG.Fits.
+function DG.Context(L)
+	local _, classFile = ns.Try(UnitClass, "player")
+	local _, _, raceID = ns.Try(UnitRace, "player")
+	local E = type(L and L.Enum) == "table" and L.Enum or {}
+	return { level = Level(), faction = ns.Try(UnitFactionGroup, "player"),
+		class = type(E.classKeys) == "table" and classFile and E.classKeys[classFile] or nil,
+		race = type(E.raceMaskById) == "table" and raceID and E.raceMaskById[raceID] or nil }
+end
+
+-- Whether a quest is for this character at all: its race and class, not past its max level, not a
+-- profession's, not shut out by one done or in the log. (Its giver's faction is checked by the caller,
+-- with the giver.) Have(id): in the log.
+function DG.Fits(L, id, ctx, Have)
+	local races = tonumber((ns.Try(L.Quest.requiredRaces, id))) or 0
+	local classes = tonumber((ns.Try(L.Quest.requiredClasses, id))) or 0
+	local maxLevel = tonumber((ns.Try(L.Quest.requiredMaxLevel, id))) or 0
+	local skill = ns.Try(L.Quest.requiredSkill, id)
+	if not ((races == 0 or not ctx.race or Band(races, ctx.race) > 0)
+		and (classes == 0 or not ctx.class or Band(classes, ctx.class) > 0)
+		and (maxLevel == 0 or maxLevel >= ctx.level) and type(skill) ~= "table") then return false end
+	for _, other in ipairs(ns.Try(L.Quest.exclusiveTo, id) or {}) do
+		if Done(other) or (Have and Have(other)) then return false end
+	end
+	return true
+end
+
 -- A dungeon's quests for this character: { area, done = {names}, log = {names}, pickup = { { id,
 -- name, level, from, after, at } }, total }, or nil (no QuestieDB, the pass still running, or no
 -- area). Quests for another race, class or faction, a profession, past their max level, or shut out
@@ -401,13 +433,8 @@ function DG.Quests(name, done)
 	if not index then return nil end
 	local area = DG.AreaOf(name)
 	if not area then return nil end
-	local level = Level()
-	local _, classFile = ns.Try(UnitClass, "player")
-	local _, _, raceID = ns.Try(UnitRace, "player")
-	local faction = ns.Try(UnitFactionGroup, "player")
-	local E = type(L.Enum) == "table" and L.Enum or {}
-	local myClass = type(E.classKeys) == "table" and classFile and E.classKeys[classFile] or nil
-	local myRace = type(E.raceMaskById) == "table" and raceID and E.raceMaskById[raceID] or nil
+	local ctx = DG.Context(L)
+	local level, faction = ctx.level, ctx.faction
 	local inLog = {}
 	for _, d in ipairs(DG.FromLog()) do for _, q in ipairs(d.quests) do inLog[q.id] = true end end
 	local QL = C_QuestLog
@@ -416,19 +443,7 @@ function DG.Quests(name, done)
 	local starts = {} -- the first steps of chains that lead to this dungeon's quests, by id
 	local chains = {} -- the questlines to this dungeon's locked quests, by the step to do now
 	for _, id in ipairs(index[area] or {}) do
-		local races = tonumber((ns.Try(L.Quest.requiredRaces, id))) or 0
-		local classes = tonumber((ns.Try(L.Quest.requiredClasses, id))) or 0
-		local maxLevel = tonumber((ns.Try(L.Quest.requiredMaxLevel, id))) or 0
-		local skill = ns.Try(L.Quest.requiredSkill, id)
-		local fits = (races == 0 or not myRace or Band(races, myRace) > 0)
-			and (classes == 0 or not myClass or Band(classes, myClass) > 0)
-			and (maxLevel == 0 or maxLevel >= level) and type(skill) ~= "table"
-		if fits then
-			for _, other in ipairs(ns.Try(L.Quest.exclusiveTo, id) or {}) do
-				if Done(other) or Have(other) then fits = false end
-			end
-		end
-		local qname = fits and Name(L, id)
+		local qname = DG.Fits(L, id, ctx, Have) and Name(L, id)
 		if qname then
 			local from, friendly, spot = Giver(L, id)
 			if friendly and faction and not tostring(friendly):find(faction == "Alliance" and "A" or "H", 1, true) then qname = nil end

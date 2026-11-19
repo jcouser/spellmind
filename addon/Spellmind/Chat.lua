@@ -684,6 +684,11 @@ SlashCmdList.SPELLMIND = function(msg)
 			or "Spellmind: nothing to nudge about right now (no spells due, points to spend, broken gear, full bags or capped professions).")
 		return
 	end
+	-- /sm route: the route tracker (Route.lua), opened or closed.
+	if lower == "route" and ns.Route and ns.db then
+		ns.Route.Toggle()
+		return
+	end
 	-- /sm welcome: the first-time welcome again (Welcome.lua).
 	if lower == "welcome" and ns.Welcome and ns.db then
 		ns.Welcome.Show()

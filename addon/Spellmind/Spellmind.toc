@@ -33,4 +33,5 @@ Advisor.lua
 Panel.lua
 Nudges.lua
 Minimap.lua
+Route.lua
 Welcome.lua

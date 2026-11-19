@@ -477,7 +477,7 @@ test('the arrow, done here: to the next zone\'s giver on foot, or to the flight 
   // Knowing the flight paths: Westfall by air is best, and the arrow points at the flight master first.
   vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED"); NS.Route.Build(); NS.Route.Draw(); NS.Route.ArrowUpdate()');
   assert.equal(vm.evaluate('SpellmindArrow.text:GetText()'), 'Flight master at Thelsamar');
-  assert.equal(vm.evaluate('SpellmindArrow.sub:GetText()'), 'then fly on to Westfall');
+  assert.equal(vm.evaluate('SpellmindArrow.sub:GetText()'), 'then fly to Sentinel Hill', 'it lands in Westfall');
   assert.match(vm.evaluate('SpellmindArrow.dist:GetText()'), /You're there/, 'standing at it');
 });
 
@@ -910,4 +910,20 @@ test('Where next is worked out again when the hearthstone comes off its cooldown
   vm.advance(2);
   assert.ok(vm.num('#NS.R.routeWhere.list') > 0, 'the stale (empty) count replaced');
   assert.ok(vm.num('#NS.R.route.where') > 0, 'and the route built again');
+});
+
+test('a flight that lands short of the zone says where (the player, 2026-11-19: "fly on to Wetlands" with no path there)', () => {
+  const vm = session();
+  const z = (land) => `{ zone = "Wetlands", land = ${land} }`;
+  assert.equal(vm.evaluate(`NS.Route.LandText(${z('{ name = "Thelsamar, Loch Modan" }')})`), 'then fly to Thelsamar, and on to Wetlands from there');
+  assert.equal(vm.evaluate(`NS.Route.LandText(${z('{ name = "Menethil Harbor, Wetlands" }')})`), 'then fly to Menethil Harbor');
+  // On the map: the landing spot is its own green mark, the line through it.
+  const v2 = newVM({ before: ZONE + MORE }).login().advance(9);
+  v2.run(MAP);
+  v2.run(TAXI + '; TaxiNodeName = function(i) return ({ "Thelsamar, Loch Modan", "Sentinel Hill, Elwynn", "Menethil Harbor, Wetlands" })[i] end; STUB.FireEvent("TAXIMAP_OPENED")');
+  v2.slash('route');
+  v2.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)()); STUB.mapShown = 1415; NS.Route.DrawMap()');
+  assert.equal(v2.num('NS.Route.marks.legsShown'), 3, 'the flight master, where it lands, the quest giver');
+  assert.equal(v2.evaluate('NS.Route.marks.legs[2].tip[1]'), 'Land at Sentinel Hill');
+  assert.equal(v2.evaluate('NS.Route.marks.legs[2].tip[2]'), 'Then on to Westfall from there');
 });

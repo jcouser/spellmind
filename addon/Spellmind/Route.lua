@@ -759,14 +759,16 @@ function RT.Travel(from, to, speed)
 		local A, B = Nearest(a), Nearest(b)
 		if not A or not B or A == B or A.c ~= B.c then return nil end
 		local m = Walk(a, A) + RT.FLY_MINUTES + Dist(A, B) / RT.FLY_SPEED / 60 + Walk(B, b)
-		return m, Short(A.name) .. " to " .. Short(B.name), A
+		return m, Short(A.name) .. " to " .. Short(B.name), A, B
 	end
 	-- leg: where the way starts (a flight master's spot, or "hearth"); nil on foot.
 	local best
-	local function Try2(m, how, via, leg) if m and (not best or m < best.minutes) then best = { minutes = m, how = how, via = via, leg = leg } end end
+	-- land: where a flight comes down (the player, 2026-11-19: "fly on to Wetlands" read as a flight to
+	-- Wetlands they don't have; it lands at the known path nearest it, and goes on from there).
+	local function Try2(m, how, via, leg, land) if m and (not best or m < best.minutes) then best = { minutes = m, how = how, via = via, leg = leg, land = land } end end
 	Try2(Walk(from, to), "walk")
-	local fm, fv, fa = Fly(from, to)
-	Try2(fm, "fly", fv and ("fly " .. fv), fa)
+	local fm, fv, fa, fb = Fly(from, to)
+	Try2(fm, "fly", fv and ("fly " .. fv), fa, fb)
 	local h = RT.Hearth()
 	if h then
 		Try2(Walk(h, to) and (RT.HEARTH_MINUTES + Walk(h, to)), "hearth", "hearthstone to " .. h.name, "hearth")
@@ -876,7 +878,7 @@ function RT.Zones(fresh)
 			if not isHere then
 				local there = World(map, z.spot.x, z.spot.y)
 				local way = RT.Travel(me, there, speed)
-				if way then travel, z.how, z.via, z.leg = way.minutes, way.how, way.via, way.leg
+				if way then travel, z.how, z.via, z.leg, z.land = way.minutes, way.how, way.via, way.leg, way.land
 				elseif me and there then travel, z.how, z.via = RT.SEA_MINUTES, "boat", "a boat or the tram to another continent"
 				else travel = nil end
 			end
@@ -1805,9 +1807,22 @@ function RT.ArrowTarget()
 		return { hearth = true, zone = z, text = "Use your hearthstone", sub = (z.via and (z.via:gsub("^hearthstone ", "")) or "") .. ", then on to " .. z.zone }
 	end
 	if type(z.leg) == "table" then
-		return { world = z.leg, zone = z, text = "Flight master at " .. Short(z.leg.name), sub = "then fly on to " .. z.zone }
+		return { world = z.leg, zone = z, text = "Flight master at " .. Short(z.leg.name), sub = RT.LandText(z) }
 	end
 	return { world = z.spot and World(z.map, z.spot.x, z.spot.y), zone = z, text = z.zone .. (z.spot and z.spot.giver and (": " .. z.spot.giver) or "") }
+end
+
+-- Where a flight to a zone comes down: in the zone itself (its flight path's name says the zone:
+-- "Menethil Harbor, Wetlands"), or at a known path short of it.
+function RT.LandsIn(z)
+	local name = type(z.land) == "table" and z.land.name
+	return type(name) == "string" and DG().Norm(name:match(",%s*(.+)$") or "") == DG().Norm(z.zone) or false
+end
+function RT.LandText(z)
+	if type(z.land) ~= "table" then return "then fly on to " .. z.zone end
+	local at = Short(z.land.name)
+	if RT.LandsIn(z) then return "then fly to " .. at end
+	return "then fly to " .. at .. ", and on to " .. z.zone .. " from there"
 end
 
 -- The arrow's turn (radians, counterclockwise from straight up) and the yards from the player to a
@@ -2151,7 +2166,12 @@ function RT.DrawMap()
 	local z = t and t.zone
 	if not z then return end
 	local legs = {}
-	if t.world and type(z.leg) == "table" then legs[#legs + 1] = { world = t.world, tip = { t.text, t.sub } } end
+	if t.world and type(z.leg) == "table" then
+		legs[#legs + 1] = { world = t.world, tip = { t.text, t.sub } }
+		if type(z.land) == "table" then
+			legs[#legs + 1] = { world = z.land, tip = { "Land at " .. Short(z.land.name), RT.LandsIn(z) and ("In " .. z.zone) or ("Then on to " .. z.zone .. " from there") } }
+		end
+	end
 	local dest = z.spot and World(z.map, z.spot.x, z.spot.y)
 	if dest then legs[#legs + 1] = { world = dest, tip = { z.zone .. (z.spot.giver and (": " .. z.spot.giver) or ""), RT.WhereText(z), "Where the arrow is heading." } } end
 	local legPts = {}

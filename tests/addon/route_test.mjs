@@ -1330,3 +1330,28 @@ test('yards between two spots on another zone\'s map are that map\'s, not the pl
   vm.run('STUB.mapSizes[1436] = { 6000, 4000 }');
   assert.equal(Math.round(vm.num('NS.Route.Yards({ map = 1436, x = 10, y = 50 }, { map = 1436, x = 20, y = 50 }, NS.Route.Here())')), 600, 'Westfall\'s 6000 yards, not Loch Modan\'s 3000');
 });
+
+test('XP for the walk (the player, 2026-11-19): a far quest with little XP is "worth skipping?" and comes later; the log\'s own XP read', () => {
+  const vm = newVM({ before: ZONE + `
+    STUB.questRewards = { [700] = { xp = 3000 }, [701] = { xp = 2500 } }
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    -- A grey-ish errand (level 10 at 15) from a hermit in the far corner, a long walk for 800 XP.
+    N[809] = { name = "Lonely Hermit", zone = 38, spawns = { [38] = { { 98, 2 } } }, friendly = "A" }
+    Q[709] = { name = "Hermit's Errand", zone = 38, level = 10, npc = 809, ender = 809 }` }).login().advance(9);
+  assert.equal(vm.num('NS.Route.QuestXP(700, 15, 14)'), 3000, 'the quest log\'s reward');
+  assert.equal(vm.num('NS.Route.QuestXP(709, 15, 10)'), 800, 'an estimate by its level');
+  assert.equal(vm.num('NS.Route.QuestXP(709, 21, 10)'), 80, 'far below: down to a tenth, as the game does');
+  const ks = keys(vm);
+  assert.equal(vm.evaluate('tostring(NS.R.route.low[709])'), 'true', `worth skipping: ${ks}`);
+  assert.equal(vm.evaluate('tostring(NS.R.route.low[700])'), 'nil');
+  assert.ok(ks[ks.length - 1].includes(':709'), `its stop last: ${ks}`);
+  // Said on the tracker, the Route tab and to the AI.
+  vm.slash('route');
+  const all = [1, 2, 3, 4].map(k => vm.evaluate(`SpellmindRoute.next[${k}]:GetText()`) || '').join(' | ');
+  assert.match(all, /Hermit's Errand.*worth skipping\? little XP for the walk/);
+  const part = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Advisor.Part())'));
+  assert.ok(part.route.steps.some(x => /Hermit's Errand.*worth skipping\?/.test(x)));
+  vm.run('NS.Panel.Show("route")');
+  const v = vm.json('SpellmindPanel.drawn'); const d = Array.isArray(v) ? v : Object.values(v || {});
+  assert.ok(d.some(x => /Kobold Candles|Mountaineer Kadrell/.test(x.text || '') && /XP/.test(x.right || '')), 'a turn-in step\'s XP');
+});

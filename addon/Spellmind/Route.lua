@@ -749,10 +749,94 @@ function RT.Build()
 	end
 	while #stops > RT.STOPS_MAX do table.remove(stops) end
 	rules = RT.Rules(stops, chains)
-	route.stops = RT.Order(stops, { x = here.x, y = here.y }, here, rules)
+	local start = { x = here.x, y = here.y }
+	route.stops = RT.Order(stops, start, here, rules)
+	-- XP for the walk (the player, 2026-11-19): a quest far below the route's XP a minute that costs a
+	-- real detour is marked "worth skipping?", and its stops come later (the order again, those stops'
+	-- way dearer), so the ones worth more come first. Nothing is dropped: Skip is the player's.
+	route.xp, route.low = RT.Worth(route.stops, start, here, level)
+	if next(route.low) then
+		local function Cost(a, b, h)
+			local d = RT.Yards(a, b, h)
+			if b.goals and RT.StopLow(b, route.low) then d = d * RT.LOW_LATER end
+			return d
+		end
+		route.stops = RT.Order(stops, start, here, rules, Cost)
+	end
 	route.rules = rules
 	if Q then route.where = RT.Zones(true) end
 	return route
+end
+
+-- A quest's XP: the quest log's reward when it's there, else an estimate by its level, reduced as the
+-- game reduces quests far below the character (by 20% a level past five, down to a tenth).
+RT.XP_BASE, RT.XP_PER_LEVEL = 100, 70
+function RT.QuestXP(id, level, qlevel)
+	local xp = tonumber((Try(rawget(_G, "GetQuestLogRewardXP"), id)))
+	if xp and xp > 0 then return xp, true end
+	local ql = tonumber(qlevel) or level
+	local diff = level - ql
+	local share = diff <= 5 and 1 or math.max(0.1, 1 - 0.2 * (diff - 5))
+	return math.floor((RT.XP_BASE + RT.XP_PER_LEVEL * ql) * share), false
+end
+
+RT.LOW_SHARE = 0.35 -- a quest under this share of the route's XP a minute ...
+RT.LOW_MINUTES = 2 -- ... and adding at least this many minutes of walking, is worth skipping?
+RT.LOW_LATER = 1.5 -- its stops' way this much dearer in the order: later
+-- Each quest's XP, and the ones worth skipping: { [q] = xp }, { [q] = true }. Its extra walking: the
+-- way through its own stops (those with only its goals) less the way straight past them.
+function RT.Worth(stops, start, here, level)
+	local Q = L()
+	local xp, own, mins = {}, {}, {}
+	local speed = RT.Speed()
+	for k, st in ipairs(stops) do
+		local qs = {}
+		for _, g in ipairs(st.goals) do qs[g.q] = true end
+		local only
+		for q in pairs(qs) do only = (only == nil) and q or false end
+		if only then
+			local prev, nxt = stops[k - 1] or start, stops[k + 1]
+			local extra = RT.Yards(prev, st, here) + (nxt and RT.Yards(st, nxt, here) or 0) - (nxt and RT.Yards(prev, nxt, here) or 0)
+			own[only] = (own[only] or 0) + math.max(0, extra)
+		end
+		for q in pairs(qs) do
+			if not xp[q] and q ~= 0 then
+				local ql = Q and tonumber((Try(Q.Quest.questLevel, q))) or nil
+				xp[q] = RT.QuestXP(q, level, ql)
+			end
+		end
+	end
+	local totalXP, totalMin = 0, 0
+	for q, x in pairs(xp) do
+		mins[q] = (own[q] or 0) * RT.PATH_FACTOR / speed / 60 + RT.QUEST_MINUTES
+		totalXP, totalMin = totalXP + x, totalMin + mins[q]
+	end
+	local avg = totalMin > 0 and totalXP / totalMin or 0
+	local low = {}
+	for q, x in pairs(xp) do
+		local walk = mins[q] - RT.QUEST_MINUTES
+		if avg > 0 and x / mins[q] < avg * RT.LOW_SHARE and walk >= RT.LOW_MINUTES then low[q] = true end
+	end
+	return xp, low
+end
+-- "1,150 XP": what a stop's turn-ins give (the Route tab).
+function RT.StopXP(st)
+	local xp = R.route and R.route.xp or {}
+	local n = 0
+	for _, g in ipairs(st.goals or {}) do if g.kind == "turnin" and xp[g.q] then n = n + xp[g.q] end end
+	if n <= 0 then return nil end
+	local txt = tostring(math.floor(n)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+	return "|cffb48cff" .. txt .. " XP|r"
+end
+-- A stop whose every quest is worth skipping.
+function RT.StopLow(st, low)
+	low = low or (R.route and R.route.low) or {}
+	local any = false
+	for _, g in ipairs(st.goals or {}) do
+		if not low[g.q] then return false end
+		any = true
+	end
+	return any
 end
 
 ---------------------------------------------------------------------------
@@ -1199,11 +1283,12 @@ function RT.GroupNames(gr, max)
 end
 
 -- A stop in one short line (Up next): its first group, and how many more groups.
+RT.LOW_TAG = " |cff888888(worth skipping? little XP for the walk)|r"
 function RT.StopText(st)
 	local groups = RT.Groups(st)
 	if #groups == 0 then return "" end
 	local more = #groups - 1
-	return RT.StopZone(st) .. RT.GroupText(groups[1]) .. (more > 0 and (" |cff888888(+" .. more .. ")|r") or "")
+	return RT.StopZone(st) .. RT.GroupText(groups[1]) .. (more > 0 and (" |cff888888(+" .. more .. ")|r") or "") .. (RT.StopLow(st) and RT.LOW_TAG or "")
 end
 
 -- Skip the current step (the player's Next); Back brings the last one skipped back.
@@ -2571,7 +2656,7 @@ function RT.Part()
 		local skip = R.routeSkip and R.routeSkip[s.key]
 		if skip then skipped = skipped + 1 end
 		if #steps < RT.AI_STEPS and not RT.StopDone(s) and not skip then
-			steps[#steps + 1] = ns.State.Text(k .. ". " .. RT.StopZone(s) .. Plain(s), 400)
+			steps[#steps + 1] = ns.State.Text(k .. ". " .. RT.StopZone(s) .. Plain(s) .. (RT.StopLow(s) and " (little XP for the walk: worth skipping?)" or ""), 400)
 		end
 	end
 	local later = {}

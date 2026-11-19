@@ -613,7 +613,8 @@ function Tabs.route()
 		local key = s.key
 		out[#out + 1] = { kind = "item", left = (grey and "|cff888888" or (s == cur and "|cffffd100" or "|cffffffff")) .. i .. ".|r " .. first,
 			sub = #more > 0 and ("|cff888888Then: " .. table.concat(more, "; ") .. "|r") or nil,
-			right = done and "|cff19ff19done|r" or skipped and "|cff888888skipped|r" or (s == cur and "|cffffd100now|r") or nil,
+			right = done and "|cff19ff19done|r" or skipped and "|cff888888skipped|r" or (s == cur and "|cffffd100now|r")
+				or (RT.StopLow(s) and "|cffff9933worth skipping?|r") or RT.StopXP(s),
 			actions = (not done) and { { skipped and "Unskip" or "Skip", function() RT.SetSkip(key, not skipped); P.Show("route", true) end,
 				tip = skipped and "Back on the route." or "Off the route for now (a /reload brings it back)." } } or nil }
 	end

@@ -452,11 +452,12 @@ function RT.Build()
 	-- This zone's quests to pick up (QuestieDB): for this character, open now, at its level, given here,
 	-- with their objectives here too (or none), so a pick up never sends the player away.
 	local index = Q and here.area and DG().Index(function() RT.Dirty() end)
+	R.routeAskedNow = 0
 	if index and index[here.area] then
 		local ctx = DG().Context(Q)
 		local function Has(id) return log[id] ~= nil end
 		for _, id in ipairs(index[here.area]) do
-			if not log[id] and not Done(id) and DG().Fits(Q, id, ctx, Has) and #DG().Missing(id) == 0 then
+			if not log[id] and not Done(id) and not RT.NotOffered(id) and DG().Fits(Q, id, ctx, Has) and #DG().Missing(id) == 0 and RT.Known(id) then
 				local req = tonumber((Try(Q.Quest.requiredLevel, id))) or 1
 				local ql = tonumber((Try(Q.Quest.questLevel, id))) or req
 				if req <= level and ql >= level - RT.BELOW and ql <= level + RT.ABOVE then
@@ -680,6 +681,116 @@ function RT.Refresh()
 end
 
 function RT.Shown() return RT.frame and RT.frame:IsShown() and true or false end
+
+-- Does the game server have this quest at all? (The player, 2026-11-19: the quest database has
+-- Season of Discovery's Duskwood Missions and their Field Captain Palandar; Forever has neither,
+-- and the route sent the player to an empty spot. The server knows "Wolves at Our Heels" and not
+-- "Duskwood Mission I".) The game answers with the quest's title once it has it; a quest it's never
+-- heard of stays without one. Asked once per quest and kept (SpellmindDB.routeKnown); a quest not
+-- answered yet is left out until it is, so nothing unknown is ever a step.
+RT.ASK_PER_BUILD = 40
+RT.ASK_WAIT = 5 -- seconds before a quest still without a title counts as unknown (no load event)
+function RT.Known(id)
+	ns.db.routeKnown = ns.db.routeKnown or {}
+	local known = ns.db.routeKnown[id]
+	if known ~= nil then return known end
+	local QL = C_QuestLog
+	local title = QL and type(QL.GetTitleForQuestID) == "function" and Try(QL.GetTitleForQuestID, id) or nil
+	if type(title) == "string" and title ~= "" then ns.db.routeKnown[id] = true; return true end
+	R.routeAsked = R.routeAsked or {}
+	local asked = R.routeAsked[id]
+	if asked then
+		if GetTime() - asked >= RT.ASK_WAIT and not (QL and type(QL.RequestLoadQuestByID) == "function") then
+			ns.db.routeKnown[id] = false
+		end
+		return false
+	end
+	R.routeAskedNow = (R.routeAskedNow or 0) + 1
+	if R.routeAskedNow > RT.ASK_PER_BUILD then return false end
+	R.routeAsked[id] = GetTime()
+	if QL and type(QL.RequestLoadQuestByID) == "function" then pcall(QL.RequestLoadQuestByID, id)
+	else C_Timer.After(RT.ASK_WAIT + 0.5, function() RT.Dirty() end) end
+	return false
+end
+ns.On("QUEST_DATA_LOAD_RESULT", function(_, id, ok)
+	if type(id) ~= "number" or not (R.routeAsked and R.routeAsked[id]) then return end
+	ns.db.routeKnown = ns.db.routeKnown or {}
+	ns.db.routeKnown[id] = ok and true or false
+	R.routeAsked[id] = nil
+	if ok then RT.Dirty() end
+end)
+
+-- What a quest giver really offers (the player, 2026-11-19: Field Captain Palandar's eighteen
+-- Season of Discovery missions are in the quest database, and Questie itself hides them): when the
+-- player talks to an NPC the route sends them to for a pick up, a pick up he doesn't offer is left
+-- out, and remembered until the character's next level (one may open then).
+-- SpellmindDB.routeNotOffered = { [questID] = the level it wasn't offered at }.
+function RT.NotOffered(id)
+	local t = ns.db and ns.db.routeNotOffered
+	local at = t and t[id]
+	return at ~= nil and at >= Level()
+end
+
+-- The quests the NPC in front of the player offers now: { [questID] = true }, { [title] = true }.
+local function Offered(event)
+	local ids, titles = {}, {}
+	if event == "QUEST_DETAIL" then
+		local id = Try(GetQuestID)
+		if type(id) == "number" and id > 0 then ids[id] = true end
+		local t = Try(GetTitleText)
+		if type(t) == "string" then titles[t] = true end
+	elseif event == "QUEST_GREETING" then
+		for i = 1, tonumber((Try(GetNumAvailableQuests))) or 0 do
+			local t = Try(GetAvailableTitle, i)
+			if type(t) == "string" then titles[t] = true end
+			if type(GetAvailableQuestInfo) == "function" then
+				local r = { pcall(GetAvailableQuestInfo, i) }
+				if r[1] and type(r[6]) == "number" then ids[r[6]] = true end
+			end
+		end
+	else
+		local G = rawget(_G, "C_GossipInfo")
+		for _, q in ipairs(G and type(G.GetAvailableQuests) == "function" and Try(G.GetAvailableQuests) or {}) do
+			if type(q) == "table" then
+				if type(q.questID) == "number" then ids[q.questID] = true end
+				if type(q.title) == "string" then titles[q.title] = true end
+			end
+		end
+	end
+	return ids, titles
+end
+
+function RT.OnGiver(event)
+	local route = R.route
+	if not route then return end
+	local npc = Try(UnitName, "npc")
+	if type(npc) ~= "string" or npc == "" then return end
+	local ids, titles = Offered(event)
+	-- A single-quest window shows one quest, not all he offers: it only confirms, never rules out.
+	local single = event == "QUEST_DETAIL"
+	ns.db.routeNotOffered = ns.db.routeNotOffered or {}
+	local dropped = 0
+	for _, st in ipairs(route.stops or {}) do
+		for _, g in ipairs(st.goals) do
+			if g.kind == "pickup" and g.to == npc and not RT.GoalDone(g) then
+				if ids[g.q] or titles[g.title] then
+					ns.db.routeNotOffered[g.q] = nil
+				elseif not single then
+					ns.db.routeNotOffered[g.q] = Level()
+					dropped = dropped + 1
+				end
+			end
+		end
+	end
+	if dropped > 0 then
+		ns.Chat.System(ns.Escape(npc) .. " doesn't offer " .. dropped .. " of the quests the route had for him; they're off the route until your next level.")
+		if not InCombat() then RT.Build() end
+		RT.Refresh()
+	end
+end
+for _, ev in ipairs({ "GOSSIP_SHOW", "QUEST_GREETING", "QUEST_DETAIL" }) do
+	ns.On(ev, function() pcall(RT.OnGiver, ev) end)
+end
 
 -- A merchant the route sends the player to buy from: when the item isn't in his list (limited stock
 -- sells out; the player, 2026-11-19), that step moves off the route for the session, and a line says

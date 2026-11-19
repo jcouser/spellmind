@@ -199,3 +199,42 @@ test('one NPC\'s many quests (the player, 2026-11-19: Field Captain Palandar\'s 
   assert.deepEqual(shown, ['true', 'true', 'true', 'nil'], 'three Up next lines at most');
   assert.ok(vm.num('SpellmindRoute.height') <= 260, `the window fits its lines: ${vm.num('SpellmindRoute.height')}`);
 });
+
+test('a giver who doesn\'t offer a pick up (the player, 2026-11-19: Season of Discovery missions Questie hides): off the route when you talk to him, until the next level', () => {
+  const vm = session();
+  vm.run(`
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    N[807] = { name = "Field Captain Palandar", zone = 38, spawns = { [38] = { { 30, 60 } } }, friendly = "A" }
+    N[808] = { name = "Deranged Ogre", zone = 38, spawns = { [38] = { { 31, 62 } } } }
+    for i = 1, 3 do Q[740 + i] = { name = "Duskwood Mission " .. i, zone = 38, level = 15, npc = 807, obj = { { { 808 } }, {}, {} }, ender = 807 } end`);
+  assert.equal(keys(vm).filter(k => /pickup:74[123]/.test(k)).length, 1, 'all three, at his spot');
+  // Talking to him: he offers only Mission 2.
+  vm.run(`UnitName = (function(old) return function(u) if u == "npc" then return "Field Captain Palandar" end return old(u) end end)(UnitName)
+    C_GossipInfo = C_GossipInfo or {}
+    C_GossipInfo.GetAvailableQuests = function() return { { questID = 742, title = "Duskwood Mission 2" } } end
+    STUB.FireEvent("GOSSIP_SHOW")`);
+  const after = keys(vm).join(' ');
+  assert.ok(after.includes('pickup:742'), after);
+  assert.ok(!/pickup:741|pickup:743/.test(after), `the two he didn't offer are off: ${after}`);
+  assert.ok(vm.chatLines().some(l => /Field Captain Palandar doesn't offer 2 of the quests/.test(l)) || vm.savedLines().some(l => /doesn't offer 2/.test(l)));
+  // The next level: they're tried again.
+  vm.run('STUB.player.level = 16');
+  assert.ok(/pickup:741/.test(keys(vm).join(' ')), 'back at the next level');
+});
+
+test('a quest the game server doesn\'t have (the player, 2026-11-19: Season of Discovery\'s Duskwood Missions; Palandar isn\'t in Forever): never a step; asked once, kept', () => {
+  const vm = session();
+  vm.run(`
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    N[807] = { name = "Field Captain Palandar", zone = 38, spawns = { [38] = { { 30, 60 } } }, friendly = "A" }
+    N[808] = { name = "Deranged Ogre", zone = 38, spawns = { [38] = { { 31, 62 } } } }
+    Q[81730] = { name = "Duskwood Mission I", zone = 38, level = 15, npc = 807, obj = { { { 808 } }, {}, {} }, ender = 807 }
+    STUB.serverUnknown[81730] = true
+    NS.db.routeKnown = nil`);
+  assert.ok(!keys(vm).join(' ').includes('81730'), 'not while the server is asked');
+  vm.advance(1);
+  assert.equal(vm.evaluate('tostring(SpellmindDB.routeKnown[81730])'), 'false', 'the server said no: kept');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.routeKnown[702])'), 'true', 'a quest it has: kept too');
+  assert.ok(!keys(vm).join(' ').includes('81730'));
+  assert.ok(keys(vm).join(' ').includes('pickup:702'), 'the zone\'s real quest is still there');
+});

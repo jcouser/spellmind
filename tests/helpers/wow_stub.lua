@@ -605,8 +605,19 @@ C_QuestLog.IsQuestTrivial = function(id)
 	for _, q in ipairs(STUB.quests) do if q.questID == id then return (q.level or 0) < P.level - 5 end end
 	return false
 end
+-- The server's answer: a quest in the log, else one in the quest database stand-in, unless the
+-- server doesn't have it (STUB.serverUnknown[id]: Season of Discovery's, on Forever).
+STUB.serverUnknown = {}
 C_QuestLog.GetTitleForQuestID = function(id)
 	for _, q in ipairs(STUB.quests) do if q.questID == id then return q.title end end
+	if STUB.serverUnknown[id] then return nil end
+	local q = STUB.qdb and STUB.qdb.quests[id]
+	return q and q.name or nil
+end
+-- RequestLoadQuestByID: the answer as QUEST_DATA_LOAD_RESULT, on the next tick.
+C_QuestLog.RequestLoadQuestByID = function(id)
+	STUB.loadAsked = (STUB.loadAsked or 0) + 1
+	C_Timer.After(0, function() STUB.FireEvent("QUEST_DATA_LOAD_RESULT", id, not STUB.serverUnknown[id]) end)
 end
 function GetQuestLogQuestText(i)
 	local q = STUB.quests[i]

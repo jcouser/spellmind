@@ -1954,6 +1954,20 @@ function RT.DrawMap()
 	local cur = RT.Current()
 	local base = tonumber((layer:GetFrameLevel())) or 1
 	local na, nd = 0, 0
+	-- Dots already placed (canvas units): one that would cover another sits beside it (the player,
+	-- 2026-11-19: a pick up and its turn-in at Sven Yorgen, two steps apart, were one on the other).
+	local placed = {}
+	local function Free(px, py)
+		local moved = true
+		while moved do
+			moved = false
+			for _, q in ipairs(placed) do
+				if math.abs(q[1] - px) < RT.DOT and math.abs(q[2] - py) < RT.DOT then px, moved = q[1] + RT.DOT + 2, true; break end
+			end
+		end
+		placed[#placed + 1] = { px, py }
+		return px, py
+	end
 	for i, s in ipairs(route.stops or {}) do
 		if nd >= RT.MAP_STEPS then break end
 		if not RT.StopDone(s) and not (R.routeSkip and R.routeSkip[s.key]) then
@@ -1973,7 +1987,8 @@ function RT.DrawMap()
 			nd = nd + 1
 			local d = Dot(layer, nd)
 			d:ClearAllPoints()
-			d:SetPoint("CENTER", layer, "TOPLEFT", s.x / 100 * cw, -s.y / 100 * ch)
+			local px, py = Free(s.x / 100 * cw, s.y / 100 * ch)
+			d:SetPoint("CENTER", layer, "TOPLEFT", px, -py)
 			d.tex:SetVertexColor(r, g, b)
 			d.num:SetText(tostring(i))
 			if now then d.num:SetTextColor(0.1, 0.05, 0) else d.num:SetTextColor(1, 1, 1) end

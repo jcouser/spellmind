@@ -715,3 +715,21 @@ test('a window shorter than what it shows scrolls (the player, 2026-11-19: the t
   vm.run('SpellmindRoute.fold.scripts.OnClick(SpellmindRoute.fold)');
   assert.equal(vm.evaluate('tostring(SpellmindRoute.scroll.shown)'), 'false');
 });
+
+test('two steps at one spot (a pick up and its turn-in, the objectives between): their dots side by side, not one on the other', () => {
+  const vm = session();
+  vm.run(MAP);
+  vm.slash('route');
+  vm.run(`NS.R.route = { map = 1432, zone = "Loch Modan", stops = {
+      { x = 50, y = 50, key = "pickup:901", goals = { { kind = "pickup", q = 901, title = "A" } } },
+      { x = 30, y = 30, key = "do:901", goals = { { kind = "do", q = 901, title = "A" } } },
+      { x = 50.2, y = 50.1, key = "turnin:901", goals = { { kind = "turnin", q = 901, title = "A" } } } } }
+    NS.Route.DrawMap()`);
+  const at = k => vm.json(`(function() local _, _, _, x, y = NS.Route.marks.dots[${k}]:GetPoint(); return { x, y } end)()`);
+  const [a, c] = [at(1), at(3)];
+  assert.equal(vm.evaluate('NS.Route.marks.dots[3].num:GetText()'), '3');
+  assert.equal(c[0] - a[0], vm.num('NS.Route.DOT') + 2, 'beside it, to the right');
+  assert.ok(Math.abs(c[1] - a[1]) < 1, 'on the same line');
+  const b = at(2);
+  assert.deepEqual(b, [300, -200.1], 'one on its own spot stays there');
+});

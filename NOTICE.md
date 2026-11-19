@@ -93,6 +93,7 @@ From [tommygeoco/neverquestalone](https://github.com/tommygeoco/neverquestalone)
 - `addon/Spellmind/Link.lua` ← `addon/NeverQuestAlone/Transport.lua` (rewritten smaller: records and outbox, strip, self-heal, doorbells, hello and seen, slots, slot-only mode)
 - `addon/Spellmind/Chat.lua` ← `addon/NeverQuestAlone/Chats.lua` (its send checks, the key check and the record handling; the window is Spellmind's own)
 - `addon/Spellmind/Inbox.lua` ← `addon/NeverQuestAlone/Inbox.lua`
+- `addon/Spellmind/RoutePins.lua` ← `addon/NeverQuestAlone/MinimapPins.lua` (the minimap's geometry on Forever, the offset with the turn, the clamp to the rim with its arrow, the driver; the route's points and the look are Spellmind's)
 - `addon/Spellmind/State.lua` ← `addon/NeverQuestAlone/Companion.lua` (its JSON writer, `Clean` and its character, gear and quest readers), with `Store.lua`'s quest log (`ns.QuestLog`, `ns.QuestLogMax`), `Chats.lua`'s skill lines, `PROFESSION_SKILL_IDS` and `StripEscapes`, `Transport.lua`'s `T.Deflate` and `Tooltips.lua`'s `STAT_KEYS`
 - `tests/helpers/wow_stub.lua` ← `tests/wow_stub.lua`
 - `tests/helpers/addon-vm.mjs` ← `tests/helpers/nqa-vm.js`

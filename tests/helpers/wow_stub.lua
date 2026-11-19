@@ -698,6 +698,11 @@ STUB.tooltips[STUB.ItemLink(7010)] = { "Patched Tunic", "Chest", "30 Armor" }
 
 -- The minimap, for Spellmind's button on its rim.
 Minimap = CreateFrame("Frame", "Minimap", UIParent)
+Minimap:SetSize(140, 140)
+STUB.minimapRadius = 200
+C_Minimap = C_Minimap or {}
+C_Minimap.GetViewRadius = function() return STUB.minimapRadius end
+C_Minimap.IsRotateMinimapIgnored = function() return false end
 function Minimap:GetCenter() return 1800, 900 end
 function Minimap:GetEffectiveScale() return 1 end
 STUB.cursor = { 1700, 900 }

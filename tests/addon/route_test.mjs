@@ -833,3 +833,42 @@ test('the line to a chosen zone: green, from you through its legs, on the contin
   assert.deepEqual(l.from.map(Math.round), [100, -67]);
   assert.deepEqual(l.to.map(Math.round), [890, -80]);
 });
+
+// The minimap: 140 px across, 200 yards to its rim (70 px), so 0.35 px a yard.
+test('the minimap (the player, 2026-11-19): the current step, on the rim with an arrow when it\'s farther; the next one in view; a switch', () => {
+  const vm = session();
+  vm.slash('route');
+  const P = 'NS.RoutePins.pins';
+  vm.run('NS.RoutePins.Update(true)');
+  // The rats: 595 yards west, 390 north: off the minimap, so on its rim toward them, with the arrow.
+  assert.equal(vm.evaluate(`tostring(${P}[1].shown)`), 'true');
+  assert.equal(vm.evaluate(`tostring(${P}[1].onEdge)`), 'true');
+  assert.equal(vm.evaluate(`tostring(${P}[1].arrow.shown)`), 'true');
+  assert.equal(vm.evaluate(`${P}[1].num:GetText()`), '1');
+  const rim = vm.json(`(function() local _, _, _, x, y = ${P}[1]:GetPoint(); return { x, y } end)()`);
+  assert.ok(rim[0] < 0 && rim[1] > 0, 'up and to the left: north-west');
+  assert.ok(Math.hypot(rim[0], rim[1]) < 70, 'inside the rim');
+  assert.equal(vm.evaluate(`tostring(${P}[2].shown)`), 'false', 'Kadrell, the next, is out of view');
+  // Close to the rats: in view, where they are; Kadrell still out.
+  vm.run('STUB.player.x, STUB.player.y = 0.22, 0.22; NS.Route.Draw(); NS.RoutePins.Update(true)');
+  assert.equal(vm.evaluate(`tostring(${P}[1].onEdge)`), 'nil');
+  const at = vm.json(`(function() local _, _, _, x, y = ${P}[1]:GetPoint(); return { x, y } end)()`);
+  const c = vm.json('NS.Route.Current()');
+  assert.ok(Math.abs(at[0] - (c.x - 22) * 30 * 0.35) < 0.5 && Math.abs(at[1] - (22 - c.y) * 20 * 0.35) < 0.5, JSON.stringify([at, c.x, c.y]));
+  // The next in view: a wider minimap.
+  vm.run('STUB.minimapRadius = 2000; NS.RoutePins.Update(true)');
+  assert.equal(vm.evaluate(`tostring(${P}[2].shown)`), 'true');
+  assert.equal(vm.evaluate(`${P}[2].num:GetText()`), '2');
+  // A turning minimap, facing west: north (the rats) is now to the right.
+  vm.run(`STUB.minimapRadius = 200; STUB.cvars.rotateMinimap = "1"; STUB.player.facing = ${Math.PI / 2}; NS.RoutePins.Update(true)`);
+  const turned = vm.json(`(function() local _, _, _, x, y = ${P}[1]:GetPoint(); return { x, y } end)()`);
+  assert.ok(Math.abs(turned[0] - at[1]) < 0.5 && Math.abs(turned[1] + at[0]) < 0.5, 'facing west: north to the right, west up: ' + JSON.stringify([at, turned]));
+  // The switch: off, none.
+  vm.run('STUB.cvars.rotateMinimap = nil; NS.Route.SetMinimap(false)');
+  assert.equal(vm.evaluate(`tostring(${P}[1].shown)`), 'false');
+  vm.run('NS.Route.SetMinimap(true)');
+  assert.equal(vm.evaluate(`tostring(${P}[1].shown)`), 'true');
+  // The tracker closed: none.
+  vm.slash('route');
+  assert.equal(vm.evaluate(`tostring(${P}[1].shown)`), 'false');
+});

@@ -1475,7 +1475,11 @@ local function Build()
 		RT.Draw()
 	end)
 	f:SetScript("OnSizeChanged", function() if f.sizing then RT.Draw() end end)
-	f:SetScript("OnHide", function() if RT.arrow then RT.arrow:Hide() end pcall(RT.DrawMap) end)
+	f:SetScript("OnHide", function()
+		if RT.arrow then RT.arrow:Hide() end
+		pcall(RT.DrawMap)
+		if ns.RoutePins then pcall(ns.RoutePins.Refresh); pcall(ns.RoutePins.Update, true) end
+	end)
 	local ui = UI()
 	if ui.w then f:SetWidth(math.max(RT.MIN_W, math.min(RT.MAX_W, ui.w))) end
 	f:Hide()
@@ -1559,6 +1563,7 @@ function RT.Draw()
 	local ui = UI()
 	RT.ArrowSync()
 	pcall(RT.DrawMap)
+	if ns.RoutePins then pcall(ns.RoutePins.Refresh) end
 	local W = tonumber(f:GetWidth()) or RT.W
 	f.now:SetWidth(W - 32); f.nowSub:SetWidth(W - 32); f.credit:SetWidth(W - 28)
 	for _, l in ipairs(f.away) do l:SetWidth(W - 40) end
@@ -1729,6 +1734,8 @@ function RT.ArrowOn() return not UI().arrowOff end
 function RT.SetArrow(v) UI().arrowOff = (not v) or nil; RT.ArrowSync() end
 function RT.MapOn() return not UI().mapOff end
 function RT.LinesOn() return not UI().linesOff end
+function RT.MinimapOn() return not UI().minimapOff end
+function RT.SetMinimap(v) UI().minimapOff = (not v) or nil; if ns.RoutePins then ns.RoutePins.Refresh(); pcall(ns.RoutePins.Update, true) end end
 function RT.SetLines(v) UI().linesOff = (not v) or nil; pcall(RT.DrawMap) end
 function RT.SetMap(v) UI().mapOff = (not v) or nil; pcall(RT.DrawMap) end
 

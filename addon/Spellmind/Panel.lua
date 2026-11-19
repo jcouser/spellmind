@@ -554,6 +554,7 @@ function Tabs.route()
 		.. (ns.Dungeons.HasDB() and " and Questie's quest data." or ". Questie adds the quests to pick up and where mobs are.")), on, RT.SetOn)
 	Switch("The arrow", "Points at the current step, with the yards to it.", RT.ArrowOn(), RT.SetArrow, true, not on)
 	Switch("Steps on the world map", "Numbered, with each objective's area shaded.", RT.MapOn(), RT.SetMap, true, not on)
+	Switch("Current step on the minimap", "Your current step, and the next one when it's in view. On the edge with an arrow when it's farther.", RT.MinimapOn(), RT.SetMinimap, true, not on)
 	Switch("Lines on the world map", "From you to the current step, and on through the next ones (straight, for now).", RT.LinesOn(), RT.SetLines, true, not on or not RT.MapOn())
 	out[#out + 1] = { kind = "item", indent = true, left = "Ask about your route", sub = "|cff888888Anything: your AI has the route. Or the two questions below.|r",
 		actions = { { "Ask", function() ns.Chat.Open("About my route: ") end, tip = "The chat, ready for your question." } } }

@@ -99,9 +99,8 @@ test('/sm route: the tracker with the zone, the step, its goals, Go, Up next; Go
   assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /^Kobold Candles: 0\/8 Tunnel Rat$/);
   assert.equal(vm.evaluate('SpellmindRoute.next[1]:GetText()'), 'Turn in 2 quests to Mountaineer Kadrell', 'two turn-ins to one NPC: one line');
   assert.match(vm.evaluate('SpellmindRoute.next[2]:GetText()'), /^Pick up Ironband's Excavation/);
-  vm.run('SpellmindRoute.go.scripts.OnClick(SpellmindRoute.go)');
-  assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1432);
-  assert.equal(vm.evaluate('string.format("%.2f", STUB.waypoints[1].position.x)'), '0.20', 'the rats\' densest spot, not the stray one');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.go)'), 'nil', 'no Go: the arrow and the map show the way');
+  assert.equal(vm.evaluate('string.format("%.2f", NS.Route.Current().x / 100)'), '0.20', 'the rats\' densest spot, not the stray one');
   assert.match(vm.evaluate('SpellmindRoute.credit:GetText()'), /Quest data from Questie/, 'the credit, its own line');
   vm.slash('route');
   assert.equal(vm.evaluate('tostring(SpellmindRoute.shown)'), 'false', 'and closes it');
@@ -291,7 +290,6 @@ test('the tracker sized by its corner shows more of Up next; the fold shows the 
   vm.run('SpellmindRoute.fold.scripts.OnClick(SpellmindRoute.fold)');
   assert.equal(shown(), 0);
   assert.equal(vm.evaluate('tostring(SpellmindRoute.skip.shown)'), 'false');
-  assert.equal(vm.evaluate('tostring(SpellmindRoute.go.shown)'), 'true', 'Go stays');
   assert.equal(vm.evaluate('tostring(SpellmindDB.routeUI.compact)'), 'true');
   assert.ok(vm.num('SpellmindRoute.height') < 150, 'short when folded');
   vm.run('SpellmindRoute.fold.scripts.OnClick(SpellmindRoute.fold)');
@@ -327,9 +325,16 @@ test('Where next: the zones by quests left for this character and the time to ge
   vm.slash('route');
   assert.equal(vm.evaluate('SpellmindRoute.whereLabel:GetText()'), 'Where next');
   assert.equal(vm.evaluate('SpellmindRoute.where[1].text:GetText()'), '|cffffd100Ironforge:|r 2 quests to pick up · about 10 min away');
-  vm.run('SpellmindRoute.where[2].scripts.OnClick(SpellmindRoute.where[2])');
-  assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1436, 'Westfall\'s map');
-  assert.equal(vm.evaluate('string.format("%.0f", STUB.waypoints[1].position.x * 100)'), '56', 'at Gryan');
+  // A click on a zone: the arrow points the way there (steps still left here), marked; again: back.
+  vm.run('SpellmindRoute.where[2].scripts.OnClick(SpellmindRoute.where[2]); NS.Route.ArrowUpdate()');
+  assert.equal(vm.evaluate('SpellmindArrow.text:GetText()'), 'Westfall: Gryan Stoutmantle');
+  assert.match(vm.evaluate('SpellmindRoute.where[2].text:GetText()'), /^\|cff19ff19»\|r \|cffffd100Westfall/);
+  assert.equal(vm.evaluate('tostring(STUB.waypoints[1])'), 'nil', 'no pin');
+  vm.run('SpellmindRoute.where[2].scripts.OnClick(SpellmindRoute.where[2]); NS.Route.ArrowUpdate()');
+  assert.match(vm.evaluate('SpellmindArrow.text:GetText()'), /Kobold Candles/, 'back to the steps');
+  // Chosen, then a new zone reached: the choice is done.
+  vm.run('SpellmindRoute.where[2].scripts.OnClick(SpellmindRoute.where[2]); STUB.FireEvent("ZONE_CHANGED_NEW_AREA")');
+  assert.equal(vm.evaluate('tostring(NS.R.routeAim)'), 'nil');
 });
 
 test('Where next: done here, the band names the next zone and Go pins it', () => {
@@ -340,8 +345,9 @@ test('Where next: done here, the band names the next zone and Go pins it', () =>
   assert.match(vm.evaluate('SpellmindRoute.nowSub:GetText()'), /2 quests to pick up · about 10 min away/);
   assert.equal(vm.evaluate('SpellmindRoute.whereLabel:GetText()'), 'Or');
   assert.match(vm.evaluate('SpellmindRoute.where[1].text:GetText()'), /Westfall/);
-  vm.run('SpellmindRoute.go.scripts.OnClick(SpellmindRoute.go)');
-  assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1455, 'Ironforge\'s map');
+  vm.run('NS.Route.ArrowUpdate()');
+  assert.equal(vm.evaluate('SpellmindArrow.text:GetText()'), 'Ironforge: Thane Ironbelly', 'the arrow shows the way');
+  assert.equal(vm.evaluate('tostring(STUB.waypoints[1])'), 'nil', 'no pin');
 });
 
 test('Where next waits while plenty is left here', () => {
@@ -426,8 +432,10 @@ test('Where next pins a real quest giver, not the empty middle of a spread-out g
     STUB.qdb.quests[714].npc = 812` }).login().advance(9);
   const z = vm.json('(function() for _, z in ipairs(NS.Route.Zones(true)) do if z.zone == "Westfall" then return z.spot end end end)()');
   assert.deepEqual([z.x, z.y, z.giver], [56, 46, 'Farmer Saldean'], 'the giver nearest the middle (54.7, 44.7), where nobody stands');
-  vm.run('NS.Route.GoZone((function() for _, z in ipairs(NS.Route.Zones()) do if z.zone == "Westfall" then return z end end end)())');
-  assert.ok(vm.chatLines().some(l => /Map pin set: Westfall, at Farmer Saldean\. Follow the arrow\./.test(l)));
+  vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.Route.Zones()) do if z.zone == "Westfall" then return z end end end)())');
+  vm.slash('route');
+  vm.run('NS.Route.ArrowUpdate()');
+  assert.equal(vm.evaluate('SpellmindArrow.text:GetText()'), 'Westfall: Farmer Saldean');
 });
 
 // The arrow. Loch Modan's rats (the first step) are around (20.2, 20.5); the player at (40, 40) on a
@@ -600,9 +608,7 @@ test('the world map: each step still to do numbered at its spot, its objective\'
   assert.ok(Math.abs(a.w - 50) < 0.01 && Math.abs(a.h - 33.35) < 0.01, JSON.stringify(a));
   assert.equal(a.shown, true);
   assert.equal(vm.evaluate(`tostring(${M}.areas[2] and ${M}.areas[2].shown)`), 'true', 'Ironband\'s troggs too');
-  // A click on a dot: the game's pin there.
-  vm.run(`${M}.dots[2].scripts.OnClick(${M}.dots[2])`);
-  assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1432);
+  assert.equal(vm.evaluate(`tostring(${M}.dots[2].scripts.OnClick)`), 'nil', 'hover only: no pin');
   // The rats done: their dot and area go; the numbers stay the tracker's.
   vm.run('STUB.objectives[700][1].numFulfilled = 8; STUB.quests[2].complete = true; STUB.FireEvent("QUEST_LOG_UPDATE")');
   assert.equal(vm.num(`${M}.shown`), 2);

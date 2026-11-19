@@ -886,17 +886,20 @@ function RT.ZonesPart()
 	return out
 end
 
--- Go to a zone: a pin at its quest givers.
-function RT.GoZone(z)
-	if type(z) ~= "table" or not z.spot then return nil end
-	if DG().Go(z.spot) then
-		local where = z.spot.giver and (z.zone .. ", at " .. z.spot.giver) or (z.spot.givers and (z.zone .. "'s quest givers")) or z.zone
-		ns.Chat.System("Map pin set: " .. where .. ". Follow the arrow.")
-		return "pin"
+-- A zone chosen from Where next: the arrow points the way there instead of at the route's steps,
+-- until it's clicked again or the player reaches a new zone. R.routeAim = its area ID.
+function RT.Aim(z)
+	if type(z) ~= "table" then return end
+	if R.routeAim == z.area then
+		R.routeAim = nil
+		ns.Chat.System("The arrow points at the route's steps again.")
+	else
+		R.routeAim = z.area
+		ns.Chat.System("The arrow points the way to " .. z.zone .. ". Click it again to go back to the route's steps.")
 	end
-	ns.Chat.System("The game can't pin a spot in " .. z.zone .. ".")
-	return nil
+	RT.Refresh()
 end
+ns.On("ZONE_CHANGED_NEW_AREA", function() R.routeAim = nil end)
 
 -- "Westfall: 3 quests to pick up, 1 in your log · about 4 min away"
 function RT.WhereText(z)
@@ -1034,18 +1037,6 @@ function RT.Back()
 	local s = table.remove(list)
 	R.routeSkip[s.key] = nil
 	RT.Refresh()
-end
-
--- Go: the game's pin on the current step.
-function RT.Go(s)
-	s = s or RT.Current()
-	if not s or not R.route or not R.route.map then return nil end
-	if ns.Quests.Pin(R.route.map, s.x, s.y) then
-		ns.Chat.System("Map pin set: " .. RT.GoalText(s.goals[1]) .. ". Follow the arrow.")
-		return "pin"
-	end
-	ns.Chat.System("The game can't pin that spot on its map.")
-	return nil
 end
 
 ---------------------------------------------------------------------------
@@ -1345,14 +1336,9 @@ local function Build()
 		f.band:SetBackdropColor(0.16, 0.11, 0.3, 0.9)
 		f.band:SetBackdropBorderColor(0.62, 0.49, 1, 0.9)
 	end
-	f.now = Line(f.band, "GameFontHighlight", RT.W - 96)
+	f.now = Line(f.band, "GameFontHighlight", RT.W - 32)
 	f.now:SetPoint("TOPLEFT", f.band, "TOPLEFT", 8, -8)
-	f.nowSub = Line(f.band, "GameFontDisableSmall", RT.W - 96)
-	f.go = ns.GearUI.Button(f.band, "Go", 48)
-	f.go:SetPoint("TOPRIGHT", f.band, "TOPRIGHT", -6, -6)
-	f.go:SetScript("OnClick", function()
-		if RT.Current() then RT.Go() else RT.GoZone(RT.WhereLines(R.route or {})[1]) end
-	end)
+	f.nowSub = Line(f.band, "GameFontDisableSmall", RT.W - 32)
 	f.thens = {}
 	for i = 1, RT.THEN_LINES do
 		local l = Line(f, "GameFontHighlightSmall", RT.W - 40)
@@ -1378,7 +1364,7 @@ local function Build()
 		if b.text.SetMaxLines then b.text:SetMaxLines(3) end
 		b.text:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
 		b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-		b:SetScript("OnClick", function(self) if self.zone then RT.GoZone(self.zone) end end)
+		b:SetScript("OnClick", function(self) if self.zone then RT.Aim(self.zone) end end)
 		f.where[i] = b
 	end
 	-- Elsewhere: its own heading and lines (the player, 2026-11-19: one crammed line was hard to read),
@@ -1507,7 +1493,7 @@ function RT.Draw()
 	RT.ArrowSync()
 	pcall(RT.DrawMap)
 	local W = tonumber(f:GetWidth()) or RT.W
-	f.now:SetWidth(W - 96); f.nowSub:SetWidth(W - 96); f.credit:SetWidth(W - 28)
+	f.now:SetWidth(W - 32); f.nowSub:SetWidth(W - 32); f.credit:SetWidth(W - 28)
 	for _, l in ipairs(f.away) do l:SetWidth(W - 40) end
 	for _, b in ipairs(f.where) do b:SetWidth(W - 40); b.text:SetWidth(W - 40) end
 	local wl = RT.WhereLines(route)
@@ -1537,7 +1523,6 @@ function RT.Draw()
 	f.nowSub:ClearAllPoints()
 	f.nowSub:SetPoint("TOPLEFT", f.now, "BOTTOMLEFT", 0, -3)
 	if sub then f.nowSub:Show() else f.nowSub:Hide() end
-	if cur or wl[1] then f.go:Show() else f.go:Hide() end
 	local bandH = 16 + math.max(20, tonumber(f.now:GetStringHeight()) or 20) + (sub and (3 + (tonumber(f.nowSub:GetStringHeight()) or 12)) or 0)
 	f.band:SetHeight(bandH)
 	local rest = { f.nextLabel, f.whereLabel, f.awayLabel, f.credit, f.back, f.skip, f.rebuild, f.grip }
@@ -1580,7 +1565,8 @@ function RT.Draw()
 	for k, b in ipairs(f.where) do
 		local z = shownWhere[k]
 		b.zone = z
-		b.text:SetText(z and ("|cffffd100" .. ns.Escape(z.zone) .. ":|r " .. RT.WhereText(z)) or "")
+		local aimed = z and R.routeAim == z.area
+		b.text:SetText(z and ((aimed and "|cff19ff19\194\187|r " or "") .. "|cffffd100" .. ns.Escape(z.zone) .. ":|r " .. RT.WhereText(z)) or "")
 		if z then b:SetHeight(Row(b.text)); whereH = whereH + Row(b.text) end
 	end
 	for k, l in ipairs(f.away) do
@@ -1681,12 +1667,14 @@ RT.AHEAD = 0.35 -- radians either side of straight on: the arrow goes green
 function RT.ArrowTarget()
 	local route = R.route
 	if not route or route.nowhere then return nil end
+	local z
+	for _, w in ipairs(route.where or {}) do if R.routeAim and w.area == R.routeAim then z = w end end
 	local cur = RT.Current()
-	if cur then
+	if cur and not z then
 		local gr = RT.Groups(cur)[1]
 		return { world = World(route.map, cur.x, cur.y), text = gr and RT.GroupText(gr) or RT.GoalText(cur.goals[1]) }
 	end
-	local z = RT.WhereLines(route)[1]
+	z = z or RT.WhereLines(route)[1]
 	if not z then return nil end
 	if z.leg == "hearth" then
 		return { hearth = true, text = "Use your hearthstone", sub = (z.via and (z.via:gsub("^hearthstone ", "")) or "") .. ", then on to " .. z.zone }
@@ -1861,11 +1849,9 @@ local function Dot(layer, k)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		GameTooltip:SetText("Step " .. self.index)
 		for _, gr in ipairs(RT.Groups(self.stop)) do GameTooltip:AddLine(RT.GroupText(gr), 1, 1, 1, true) end
-		GameTooltip:AddLine("Click: the game's map pin here.", 0.6, 0.6, 0.6)
 		GameTooltip:Show()
 	end)
 	d:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-	d:SetScript("OnClick", function(self) if self.stop then RT.Go(self.stop) end end)
 	marks.dots[k] = d
 	return d
 end

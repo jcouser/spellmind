@@ -253,7 +253,7 @@ local function Giver(L, id)
 		local n = L.Npc and ns.Try(L.Npc.name, npc)
 		if type(n) == "string" and n ~= "" then
 			local where, spot = Place(L.Npc and ns.Try(L.Npc.zoneID, npc), L.Npc and ns.Try(L.Npc.spawns, npc))
-			if spot then spot.name = n end
+			if spot then spot.name, spot.npc = n, npc end
 			return n .. where, ns.Try(L.Npc.friendlyToFaction, npc), spot
 		end
 	end

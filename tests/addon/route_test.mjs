@@ -209,7 +209,7 @@ test('a giver who doesn\'t offer a pick up (the player, 2026-11-19: Season of Di
     for i = 1, 3 do Q[740 + i] = { name = "Duskwood Mission " .. i, zone = 38, level = 15, npc = 807, obj = { { { 808 } }, {}, {} }, ender = 807 } end`);
   assert.equal(keys(vm).filter(k => /pickup:74[123]/.test(k)).length, 1, 'all three, at his spot');
   // Talking to him: he offers only Mission 2.
-  vm.run(`UnitName = (function(old) return function(u) if u == "npc" then return "Field Captain Palandar" end return old(u) end end)(UnitName)
+  vm.run(`UnitGUID = (function(old) return function(u) if u == "npc" then return "Creature-0-5250-0-38-807-0000ABCD" end return old(u) end end)(UnitGUID)
     C_GossipInfo = C_GossipInfo or {}
     C_GossipInfo.GetAvailableQuests = function() return { { questID = 742, title = "Duskwood Mission 2" } } end
     STUB.FireEvent("GOSSIP_SHOW")`);

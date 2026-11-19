@@ -472,7 +472,7 @@ function RT.Build()
 						local v = hasObjectives and not center and RT.Vendor(Q, id, here.area) or nil
 						local doable = center or (v and v.spot) or nil
 						if (hasObjectives and doable) or (not hasObjectives and fin and fin.spot) then
-							Place("pickup", id, title, spot, spot.name)
+							Place("pickup", id, title, spot, spot.name, { fromID = spot.npc })
 							if center then Place("do", id, title, center)
 							elseif v and v.spot then Place("do", id, title, v.spot, nil, { buy = v.item, buyID = v.itemID, from = v.name, fromID = v.npc, empty = v.empty }) end
 							if fin and fin.spot then Place("turnin", id, title, fin.spot, fin.name) end
@@ -763,16 +763,20 @@ end
 function RT.OnGiver(event)
 	local route = R.route
 	if not route then return end
-	local npc = Try(UnitName, "npc")
-	if type(npc) ~= "string" or npc == "" then return end
+	-- The NPC by his id, from his GUID (only ns.Redact ever reads a unit's name: the privacy rule).
+	local guid = Try(UnitGUID, "npc")
+	local npc = type(guid) == "string" and tonumber(guid:match("^%a+%-%d+%-%d+%-%d+%-%d+%-(%d+)")) or nil
+	if not npc then return end
 	local ids, titles = Offered(event)
+	local who
 	-- A single-quest window shows one quest, not all he offers: it only confirms, never rules out.
 	local single = event == "QUEST_DETAIL"
 	ns.db.routeNotOffered = ns.db.routeNotOffered or {}
 	local dropped = 0
 	for _, st in ipairs(route.stops or {}) do
 		for _, g in ipairs(st.goals) do
-			if g.kind == "pickup" and g.to == npc and not RT.GoalDone(g) then
+			if g.kind == "pickup" and g.fromID == npc and not RT.GoalDone(g) then
+				who = who or g.to
 				if ids[g.q] or titles[g.title] then
 					ns.db.routeNotOffered[g.q] = nil
 				elseif not single then
@@ -783,7 +787,7 @@ function RT.OnGiver(event)
 		end
 	end
 	if dropped > 0 then
-		ns.Chat.System(ns.Escape(npc) .. " doesn't offer " .. dropped .. " of the quests the route had for him; they're off the route until your next level.")
+		ns.Chat.System(ns.Escape(who or "This quest giver") .. " doesn't offer " .. dropped .. " of the quests the route had for him; they're off the route until your next level.")
 		if not InCombat() then RT.Build() end
 		RT.Refresh()
 	end

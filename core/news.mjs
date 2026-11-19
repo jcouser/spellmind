@@ -25,6 +25,8 @@ export const NEWS = Object.freeze([
       'After each update, this window says what\'s new. /sm news shows it again.',
       'A quest handed in in another zone is planned as a trip there and back when what it opens here makes it worth it.',
       "The arrow and the map's lines follow the roads you've walked: Spellmind learns them as you go, on your PC only.",
+      'A far quest that gives little XP for the walk is marked "worth skipping?", and the ones worth more come first.',
+      'In a route review, each quest your AI says to skip gets a Skip button.',
     ]),
   }),
 ]);

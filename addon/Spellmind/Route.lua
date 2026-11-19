@@ -473,11 +473,35 @@ local function ModeUI()
 	ns.db.routeUI = type(ns.db.routeUI) == "table" and ns.db.routeUI or {}
 	return ns.db.routeUI
 end
+-- The zone the player chose (Aim), kept through /reload and logins (the player, 2026-11-19: a /reload
+-- forgot Wetlands), per character: SpellmindDB.routeUI.aims[ns.State.Key()] = { area, from }, the key a
+-- hash of the character's GUID, never its name.
+local function Aims()
+	local ui = ModeUI()
+	ui.aims = type(ui.aims) == "table" and ui.aims or {}
+	return ui.aims
+end
+local function AimKey() return ns.State and ns.State.Key and ns.State.Key() or nil end
+function RT.SetAim(area, from)
+	R.routeAim, R.routeAimFrom = area, area and from or nil
+	local key = AimKey()
+	if key then Aims()[key] = area and { area = area, from = from } or nil end
+end
+-- Once a session: the saved choice back.
+function RT.LoadAim()
+	if R.routeAimLoaded then return end
+	R.routeAimLoaded = true
+	local key = AimKey()
+	local a = key and Aims()[key]
+	if type(a) == "table" and tonumber(a.area) then R.routeAim, R.routeAimFrom = tonumber(a.area), tonumber(a.from) end
+end
+
 function RT.Mode() local ui = ModeUI(); return ui.mode == "dungeon" and ui.dungeon and "dungeon" or "questing", ui.dungeon end
 function RT.SetMode(mode, name)
 	local ui = ModeUI()
 	if mode == "dungeon" and name then ui.mode, ui.dungeon = "dungeon", name else ui.mode, ui.dungeon = nil, nil end
-	R.routeSkip, R.routeSkipped, R.routeAim = {}, {}, nil
+	R.routeSkip, R.routeSkipped = {}, {}
+	RT.SetAim(nil)
 	RT.Build()
 	RT.Refresh()
 end
@@ -490,7 +514,8 @@ function RT.Build()
 	if not here then route.nowhere = true; return route end
 	route.zone, route.map, route.area = here.zone, here.map, here.area
 	-- Arrived in the zone the player chose: the choice is done, the route plans its quests.
-	if R.routeAim and R.routeAim == here.area then R.routeAim = nil end
+	RT.LoadAim()
+	if R.routeAim and R.routeAim == here.area then RT.SetAim(nil) end
 	local Q = L()
 	route.db = Q ~= nil
 	local level = Level()
@@ -849,7 +874,6 @@ end
 -- still had quests for them, and the AI said stay. So the zones are ranked by what's really left for
 -- this character (quests it can pick up there now, at its level, not done, and its log's quests there),
 -- against the time it takes to get there and do them. Needs QuestieDB.
-RT.WHERE_WHEN = 3 -- steps left here at or below which the tracker shows Where next
 RT.WHERE_SHOWN = 3
 RT.WHERE_MAX = 5 -- other zones kept (for the tracker and the AI)
 RT.WHERE_MIN = 2 -- fewer quests than this isn't somewhere to go next
@@ -1155,14 +1179,10 @@ end
 -- A zone chosen from Where next: the arrow points the way there instead of at the route's steps,
 -- until it's clicked again or the player arrives there (the player, 2026-11-19: flying to Wetlands
 -- through Loch Modan, the choice ended at Loch Modan and the route had them questing there).
--- R.routeAim = its area ID.
+-- R.routeAim = its area ID (saved: RT.SetAim).
 function RT.Aim(z)
 	if type(z) ~= "table" then return end
-	if R.routeAim == z.area then
-		R.routeAim = nil
-	else
-		R.routeAim, R.routeAimFrom = z.area, R.route and R.route.area
-	end
+	if R.routeAim == z.area then RT.SetAim(nil) else RT.SetAim(z.area, R.route and R.route.area) end
 	RT.Refresh()
 end
 
@@ -1192,14 +1212,18 @@ function RT.Traveling(route)
 	return RT.NextZone(route)
 end
 
--- The other zones for the tracker: once few steps are left here (or none), the best few.
+-- The other zones for the tracker: the best few, always (the player, 2026-11-19: in Loch Modan with
+-- steps left, Wetlands couldn't be chosen; it showed only once few were left), the chosen one among them.
 function RT.WhereLines(route)
 	local out = {}
-	local done, total = RT.Progress()
-	if total - done > RT.WHERE_WHEN then return out end
+	local aimed
 	for _, z in ipairs(route.where or {}) do
-		if not z.here and #out < RT.WHERE_SHOWN then out[#out + 1] = z end
+		if not z.here then
+			if #out < RT.WHERE_SHOWN then out[#out + 1] = z
+			elseif R.routeAim and z.area == R.routeAim then aimed = z end
+		end
 	end
+	if aimed then out[#out] = aimed end
 	return out
 end
 

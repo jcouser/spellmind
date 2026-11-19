@@ -352,12 +352,34 @@ test('Where next: done here, the band names the next zone and Go pins it', () =>
   assert.equal(vm.evaluate('tostring(STUB.waypoints[1])'), 'nil', 'no pin');
 });
 
-test('Where next waits while plenty is left here', () => {
+test('Where next shows with plenty left here, so a zone can be chosen (the player, 2026-11-19: in Loch Modan, Wetlands couldn\'t be)', () => {
   const vm = newVM({ before: ZONE + MORE }).login().advance(9);
-  vm.run('NS.Route.WHERE_WHEN = 1');
+  vm.run('NS.Route.WHERE_SHOWN = 1');
   vm.slash('route');
-  assert.equal(vm.evaluate('tostring(SpellmindRoute.whereLabel.shown)'), 'false');
-  assert.equal(vm.evaluate('tostring(SpellmindRoute.where[1].shown)'), 'false');
+  assert.ok(vm.num('select(2, NS.Route.Progress()) - select(1, NS.Route.Progress())') > 1, 'plenty left');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.whereLabel.shown)'), 'true');
+  assert.match(vm.evaluate('SpellmindRoute.where[1].text:GetText()'), /Ironforge/);
+  // The chosen one among them, however it ranks.
+  vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)())');
+  assert.match(vm.evaluate('NS.Route.WhereLines(NS.R.route)[1].zone'), /Westfall/);
+});
+
+test('the zone chosen is kept through a /reload, for that character only', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.slash('route');
+  vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)())');
+  const area = vm.evaluate('tostring(NS.R.routeAim)');
+  const saved = vm.json('SpellmindDB.routeUI.aims');
+  const keys = Object.keys(saved);
+  assert.equal(keys.length, 1);
+  assert.ok(!/Tester|Player/i.test(keys[0]), 'a hash, not the name');
+  // A reload: memory gone, the saved one back.
+  vm.run('NS.R.routeAim, NS.R.routeAimLoaded = nil, nil; NS.Route.Build(); NS.Route.Refresh()');
+  assert.equal(vm.evaluate('tostring(NS.R.routeAim)'), area);
+  assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /On the way to.*Westfall/);
+  // Another character: not theirs.
+  vm.run('STUB.player.guid = "Player-1-00000002"; NS.R.routeAim, NS.R.routeAimLoaded = nil, nil; NS.Route.Build()');
+  assert.equal(vm.evaluate('tostring(NS.R.routeAim)'), 'nil');
 });
 
 test('a narrow window wraps a long line (the player, 2026-11-19: it cut them off) and moves what\'s under it down', () => {

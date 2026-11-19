@@ -22,7 +22,7 @@ Written from scratch: other guide addons (OpenXP) showed what players expect, no
 
 Every part works without the app; the AI parts need it.
 
-8. **A chosen zone holds until you get there** (the maintainer, 2026-11-19: flying to Wetlands through Loch Modan, the route switched to Loch Modan's quests). Aim on a zone lasts until the player arrives there or clicks it again. Zone changes on the way don't end it. Meanwhile the steps where the player stands wait: the tracker reads "On the way to Wetlands" with the way there, the map and minimap show only the way, and "Quest here instead" (on the tracker and the Route tab) brings the local steps back. The AI is told where the player is heading. Where next always keeps the chosen zone, however it ranks.
+8. **A chosen zone holds until you get there** (the maintainer, 2026-11-19: flying to Wetlands through Loch Modan, the route switched to Loch Modan's quests). Aim on a zone lasts until the player arrives there or clicks it again. Zone changes on the way don't end it. Meanwhile the steps where the player stands wait: the tracker reads "On the way to Wetlands" with the way there, the map and minimap show only the way, and "Quest here instead" (on the tracker and the Route tab) brings the local steps back. The AI is told where the player is heading. Where next always keeps the chosen zone, however it ranks. Where next is on the tracker always (it waited until three steps or fewer were left here, so Wetlands couldn't be chosen from Loch Modan), and the choice is saved per character (a hash of its GUID) through /reload and logins.
 
 ## Building the route
 

@@ -516,7 +516,7 @@ test('the follow-up after a turn-in is its own line in the stop, not counted wit
   assert.deepEqual(gs, ['pickup:702x1', 'do:702x1', 'turnin:702x1', 'pickup:703x1', 'turnin:703x1'], 'five lines, in order');
 });
 
-test('levels: a quest in the log up to orange (+4) stays on the route, red waits; in a group, two more', () => {
+test('levels: a quest in the log to +3 is done on the route; +4 and up wait for the level; in a group, two more', () => {
   const vm = newVM({ before: ZONE + `
     table.insert(STUB.quests, { title = "Orange Errand", questID = 720, level = 19 })
     table.insert(STUB.quests, { title = "Red Errand", questID = 721, level = 20 })
@@ -524,12 +524,11 @@ test('levels: a quest in the log up to orange (+4) stays on the route, red waits
     STUB.grouped = false
     IsInGroup = function() return STUB.grouped end` }).login().advance(9);
   let ks = keys(vm).join(' ');
-  assert.ok(ks.includes('do:720'), 'orange: on the route');
-  assert.ok(!ks.includes('do:721'), 'red: for later');
-  assert.ok(vm.json('NS.R.route.later').includes('Red Errand'));
+  assert.ok(!ks.includes('do:720') && !ks.includes('do:721'), `solo: +4 and +5 wait: ${ks}`);
+  assert.deepEqual(vm.json('NS.R.route.later').sort(), ['Orange Errand', 'Red Errand']);
   vm.run('STUB.grouped = true');
   ks = keys(vm).join(' ');
-  assert.ok(ks.includes('do:721'), 'in a group: red too');
+  assert.ok(ks.includes('do:720') && ks.includes('do:721'), 'in a group: both');
 });
 
 test('talking to a giver to turn in doesn\'t mark the follow-up he\'ll give after as one he doesn\'t offer (the player, 2026-11-19: Calor); what he shows clears an old mark', () => {
@@ -556,12 +555,21 @@ test('a pick up is suggested to +3 solo (the player, 2026-11-19: +4 is a lot alo
     STUB.qdb.quests[729] = { name = "Hard Pick Up", zone = 38, level = 18, npc = 802, ender = 802 }
     STUB.qdb.quests[730] = { name = "Orange Pick Up", zone = 38, level = 19, npc = 802, ender = 802 }
     STUB.qdb.quests[731] = { name = "Red Pick Up", zone = 38, level = 20, npc = 802, ender = 802 }
+    STUB.qdb.npcs[809] = { name = "Lonely Hermit", zone = 38, spawns = { [38] = { { 8, 92 } } }, friendly = "A" }
+    STUB.qdb.quests[732] = { name = "Hermit's Errand", zone = 38, level = 19, npc = 809, ender = 809 }
     STUB.grouped = false
     IsInGroup = function() return STUB.grouped end` }).login().advance(9);
   let ks = keys(vm).join(' ');
-  assert.ok(ks.includes('pickup:729'), ks);
-  assert.ok(!ks.includes('pickup:730') && !ks.includes('pickup:731'), `solo: not +4 or +5: ${ks}`);
+  assert.ok(ks.includes('pickup:729') && ks.includes('turnin:729'), ks);
+  assert.ok(ks.includes('pickup:730') && !ks.includes('turnin:730'), `solo, +4: picked up for later, not done: ${ks}`);
+  assert.ok(!ks.includes(':731'), `solo, +5: not at all: ${ks}`);
+  assert.ok(!ks.includes(':732'), `+4 from a giver the route doesn't pass: no detour: ${ks}`);
+  vm.run('STUB.player.x, STUB.player.y = 0.085, 0.915');
+  assert.ok(keys(vm).join(' ').includes('pickup:732'), 'standing by that giver: picked up for later');
+  vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40');
+  assert.equal(vm.evaluate(`(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do
+    if g.q == 730 then return NS.Route.GoalText(g) end end end end)()`), 'Pick up Orange Pick Up |cff888888(for later)|r');
   vm.run('STUB.grouped = true');
   ks = keys(vm).join(' ');
-  assert.ok(ks.includes('pickup:730') && ks.includes('pickup:731'), `in a group: ${ks}`);
+  assert.ok(ks.includes('turnin:730') && ks.includes('turnin:731'), `in a group: done: ${ks}`);
 });

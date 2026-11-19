@@ -23,10 +23,11 @@ RT.GROUP_YARDS = 90 -- stops this close are one stop
 RT.SPOTS_MAX = 80 -- an objective's spawn points read, at most
 RT.CLUSTER = 7 -- map percent: the radius of an objective's densest spot
 RT.BELOW, RT.ABOVE = 5, 3 -- pickups this far below (grey) or above the character's level are left out
--- A quest already taken stays on the route up to orange (+4): the player chose it. One to pick up is
--- suggested to +3 only (the player, 2026-11-19: a +4 one is a lot solo); red ones wait for a level. In a
--- group, two levels more for both.
-RT.LOG_ABOVE, RT.GROUP_ABOVE = 4, 2
+-- A quest is done on the route up to +3 (the player, 2026-11-19: +4 is a lot solo), taken or not; in a
+-- group, two levels more. One level past that, a pick up is still a step "for later" when its giver is
+-- by another stop (the player: "I should have at least picked up the quest"): taken, it waits in the
+-- log until the level (or a group) comes.
+RT.LOG_ABOVE, RT.GROUP_ABOVE = 3, 2
 RT.STOPS_MAX = 40
 RT.CHAIN_PASSES = 3 -- follow-ups planned this many steps down a chain
 RT.PASSES = 8 -- improvement passes over the order
@@ -482,7 +483,7 @@ function RT.Build()
 	if index and index[here.area] then
 		local ctx = DG().Context(Q)
 		local function Has(id) return log[id] ~= nil end
-		local taken = {}
+		local taken, forLater = {}, {}
 		-- Open now, or once the quests it needs are turned in on this route.
 		local function Opens(id)
 			local miss = DG().Missing(id)
@@ -498,10 +499,14 @@ function RT.Build()
 			if open and not RT.Hidden(id) and not RT.NotOffered(id) and DG().Fits(Q, id, ctx, Has) and RT.Known(id) then
 				local req = tonumber((Try(Q.Quest.requiredLevel, id))) or 1
 				local ql = tonumber((Try(Q.Quest.questLevel, id))) or req
-				if req <= level and ql >= level - RT.BELOW and ql <= level + RT.Above() then
+				local later = ql > level + RT.Above()
+				if req <= level and ql >= level - RT.BELOW and ql <= level + RT.Above() + 1 then
 					local _, friendly, spot = DG().Giver(Q, id)
 					local mine = not friendly or not ctx.faction or tostring(friendly):find(ctx.faction == "Alliance" and "A" or "H", 1, true)
-					if mine and spot and spot.zone == here.area then
+					if later and mine and spot and spot.zone == here.area then
+						taken[id] = true
+						forLater[#forLater + 1] = { id = id, title = DG().Name(Q, id) or ("quest " .. id), spot = spot, needs = needs }
+					elseif mine and spot and spot.zone == here.area then
 						local title = DG().Name(Q, id) or ("quest " .. id)
 						local center = RT.Center(RT.ObjectiveSpots(Q, id, here.area))
 						local fin = RT.TurnIn(Q, id, here.area)
@@ -528,6 +533,22 @@ function RT.Build()
 			end
 		end
 		if not added then break end
+		end
+		-- For later: only where the route already goes, or where the player stands (the player, 2026-11-19:
+		-- at Calor, the rest of the route at Sven's camp); no detour for a quest not done now.
+		for _, p in ipairs(forLater) do
+			local near = RT.Yards({ x = here.x, y = here.y }, p.spot, here) <= RT.GROUP_YARDS
+			for _, r in ipairs(raw) do
+				if RT.Yards(r, p.spot, here) <= RT.GROUP_YARDS then near = true; break end
+			end
+			if near then
+				Place("pickup", p.id, p.title, p.spot, p.spot.name, { fromID = p.spot.npc, later = true })
+				for _, q in ipairs(p.needs or {}) do
+					chains[#chains + 1] = { q, p.id }
+					after[p.id] = after[p.id] or {}
+					table.insert(after[p.id], q)
+				end
+			end
 		end
 	end
 	route.after = after
@@ -916,7 +937,7 @@ end
 -- One line for a goal: "Pick up Collecting Memories", "Do Oh Brother...: 0/1 Foreman Thistlenettle's
 -- Explorers' League Badge", "Turn in Wanted: Lieutenant Fangore to Magistrate Solomon".
 function RT.GoalText(g)
-	if g.kind == "pickup" then return "Pick up " .. ns.Escape(g.title) end
+	if g.kind == "pickup" then return "Pick up " .. ns.Escape(g.title) .. (g.later and " |cff888888(for later)|r" or "") end
 	if g.kind == "turnin" then return "Turn in " .. ns.Escape(g.title) .. (g.to and (" to " .. ns.Escape(g.to)) or "") end
 	local left = ns.Quests and ns.Quests.Left and ns.Quests.Left({ obj = ns.State and ns.State.Objectives and ns.State.Objectives(g.q) }) or nil
 	if g.buy then

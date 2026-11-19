@@ -559,7 +559,7 @@ function RT.Build()
 		-- Worth the way there and back?
 		local me = RT.PlayerWorld()
 		local there = RT.World(finMap, finAt.spot.x, finAt.spot.y)
-		local way = me and there and RT.Travel(me, there, level >= RT.MOUNT_LEVEL and RT.MOUNT_SPEED or RT.RUN_SPEED)
+		local way = me and there and RT.Travel(me, there, RT.Speed())
 		if not way then return false end
 		local value = 1 + #cands
 		if value / (2 * way.minutes + value * RT.QUEST_MINUTES) < RT.DetourBar() then return false end
@@ -767,7 +767,14 @@ RT.WHERE_MAX = 5 -- other zones kept (for the tracker and the AI)
 RT.WHERE_MIN = 2 -- fewer quests than this isn't somewhere to go next
 RT.QUEST_MINUTES = 5 -- a quest's time, on average: to the giver, the objectives, back
 RT.RUN_SPEED, RT.MOUNT_LEVEL, RT.MOUNT_SPEED = 7, 40, 11 -- yards a second
-RT.PATH_FACTOR = 1.3 -- roads and hills: the way is longer than the straight line
+RT.PATH_FACTOR = 1.35 -- roads and hills: the way is longer than the straight line (AzerothGPS's measure)
+-- The player's own speed on foot or mounted (the game's: buffs, talents, the mount), else by level.
+function RT.Speed()
+	local _, run = Try(rawget(_G, "GetUnitSpeed"), "player")
+	run = tonumber(run)
+	if run and run > 0 then return run end
+	return Level() >= RT.MOUNT_LEVEL and RT.MOUNT_SPEED or RT.RUN_SPEED
+end
 RT.SEA_MINUTES = 12 -- another continent: a boat or a tram, about
 RT.WHERE_KEEP = 30 -- seconds a count is kept (quest events clear it sooner)
 
@@ -809,9 +816,18 @@ end
 -- Getting there (the player, 2026-11-19): on foot (mounted from 40), by a flight path the character
 -- knows (World.lua notes where each one is at the flight map), or by its hearthstone when it's ready
 -- and where it lands is known; the quickest. Flights fly about this fast, turns and all.
-RT.FLY_SPEED = 25 -- yards a second, the straight line between the two
-RT.FLY_MINUTES = 1 -- the flight master, take off, landing
-RT.HEARTH_MINUTES = 0.5 -- the cast and the loading screen
+-- (the measures of AzerothGPS's planner, 2026-11-19: a gryphon flies about 32 yards a second, a trip has
+-- about 15 seconds of its own, the hearthstone 25 seconds; a flight once flown, its own time)
+RT.FLY_SPEED = 32 -- yards a second, the straight line between the two
+RT.FLY_MINUTES = 0.25 -- the flight master, take off, landing
+RT.HEARTH_MINUTES = 25 / 60 -- the cast and the loading screen
+
+-- A flight's minutes: as flown before (SpellmindDB.routeFlightTimes["A>B"], seconds), else by distance.
+function RT.FlightMinutes(a, b)
+	local t = ns.db and type(ns.db.routeFlightTimes) == "table" and a.name and b.name and ns.db.routeFlightTimes[a.name .. ">" .. b.name]
+	if tonumber(t) then return tonumber(t) / 60 + RT.FLY_MINUTES end
+	return math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2) / RT.FLY_SPEED / 60 + RT.FLY_MINUTES
+end
 RT.HEARTHSTONE = 6948
 
 local function Dist(a, b) return math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2) end
@@ -891,7 +907,7 @@ function RT.Travel(from, to, speed)
 	local function Fly(a, b)
 		local A, B = Nearest(a), Nearest(b)
 		if not A or not B or A == B or A.c ~= B.c then return nil end
-		local m = Walk(a, A) + RT.FLY_MINUTES + Dist(A, B) / RT.FLY_SPEED / 60 + Walk(B, b)
+		local m = Walk(a, A) + RT.FlightMinutes(A, B) + Walk(B, b)
 		return m, Short(A.name) .. " to " .. Short(B.name), A, B
 	end
 	-- leg: where the way starts (a flight master's spot, or "hearth"); nil on foot.
@@ -987,7 +1003,7 @@ function RT.Zones(fresh)
 	end
 	-- The time: the quests, and the way there (on foot or mounted; flight paths not yet).
 	local me = World(here.map, here.x, here.y)
-	local speed = level >= RT.MOUNT_LEVEL and RT.MOUNT_SPEED or RT.RUN_SPEED
+	local speed = RT.Speed()
 	local others, mine = {}, nil
 	for area, z in pairs(zones) do
 		local isHere = area == here.area
@@ -1933,7 +1949,7 @@ function RT.WayTo(key, target)
 	local c = R.routeWay
 	if c and c.key == key and GetTime() - c.at < RT.WAY_KEEP then return c.way end
 	local me = RT.PlayerWorld()
-	local way = me and target and RT.Travel(me, target, Level() >= RT.MOUNT_LEVEL and RT.MOUNT_SPEED or RT.RUN_SPEED) or nil
+	local way = me and target and RT.Travel(me, target, RT.Speed()) or nil
 	R.routeWay = { key = key, at = GetTime(), way = way }
 	return way
 end
@@ -2545,7 +2561,36 @@ end
 
 -- Kept a few times a second while the route is on: where the player stands outside, so that going
 -- into a dungeon notes its way in.
+-- A flight flown while the route is on: its time kept, from the known path nearest where it began to
+-- the one nearest where it landed (each within RT.FLIGHT_NEAR yards).
+RT.FLIGHT_NEAR = 150
+local function NearestFlight(w)
+	local best, bd
+	for _, f in ipairs(RT.Flights()) do
+		if w and f.c == w.c then local d = Dist(f, w); if d <= RT.FLIGHT_NEAR and (not bd or d < bd) then best, bd = f, d end end
+	end
+	return best
+end
+function RT.NoteFlight()
+	local onTaxi = Try(rawget(_G, "UnitOnTaxi"), "player") and true or false
+	local w = RT.PlayerWorld()
+	if onTaxi and not R.routeTaxi then
+		local from = R.routeGround and NearestFlight(R.routeGround)
+		R.routeTaxi = { from = from and from.name, at = GetTime() }
+	elseif not onTaxi and R.routeTaxi then
+		local to = NearestFlight(w)
+		local t = R.routeTaxi
+		R.routeTaxi = nil
+		if t.from and to and to.name ~= t.from then
+			ns.db.routeFlightTimes = type(ns.db.routeFlightTimes) == "table" and ns.db.routeFlightTimes or {}
+			ns.db.routeFlightTimes[t.from .. ">" .. to.name] = math.floor(GetTime() - t.at + 0.5)
+		end
+	end
+	if not onTaxi then R.routeGround = w end
+end
+
 function RT.NoteOutside()
+	pcall(RT.NoteFlight)
 	local here = RT.Here()
 	if not here then return end
 	local prev = R.routeOutside
@@ -2885,7 +2930,7 @@ function RT.Plan(from, to, speed)
 		end
 		for _, v in ipairs(nodes) do
 			if v.map == u.map and v.w.c == u.w.c and v.kind ~= "hearth" then Relax(v, Walk(u, v), "walk") end
-			if u.kind == "fp" and v.kind == "fp" and v.w.c == u.w.c then Relax(v, Dist(u.w, v.w) / RT.FLY_SPEED / 60 + RT.FLY_MINUTES, "fly") end
+			if u.kind == "fp" and v.kind == "fp" and v.w.c == u.w.c then Relax(v, RT.FlightMinutes({ name = u.name, x = u.w.x, y = u.w.y }, { name = v.name, x = v.w.x, y = v.w.y }), "fly") end
 		end
 		if u.kind == "link" and u.other then Relax(u.other, u.link.minutes or Walk(u, u.other), u.link.how) end
 		if u == s and hn then Relax(hn, RT.HEARTH_MINUTES, "hearth") end
@@ -2929,7 +2974,7 @@ function RT.PlanTo(key, to, destTip, destZone)
 	local here = RT.Here()
 	local legs
 	if here and to.map then
-		local path = RT.Plan({ map = here.map, x = here.x, y = here.y }, to, Level() >= RT.MOUNT_LEVEL and RT.MOUNT_SPEED or RT.RUN_SPEED)
+		local path = RT.Plan({ map = here.map, x = here.x, y = here.y }, to, RT.Speed())
 		if path then legs = RT.PlanLegs(path, destTip, destZone) end
 	end
 	R.routePlan = { key = key, at = GetTime(), legs = legs }

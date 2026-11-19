@@ -386,10 +386,10 @@ test('travel by a flight path the character knows (the player, 2026-11-19): West
   assert.equal(Math.round(-spots['Sentinel Hill, Westfall'].y), 10680, 'west is +y: 10680 yards east is y = -10680');
   const zones = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Route.ZonesPart())'));
   assert.deepEqual(zones.map(z => z.zone), ['Loch Modan', 'Westfall', 'Ironforge']);
-  assert.deepEqual([zones[1].minutesAway, zones[1].via], [7, 'fly Thelsamar to Sentinel Hill']);
+  assert.deepEqual([zones[1].minutesAway, zones[1].via], [5, 'fly Thelsamar to Sentinel Hill']);
   assert.equal(zones[2].via, undefined, 'Ironforge on foot');
   vm.slash('route');
-  assert.equal(vm.evaluate('SpellmindRoute.where[1].text:GetText()'), '|cffffd100Westfall:|r 3 quests to pick up · about 7 min away by flight');
+  assert.equal(vm.evaluate('SpellmindRoute.where[1].text:GetText()'), '|cffffd100Westfall:|r 3 quests to pick up · about 5 min away by flight');
 });
 
 test('the flight map\'s spots are trusted only when the one you stand at comes out where you stand', () => {
@@ -418,7 +418,7 @@ test('the hearthstone: its landing spot noted after it\'s used; used for travel 
   vm.run('STUB.hearthCD = 3600; NS.R.routeWhere = nil');
   zones = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Route.ZonesPart())'));
   assert.equal(west().via, undefined);
-  assert.equal(west().minutesAway, 29);
+  assert.equal(west().minutesAway, 30);
 });
 
 test('Where next pins a real quest giver, not the empty middle of a spread-out group (the player, 2026-11-19: Wetlands)', () => {
@@ -1183,4 +1183,21 @@ test('legs too close together for two marks are one, its tooltip naming both (th
   const last = Array.isArray(list[1]) ? list[1] : Object.values(list[1]);
   assert.match(last.join(' | '), /Fly to Sentinel Hill.*Westfall: Gryan Stoutmantle/);
   assert.equal(vm.evaluate(`${M}.legs[2].num:GetText()`), '»2');
+});
+
+test('travel times as measured (AzerothGPS\'s planner): 32 yards a second and 15 s a flight, the hearthstone 25 s; the player\'s own speed; a flight flown keeps its time', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  assert.ok(Math.abs(vm.num('NS.Route.FlightMinutes({ x = 0, y = 0 }, { x = 1920, y = 0 })') - 1.25) < 1e-9, '1920 yards: a minute, and 15 s');
+  assert.equal(vm.num('NS.Route.Speed()'), 7, 'no reading: on foot');
+  vm.run('GetUnitSpeed = function() return 0, 9.8 end');
+  assert.equal(vm.num('NS.Route.Speed()'), 9.8, 'the game\'s (mounted)');
+  vm.run('GetUnitSpeed = nil');
+  // Flying Thelsamar to Sentinel Hill: 200 s on the clock.
+  vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED")');
+  vm.run('STUB.onTaxi = false; UnitOnTaxi = function() return STUB.onTaxi end; NS.Route.NoteFlight()');
+  vm.run('STUB.onTaxi = true; NS.Route.NoteFlight()');
+  vm.advance(200);
+  vm.run('STUB.player.map, STUB.player.zone, STUB.player.x, STUB.player.y = 1436, "Westfall", 0.56, 0.48; STUB.onTaxi = false; NS.Route.NoteFlight()');
+  assert.equal(vm.num('SpellmindDB.routeFlightTimes["Thelsamar, Loch Modan>Sentinel Hill, Westfall"]'), 200);
+  assert.ok(Math.abs(vm.num(`NS.Route.FlightMinutes({ name = "Thelsamar, Loch Modan", x = 0, y = 0 }, { name = "Sentinel Hill, Westfall", x = 1, y = 0 })`) - (200 / 60 + 0.25)) < 1e-9, 'its own time next');
 });

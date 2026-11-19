@@ -1728,6 +1728,8 @@ RT.OPEN_DELAY = 3 -- seconds after login: the map and the quest log are ready
 function RT.ArrowOn() return not UI().arrowOff end
 function RT.SetArrow(v) UI().arrowOff = (not v) or nil; RT.ArrowSync() end
 function RT.MapOn() return not UI().mapOff end
+function RT.LinesOn() return not UI().linesOff end
+function RT.SetLines(v) UI().linesOff = (not v) or nil; pcall(RT.DrawMap) end
 function RT.SetMap(v) UI().mapOff = (not v) or nil; pcall(RT.DrawMap) end
 
 -- /sm route: open (built fresh when it's stale) or close.
@@ -1925,6 +1927,13 @@ local function Layer(W, canvas)
 	if not l then
 		l = CreateFrame("Frame", "SpellmindRouteMap", canvas)
 		l:SetAllPoints(canvas)
+		local wait = 0
+		l:SetScript("OnUpdate", function(_, dt)
+			wait = wait - (tonumber(dt) or 0)
+			if wait > 0 then return end
+			wait = RT.LINE_TICK
+			pcall(RT.MapLive)
+		end)
 		marks.layer = l
 	end
 	l:SetFrameLevel(LayerLevel(W, canvas))
@@ -1985,6 +1994,38 @@ end
 marks.legs = {}
 marks.legsShown = 0
 
+RT.LINE_TICK = 0.1 -- seconds between moves of the line from the player
+marks.lines = {}
+marks.linesShown = 0
+-- The same width on screen at any zoom (the map's canvas scales its children).
+local function Scale()
+	local W = rawget(_G, "WorldMapFrame")
+	local s = W and type(W.GetCanvasScale) == "function" and tonumber((Try(W.GetCanvasScale, W))) or nil
+	return (s and s > 0) and s or 1
+end
+local function MapLine(layer, x1, y1, x2, y2, r, g, b, a, thick)
+	marks.linesShown = marks.linesShown + 1
+	local l = marks.lines[marks.linesShown]
+	if not l then
+		l = layer:CreateLine(nil, "ARTWORK")
+		marks.lines[marks.linesShown] = l
+	end
+	l:SetThickness(thick / Scale())
+	l:SetColorTexture(r, g, b, a)
+	l:SetStartPoint("TOPLEFT", layer, x1, -y1)
+	l:SetEndPoint("TOPLEFT", layer, x2, -y2)
+	l:Show()
+	return l
+end
+-- The player on the map shown (canvas units), or nil.
+local function PlayerOnMap(mapID, route, cw, ch)
+	local here = RT.Here()
+	if here and here.map == mapID then return { here.x / 100 * cw, here.y / 100 * ch } end
+	local x, y = OnMap(RT.PlayerWorld(), mapID)
+	if x then return { x / 100 * cw, y / 100 * ch } end
+	return nil
+end
+
 -- Drawn again when the map opens, changes map or changes size.
 local hooked
 local function Hook(W)
@@ -2006,7 +2047,8 @@ function RT.DrawMap()
 	for _, t in pairs(marks.areas) do t:Hide() end
 	for _, d in pairs(marks.dots) do d:Hide(); d.stop = nil end
 	for _, d in pairs(marks.legs) do d:Hide(); d.tip = nil end
-	marks.shown, marks.legsShown = 0, 0
+	for _, l in pairs(marks.lines) do l:Hide() end
+	marks.shown, marks.legsShown, marks.linesShown, marks.live = 0, 0, 0, nil
 	local route = R.route
 	if not RT.Shown() or not RT.MapOn() or not W:IsShown() or not route or not route.map then return end
 	local shownMap = W:GetMapID()
@@ -2016,6 +2058,7 @@ function RT.DrawMap()
 	local cur = RT.Current()
 	local base = tonumber((layer:GetFrameLevel())) or 1
 	local na, nd = 0, 0
+	local path = {} -- the steps' own spots (canvas units), in order, for the lines
 	-- Dots already placed (canvas units): one that would cover another sits beside it (the player,
 	-- 2026-11-19: a pick up and its turn-in at Sven Yorgen, two steps apart, were one on the other).
 	local placed = {}
@@ -2049,6 +2092,7 @@ function RT.DrawMap()
 			nd = nd + 1
 			local d = Dot(layer, nd)
 			d:ClearAllPoints()
+			path[#path + 1] = { s.x / 100 * cw, s.y / 100 * ch, now = now }
 			local px, py = Free(s.x / 100 * cw, s.y / 100 * ch)
 			d:SetPoint("CENTER", layer, "TOPLEFT", px, -py)
 			d.tex:SetVertexColor(r, g, b)
@@ -2060,6 +2104,16 @@ function RT.DrawMap()
 		end
 	end
 	marks.shown = nd
+	local lines = RT.LinesOn()
+	local me = lines and PlayerOnMap(shownMap, route, cw, ch) or nil
+	local t = RT.ArrowTarget()
+	local away = t and t.zone
+	-- The route's line (the player, 2026-11-19, as NeverQuestAlone draws its): from the player to the
+	-- current step in gold, kept live as they move, then on through the next steps in purple.
+	if lines then
+		if me and path[1] and not away then marks.live = { line = MapLine(layer, me[1], me[2], path[1][1], path[1][2], 1, 0.82, 0, 0.9, 3), to = path[1] } end
+		for k = 1, #path - 1 do MapLine(layer, path[k][1], path[k][2], path[k + 1][1], path[k + 1][2], 0.62, 0.49, 1, 0.7, 2) end
+	end
 	-- The way to another zone (the player, 2026-11-19: with the pins gone, a chosen zone showed nothing
 	-- on the map): its first leg (the flight master to fly from) and the quest giver it ends at, a green
 	-- » on whichever map shows them (the zone's, the destination's, the continent's).
@@ -2070,9 +2124,11 @@ function RT.DrawMap()
 	if t.world and type(z.leg) == "table" then legs[#legs + 1] = { world = t.world, tip = { t.text, t.sub } } end
 	local dest = z.spot and World(z.map, z.spot.x, z.spot.y)
 	if dest then legs[#legs + 1] = { world = dest, tip = { z.zone .. (z.spot.giver and (": " .. z.spot.giver) or ""), RT.WhereText(z), "Where the arrow is heading." } } end
+	local legPts = {}
 	for _, leg in ipairs(legs) do
 		local x, y = OnMap(leg.world, shownMap)
 		if x then
+			legPts[#legPts + 1] = { x / 100 * cw, y / 100 * ch }
 			marks.legsShown = marks.legsShown + 1
 			local d = Dot(layer, marks.legsShown, marks.legs)
 			d:ClearAllPoints()
@@ -2086,6 +2142,24 @@ function RT.DrawMap()
 			d:Show()
 		end
 	end
+	-- Its line, in green: from the player (live) through each leg this map shows.
+	if lines and #legPts > 0 then
+		if me then marks.live = { line = MapLine(layer, me[1], me[2], legPts[1][1], legPts[1][2], 0.3, 0.95, 0.4, 0.9, 3), to = legPts[1] } end
+		for k = 1, #legPts - 1 do MapLine(layer, legPts[k][1], legPts[k][2], legPts[k + 1][1], legPts[k + 1][2], 0.3, 0.95, 0.4, 0.7, 2) end
+	end
+end
+
+-- The line from the player, moved with them a few times a second while the map is open.
+function RT.MapLive()
+	local live = marks.live
+	local W = rawget(_G, "WorldMapFrame")
+	if not live or type(W) ~= "table" or not W:IsShown() then return end
+	local canvas = W:GetCanvas()
+	local cw, ch = tonumber((canvas:GetWidth())) or 0, tonumber((canvas:GetHeight())) or 0
+	local me = PlayerOnMap(W:GetMapID(), R.route, cw, ch)
+	if not me then live.line:Hide(); return end
+	live.line:SetStartPoint("TOPLEFT", marks.layer, me[1], -me[2])
+	live.line:Show()
 end
 
 ---------------------------------------------------------------------------

@@ -795,3 +795,41 @@ test('the way to a chosen zone on the map (the player, 2026-11-19: with the pins
   vm.run('NS.R.routeAim = nil; NS.Route.DrawMap()');
   assert.equal(vm.num(`${M}.legsShown`), 0);
 });
+
+test('the route\'s line on the map (the player, 2026-11-19, as NeverQuestAlone\'s): you to the current step in gold, live; on through the steps; a switch', () => {
+  const vm = session();
+  vm.run(MAP);
+  vm.slash('route');
+  const M = 'NS.Route.marks';
+  const line = k => vm.json(`{ from = ${M}.lines[${k}].from, to = ${M}.lines[${k}].to, color = ${M}.lines[${k}].color, shown = ${M}.lines[${k}].shown }`);
+  assert.equal(vm.num(`${M}.linesShown`), 3, 'you to step 1, 1 to 2, 2 to 3');
+  const first = line(1);
+  assert.deepEqual(first.from.map(Math.round), [400, -267], 'from where you stand');
+  assert.deepEqual(first.to.map(Math.round), [202, -137], 'to the rats');
+  assert.deepEqual(first.color.slice(0, 3), [1, 0.82, 0], 'gold');
+  assert.deepEqual(line(2).color.slice(0, 3), [0.62, 0.49, 1], 'then purple');
+  // You move: the line follows, the rest stays.
+  vm.run('STUB.player.x = 0.5; NS.Route.MapLive()');
+  assert.deepEqual(line(1).from.map(Math.round), [500, -267]);
+  // The switch (the Route tab's): off, none.
+  vm.run('NS.Route.SetLines(false)');
+  assert.equal(vm.num(`${M}.linesShown`), 0);
+  assert.equal(vm.num(`${M}.shown`), 3, 'the dots stay');
+  vm.run('NS.Route.SetLines(true)');
+  assert.equal(vm.num(`${M}.linesShown`), 3);
+});
+
+test('the line to a chosen zone: green, from you through its legs, on the continent\'s map', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run(MAP);
+  vm.slash('route');
+  vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)())');
+  vm.run('STUB.mapShown = 1415; NS.Route.DrawMap()');
+  const M = 'NS.Route.marks';
+  assert.equal(vm.num(`${M}.linesShown`), 1, 'you to Gryan');
+  const l = vm.json(`{ from = ${M}.lines[1].from, to = ${M}.lines[1].to, color = ${M}.lines[1].color }`);
+  assert.deepEqual(l.color.slice(0, 3), [0.3, 0.95, 0.4]);
+  // Eastern Kingdoms here is 12000 x 8000 on a 1000 x 667 canvas: you at (1200, 800), Gryan at (10680, 960).
+  assert.deepEqual(l.from.map(Math.round), [100, -67]);
+  assert.deepEqual(l.to.map(Math.round), [890, -80]);
+});

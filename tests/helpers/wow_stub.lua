@@ -80,6 +80,10 @@ function Methods.CreateTexture(self, name, layer)
 	return t
 end
 function Methods.CreateFontString(self, name) return NewObject("FontString", name, self) end
+function Methods.CreateLine(self, name) return NewObject("Line", name, self) end
+function Methods.SetStartPoint(self, point, rel, x, y) self.from = { x, y } end
+function Methods.SetEndPoint(self, point, rel, x, y) self.to = { x, y } end
+function Methods.SetThickness(self, n) self.thickness = n end
 function Methods.CreateAnimationGroup(self) return NewObject("AnimationGroup", nil, self) end
 function Methods.CreateAnimation(self) return NewObject("Animation", nil, self) end
 function Methods.IsPlaying(self) return self.playing or false end

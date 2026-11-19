@@ -363,3 +363,55 @@ test('a narrow window wraps a long line (the player, 2026-11-19: it cut them off
   vm.run('SpellmindRoute.next[1].GetStringHeight = function() return 26 end; NS.Route.Draw()');
   assert.equal(top(1) - top(2), 30, 'the next line under both of its lines');
 });
+
+// The flight map in Loch Modan: Thelsamar where the player stands (1200, 800 in the world), Sentinel
+// Hill at Gryan's spot in Westfall (10680, 960).
+const TAXI = `
+  GetTaxiMapID = function() return 1415 end
+  NumTaxiNodes = function() return 3 end
+  TaxiNodeName = function(i) return ({ "Thelsamar, Loch Modan", "Sentinel Hill, Westfall", "Menethil Harbor, Wetlands" })[i] end
+  TaxiNodeGetType = function(i) return ({ "CURRENT", "REACHABLE", "NONE" })[i] end
+  TaxiNodePosition = function(i) return ({ { 0.1, 0.1 }, { 0.89, 0.12 }, { 0.3, 0.3 } })[i][1], ({ { 0.1, 0.1 }, { 0.89, 0.12 }, { 0.3, 0.3 } })[i][2] end`;
+
+test('travel by a flight path the character knows (the player, 2026-11-19): Westfall by air is nearer than Ironforge on foot', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED")');
+  const spots = vm.json('NS.State.Me().flightSpots');
+  assert.deepEqual(Object.keys(spots).sort(), ['Sentinel Hill, Westfall', 'Thelsamar, Loch Modan'], 'the known ones, not the one it doesn\'t know');
+  assert.equal(Math.round(spots['Sentinel Hill, Westfall'].x), 10680);
+  const zones = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Route.ZonesPart())'));
+  assert.deepEqual(zones.map(z => z.zone), ['Loch Modan', 'Westfall', 'Ironforge']);
+  assert.deepEqual([zones[1].minutesAway, zones[1].via], [7, 'fly Thelsamar to Sentinel Hill']);
+  assert.equal(zones[2].via, undefined, 'Ironforge on foot');
+  vm.slash('route');
+  assert.equal(vm.evaluate('SpellmindRoute.where[1].text:GetText()'), '|cffffd100Westfall:|r 3 quests to pick up · about 7 min away by flight');
+});
+
+test('the flight map\'s spots are trusted only when the one you stand at comes out where you stand', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run(TAXI + '; TaxiNodePosition = function(i) return 0.5, 0.5 end; STUB.FireEvent("TAXIMAP_OPENED")');
+  const spots = vm.json('NS.State.Me().flightSpots');
+  assert.deepEqual(Object.keys(spots), ['Thelsamar, Loch Modan'], 'just the one under your feet');
+  assert.equal(Math.round(spots['Thelsamar, Loch Modan'].x), 1200);
+});
+
+test('the hearthstone: its landing spot noted after it\'s used; used for travel only when it\'s ready', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  // Bound in Westfall; the player hearths there and the spot is noted, then walks back to Loch Modan.
+  vm.run(`GetBindLocation = function() return "Sentinel Hill" end
+    GetItemCount = function(id) return id == 6948 and 1 or 0 end
+    STUB.hearthCD = 0
+    GetItemCooldown = function(id) return 0, STUB.hearthCD end
+    STUB.player.map, STUB.player.zone, STUB.player.x, STUB.player.y = 1436, "Westfall", 0.56, 0.48
+    STUB.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 8690)`); vm.advance(6);
+  assert.equal(vm.evaluate('NS.State.Me().hearthSpot.name'), 'Sentinel Hill');
+  vm.run('STUB.player.map, STUB.player.zone, STUB.player.x, STUB.player.y = 1432, "Loch Modan", 0.40, 0.40; NS.R.routeWhere = nil');
+  let zones = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Route.ZonesPart())'));
+  const west = () => zones.find(z => z.zone === 'Westfall');
+  assert.deepEqual([west().minutesAway, west().via], [1, 'hearthstone to Sentinel Hill']);
+  // On its cooldown: on foot again.
+  vm.run('STUB.hearthCD = 3600; NS.R.routeWhere = nil');
+  zones = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Route.ZonesPart())'));
+  assert.equal(west().via, undefined);
+  assert.equal(west().minutesAway, 29);
+});

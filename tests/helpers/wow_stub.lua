@@ -814,11 +814,13 @@ STUB.completed = {}
 C_QuestLog.IsQuestFlaggedCompleted = function(id) return STUB.completed[id] or false end
 C_Map.GetAreaInfo = function(id) return ({ [16919] = "The Hall of Thanes", [1581] = "The Deadmines", [1537] = "Ironforge", [40] = "Westfall" })[id] end
 -- The world: each zone map's corner in its continent's yards (the stub's 3000 x 2000 maps, side by side).
-STUB.mapOrigins = { [1432] = { 0, 0 }, [1455] = { 3000, 0 }, [1436] = { 9000, 0 } }
+STUB.mapOrigins = { [1432] = { 0, 0 }, [1455] = { 3000, 0 }, [1436] = { 9000, 0 }, [1415] = { 0, 0 } }
+STUB.mapSizes = { [1415] = { 12000, 8000 } } -- Eastern Kingdoms, the flight map's
 C_Map.GetWorldPosFromMapPos = function(map, v)
 	local o = STUB.mapOrigins[map]
 	if not o then return nil end
-	return 0, { x = o[1] + v.x * 3000, y = o[2] + v.y * 2000 }
+	local size = STUB.mapSizes[map] or { 3000, 2000 }
+	return 0, { x = o[1] + v.x * size[1], y = o[2] + v.y * size[2] }
 end
 STUB.qdb = {
 	quests = {

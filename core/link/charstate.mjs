@@ -78,7 +78,7 @@ const ADV_UPGRADE = { slot: str, name: str, from: str };
 const ADV_SKILLUP = { name: str, color: str, makes: int };
 const ADV_PROF = { name: str, next: str, skillUps: list(ADV_SKILLUP, 3) };
 const ADV_GOLD = { sessionNet: num, todayNet: num, costs: strList(6), costsTotal: num };
-const ADV_ZONE = { zone: str, here: bool, toPickUp: int, inLog: int, levels: str, minutesAway: num };
+const ADV_ZONE = { zone: str, here: bool, toPickUp: int, inLog: int, levels: str, minutesAway: num, via: str };
 const SHAPES = {
   char: { class: str, classFile: str, race: str, raceFile: str, faction: str, level: int, xp: num, xpMax: num, rested: num, resting: bool, money: num, loc: shape(LOC) },
   stats: { hp: num, mana: num, str: num, agi: num, sta: num, int: num, spi: num, armor: num, ap: num, rap: num, crit: num, rcrit: num, scrit: num, dodge: num, parry: num, block: num, res: numMap },

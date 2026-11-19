@@ -128,8 +128,59 @@ function WD.OnTaxi()
 		local name, kind = ns.Try(TaxiNodeName, i), ns.Try(TaxiNodeGetType, i)
 		if type(name) == "string" and name ~= "" and (kind == "CURRENT" or kind == "REACHABLE") then me.flights[ns.State.Text(name)] = true end
 	end
+	pcall(WD.TaxiSpots, me, n)
 	WD.Note("flight")
 end
+
+-- Where each known flight path is, for the route's travel times (Route.lua): the flight map's own
+-- spots on its continent's map, in world yards. Trusted only when the one the player stands at comes
+-- out where they stand; else just that one, from the player's own spot. me.flightSpots = { [name] =
+-- { c, x, y } }.
+WD.TAXI_CHECK_YARDS = 400
+function WD.TaxiSpots(me, n)
+	local RT = ns.Route
+	if not RT or not RT.World then return end
+	me.flightSpots = type(me.flightSpots) == "table" and me.flightSpots or {}
+	local mine = RT.PlayerWorld()
+	local map = tonumber((ns.Try(rawget(_G, "GetTaxiMapID")))) or RT.ContinentMap()
+	local spots, current = {}, nil
+	for i = 1, math.min(n, 120) do
+		local name, kind = ns.Try(TaxiNodeName, i), ns.Try(TaxiNodeGetType, i)
+		if type(name) == "string" and name ~= "" and (kind == "CURRENT" or kind == "REACHABLE") then
+			name = ns.State.Text(name)
+			local x, y = ns.Try(rawget(_G, "TaxiNodePosition"), i)
+			spots[name] = (map and tonumber(x) and tonumber(y)) and RT.World(map, x * 100, y * 100) or nil
+			if kind == "CURRENT" then current = name end
+		end
+	end
+	local c = current and spots[current]
+	if c and mine and c.c == mine.c and math.sqrt((c.x - mine.x) ^ 2 + (c.y - mine.y) ^ 2) <= WD.TAXI_CHECK_YARDS then
+		for name, spot in pairs(spots) do me.flightSpots[name] = spot end
+	end
+	if current and mine then me.flightSpots[current] = mine end
+end
+
+-- Where the hearthstone lands: the player's spot a moment after using it, or at the innkeeper of the
+-- inn it's bound to. me.hearthSpot = { name (the bind location), c, x, y }.
+WD.HEARTH_SPELL = 8690
+function WD.NoteHearth()
+	local me, RT = Me(), ns.Route
+	if not me or not RT or not RT.PlayerWorld then return end
+	local w = RT.PlayerWorld()
+	local bind = ns.State.Text(ns.Try(GetBindLocation))
+	if w and bind ~= "" then me.hearthSpot = { name = bind, c = w.c, x = w.x, y = w.y } end
+end
+ns.On("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, _, spellID)
+	if unit == "player" and spellID == WD.HEARTH_SPELL then C_Timer.After(5, function() pcall(WD.NoteHearth) end) end
+end)
+-- Bound at an inn just now: the bind location changes once the player says yes.
+ns.On("CONFIRM_BINDER", function()
+	for _, t in ipairs({ 5, 20 }) do
+		C_Timer.After(t, function()
+			if ns.State.Text(ns.Try(GetBindLocation)) == ns.State.Text(ns.Try(GetSubZoneText)) then pcall(WD.NoteHearth) end
+		end)
+	end
+end)
 
 -- The innkeeper's and banker's own options in a gossip window (the game's option types).
 function WD.OnGossip()
@@ -137,7 +188,11 @@ function WD.OnGossip()
 	local opts = G and type(G.GetOptions) == "function" and ns.Try(G.GetOptions) or {}
 	for _, o in ipairs(type(opts) == "table" and opts or {}) do
 		local t = type(o) == "table" and (o.type or o.icon) or nil
-		if t == "binder" then WD.Note("innkeeper") elseif t == "banker" then WD.Note("banker") end
+		if t == "binder" then
+			WD.Note("innkeeper")
+			-- This inn is the hearthstone's: where it lands.
+			if ns.State.Text(ns.Try(GetBindLocation)) == ns.State.Text(ns.Try(GetSubZoneText)) then pcall(WD.NoteHearth) end
+		elseif t == "banker" then WD.Note("banker") end
 	end
 end
 

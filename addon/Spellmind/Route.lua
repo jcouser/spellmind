@@ -557,8 +557,8 @@ RT.PATH_FACTOR = 1.3 -- roads and hills: the way is longer than the straight lin
 RT.SEA_MINUTES = 12 -- another continent: a boat or a tram, about
 RT.WHERE_KEEP = 30 -- seconds a count is kept (quest events clear it sooner)
 
--- A spot's place in the world: { c = continent, x, y } in yards, or nil.
-local function World(map, x, y)
+-- A spot's place in the world: { c = continent, x, y } in yards, or nil. x, y: 0-100 on the map.
+function RT.World(map, x, y)
 	local M = rawget(_G, "C_Map")
 	if not map or type(M) ~= "table" or type(M.GetWorldPosFromMapPos) ~= "function" then return nil end
 	local V = rawget(_G, "CreateVector2D")
@@ -569,6 +569,98 @@ local function World(map, x, y)
 	if type(pos.GetXY) == "function" then px, py = pos:GetXY() else px, py = pos.x, pos.y end
 	if type(px) ~= "number" or type(py) ~= "number" then return nil end
 	return { c = c, x = px, y = py }
+end
+local World = RT.World
+
+-- The player's own: from where they stand on their zone's map.
+function RT.PlayerWorld()
+	local here = RT.Here()
+	return here and World(here.map, here.x, here.y) or nil
+end
+
+-- The continent map the player is on (the flight map's own, when the game doesn't say).
+function RT.ContinentMap()
+	local M = rawget(_G, "C_Map")
+	if type(M) ~= "table" then return nil end
+	local map = Try(M.GetBestMapForUnit, "player")
+	local info, depth = type(map) == "number" and Try(M.GetMapInfo, map), 0
+	while type(info) == "table" and depth < 6 do
+		if tonumber(info.mapType) == 2 then return map end
+		map = info.parentMapID
+		info, depth = map and Try(M.GetMapInfo, map), depth + 1
+	end
+	return nil
+end
+
+-- Getting there (the player, 2026-11-19): on foot (mounted from 40), by a flight path the character
+-- knows (World.lua notes where each one is at the flight map), or by its hearthstone when it's ready
+-- and where it lands is known; the quickest. Flights fly about this fast, turns and all.
+RT.FLY_SPEED = 25 -- yards a second, the straight line between the two
+RT.FLY_MINUTES = 1 -- the flight master, take off, landing
+RT.HEARTH_MINUTES = 0.5 -- the cast and the loading screen
+RT.HEARTHSTONE = 6948
+
+local function Dist(a, b) return math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2) end
+local function Short(name) return (tostring(name):gsub(",.*$", "")) end
+
+-- The flight paths known, with where they are: { { name, c, x, y } }.
+function RT.Flights()
+	local me = ns.State and ns.State.Me and ns.State.Me()
+	local out = {}
+	local known = me and type(me.flights) == "table" and me.flights or {}
+	for name, w in pairs(me and type(me.flightSpots) == "table" and me.flightSpots or {}) do
+		if known[name] and type(w) == "table" and w.c and w.x and w.y then out[#out + 1] = { name = name, c = w.c, x = w.x, y = w.y } end
+	end
+	return out
+end
+
+-- Where the hearthstone lands, when it's in the bags, off its cooldown and its landing spot is known.
+function RT.Hearth()
+	local me = ns.State and ns.State.Me and ns.State.Me()
+	local h = me and me.hearthSpot
+	if type(h) ~= "table" or not h.c then return nil end
+	if h.name ~= ns.State.Text(Try(GetBindLocation)) then return nil end -- bound somewhere else since
+	if (tonumber((Try(rawget(_G, "GetItemCount"), RT.HEARTHSTONE))) or 0) < 1 then return nil end
+	local C = rawget(_G, "C_Container")
+	local cd = rawget(_G, "GetItemCooldown") or (type(C) == "table" and C.GetItemCooldown) or nil
+	local start, dur = Try(cd, RT.HEARTHSTONE)
+	start, dur = tonumber(start), tonumber(dur)
+	if not start or (dur and dur > 0 and start + dur - GetTime() > 0) then return nil end
+	return h
+end
+
+-- The quickest way from one world spot to another: { minutes, how = "walk" | "fly" | "hearth",
+-- via = words for it }, or nil when neither way is known (another continent, no hearth there).
+function RT.Travel(from, to, speed)
+	if not from or not to then return nil end
+	speed = speed or RT.RUN_SPEED
+	local function Walk(a, b) return a.c == b.c and Dist(a, b) * RT.PATH_FACTOR / speed / 60 or nil end
+	local flights = RT.Flights()
+	local function Nearest(p)
+		local best, bd
+		for _, n in ipairs(flights) do
+			if n.c == p.c then local d = Dist(n, p); if not bd or d < bd then best, bd = n, d end end
+		end
+		return best
+	end
+	local function Fly(a, b)
+		local A, B = Nearest(a), Nearest(b)
+		if not A or not B or A == B or A.c ~= B.c then return nil end
+		local m = Walk(a, A) + RT.FLY_MINUTES + Dist(A, B) / RT.FLY_SPEED / 60 + Walk(B, b)
+		return m, Short(A.name) .. " to " .. Short(B.name)
+	end
+	local best
+	local function Try2(m, how, via) if m and (not best or m < best.minutes) then best = { minutes = m, how = how, via = via } end end
+	Try2(Walk(from, to), "walk")
+	local fm, fv = Fly(from, to)
+	Try2(fm, "fly", fv and ("fly " .. fv))
+	local h = RT.Hearth()
+	if h then
+		Try2(Walk(h, to) and (RT.HEARTH_MINUTES + Walk(h, to)), "hearth", "hearthstone to " .. h.name)
+		local hm, hv = Fly(h, to)
+		Try2(hm and (RT.HEARTH_MINUTES + hm), "hearth", hv and ("hearthstone to " .. h.name .. ", fly " .. hv))
+	end
+	return best
 end
 
 local function ZoneName(area)
@@ -660,8 +752,8 @@ function RT.Zones(fresh)
 			local travel = 0
 			if not isHere then
 				local there = World(map, z.spot.x, z.spot.y)
-				if me and there and me.c == there.c then
-					travel = math.sqrt((me.x - there.x) ^ 2 + (me.y - there.y) ^ 2) * RT.PATH_FACTOR / speed / 60
+				local way = RT.Travel(me, there, speed)
+				if way then travel, z.how, z.via = way.minutes, way.how, way.via
 				elseif me and there then travel = RT.SEA_MINUTES
 				else travel = nil end
 			end
@@ -687,7 +779,8 @@ function RT.ZonesPart()
 	local out = {}
 	for _, z in ipairs(list) do
 		out[#out + 1] = O("zone", z.zone, "here", z.here, "toPickUp", z.quests, "inLog", z.inLog,
-			"levels", z.low and DG().Range(z.low, z.high) or nil, "minutesAway", (not z.here) and z.minutes or nil)
+			"levels", z.low and DG().Range(z.low, z.high) or nil, "minutesAway", (not z.here) and z.minutes or nil,
+			"via", (not z.here) and z.via or nil)
 	end
 	return out
 end
@@ -708,7 +801,8 @@ function RT.WhereText(z)
 	local bits = {}
 	if z.quests > 0 then bits[#bits + 1] = z.quests .. (z.quests == 1 and " quest" or " quests") .. " to pick up" end
 	if z.inLog > 0 then bits[#bits + 1] = z.inLog .. " in your log" end
-	return table.concat(bits, ", ") .. (z.minutes and (" · about " .. z.minutes .. " min away") or "")
+	local how = z.how == "fly" and " away by flight" or (z.how == "hearth" and " away by hearthstone" or " away")
+	return table.concat(bits, ", ") .. (z.minutes and (" · about " .. z.minutes .. " min" .. how) or "")
 end
 
 -- The other zones for the tracker: once few steps are left here (or none), the best few.

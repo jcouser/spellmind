@@ -415,3 +415,18 @@ test('the hearthstone: its landing spot noted after it\'s used; used for travel 
   assert.equal(west().via, undefined);
   assert.equal(west().minutesAway, 29);
 });
+
+test('Where next pins a real quest giver, not the empty middle of a spread-out group (the player, 2026-11-19: Wetlands)', () => {
+  // Gryan at (50, 40), the Saldeans at (56, 46) and (58, 48): one group, its middle (54.7, 44.7) empty.
+  const vm = newVM({ before: ZONE + MORE + `
+    local N = STUB.qdb.npcs
+    N[810].spawns = { [40] = { { 50, 40 } } }
+    N[811] = { name = "Farmer Saldean", zone = 40, spawns = { [40] = { { 56, 46 } } }, friendly = "A" }
+    N[812] = { name = "Salma Saldean", zone = 40, spawns = { [40] = { { 58, 48 } } }, friendly = "A" }
+    STUB.qdb.quests[713].npc = 811
+    STUB.qdb.quests[714].npc = 812` }).login().advance(9);
+  const z = vm.json('(function() for _, z in ipairs(NS.Route.Zones(true)) do if z.zone == "Westfall" then return z.spot end end end)()');
+  assert.deepEqual([z.x, z.y, z.giver], [56, 46, 'Farmer Saldean'], 'the giver nearest the middle (54.7, 44.7), where nobody stands');
+  vm.run('NS.Route.GoZone((function() for _, z in ipairs(NS.Route.Zones()) do if z.zone == "Westfall" then return z end end end)())');
+  assert.ok(vm.chatLines().some(l => /Map pin set: Westfall, at Farmer Saldean\. Follow the arrow\./.test(l)));
+});

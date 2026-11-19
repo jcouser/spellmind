@@ -722,7 +722,7 @@ function RT.Zones(fresh)
 					-- A quest a few levels below gives less.
 					z.value = z.value + (f.ql >= level - 2 and 1 or 0.6)
 					z.low, z.high = math.min(z.low or f.ql, f.ql), math.max(z.high or f.ql, f.ql)
-					z.givers[#z.givers + 1] = { f.giver.x, f.giver.y }
+					z.givers[#z.givers + 1] = { f.giver.x, f.giver.y, f.giver.name }
 				end
 			end
 		end
@@ -747,8 +747,18 @@ function RT.Zones(fresh)
 		z.zone = isHere and here.zone or ZoneName(area)
 		if map and z.zone and (isHere or z.quests + z.inLog >= RT.WHERE_MIN) then
 			z.map, z.here = map, isHere or nil
+			-- The pin goes on a real quest giver: the one nearest the middle of the busiest group (the
+			-- player, 2026-11-19: Wetlands' givers are spread out, and the middle was empty ground).
 			local hub = RT.Center(z.givers, 10)
-			z.spot = { zone = area, x = hub and hub.x or 50, y = hub and hub.y or 50, givers = hub and true or nil }
+			local at
+			if hub then
+				local bd
+				for _, g in ipairs(z.givers) do
+					local d = (g[1] - hub.x) ^ 2 + (g[2] - hub.y) ^ 2
+					if not bd or d < bd then at, bd = g, d end
+				end
+			end
+			z.spot = { zone = area, x = at and at[1] or 50, y = at and at[2] or 50, giver = at and at[3] or nil, givers = at and true or nil }
 			local travel = 0
 			if not isHere then
 				local there = World(map, z.spot.x, z.spot.y)
@@ -789,7 +799,8 @@ end
 function RT.GoZone(z)
 	if type(z) ~= "table" or not z.spot then return nil end
 	if DG().Go(z.spot) then
-		ns.Chat.System("Map pin set: " .. (z.spot.givers and (z.zone .. "'s quest givers") or z.zone) .. ". Follow the arrow.")
+		local where = z.spot.giver and (z.zone .. ", at " .. z.spot.giver) or (z.spot.givers and (z.zone .. "'s quest givers")) or z.zone
+		ns.Chat.System("Map pin set: " .. where .. ". Follow the arrow.")
 		return "pin"
 	end
 	ns.Chat.System("The game can't pin a spot in " .. z.zone .. ".")

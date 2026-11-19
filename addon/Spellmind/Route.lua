@@ -26,7 +26,7 @@ RT.BELOW, RT.ABOVE = 5, 3 -- pickups this far below (grey) or above the characte
 RT.STOPS_MAX = 40
 RT.PASSES = 8 -- improvement passes over the order
 RT.REBUILD_DELAY = 1.5 -- seconds: game events coalesce into one rebuild
-RT.NEXT_SHOWN = 6
+RT.NEXT_SHOWN = 3
 
 local function Try(fn, ...) return ns.Try(fn, ...) end
 local function DG() return ns.Dungeons end
@@ -471,7 +471,7 @@ function RT.Build()
 						local v = hasObjectives and not center and RT.Vendor(Q, id, here.area) or nil
 						local doable = center or (v and v.spot) or nil
 						if (hasObjectives and doable) or (not hasObjectives and fin and fin.spot) then
-							Place("pickup", id, title, spot)
+							Place("pickup", id, title, spot, spot.name)
 							if center then Place("do", id, title, center)
 							elseif v and v.spot then Place("do", id, title, v.spot, nil, { buy = v.item, buyID = v.itemID, from = v.name, fromID = v.npc, empty = v.empty }) end
 							if fin and fin.spot then Place("turnin", id, title, fin.spot, fin.name) end
@@ -580,10 +580,50 @@ function RT.GoalText(g)
 	return ns.Escape(g.title) .. (left and (": " .. left) or "")
 end
 
-function RT.StopText(s)
-	local first = s.goals[1]
-	local more = #s.goals - 1
-	return RT.GoalText(first) .. (more > 0 and (" |cff888888(+" .. more .. ")|r") or "")
+-- A stop's goals still to do, grouped: the pick ups from one NPC, the turn-ins to one NPC, the
+-- objectives here (the player, 2026-11-19: one captain's thirteen pick ups and three turn-ins were
+-- sixteen lines). { { kind, to, goals } }, in the stop's order.
+function RT.Groups(st)
+	local out, at = {}, {}
+	for _, g in ipairs(st.goals) do
+		if not RT.GoalDone(g) then
+			local key = g.kind .. "|" .. (g.kind == "do" and "" or (g.to or ""))
+			local gr = at[key]
+			if not gr then gr = { kind = g.kind, to = g.kind ~= "do" and g.to or nil, goals = {} }; at[key] = gr; out[#out + 1] = gr end
+			gr.goals[#gr.goals + 1] = g
+		end
+	end
+	return out
+end
+
+-- A group's line: the goal's own for one; "Pick up 13 quests from Field Captain Palandar" for many.
+function RT.GroupText(gr)
+	local n = #gr.goals
+	if n == 1 then return RT.GoalText(gr.goals[1]) end
+	if gr.kind == "pickup" then return "Pick up " .. n .. " quests" .. (gr.to and (" from " .. ns.Escape(gr.to)) or "") end
+	if gr.kind == "turnin" then return "Turn in " .. n .. " quests" .. (gr.to and (" to " .. ns.Escape(gr.to)) or "") end
+	return "Objectives of " .. n .. " quests here"
+end
+
+-- The names under a many-quest line: the first few, then how many more.
+function RT.GroupNames(gr, max)
+	max = max or 3
+	if #gr.goals < 2 then return nil end
+	local names = {}
+	for k, g in ipairs(gr.goals) do
+		if k > max then break end
+		names[#names + 1] = ns.Escape(g.title)
+	end
+	local more = #gr.goals - #names
+	return table.concat(names, ", ") .. (more > 0 and (", +" .. more .. " more") or "")
+end
+
+-- A stop in one short line (Up next): its first group, and how many more groups.
+function RT.StopText(st)
+	local groups = RT.Groups(st)
+	if #groups == 0 then return "" end
+	local more = #groups - 1
+	return RT.GroupText(groups[1]) .. (more > 0 and (" |cff888888(+" .. more .. ")|r") or "")
 end
 
 -- Skip the current step (the player's Next); Back brings the last one skipped back.
@@ -687,8 +727,9 @@ ns.On("PLAYER_REGEN_ENABLED", function() if R.routeStale and RT.Shown() then R.r
 -- The tracker: a small window to leave open while questing (closed by default; /sm route)
 ---------------------------------------------------------------------------
 
-RT.W, RT.H = 330, 370
-RT.UPNEXT_LINES = 6
+RT.W, RT.H = 330, 240
+RT.UPNEXT_LINES = 3
+RT.THEN_LINES = 2
 
 local BACKDROP = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
 	tile = true, tileSize = 16, edgeSize = 14, insets = { left = 4, right = 4, top = 4, bottom = 4 } }
@@ -730,12 +771,29 @@ local function Build()
 	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
 	f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
 	f.close:SetScript("OnClick", function() f:Hide() end)
-	-- The current step: its goals with their progress, and Go.
-	f.now = Line(f, "GameFontHighlight", RT.W - 90)
-	f.now:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -42)
-	f.go = ns.GearUI.Button(f, "Go", 52)
-	f.go:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -40)
+	-- The current step, on a lighter band: its line (with progress), the names under a many-quest
+	-- line, and Go; then up to two more lines of the same stop.
+	f.band = CreateFrame("Frame", nil, f, "BackdropTemplate")
+	f.band:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -36)
+	f.band:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -36)
+	if f.band.SetBackdrop then
+		f.band:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+			tile = true, tileSize = 16, edgeSize = 10, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+		f.band:SetBackdropColor(0.16, 0.11, 0.3, 0.9)
+		f.band:SetBackdropBorderColor(0.62, 0.49, 1, 0.9)
+	end
+	f.now = Line(f.band, "GameFontHighlight", RT.W - 96)
+	f.now:SetPoint("TOPLEFT", f.band, "TOPLEFT", 8, -8)
+	f.nowSub = Line(f.band, "GameFontDisableSmall", RT.W - 96)
+	f.go = ns.GearUI.Button(f.band, "Go", 48)
+	f.go:SetPoint("TOPRIGHT", f.band, "TOPRIGHT", -6, -6)
 	f.go:SetScript("OnClick", function() RT.Go() end)
+	f.thens = {}
+	for i = 1, RT.THEN_LINES do
+		local l = Line(f, "GameFontHighlightSmall", RT.W - 40)
+		if l.SetWordWrap then l:SetWordWrap(false) end
+		f.thens[i] = l
+	end
 	f.nextLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	f.nextLabel:SetText("Up next")
 	f.next = {}
@@ -788,19 +846,41 @@ function RT.Draw()
 	local cur, i = RT.Current()
 	local done, total = RT.Progress()
 	f.step:SetText(total > 0 and ("Step " .. math.min(done + 1, total) .. " of " .. total) or "")
-	local y = -42
+	local groups = cur and RT.Groups(cur) or {}
+	local sub
 	if route.nowhere then
 		f.now:SetText("|cff888888No map position here (an instance or a loading screen): the route waits until you're outside.|r")
 	elseif not cur then
 		f.now:SetText("|cff19ff19Nothing left here that Spellmind knows of.|r" .. (route.db and "" or
 			"\n|cff888888With QuestieDB installed, the route also lists quests to pick up here, and where mobs are.|r"))
 	else
-		local lines = {}
-		for _, g in ipairs(cur.goals) do lines[#lines + 1] = (RT.GoalDone(g) and "|cff19ff19" or "") .. RT.GoalText(g) .. (RT.GoalDone(g) and "|r" or "") end
-		f.now:SetText(table.concat(lines, "\n"))
+		f.now:SetText(groups[1] and RT.GroupText(groups[1]) or "")
+		sub = groups[1] and RT.GroupNames(groups[1])
 	end
+	f.nowSub:SetText(sub or "")
+	f.nowSub:ClearAllPoints()
+	f.nowSub:SetPoint("TOPLEFT", f.now, "BOTTOMLEFT", 0, -3)
+	if sub then f.nowSub:Show() else f.nowSub:Hide() end
 	if cur then f.go:Show() else f.go:Hide() end
-	y = y - math.max(24, tonumber(f.now:GetStringHeight()) or 24) - 14
+	local bandH = 16 + math.max(20, tonumber(f.now:GetStringHeight()) or 20) + (sub and (3 + (tonumber(f.nowSub:GetStringHeight()) or 12)) or 0)
+	f.band:SetHeight(bandH)
+	local y = -36 - bandH - 8
+	-- Then: the rest of this stop, two lines at most.
+	for k, l in ipairs(f.thens) do
+		local gr = groups[k + 1]
+		l:ClearAllPoints()
+		l:SetPoint("TOPLEFT", f, "TOPLEFT", 16, y)
+		if gr then
+			local last = k == RT.THEN_LINES and #groups > RT.THEN_LINES + 1
+			l:SetText("|cff888888Then:|r " .. RT.GroupText(gr) .. (last and (" |cff888888(+" .. (#groups - RT.THEN_LINES - 1) .. ")|r") or ""))
+			l:Show()
+			y = y - 15
+		else
+			l:SetText("")
+			l:Hide()
+		end
+	end
+	y = y - 6
 	local upnext = RT.UpNext(RT.UPNEXT_LINES)
 	f.nextLabel:ClearAllPoints()
 	f.nextLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
@@ -823,6 +903,9 @@ function RT.Draw()
 	f.also:ClearAllPoints()
 	f.also:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y - 8)
 	f.also:SetText(also and ("|cff888888" .. also .. "|r") or "")
+	if also then y = y - 8 - (tonumber(f.also:GetStringHeight()) or 12) end
+	-- As tall as what it shows, with room for the buttons (the player, 2026-11-19: text ran out of it).
+	f:SetHeight(math.max(150, -y + 44))
 	if R.routeSkipped and #R.routeSkipped > 0 then f.back:Enable() else f.back:Disable() end
 	if cur then f.skip:Enable() else f.skip:Disable() end
 end

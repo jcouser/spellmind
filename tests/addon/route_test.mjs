@@ -98,7 +98,7 @@ test('/sm route: the tracker with the zone, the step, its goals, Go, Up next; Go
   assert.equal(vm.evaluate('SpellmindRoute.title:GetText()'), 'Route · Loch Modan');
   assert.equal(vm.evaluate('SpellmindRoute.step:GetText()'), 'Step 1 of 3');
   assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /^Kobold Candles: 0\/8 Tunnel Rat$/);
-  assert.match(vm.evaluate('SpellmindRoute.next[1]:GetText()'), /^Turn in Kobold Candles to Mountaineer Kadrell .*\(\+1\)/);
+  assert.equal(vm.evaluate('SpellmindRoute.next[1]:GetText()'), 'Turn in 2 quests to Mountaineer Kadrell', 'two turn-ins to one NPC: one line');
   assert.match(vm.evaluate('SpellmindRoute.next[2]:GetText()'), /^Pick up Ironband's Excavation/);
   vm.run('SpellmindRoute.go.scripts.OnClick(SpellmindRoute.go)');
   assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1432);
@@ -176,4 +176,26 @@ test('a giver who also takes the quest back, its mobs elsewhere (the player, 202
   const pick = ks.findIndex(k => /pickup:706/.test(k)), kill = ks.findIndex(k => /do:706/.test(k)), back = ks.findIndex(k => /turnin:706/.test(k));
   assert.ok(pick >= 0 && kill > pick && back > kill, `pick up, kill, then turn in: ${ks.join(' | ')}`);
   assert.equal(vm.evaluate('tostring(NS.Route.Keeps(NS.R.route.stops, NS.R.route.rules))'), 'true');
+});
+
+test('one NPC\'s many quests (the player, 2026-11-19: Field Captain Palandar\'s thirteen pick ups and three turn-ins): one line each, names under it, two "Then" lines, three Up next, the window fits', () => {
+  const vm = session();
+  vm.run(`
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    N[807] = { name = "Field Captain Palandar", zone = 38, spawns = { [38] = { { 40.5, 40.5 } } }, friendly = "A" }
+    N[808] = { name = "Deranged Ogre", zone = 38, spawns = { [38] = { { 70, 20 } } } }
+    for i = 1, 6 do Q[710 + i] = { name = "Duskwood Mission " .. i, zone = 38, level = 15, npc = 807, obj = { { { 808 } }, {}, {} }, ender = 807 } end
+    for i = 1, 2 do
+      table.insert(STUB.quests, { title = "Duskwood Mission Done " .. i, questID = 730 + i, level = 15, complete = true })
+      Q[730 + i] = { name = "Duskwood Mission Done " .. i, zone = 38, level = 15, ender = 807 }
+    end`);
+  vm.slash('route');
+  // Wherever the order puts Palandar's stop (the shortest path may pass him on the way): skipped to it.
+  for (let i = 0; i < 6 && !/Palandar/.test(vm.evaluate('SpellmindRoute.now:GetText()')); i++) vm.run('NS.Route.Skip()');
+  assert.equal(vm.evaluate('SpellmindRoute.now:GetText()'), 'Turn in 2 quests to Field Captain Palandar', 'turn-ins first, as one line');
+  assert.match(vm.evaluate('SpellmindRoute.nowSub:GetText()'), /^Duskwood Mission Done [12], Duskwood Mission Done [12]$/);
+  assert.equal(vm.evaluate('SpellmindRoute.thens[1]:GetText()'), '|cff888888Then:|r Pick up 6 quests from Field Captain Palandar');
+  const shown = [1, 2, 3, 4].map(i => vm.evaluate(`tostring(SpellmindRoute.next[${i}] and SpellmindRoute.next[${i}].shown)`));
+  assert.deepEqual(shown, ['true', 'true', 'true', 'nil'], 'three Up next lines at most');
+  assert.ok(vm.num('SpellmindRoute.height') <= 260, `the window fits its lines: ${vm.num('SpellmindRoute.height')}`);
 });

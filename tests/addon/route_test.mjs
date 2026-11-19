@@ -164,3 +164,16 @@ test('a route vendor without the item (limited stock, the player 2026-11-19): th
   assert.ok(vm.savedLines().some(l => /Tinkerwiz has no Bronze Tube right now.*Auction House/.test(l)) || vm.chatLines().some(l => /Tinkerwiz has no Bronze Tube right now/.test(l)));
   assert.match(vm.evaluate('NS.Route.GoalText(NS.R.route.elsewhere[""][1])'), /Tinkerwiz has none right now: try the Auction House or an engineer/);
 });
+
+test('a giver who also takes the quest back, its mobs elsewhere (the player, 2026-11-19: Calor, Worgen in the Woods): two visits, the turn-in after the kills', () => {
+  const vm = session();
+  vm.run(`
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    Q[706] = { name = "Worgen in the Woods", zone = 38, level = 15, npc = 805, obj = { { { 806 } }, {}, {} }, ender = 805 }
+    N[805] = { name = "Calor", zone = 38, spawns = { [38] = { { 42, 41 } } }, friendly = "A" }
+    N[806] = { name = "Nightbane Shadow Weaver", zone = 38, spawns = { [38] = { { 10, 70 }, { 11, 71 } } } }`);
+  const ks = keys(vm);
+  const pick = ks.findIndex(k => /pickup:706/.test(k)), kill = ks.findIndex(k => /do:706/.test(k)), back = ks.findIndex(k => /turnin:706/.test(k));
+  assert.ok(pick >= 0 && kill > pick && back > kill, `pick up, kill, then turn in: ${ks.join(' | ')}`);
+  assert.equal(vm.evaluate('tostring(NS.Route.Keeps(NS.R.route.stops, NS.R.route.rules))'), 'true');
+});

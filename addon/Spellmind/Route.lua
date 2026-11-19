@@ -212,6 +212,32 @@ function RT.Rules(stops, chains)
 	return rules
 end
 
+-- Can these stops be put in an order that keeps the rules? False when a rule's two goals sit in two
+-- stops that must each come before the other (the player, 2026-11-19: Calor gives and takes back
+-- Worgen in the Woods, so its pick up and turn in were one stop with the kills elsewhere, and the
+-- turn-in came first). stopOf: goal key -> stop.
+function RT.Orderable(stops, rules, stopOf)
+	local edges = {}
+	for _, r in ipairs(rules) do
+		local a, b = stopOf[r[1]], stopOf[r[2]]
+		if a and b and a ~= b then
+			edges[a] = edges[a] or {}
+			edges[a][b] = true
+		end
+	end
+	local state = {}
+	local function Visit(n)
+		if state[n] == 1 then return false end -- on the path: a cycle
+		if state[n] == 2 then return true end
+		state[n] = 1
+		for m in pairs(edges[n] or {}) do if not Visit(m) then return false end end
+		state[n] = 2
+		return true
+	end
+	for _, st in ipairs(stops) do if not Visit(st) then return false end end
+	return true
+end
+
 -- Does an order of stops keep every rule? (A goal and the one it must follow may share a stop.)
 function RT.Keeps(order, rules)
 	local at = {}
@@ -460,28 +486,43 @@ function RT.Build()
 	-- Goals already done never show (a quest completed since the log was read, a pick up taken).
 	local keep = {}
 	for _, s in ipairs(raw) do if not RT.StopDone(s) then keep[#keep + 1] = s end end
-	-- Close ones are one stop.
-	local stops = {}
+	-- Close ones are one stop, unless that leaves no order that keeps the rules (a quest's pick up and
+	-- turn in at one giver, its objectives elsewhere: two visits, not one).
+	local rules = RT.Rules(keep, chains)
+	local stops, stopOf = {}, {}
 	for _, s in ipairs(keep) do
 		local joined
 		for _, t in ipairs(stops) do
-			if RT.Yards(s, t, here) <= RT.GROUP_YARDS then joined = t; break end
+			if RT.Yards(s, t, here) <= RT.GROUP_YARDS then
+				for _, g in ipairs(s.goals) do stopOf[g.kind .. ":" .. g.q] = t end
+				if RT.Orderable(stops, rules, stopOf) then joined = t; break end
+			end
 		end
 		if joined then
 			for _, g in ipairs(s.goals) do joined.goals[#joined.goals + 1] = g end
 		else
 			stops[#stops + 1] = s
+			for _, g in ipairs(s.goals) do stopOf[g.kind .. ":" .. g.q] = s end
 		end
 	end
+	-- In a stop: turn-ins first (one may open the next quest), then pick ups, then objectives; a quest
+	-- picked up and finished in the same stop keeps its own order.
+	local function Rank(g, st)
+		if g.kind == "turnin" then
+			for _, h in ipairs(st.goals) do if h.q == g.q and h.kind ~= "turnin" then return 4 end end
+			return 0
+		end
+		return RANK[g.kind]
+	end
 	for _, s in ipairs(stops) do
-		table.sort(s.goals, function(a, b) return RANK[a.kind] < RANK[b.kind] end)
+		table.sort(s.goals, function(a, b) return Rank(a, s) < Rank(b, s) end)
 		-- A stop's key: its goals, so a skip outlives a rebuild that keeps the stop.
 		local keys = {}
 		for _, g in ipairs(s.goals) do keys[#keys + 1] = g.kind .. ":" .. g.q end
 		s.key = table.concat(keys, ",")
 	end
 	while #stops > RT.STOPS_MAX do table.remove(stops) end
-	local rules = RT.Rules(stops, chains)
+	rules = RT.Rules(stops, chains)
 	route.stops = RT.Order(stops, { x = here.x, y = here.y }, here, rules)
 	route.rules = rules
 	return route

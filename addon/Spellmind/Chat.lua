@@ -689,6 +689,11 @@ SlashCmdList.SPELLMIND = function(msg)
 		ns.Route.Toggle()
 		return
 	end
+	-- /sm arrow: the route's arrow (Route.lua), shown (with the tracker) or hidden.
+	if lower == "arrow" and ns.Route and ns.db then
+		ns.Route.ToggleArrow()
+		return
+	end
 	-- /sm welcome: the first-time welcome again (Welcome.lua).
 	if lower == "welcome" and ns.Welcome and ns.db then
 		ns.Welcome.Show()

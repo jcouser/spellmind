@@ -87,6 +87,8 @@ function Methods.Play(self) self.playing = true end
 function Methods.Stop(self) self.playing = false end
 function Methods.SetColorTexture(self, r, g, b, a) self.color = { r, g, b, a } end
 function Methods.SetTexture(self, path) self.texture = path; return true end
+function Methods.SetRotation(self, r) self.rotation = r end
+function Methods.GetRotation(self) return self.rotation or 0 end
 function Methods.GetTexture(self) return self.texture end
 function Methods.SetBackdrop(self, t)
 	-- The real client would silently draw nothing; make it a test failure instead.
@@ -820,7 +822,13 @@ C_Map.GetWorldPosFromMapPos = function(map, v)
 	local o = STUB.mapOrigins[map]
 	if not o then return nil end
 	local size = STUB.mapSizes[map] or { 3000, 2000 }
-	return 0, { x = o[1] + v.x * size[1], y = o[2] + v.y * size[2] }
+	-- As the game has it: x to the north (up the map), y to the west (left on the map).
+	return 0, { x = -(o[2] + v.y * size[2]), y = -(o[1] + v.x * size[1]) }
+end
+-- The facing: 0 to the north, counterclockwise in radians; none in an instance (facing = false).
+function GetPlayerFacing()
+	if STUB.player.facing == false then return nil end
+	return STUB.player.facing or 0
 end
 STUB.qdb = {
 	quests = {

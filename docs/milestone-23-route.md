@@ -13,6 +13,7 @@ Written from scratch: other guide addons (OpenXP) showed what players expect, no
 2. **The route:** ordered steps for the chosen area: pick up, do (kill, loot, use, collect), turn in, travel. Each with Go (the game's pin), the Spellmind mark (ask the AI about it) and its progress.
 3. **The tracker:** a small movable window (closed by default; `/sm route`, the minimap button's menu): the current step with its objectives live, Up next (5-10), done steps folded; Back, Next, Skip.
 4. **The arrow:** on screen, pointing at the current step, with the distance in yards; hidden in instances (no position there), saying so.
+   *Built (2026-11-19):* shown with the tracker; the game's minimap arrow art turned by the game's facing against world positions (`C_Map.GetWorldPosFromMapPos`: x north, y west), green within 20° of straight on, "You're there" within 12 yards. With nothing left in the zone it points along Where next's first leg: the flight master to fly from, or the next zone's quest giver on foot; the hearthstone is said in words. Drag moves it (kept); right-click hides it, `/sm arrow` brings it back.
 5. **The world map:** numbered step markers and the route line through them. Objective areas only without Questie (Questie already draws them; Spellmind doesn't draw them twice).
 6. **The AI (with the app):** "Plan my next hour" returns route steps, not only text; the player can ask why this order, or say "skip Duskwood". The AI reviews and reorders; Spellmind checks every step it returns against the quest log and drops what doesn't fit.
 

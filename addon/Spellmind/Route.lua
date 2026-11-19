@@ -647,18 +647,19 @@ function RT.Travel(from, to, speed)
 		local A, B = Nearest(a), Nearest(b)
 		if not A or not B or A == B or A.c ~= B.c then return nil end
 		local m = Walk(a, A) + RT.FLY_MINUTES + Dist(A, B) / RT.FLY_SPEED / 60 + Walk(B, b)
-		return m, Short(A.name) .. " to " .. Short(B.name)
+		return m, Short(A.name) .. " to " .. Short(B.name), A
 	end
+	-- leg: where the way starts (a flight master's spot, or "hearth"); nil on foot.
 	local best
-	local function Try2(m, how, via) if m and (not best or m < best.minutes) then best = { minutes = m, how = how, via = via } end end
+	local function Try2(m, how, via, leg) if m and (not best or m < best.minutes) then best = { minutes = m, how = how, via = via, leg = leg } end end
 	Try2(Walk(from, to), "walk")
-	local fm, fv = Fly(from, to)
-	Try2(fm, "fly", fv and ("fly " .. fv))
+	local fm, fv, fa = Fly(from, to)
+	Try2(fm, "fly", fv and ("fly " .. fv), fa)
 	local h = RT.Hearth()
 	if h then
-		Try2(Walk(h, to) and (RT.HEARTH_MINUTES + Walk(h, to)), "hearth", "hearthstone to " .. h.name)
+		Try2(Walk(h, to) and (RT.HEARTH_MINUTES + Walk(h, to)), "hearth", "hearthstone to " .. h.name, "hearth")
 		local hm, hv = Fly(h, to)
-		Try2(hm and (RT.HEARTH_MINUTES + hm), "hearth", hv and ("hearthstone to " .. h.name .. ", fly " .. hv))
+		Try2(hm and (RT.HEARTH_MINUTES + hm), "hearth", hv and ("hearthstone to " .. h.name .. ", fly " .. hv), "hearth")
 	end
 	return best
 end
@@ -763,7 +764,7 @@ function RT.Zones(fresh)
 			if not isHere then
 				local there = World(map, z.spot.x, z.spot.y)
 				local way = RT.Travel(me, there, speed)
-				if way then travel, z.how, z.via = way.minutes, way.how, way.via
+				if way then travel, z.how, z.via, z.leg = way.minutes, way.how, way.via, way.leg
 				elseif me and there then travel = RT.SEA_MINUTES
 				else travel = nil end
 			end
@@ -1316,6 +1317,7 @@ local function Build()
 		RT.Draw()
 	end)
 	f:SetScript("OnSizeChanged", function() if f.sizing then RT.Draw() end end)
+	f:SetScript("OnHide", function() if RT.arrow then RT.arrow:Hide() end end)
 	local ui = UI()
 	if ui.w then f:SetWidth(math.max(RT.MIN_W, math.min(RT.MAX_W, ui.w))) end
 	f:Hide()
@@ -1397,6 +1399,7 @@ function RT.Draw()
 	if not f then return end
 	local route = R.route or {}
 	local ui = UI()
+	RT.ArrowSync()
 	local W = tonumber(f:GetWidth()) or RT.W
 	f.now:SetWidth(W - 96); f.nowSub:SetWidth(W - 96); f.credit:SetWidth(W - 28)
 	for _, l in ipairs(f.away) do l:SetWidth(W - 40) end
@@ -1552,4 +1555,154 @@ function RT.Toggle(show)
 	if not R.route or R.routeStale then R.routeStale = nil; RT.Build() end
 	RT.Draw()
 	return true
+end
+
+---------------------------------------------------------------------------
+-- The arrow (docs/milestone-23-route.md phase 2): on screen, pointing at the current step, with the
+-- yards to it
+---------------------------------------------------------------------------
+
+-- The player (2026-11-19): navigation to the next objective, and on to the next questing area. It
+-- points at the current step; with nothing left here, at the way to the next zone (its first leg: the
+-- flight master to fly from, or the zone's quest giver on foot; the hearthstone said in words). From
+-- the game's facing and world positions; in an instance there's no position, and it says so. Shown
+-- with the tracker; right-click hides it (/sm arrow brings it back), drag moves it (kept).
+RT.ARROW_TICK = 0.05 -- seconds between turns
+RT.ARRIVE_YARDS = 12
+RT.AHEAD = 0.35 -- radians either side of straight on: the arrow goes green
+
+-- What the arrow points at: { world = { c, x, y }, text, sub, hearth }, or nil.
+function RT.ArrowTarget()
+	local route = R.route
+	if not route or route.nowhere then return nil end
+	local cur = RT.Current()
+	if cur then
+		local gr = RT.Groups(cur)[1]
+		return { world = World(route.map, cur.x, cur.y), text = gr and RT.GroupText(gr) or RT.GoalText(cur.goals[1]) }
+	end
+	local z = RT.WhereLines(route)[1]
+	if not z then return nil end
+	if z.leg == "hearth" then
+		return { hearth = true, text = "Use your hearthstone", sub = (z.via and (z.via:gsub("^hearthstone ", "")) or "") .. ", then on to " .. z.zone }
+	end
+	if type(z.leg) == "table" then
+		return { world = z.leg, text = "Flight master at " .. Short(z.leg.name), sub = "then fly on to " .. z.zone }
+	end
+	return { world = z.spot and World(z.map, z.spot.x, z.spot.y), text = z.zone .. (z.spot and z.spot.giver and (": " .. z.spot.giver) or "") }
+end
+
+-- The arrow's turn (radians, counterclockwise from straight up) and the yards from the player to a
+-- spot. The game's world positions run x to the north and y to the west; its facing is 0 to the north,
+-- counterclockwise.
+function RT.Bearing(me, to, facing)
+	local north, west = to.x - me.x, to.y - me.y
+	local angle = math.atan2 and math.atan2(west, north) or math.atan(west, north)
+	return angle - (facing or 0), math.sqrt(north * north + west * west)
+end
+
+function RT.BuildArrow()
+	if RT.arrow then return RT.arrow end
+	local a = CreateFrame("Button", "SpellmindArrow", UIParent)
+	a:SetSize(64, 64)
+	local spot = UI().arrow
+	if type(spot) == "table" and spot[1] then a:SetPoint(spot[1], UIParent, spot[1], tonumber(spot[2]) or 0, tonumber(spot[3]) or 0)
+	else a:SetPoint("TOP", UIParent, "TOP", 0, -120) end
+	a:SetFrameStrata("MEDIUM")
+	a:SetClampedToScreen(true)
+	a:EnableMouse(true)
+	a:SetMovable(true)
+	a:RegisterForDrag("LeftButton")
+	a:SetScript("OnDragStart", function(self) self:StartMoving() end)
+	a:SetScript("OnDragStop", function(self)
+		self:StopMovingOrSizing()
+		local p, _, _, x, y = self:GetPoint()
+		UI().arrow = { p or "CENTER", math.floor((tonumber(x) or 0) + 0.5), math.floor((tonumber(y) or 0) + 0.5) }
+	end)
+	if a.RegisterForClicks then a:RegisterForClicks("RightButtonUp") end
+	a:SetScript("OnClick", function(_, button) if button == "RightButton" then RT.ArrowOff(true) end end)
+	a:SetScript("OnEnter", function(self)
+		if not GameTooltip then return end
+		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+		GameTooltip:SetText("Spellmind: the route")
+		GameTooltip:AddLine("Points at the current step. Drag to move it; right-click to hide it (/sm arrow shows it again).", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	a:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+	-- The game's own arrow art (the minimap's), turned.
+	a.tex = a:CreateTexture(nil, "ARTWORK")
+	a.tex:SetSize(48, 48)
+	a.tex:SetPoint("CENTER", a, "CENTER", 0, 4)
+	a.tex:SetTexture("Interface\\Minimap\\MinimapArrow")
+	a.dist = a:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	a.dist:SetPoint("TOP", a, "BOTTOM", 0, 4)
+	a.text = a:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	a.text:SetPoint("TOP", a.dist, "BOTTOM", 0, -2)
+	a.text:SetWidth(240)
+	a.sub = a:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	a.sub:SetPoint("TOP", a.text, "BOTTOM", 0, -2)
+	a.sub:SetWidth(240)
+	local acc = 0
+	a:SetScript("OnUpdate", function(_, dt)
+		acc = acc + (tonumber(dt) or 0)
+		if acc >= RT.ARROW_TICK then acc = 0; RT.ArrowUpdate() end
+	end)
+	a:Hide()
+	RT.arrow = a
+	return a
+end
+
+-- Shown while the tracker is, unless the player hid it.
+function RT.ArrowSync()
+	local show = RT.Shown() and not UI().arrowOff
+	if not show then if RT.arrow then RT.arrow:Hide() end return end
+	local a = RT.BuildArrow()
+	if not a:IsShown() then a:Show() end
+	RT.ArrowUpdate()
+end
+
+function RT.ArrowOff(off)
+	UI().arrowOff = off and true or nil
+	RT.ArrowSync()
+	if off then ns.Chat.System("The route's arrow is hidden. /sm arrow shows it again.") end
+end
+
+-- /sm arrow: the arrow back (and the tracker with it), or hidden.
+function RT.ToggleArrow()
+	if UI().arrowOff or not RT.Shown() then
+		UI().arrowOff = nil
+		RT.Toggle(true)
+		return true
+	end
+	RT.ArrowOff(true)
+	return false
+end
+
+function RT.ArrowUpdate()
+	local a = RT.arrow
+	if not a or not a:IsShown() then return end
+	local t = RT.ArrowTarget()
+	a.turn, a.yards = nil, nil
+	local function Still(dist, text, sub)
+		a.tex:Hide()
+		a.dist:SetText(dist or "")
+		a.text:SetText(text or "")
+		a.sub:SetText(sub or "")
+	end
+	if not t then return Still("", "|cff19ff19Nothing left on the route here.|r") end
+	if t.hearth then return Still("", t.text, t.sub) end
+	local me = RT.PlayerWorld()
+	local facing = Try(rawget(_G, "GetPlayerFacing"))
+	if not me or type(facing) ~= "number" then return Still("|cff888888No position in here|r", t.text, t.sub) end
+	if not t.world then return Still("", t.text, t.sub) end
+	if t.world.c ~= me.c then return Still("|cff888888On another continent|r", t.text, t.sub) end
+	local turn, yards = RT.Bearing(me, t.world, facing)
+	if yards <= RT.ARRIVE_YARDS then return Still("|cff19ff19You're there|r", t.text, t.sub) end
+	a.tex:Show()
+	a.tex:SetRotation(turn)
+	local off = math.abs(((turn + math.pi) % (2 * math.pi)) - math.pi)
+	if off <= RT.AHEAD then a.tex:SetVertexColor(0.35, 1, 0.35) else a.tex:SetVertexColor(1, 0.82, 0) end
+	a.dist:SetText(math.floor(yards + 0.5) .. " yd")
+	a.text:SetText(t.text or "")
+	a.sub:SetText(t.sub or "")
+	a.turn, a.yards = turn, yards
 end

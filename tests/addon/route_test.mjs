@@ -378,7 +378,7 @@ test('travel by a flight path the character knows (the player, 2026-11-19): West
   vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED")');
   const spots = vm.json('NS.State.Me().flightSpots');
   assert.deepEqual(Object.keys(spots).sort(), ['Sentinel Hill, Westfall', 'Thelsamar, Loch Modan'], 'the known ones, not the one it doesn\'t know');
-  assert.equal(Math.round(spots['Sentinel Hill, Westfall'].x), 10680);
+  assert.equal(Math.round(-spots['Sentinel Hill, Westfall'].y), 10680, 'west is +y: 10680 yards east is y = -10680');
   const zones = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Route.ZonesPart())'));
   assert.deepEqual(zones.map(z => z.zone), ['Loch Modan', 'Westfall', 'Ironforge']);
   assert.deepEqual([zones[1].minutesAway, zones[1].via], [7, 'fly Thelsamar to Sentinel Hill']);
@@ -392,7 +392,7 @@ test('the flight map\'s spots are trusted only when the one you stand at comes o
   vm.run(TAXI + '; TaxiNodePosition = function(i) return 0.5, 0.5 end; STUB.FireEvent("TAXIMAP_OPENED")');
   const spots = vm.json('NS.State.Me().flightSpots');
   assert.deepEqual(Object.keys(spots), ['Thelsamar, Loch Modan'], 'just the one under your feet');
-  assert.equal(Math.round(spots['Thelsamar, Loch Modan'].x), 1200);
+  assert.equal(Math.round(-spots['Thelsamar, Loch Modan'].y), 1200);
 });
 
 test('the hearthstone: its landing spot noted after it\'s used; used for travel only when it\'s ready', () => {
@@ -429,4 +429,61 @@ test('Where next pins a real quest giver, not the empty middle of a spread-out g
   assert.deepEqual([z.x, z.y, z.giver], [56, 46, 'Farmer Saldean'], 'the giver nearest the middle (54.7, 44.7), where nobody stands');
   vm.run('NS.Route.GoZone((function() for _, z in ipairs(NS.Route.Zones()) do if z.zone == "Westfall" then return z end end end)())');
   assert.ok(vm.chatLines().some(l => /Map pin set: Westfall, at Farmer Saldean\. Follow the arrow\./.test(l)));
+});
+
+// The arrow. Loch Modan's rats (the first step) are around (20.2, 20.5); the player at (40, 40) on a
+// 3000 x 2000 yard map: about 595 yards west and 390 north.
+test('the arrow: points at the current step from where you face, with the yards; green straight on', () => {
+  const vm = session();
+  vm.slash('route');
+  assert.equal(vm.evaluate('tostring(SpellmindArrow.shown)'), 'true', 'shown with the tracker');
+  const c = vm.json('NS.Route.Current()');
+  const west = (40 - c.x) * 30, north = (40 - c.y) * 20;
+  const angle = Math.atan2(west, north);
+  vm.run('NS.Route.ArrowUpdate()');
+  assert.equal(vm.num('math.floor(SpellmindArrow.yards + 0.5)'), Math.round(Math.hypot(west, north)));
+  assert.ok(Math.abs(vm.num('SpellmindArrow.tex.rotation') - angle) < 1e-6, 'facing north: turned left, toward the north-west');
+  assert.match(vm.evaluate('SpellmindArrow.dist:GetText()'), /^\d+ yd$/);
+  assert.match(vm.evaluate('SpellmindArrow.text:GetText()'), /Kobold Candles/);
+  // Facing it: no turn, green.
+  vm.run(`STUB.player.facing = ${angle}; NS.Route.ArrowUpdate()`);
+  assert.ok(Math.abs(vm.num('SpellmindArrow.tex.rotation')) < 1e-6);
+  // Facing west: it's to the right (clockwise, a negative turn).
+  vm.run(`STUB.player.facing = ${Math.PI / 2}; NS.Route.ArrowUpdate()`);
+  assert.ok(Math.abs(vm.num('SpellmindArrow.tex.rotation') - (angle - Math.PI / 2)) < 1e-6);
+  // Standing on it.
+  vm.run(`STUB.player.x, STUB.player.y = ${c.x / 100}, ${c.y / 100}; NS.Route.ArrowUpdate()`);
+  assert.match(vm.evaluate('SpellmindArrow.dist:GetText()'), /You're there/);
+  assert.equal(vm.evaluate('tostring(SpellmindArrow.tex.shown)'), 'false');
+  // In an instance: no position, and it says so.
+  vm.run('STUB.player.facing = false; NS.Route.ArrowUpdate()');
+  assert.match(vm.evaluate('SpellmindArrow.dist:GetText()'), /No position in here/);
+});
+
+test('the arrow, done here: to the next zone\'s giver on foot, or to the flight master to fly from', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run('STUB.quests = {}; for id = 700, 704 do STUB.completed[id] = true end');
+  vm.slash('route');
+  vm.run('NS.Route.ArrowUpdate()');
+  assert.equal(vm.evaluate('SpellmindArrow.text:GetText()'), 'Ironforge: Thane Ironbelly');
+  assert.ok(vm.num('SpellmindArrow.yards') > 2000, 'into the next zone');
+  // Knowing the flight paths: Westfall by air is best, and the arrow points at the flight master first.
+  vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED"); NS.Route.Build(); NS.Route.Draw(); NS.Route.ArrowUpdate()');
+  assert.equal(vm.evaluate('SpellmindArrow.text:GetText()'), 'Flight master at Thelsamar');
+  assert.equal(vm.evaluate('SpellmindArrow.sub:GetText()'), 'then fly on to Westfall');
+  assert.match(vm.evaluate('SpellmindArrow.dist:GetText()'), /You're there/, 'standing at it');
+});
+
+test('the arrow: right-click hides it (kept), /sm arrow brings it back; closing the tracker hides it', () => {
+  const vm = session();
+  vm.slash('route');
+  vm.run('SpellmindArrow.scripts.OnClick(SpellmindArrow, "RightButton")');
+  assert.equal(vm.evaluate('tostring(SpellmindArrow.shown)'), 'false');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.routeUI.arrowOff)'), 'true');
+  vm.run('NS.Route.Draw()');
+  assert.equal(vm.evaluate('tostring(SpellmindArrow.shown)'), 'false', 'stays hidden');
+  vm.slash('arrow');
+  assert.equal(vm.evaluate('tostring(SpellmindArrow.shown)'), 'true');
+  vm.slash('route');
+  assert.equal(vm.evaluate('tostring(SpellmindArrow.shown)'), 'false', 'closed with the tracker');
 });

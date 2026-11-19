@@ -1957,7 +1957,7 @@ local function Legs(way, dest, destTip, destZone)
 			legs[#legs + 1] = { world = way.land, tip = { "Land at " .. Short(way.land.name), "Then on to " .. (destZone or "the next step") .. " from there" }, zone = way.land.name:match(",%s*(.+)$") }
 		end
 	end
-	if dest then legs[#legs + 1] = { world = dest, tip = destTip, zone = destZone } end
+	if dest then legs[#legs + 1] = { world = dest, tip = destTip, zone = destZone, dest = true } end
 	return legs
 end
 
@@ -1975,7 +1975,7 @@ function RT.ArrowTarget()
 		-- In another zone: the quickest way there, leg by leg.
 		if target and here and RT.StopMap(cur) ~= here.map then
 			local plan = RT.PlanTo(cur.key, { map = RT.StopMap(cur), x = cur.x, y = cur.y }, { text, "Your next step." }, cur.zoneName)
-			if plan then return RT.PlanTarget(plan) end
+			if plan then local t = RT.PlanTarget(plan); if t then t.step = cur end; return t end
 			local way = RT.WayTo(cur.key, target)
 			local legs = Legs(way, target, { text, "Your next step." }, cur.zoneName)
 			if way and way.how == "hearth" then
@@ -2390,9 +2390,15 @@ function RT.DrawMap()
 	if not legs or #legs == 0 then return end
 	local legPts = {}
 	local prev = me and { me[1] / cw * 100, me[2] / ch * 100 } or nil
+	local stepHere = t.step and RT.StopMap(t.step) == shownMap
 	for _, leg in ipairs(legs) do
 		local x, y = OnMap(leg.world, shownMap)
 		local edge = false
+		if x and leg.dest and stepHere then
+			-- Its numbered dot is here already: the line ends on it, no second mark.
+			legPts[#legPts + 1] = { x / 100 * cw, y / 100 * ch }
+			break
+		end
 		if not x and prev then
 			-- Off this map: where the line to it crosses the edge.
 			local rx, ry = OnMapRaw(leg.world, shownMap)
@@ -2861,7 +2867,7 @@ function RT.PlanLegs(path, destTip, destZone)
 		local p, n = path[k], path[k].node
 		local nxt = path[k + 1]
 		if n.kind == "dest" then
-			legs[#legs + 1] = { world = n.w, map = n.map, tip = destTip, zone = destZone }
+			legs[#legs + 1] = { world = n.w, map = n.map, tip = destTip, zone = destZone, dest = true }
 		elseif p.how == "hearth" then
 			legs[#legs + 1] = { world = n.w, map = n.map, hearth = true, tip = { "Use your hearthstone", "To " .. tostring(n.name) }, zone = ZoneOf(n.map) }
 		elseif n.kind == "fp" and p.how == "fly" then

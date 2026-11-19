@@ -1138,3 +1138,22 @@ test('the arrow and the map follow the planned legs; a walked crossing is learne
   vm.run('NS.R.routePlan = nil; NS.Route.ArrowUpdate()');
   assert.equal(vm.evaluate('SpellmindArrow.text:GetText()'), 'Cross into Westfall');
 });
+
+test('the way to a step in another zone: on the step\'s own map, its numbered dot ends the line, no second mark (the player, 2026-11-19)', () => {
+  const vm = newVM({ before: ZONE + PREP }).login().advance(9);
+  vm.run(MAP + `
+    NS.Route.LINKS = { { "Loch Modan", 99, 50, "Westfall", 1, 50, name = "the road" } }
+    NS.R.routeLinks = nil`);
+  vm.run('NS.Route.SetMode("dungeon", "The Deadmines")');
+  vm.slash('route');
+  // Westfall's map: the step's dot, the crossing's mark, no » on the step.
+  vm.run('STUB.mapShown = 1436; NS.R.routePlan = nil; NS.Route.DrawMap()');
+  const M = 'NS.Route.marks';
+  const tips = vm.json(`(function() local o = {} for k = 1, ${M}.legsShown do o[k] = ${M}.legs[k].tip[1] end return o end)()`);
+  const list = Array.isArray(tips) ? tips : Object.values(tips || {});
+  assert.ok(!list.some(x => /Pick up/.test(x)), `no » on the step: ${JSON.stringify(tips)}`);
+  assert.ok(vm.num(`${M}.shown`) >= 1, 'its numbered dot');
+  // Loch Modan's map: where the way leaves it (the crossing) still marked.
+  vm.run('STUB.mapShown = 1432; NS.Route.DrawMap()');
+  assert.equal(vm.evaluate(`${M}.legs[1].tip[1]`), 'Cross into Westfall');
+});

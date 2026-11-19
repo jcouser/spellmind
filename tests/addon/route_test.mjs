@@ -776,10 +776,11 @@ test('the way to a chosen zone on the map (the player, 2026-11-19: with the pins
   vm.slash('route');
   vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)())');
   const M = 'NS.Route.marks';
-  // On Loch Modan's map: the steps; Gryan is off this map.
+  // On Loch Modan's map: the steps; Gryan is off this map, so a mark on its edge toward Westfall.
   vm.run('NS.Route.DrawMap()');
   assert.equal(vm.num(`${M}.shown`), 3);
-  assert.equal(vm.num(`${M}.legsShown`), 0);
+  assert.equal(vm.num(`${M}.legsShown`), 1);
+  assert.equal(vm.evaluate(`${M}.legs[1].tip[1]`), 'Toward Westfall');
   // On Westfall's: Gryan, where the arrow heads; no steps (they're Loch Modan's).
   vm.run('STUB.mapShown = 1436; NS.Route.DrawMap()');
   assert.equal(vm.num(`${M}.shown`), 0);
@@ -789,8 +790,9 @@ test('the way to a chosen zone on the map (the player, 2026-11-19: with the pins
   assert.equal(vm.evaluate(`${M}.legs[1].tip[1]`), 'Westfall: Gryan Stoutmantle');
   // By air: the flight master on Loch Modan's map too.
   vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED"); NS.Route.Build(); STUB.mapShown = 1432; NS.Route.DrawMap()');
-  assert.equal(vm.num(`${M}.legsShown`), 1);
+  assert.equal(vm.num(`${M}.legsShown`), 2, 'the flight master, then the edge toward where it lands');
   assert.equal(vm.evaluate(`${M}.legs[1].tip[1]`), 'Flight master at Thelsamar');
+  assert.equal(vm.evaluate(`${M}.legs[2].tip[1]`), 'Toward Westfall');
   // Back to the steps: none.
   vm.run('NS.R.routeAim = nil; NS.Route.DrawMap()');
   assert.equal(vm.num(`${M}.legsShown`), 0);
@@ -1066,4 +1068,26 @@ test('a flight path sits on its own flight master (the player, 2026-11-19: Ironf
   vm.slash('route');
   vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)()); NS.Route.ArrowUpdate()');
   assert.match(vm.evaluate('SpellmindArrow.text:GetText()'), /flight master at Thelsamar|Flight master at Thelsamar/);
+});
+
+test('a step in another zone: the way there on this map, to its edge, as "done here" draws it (the player, 2026-11-19: prep\'s Duskwood step showed nothing in Redridge)', () => {
+  const vm = newVM({ before: ZONE + PREP }).login().advance(9);
+  vm.run(MAP);
+  vm.run('NS.Route.SetMode("dungeon", "The Deadmines")');
+  vm.slash('route');
+  // On foot (no flight paths known): the arrow says which way, the map marks its edge toward Westfall.
+  vm.run('NS.Route.ArrowUpdate(); NS.Route.DrawMap()');
+  assert.match(vm.evaluate('SpellmindArrow.text:GetText()'), /In Westfall:/);
+  assert.match(vm.evaluate('SpellmindArrow.sub:GetText()'), /^head (east|north-east|south-east) to Westfall$/);
+  const M = 'NS.Route.marks';
+  assert.equal(vm.num(`${M}.legsShown`), 1);
+  assert.equal(vm.evaluate(`tostring(${M}.legs[1].edge)`), 'true');
+  assert.equal(vm.evaluate(`${M}.legs[1].tip[1]`), 'Toward Westfall');
+  const at = vm.json(`(function() local _, _, _, x, y = ${M}.legs[1]:GetPoint(); return { x, y } end)()`);
+  assert.ok(Math.abs(at[0] - 970) < 1, `on the right edge (3% in): ${at}`);
+  assert.ok(vm.num(`${M}.linesShown`) >= 1, 'and the green line to it');
+  // By air: the flight master first.
+  vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED"); NS.R.routeWay = nil; NS.Route.ArrowUpdate()');
+  assert.match(vm.evaluate('SpellmindArrow.text:GetText()'), /Flight master at Thelsamar/);
+  assert.match(vm.evaluate('SpellmindArrow.sub:GetText()'), /^then fly to Sentinel Hill, for: .*In Westfall:/);
 });

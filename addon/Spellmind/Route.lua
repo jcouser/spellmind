@@ -1921,6 +1921,44 @@ RT.ARRIVE_YARDS = 12
 RT.AHEAD = 0.35 -- radians either side of straight on: the arrow goes green
 
 -- What the arrow points at: { world = { c, x, y }, text, sub, hearth }, or nil.
+-- The way to somewhere in another zone (the player, 2026-11-19: a prep step in Duskwood showed nothing
+-- on Redridge's map, while "done here" drew a clear path): { minutes, how, leg, land } from RT.Travel,
+-- kept a few seconds per target so the arrow's ticks don't work it out again each time.
+RT.WAY_KEEP = 5
+function RT.WayTo(key, target)
+	local c = R.routeWay
+	if c and c.key == key and GetTime() - c.at < RT.WAY_KEEP then return c.way end
+	local me = RT.PlayerWorld()
+	local way = me and target and RT.Travel(me, target, Level() >= RT.MOUNT_LEVEL and RT.MOUNT_SPEED or RT.RUN_SPEED) or nil
+	R.routeWay = { key = key, at = GetTime(), way = way }
+	return way
+end
+
+-- "south-west": the way from the player to a world spot (x north, y west).
+function RT.Heading(to)
+	local me = RT.PlayerWorld()
+	if not me or not to or me.c ~= to.c then return nil end
+	local a = math.atan2 and math.atan2(to.y - me.y, to.x - me.x) or math.atan(to.y - me.y, to.x - me.x)
+	local k = math.floor((a / (math.pi / 4)) + 0.5) % 8
+	return ({ "north", "north-west", "west", "south-west", "south", "south-east", "east", "north-east" })[k + 1]
+end
+
+local function FlightText(leg) return (leg.npc and (leg.npc .. ", the flight master at ") or "Flight master at ") .. Short(leg.name) end
+
+-- The legs to a destination: the flight master and where it lands (when flying is quickest), then the
+-- destination itself, each { world, tip, zone }.
+local function Legs(way, dest, destTip, destZone)
+	local legs = {}
+	if way and way.how == "fly" and type(way.leg) == "table" then
+		legs[#legs + 1] = { world = way.leg, tip = { FlightText(way.leg), type(way.land) == "table" and ("Fly to " .. Short(way.land.name)) or nil } }
+		if type(way.land) == "table" then
+			legs[#legs + 1] = { world = way.land, tip = { "Land at " .. Short(way.land.name), "Then on to " .. (destZone or "the next step") .. " from there" }, zone = way.land.name:match(",%s*(.+)$") }
+		end
+	end
+	if dest then legs[#legs + 1] = { world = dest, tip = destTip, zone = destZone } end
+	return legs
+end
+
 function RT.ArrowTarget()
 	local route = R.route
 	if not route or route.nowhere then return nil end
@@ -1929,17 +1967,37 @@ function RT.ArrowTarget()
 	local cur = RT.Current()
 	if cur and not z then
 		local gr = RT.Groups(cur)[1]
-		return { world = World(RT.StopMap(cur), cur.x, cur.y), text = RT.StopZone(cur) .. (gr and RT.GroupText(gr) or RT.GoalText(cur.goals[1])) }
+		local text = RT.StopZone(cur) .. (gr and RT.GroupText(gr) or RT.GoalText(cur.goals[1]))
+		local target = World(RT.StopMap(cur), cur.x, cur.y)
+		local here = RT.Here()
+		-- In another zone: the quickest way there, leg by leg.
+		if target and here and RT.StopMap(cur) ~= here.map then
+			local way = RT.WayTo(cur.key, target)
+			local legs = Legs(way, target, { text, "Your next step." }, cur.zoneName)
+			if way and way.how == "hearth" then
+				return { hearth = true, text = "Use your hearthstone", sub = (way.via and (way.via:gsub("^hearthstone ", "")) or "") .. ", then on to " .. (cur.zoneName or "the next step"), legs = legs, away = true }
+			end
+			if way and way.how == "fly" and type(way.leg) == "table" then
+				local land = type(way.land) == "table" and Short(way.land.name)
+				return { world = way.leg, text = FlightText(way.leg), sub = "then fly to " .. (land or "?") .. ", for: " .. text, legs = legs, away = true }
+			end
+			local dir = RT.Heading(target)
+			return { world = target, text = text, sub = dir and ("head " .. dir .. " to " .. (cur.zoneName or "the next zone")) or nil, legs = legs, away = true }
+		end
+		return { world = target, text = text }
 	end
 	z = z or RT.WhereLines(route)[1]
 	if not z then return nil end
+	local dest = z.spot and World(z.map, z.spot.x, z.spot.y)
+	local legs = Legs({ how = z.how, leg = z.leg, land = z.land }, dest,
+		{ z.zone .. (z.spot and z.spot.giver and (": " .. z.spot.giver) or ""), RT.WhereText(z), "Where the arrow is heading." }, z.zone)
 	if z.leg == "hearth" then
-		return { hearth = true, zone = z, text = "Use your hearthstone", sub = (z.via and (z.via:gsub("^hearthstone ", "")) or "") .. ", then on to " .. z.zone }
+		return { hearth = true, zone = z, legs = legs, text = "Use your hearthstone", sub = (z.via and (z.via:gsub("^hearthstone ", "")) or "") .. ", then on to " .. z.zone }
 	end
 	if type(z.leg) == "table" then
-		return { world = z.leg, zone = z, text = (z.leg.npc and (z.leg.npc .. ", the flight master at ") or "Flight master at ") .. Short(z.leg.name), sub = RT.LandText(z) }
+		return { world = z.leg, zone = z, legs = legs, text = FlightText(z.leg), sub = RT.LandText(z) }
 	end
-	return { world = z.spot and World(z.map, z.spot.x, z.spot.y), zone = z, text = z.zone .. (z.spot and z.spot.giver and (": " .. z.spot.giver) or "") }
+	return { world = dest, zone = z, legs = legs, text = z.zone .. (z.spot and z.spot.giver and (": " .. z.spot.giver) or "") }
 end
 
 -- Where a flight to a zone comes down: in the zone itself (its flight path's name says the zone:
@@ -2167,6 +2225,30 @@ local function OnMap(world, mapID)
 	if type(x) ~= "number" or type(y) ~= "number" or x < 0 or x > 1 or y < 0 or y > 1 then return nil end
 	return x * 100, y * 100
 end
+-- A world spot on a map's coordinates (0-100), off the map too (for the edge toward it).
+local function OnMapRaw(world, mapID)
+	local M = rawget(_G, "C_Map")
+	if not world or not mapID or type(M) ~= "table" or type(M.GetMapPosFromWorldPos) ~= "function" then return nil end
+	local V = rawget(_G, "CreateVector2D")
+	local v = type(V) == "function" and V(world.x, world.y) or { x = world.x, y = world.y }
+	local ok, _, pos = pcall(M.GetMapPosFromWorldPos, world.c, v, mapID)
+	if not ok or type(pos) ~= "table" then return nil end
+	local x, y
+	if type(pos.GetXY) == "function" then x, y = pos:GetXY() else x, y = pos.x, pos.y end
+	if type(x) ~= "number" or type(y) ~= "number" then return nil end
+	return x * 100, y * 100
+end
+-- Where the line from (x1, y1), on the map, to (x2, y2), off it, crosses its edge (kept 3% in).
+RT.EDGE_IN = 3
+local function Clip(x1, y1, x2, y2)
+	local lo, hi = RT.EDGE_IN, 100 - RT.EDGE_IN
+	local t = 1
+	local dx, dy = x2 - x1, y2 - y1
+	if dx > 0 and x2 > hi then t = math.min(t, (hi - x1) / dx) elseif dx < 0 and x2 < lo then t = math.min(t, (lo - x1) / dx) end
+	if dy > 0 and y2 > hi then t = math.min(t, (hi - y1) / dy) elseif dy < 0 and y2 < lo then t = math.min(t, (lo - y1) / dy) end
+	if t <= 0 then return nil end
+	return x1 + dx * t, y1 + dy * t
+end
 marks.legs = {}
 marks.legsShown = 0
 
@@ -2290,24 +2372,23 @@ function RT.DrawMap()
 		if me and path[1] and not away then marks.live = { line = MapLine(layer, me[1], me[2], path[1][1], path[1][2], 1, 0.82, 0, 0.9, 3), to = path[1] } end
 		for k = 1, #path - 1 do MapLine(layer, path[k][1], path[k][2], path[k + 1][1], path[k + 1][2], 0.62, 0.49, 1, 0.7, 2) end
 	end
-	-- The way to another zone (the player, 2026-11-19: with the pins gone, a chosen zone showed nothing
-	-- on the map): its first leg (the flight master to fly from) and the quest giver it ends at, a green
-	-- » on whichever map shows them (the zone's, the destination's, the continent's).
+	-- The way somewhere else (the player, 2026-11-19: with the pins gone a chosen zone showed nothing, and
+	-- a prep step in another zone left the map empty): the target's legs, each a green » on the maps
+	-- that show it, joined by the green line from the player; where the way leaves this map, a » on its
+	-- edge toward it.
 	local t = RT.ArrowTarget()
-	local z = t and t.zone
-	if not z then return end
-	local legs = {}
-	if t.world and type(z.leg) == "table" then
-		legs[#legs + 1] = { world = t.world, tip = { t.text, t.sub } }
-		if type(z.land) == "table" then
-			legs[#legs + 1] = { world = z.land, tip = { "Land at " .. Short(z.land.name), RT.LandsIn(z) and ("In " .. z.zone) or ("Then on to " .. z.zone .. " from there") } }
-		end
-	end
-	local dest = z.spot and World(z.map, z.spot.x, z.spot.y)
-	if dest then legs[#legs + 1] = { world = dest, tip = { z.zone .. (z.spot.giver and (": " .. z.spot.giver) or ""), RT.WhereText(z), "Where the arrow is heading." } } end
+	local legs = t and t.legs
+	if not legs or #legs == 0 then return end
 	local legPts = {}
+	local prev = me and { me[1] / cw * 100, me[2] / ch * 100 } or nil
 	for _, leg in ipairs(legs) do
 		local x, y = OnMap(leg.world, shownMap)
+		local edge = false
+		if not x and prev then
+			-- Off this map: where the line to it crosses the edge.
+			local rx, ry = OnMapRaw(leg.world, shownMap)
+			if rx then x, y = Clip(prev[1], prev[2], rx, ry); edge = x ~= nil end
+		end
 		if x then
 			legPts[#legPts + 1] = { x / 100 * cw, y / 100 * ch }
 			marks.legsShown = marks.legsShown + 1
@@ -2318,9 +2399,12 @@ function RT.DrawMap()
 			d.tex:SetVertexColor(0.3, 0.95, 0.4)
 			d.num:SetText("\194\187")
 			d.num:SetTextColor(0.05, 0.15, 0.05)
-			d.tip = leg.tip
+			d.tip = edge and { "Toward " .. (leg.zone or "the next zone"), leg.tip and leg.tip[1] or nil } or leg.tip
+			d.edge = edge or nil
 			d:SetFrameLevel(base + 4)
 			d:Show()
+			prev = { x, y }
+			if edge then break end
 		end
 	end
 	-- Its line, in green: from the player (live) through each leg this map shows.

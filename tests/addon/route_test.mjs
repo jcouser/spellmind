@@ -103,7 +103,7 @@ test('/sm route: the tracker with the zone, the step, its goals, Go, Up next; Go
   vm.run('SpellmindRoute.go.scripts.OnClick(SpellmindRoute.go)');
   assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1432);
   assert.equal(vm.evaluate('string.format("%.2f", STUB.waypoints[1].position.x)'), '0.20', 'the rats\' densest spot, not the stray one');
-  assert.match(vm.evaluate('SpellmindRoute.also:GetText()'), /Quest data from Questie/, 'the credit');
+  assert.match(vm.evaluate('SpellmindRoute.credit:GetText()'), /Quest data from Questie/, 'the credit, its own line');
   vm.slash('route');
   assert.equal(vm.evaluate('tostring(SpellmindRoute.shown)'), 'false', 'and closes it');
 });
@@ -139,7 +139,15 @@ test('an item nothing here drops (the player, 2026-11-19: a Bronze Tube): no tur
   assert.equal(vm.evaluate('NS.R.route.elsewhere.Ironforge[1].buy'), 'Bronze Tube');
   assert.equal(vm.evaluate('NS.Route.GoalText(NS.R.route.elsewhere.Ironforge[1])'), 'Look to the Stars: 0/1 Bronze Tube |cff888888(sold by Tinkerwiz)|r');
   vm.slash('route');
-  assert.match(vm.evaluate('SpellmindRoute.also:GetText()'), /Elsewhere: Ironforge: 1/);
+  // Its own heading, one line per zone saying what's there (the player, 2026-11-19: the crammed line was hard to read).
+  assert.equal(vm.evaluate('SpellmindRoute.awayLabel:GetText()'), 'Elsewhere');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.awayLabel.shown)'), 'true');
+  assert.match(vm.evaluate('SpellmindRoute.away[1]:GetText()'), /Ironforge:.*Look to the Stars: 0\/1 Bronze Tube/);
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.away[2].shown)'), 'false', 'no empty lines');
+  // No known spot and above the level: named, not counted.
+  const lines = vm.evaluate(`(function() local o = {} for _, l in ipairs(NS.Route.AwayLines({ elsewhere = { [""] = { { title = "Ogre Thievery" } } }, later = { "Gyrodrillmatic Excavationators" } })) do o[#o + 1] = l end return table.concat(o, "\\n") end)()`);
+  assert.match(lines, /No known spot:\|r Ogre Thievery/);
+  assert.match(lines, /Above your level for now:\|r Gyrodrillmatic Excavationators/);
 });
 
 test('an item sold in this zone: a step at the vendor, then the turn-in', () => {

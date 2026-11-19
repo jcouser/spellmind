@@ -886,6 +886,7 @@ RT.W, RT.H = 330, 240
 RT.UPNEXT_LINES = 3 -- until the player sizes the window; then as many as fit
 RT.NEXT_MAX = 12
 RT.THEN_LINES = 2
+RT.AWAY_LINES = 5
 RT.MIN_W, RT.MIN_H, RT.MAX_W, RT.MAX_H = 260, 150, 640, 720
 -- The window's size and fold, kept: SpellmindDB.routeUI = { w, h, compact }.
 local function UI()
@@ -969,7 +970,18 @@ local function Build()
 		if l.SetWordWrap then l:SetWordWrap(false) end
 		f.next[i] = l
 	end
-	f.also = Line(f, "GameFontDisableSmall", RT.W - 28)
+	-- Elsewhere: its own heading and lines (the player, 2026-11-19: one crammed line was hard to read),
+	-- and where the route's data comes from, on a line of its own above the buttons.
+	f.awayLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	f.awayLabel:SetText("Elsewhere")
+	f.away = {}
+	for i = 1, RT.AWAY_LINES do
+		local l = Line(f, "GameFontHighlightSmall", RT.W - 40)
+		if l.SetWordWrap then l:SetWordWrap(false) end
+		f.away[i] = l
+	end
+	f.credit = Line(f, "GameFontDisableSmall", RT.W - 28)
+	f.credit:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 36)
 	-- Back, Skip, Rebuild.
 	f.back = ns.GearUI.Button(f, "Back", 60)
 	f.back:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 10)
@@ -1006,7 +1018,44 @@ local function Build()
 	return f
 end
 
--- "Also: Stormwind City: 2 turn-ins · Lakeshire: 1" for what's left elsewhere.
+-- Elsewhere, in lines a player can read: "Westfall: Turn in Wolves at Our Heels to Gryan Stoutmantle
+-- (+1)", "No known spot: Look to the Stars, Ogre Thievery", "Above your level for now: …".
+local function Names(goals, max)
+	local out, seen = {}, {}
+	for _, g in ipairs(goals) do
+		if not seen[g.title] and #out < max then seen[g.title] = true; out[#out + 1] = ns.Escape(g.title) end
+	end
+	local n = 0
+	for _ in pairs(seen) do n = n + 1 end
+	return table.concat(out, ", ") .. (n > #out and (", +" .. (n - #out)) or "")
+end
+function RT.AwayLines(route)
+	local zones, unplaced = {}, {}
+	for zone, goals in pairs(route.elsewhere or {}) do
+		if zone == "" then unplaced = goals else zones[#zones + 1] = { zone = zone, goals = goals } end
+	end
+	table.sort(zones, function(a, b) if #a.goals ~= #b.goals then return #a.goals > #b.goals end return a.zone < b.zone end)
+	local lines = {}
+	for i, z in ipairs(zones) do
+		if i > 3 then break end
+		local more = #z.goals - 1
+		lines[#lines + 1] = "|cffffd100" .. ns.Escape(z.zone) .. ":|r " .. RT.GoalText(z.goals[1]) .. (more > 0 and (" |cff888888(+" .. more .. ")|r") or "")
+	end
+	if #zones > 3 then lines[#lines + 1] = "|cff888888and " .. (#zones - 3) .. " more zones|r" end
+	if #unplaced > 0 then lines[#lines + 1] = "|cff888888No known spot:|r " .. Names(unplaced, 2) end
+	if #(route.later or {}) > 0 then
+		local later = {}
+		for _, t in ipairs(route.later) do later[#later + 1] = { title = t } end
+		lines[#lines + 1] = "|cff888888Above your level for now:|r " .. Names(later, 2)
+	end
+	return lines
+end
+function RT.Credit(route)
+	if route.nowhere then return nil end
+	return route.db and "Quest data from Questie" or "Questie adds quests to pick up here and exact objective spots"
+end
+
+-- (kept for anything that still asks for the old one-paragraph form)
 local function AlsoText(route)
 	local bits, unplaced = {}, 0
 	for zone, goals in pairs(route.elsewhere or {}) do
@@ -1039,7 +1088,8 @@ function RT.Draw()
 	local route = R.route or {}
 	local ui = UI()
 	local W = tonumber(f:GetWidth()) or RT.W
-	f.now:SetWidth(W - 96); f.nowSub:SetWidth(W - 96); f.also:SetWidth(W - 28)
+	f.now:SetWidth(W - 96); f.nowSub:SetWidth(W - 96); f.credit:SetWidth(W - 28)
+	for _, l in ipairs(f.away) do l:SetWidth(W - 40) end
 	for _, l in ipairs(f.thens) do l:SetWidth(W - 40) end
 	for _, l in ipairs(f.next) do l:SetWidth(W - 40) end
 	f.fold:SetNormalTexture(ui.compact and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
@@ -1066,16 +1116,17 @@ function RT.Draw()
 	if cur then f.go:Show() else f.go:Hide() end
 	local bandH = 16 + math.max(20, tonumber(f.now:GetStringHeight()) or 20) + (sub and (3 + (tonumber(f.nowSub:GetStringHeight()) or 12)) or 0)
 	f.band:SetHeight(bandH)
-	local rest = { f.nextLabel, f.also, f.back, f.skip, f.rebuild, f.grip }
+	local rest = { f.nextLabel, f.awayLabel, f.credit, f.back, f.skip, f.rebuild, f.grip }
 	-- Folded: the current step alone.
 	if ui.compact then
 		for _, l in ipairs(f.thens) do l:Hide() end
 		for _, l in ipairs(f.next) do l:Hide() end
+		for _, l in ipairs(f.away) do l:Hide() end
 		for _, r in ipairs(rest) do r:Hide() end
 		if not f.sizing then f:SetHeight(36 + bandH + 10) end
 		return
 	end
-	for _, r in ipairs({ f.also, f.back, f.skip, f.rebuild, f.grip }) do r:Show() end
+	for _, r in ipairs({ f.credit, f.back, f.skip, f.rebuild, f.grip }) do r:Show() end
 	local y = -36 - bandH - 8
 	-- Then: the rest of this stop, two lines at most.
 	for k, l in ipairs(f.thens) do
@@ -1094,9 +1145,10 @@ function RT.Draw()
 	end
 	y = y - 6
 	-- How many of Up next: three, or as many as the player's size of the window holds.
-	local also = AlsoText(route)
-	f.also:SetText(also and ("|cff888888" .. also .. "|r") or "")
-	local alsoH = also and (8 + (tonumber(f.also:GetStringHeight()) or 12)) or 0
+	local away = RT.AwayLines(route)
+	local credit = RT.Credit(route)
+	f.credit:SetText(credit and ("|cff777777" .. credit .. "|r") or "")
+	local alsoH = (#away > 0 and (14 + 16 + #away * 15) or 0) + (credit and 16 or 0)
 	local fixedH = f.sizing and (tonumber(f:GetHeight()) or RT.H) or ui.h
 	local lines = RT.UPNEXT_LINES
 	if fixedH then lines = math.max(1, math.min(RT.NEXT_MAX, math.floor((fixedH + y - 16 - alsoH - 44) / 15))) end
@@ -1118,9 +1170,22 @@ function RT.Draw()
 			l:Hide()
 		end
 	end
-	f.also:ClearAllPoints()
-	f.also:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y - 8)
-	y = y - alsoH
+	-- Elsewhere: a gap, its heading, its lines.
+	f.awayLabel:ClearAllPoints()
+	if #away > 0 then
+		y = y - 14
+		f.awayLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
+		f.awayLabel:Show()
+		y = y - 16
+	else
+		f.awayLabel:Hide()
+	end
+	for k, l in ipairs(f.away) do
+		l:ClearAllPoints()
+		l:SetPoint("TOPLEFT", f, "TOPLEFT", 20, y)
+		if away[k] then l:SetText(away[k]); l:Show(); y = y - 15 else l:SetText(""); l:Hide() end
+	end
+	if credit then y = y - 16 end
 	-- As tall as what it shows, with room for the buttons (the player, 2026-11-19: text ran out of it),
 	-- or the player's own size.
 	if not f.sizing then f:SetHeight(ui.h and math.max(RT.MIN_H, math.min(RT.MAX_H, ui.h)) or math.max(RT.MIN_H, -y + 44)) end

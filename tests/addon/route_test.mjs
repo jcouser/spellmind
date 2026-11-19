@@ -149,3 +149,18 @@ test('an item sold in this zone: a step at the vendor, then the turn-in', () => 
   const buy = ks.findIndex(k => /do:705/.test(k)), back = ks.findIndex(k => /turnin:705/.test(k));
   assert.ok(buy >= 0 && back > buy, `buy, then turn in: ${ks}`);
 });
+
+test('a route vendor without the item (limited stock, the player 2026-11-19): the step moves off, a line says so, Auction House suggested', () => {
+  const vm = session();
+  vm.run(TUBE + `
+    STUB.qdb.npcs[804].spawns = { [38] = { { 45, 45 } } }`);
+  assert.ok(keys(vm).some(k => /do:705/.test(k)));
+  // Herble's window, without a Bronze Tube.
+  vm.run(`UnitGUID = (function(old) return function(u) if u == "npc" then return "Creature-0-5250-0-38-804-0000ABCD" end return old(u) end end)(UnitGUID)
+    GetMerchantNumItems = function() return 2 end
+    GetMerchantItemLink = function(i) return "item:" .. ({ 2901, 4399 })[i] end
+    STUB.FireEvent("MERCHANT_SHOW")`);
+  assert.ok(!JSON.stringify(vm.evaluate('(function() local o = {} for _, s in ipairs(NS.R.route.stops) do o[#o + 1] = s.key end return table.concat(o, " ") end)()')).includes('do:705'), 'off the route');
+  assert.ok(vm.savedLines().some(l => /Tinkerwiz has no Bronze Tube right now.*Auction House/.test(l)) || vm.chatLines().some(l => /Tinkerwiz has no Bronze Tube right now/.test(l)));
+  assert.match(vm.evaluate('NS.Route.GoalText(NS.R.route.elsewhere[""][1])'), /Tinkerwiz has none right now: try the Auction House or an engineer/);
+});

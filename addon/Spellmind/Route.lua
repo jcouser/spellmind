@@ -129,17 +129,26 @@ function RT.Vendor(Q, id, area)
 	local o = Try(Q.Quest.objectives, id)
 	local I, N = Q.Item, Q.Npc
 	if type(o) ~= "table" or type(o[3]) ~= "table" or not I or not N then return nil end
-	local away
+	local away, empty
+	R.routeNoStock = R.routeNoStock or {}
 	for _, c in ipairs(o[3]) do
-		local item = type(c) == "table" and Try(I.name, c[1]) or nil
-		for _, npc in ipairs(type(I.vendors) == "function" and Try(I.vendors, c[1]) or {}) do
-			local sp = Try(N.spawns, npc)
-			local at = type(sp) == "table" and type(sp[area]) == "table" and sp[area][1]
+		local itemID = type(c) == "table" and tonumber(c[1]) or nil
+		local item = itemID and Try(I.name, itemID) or nil
+		for _, npc in ipairs(itemID and type(I.vendors) == "function" and Try(I.vendors, itemID) or {}) do
 			local name = Try(N.name, npc)
-			if at and tonumber(at[1]) and tonumber(at[2]) then return { item = item, name = name, spot = { x = at[1], y = at[2] } } end
-			away = away or { item = item, name = name, zone = Try(N.zoneID, npc) }
+			-- Seen this session without it (limited stock sells out: the player, 2026-11-19).
+			if R.routeNoStock[npc .. ":" .. itemID] then
+				empty = empty or name
+			else
+				local sp = Try(N.spawns, npc)
+				local at = type(sp) == "table" and type(sp[area]) == "table" and sp[area][1]
+				if at and tonumber(at[1]) and tonumber(at[2]) then
+					return { item = item, itemID = itemID, npc = npc, name = name, spot = { x = at[1], y = at[2] } }
+				end
+				away = away or { item = item, itemID = itemID, npc = npc, name = name, zone = Try(N.zoneID, npc) }
+			end
 		end
-		if not away and type(item) == "string" then away = { item = item } end
+		if not away and type(item) == "string" then away = { item = item, itemID = itemID, empty = empty } end
 	end
 	return away
 end
@@ -396,9 +405,9 @@ function RT.Build()
 					-- An item nothing here drops: bought here, or got elsewhere.
 					local v = Q and here.area and RT.Vendor(Q, id, here.area) or nil
 					if v and v.spot then
-						Place("do", id, title, v.spot, nil, { buy = v.item, from = v.name }); doHere = true
+						Place("do", id, title, v.spot, nil, { buy = v.item, buyID = v.itemID, from = v.name, fromID = v.npc, empty = v.empty }); doHere = true
 					else
-						Elsewhere(v and AreaName(v.zone), "do", id, title, nil, v and { buy = v.item, from = v.name })
+						Elsewhere(v and AreaName(v.zone), "do", id, title, nil, v and { buy = v.item, buyID = v.itemID, from = v.name, fromID = v.npc, empty = v.empty })
 					end
 				end
 			end
@@ -438,7 +447,7 @@ function RT.Build()
 						if (hasObjectives and doable) or (not hasObjectives and fin and fin.spot) then
 							Place("pickup", id, title, spot)
 							if center then Place("do", id, title, center)
-							elseif v and v.spot then Place("do", id, title, v.spot, nil, { buy = v.item, from = v.name }) end
+							elseif v and v.spot then Place("do", id, title, v.spot, nil, { buy = v.item, buyID = v.itemID, from = v.name, fromID = v.npc, empty = v.empty }) end
 							if fin and fin.spot then Place("turnin", id, title, fin.spot, fin.name) end
 							local pre = Try(Q.Quest.preQuestSingle, id)
 							if type(pre) == "table" and pre[1] then chains[#chains + 1] = { pre[1], id } end
@@ -520,6 +529,10 @@ function RT.GoalText(g)
 	if g.kind == "turnin" then return "Turn in " .. ns.Escape(g.title) .. (g.to and (" to " .. ns.Escape(g.to)) or "") end
 	local left = ns.Quests and ns.Quests.Left and ns.Quests.Left({ obj = ns.State and ns.State.Objectives and ns.State.Objectives(g.q) }) or nil
 	if g.buy then
+		if g.empty then
+			return ns.Escape(g.title) .. ": " .. (left or ("get " .. ns.Escape(g.buy)))
+				.. " |cff888888(" .. ns.Escape(g.empty) .. " has none right now: try the Auction House or an engineer)|r"
+		end
 		return ns.Escape(g.title) .. ": " .. (left or ("get " .. ns.Escape(g.buy)))
 			.. (g.from and (" |cff888888(sold by " .. ns.Escape(g.from) .. ")|r") or "")
 	end
@@ -586,6 +599,40 @@ function RT.Refresh()
 end
 
 function RT.Shown() return RT.frame and RT.frame:IsShown() and true or false end
+
+-- A merchant the route sends the player to buy from: when the item isn't in his list (limited stock
+-- sells out; the player, 2026-11-19), that step moves off the route for the session, and a line says
+-- so; when it is, any earlier "none" is forgotten.
+function RT.OnMerchant()
+	local route = R.route
+	if not route then return end
+	local guid = Try(UnitGUID, "npc")
+	local npc = type(guid) == "string" and tonumber(guid:match("^%a+%-%d+%-%d+%-%d+%-%d+%-(%d+)")) or nil
+	if not npc then return end
+	local have = {}
+	for i = 1, math.min(tonumber((Try(GetMerchantNumItems))) or 0, 200) do
+		local link = Try(GetMerchantItemLink, i)
+		local id = type(link) == "string" and tonumber(link:match("item:(%d+)")) or nil
+		if id then have[id] = true end
+	end
+	R.routeNoStock = R.routeNoStock or {}
+	local gone
+	for _, s in ipairs(route.stops or {}) do
+		for _, g in ipairs(s.goals) do
+			if g.buyID and g.fromID == npc then
+				local key = npc .. ":" .. g.buyID
+				if have[g.buyID] then R.routeNoStock[key] = nil
+				elseif not R.routeNoStock[key] then R.routeNoStock[key] = true; gone = gone or g end
+			end
+		end
+	end
+	if gone then
+		ns.Chat.System(ns.Escape(gone.from or "This vendor") .. " has no " .. ns.Escape(gone.buy) .. " right now (it's limited stock, or not sold here). Try the Auction House or an engineer; the route moves on.")
+		if not InCombat() then RT.Build() end
+		RT.Refresh()
+	end
+end
+ns.On("MERCHANT_SHOW", function() pcall(RT.OnMerchant) end)
 
 for _, ev in ipairs({ "QUEST_ACCEPTED", "QUEST_TURNED_IN", "QUEST_REMOVED", "ZONE_CHANGED_NEW_AREA", "PLAYER_LEVEL_UP" }) do
 	ns.On(ev, function() RT.Dirty() end)

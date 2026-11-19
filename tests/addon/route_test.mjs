@@ -877,3 +877,14 @@ test('a zone on another continent says how: "by boat" (the player, 2026-11-19: A
   const vm = session();
   assert.equal(vm.evaluate('NS.Route.WhereText({ quests = 6, inLog = 0, minutes = 12, how = "boat" })'), '6 quests to pick up · about 12 min away by boat');
 });
+
+test('done here: no Up next, and no gap where it would be', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run('STUB.quests = {}; for id = 700, 704 do STUB.completed[id] = true end');
+  vm.slash('route');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.nextLabel.shown)'), 'false');
+  const bandBottom = -(36 + vm.num('SpellmindRoute.band:GetHeight()'));
+  const top = 36 + vm.num('SpellmindRoute.band:GetHeight()') + 4; // the scroll's top, under the band
+  const orY = vm.num('select(5, SpellmindRoute.whereLabel:GetPoint())');
+  assert.ok(orY > -24, `"Or" right under the band: ${orY} (band ends at ${bandBottom}, scroll at -${top})`);
+});

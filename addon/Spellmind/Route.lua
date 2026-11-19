@@ -1659,8 +1659,9 @@ function RT.Draw()
 	local upnext = RT.UpNext(fixedH and RT.NEXT_MAX or RT.UPNEXT_LINES)
 	f.nextLabel:ClearAllPoints()
 	f.nextLabel:SetPoint("TOPLEFT", f.content, "TOPLEFT", 14 - 8, y - top)
-	if #upnext > 0 then f.nextLabel:Show() else f.nextLabel:Hide() end
-	y = y - 16
+	-- No Up next: no heading, and no room kept for it (the player's screenshot, 2026-11-19: a gap
+	-- under "Done here" before "Or").
+	if #upnext > 0 then f.nextLabel:Show(); y = y - 16 else f.nextLabel:Hide(); y = y + 6 end
 	local used = 0
 	for k, l in ipairs(f.next) do
 		local s = upnext[k]

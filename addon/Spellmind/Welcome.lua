@@ -58,6 +58,7 @@ WL.NEWS = {
 		features = {
 			{ icon = "Interface\\Icons\\INV_Misc_Map_01", title = "A plan that knows your character", text = "Every pickup, objective and turn-in around you, in the shortest order, ticked off the moment you finish it." },
 			{ icon = "Interface\\Icons\\Ability_Hunter_Pathfinding", title = "Never lose your way", text = "An arrow on screen points to your next step, and the world map numbers each step and shades where to go." },
+			{ icon = "Interface\\Icons\\Ability_Mount_Gryphon_01", title = "The way there, leg by leg", text = "Flight paths you know, the roads between zones, the tram and the boats: the arrow and the map take you there by the fastest way you have." },
 			{ icon = "Interface\\Icons\\Spell_Arcane_PortalStormWind", title = "Always know where to go next", text = "When a zone runs dry, Spellmind ranks the best zones for your level, counting your flight paths and hearthstone." },
 			{ icon = "Interface\\Icons\\INV_Misc_Key_03", title = "Ready for any dungeon", text = "Pick a dungeon on the Route tab: Spellmind routes you through its quests and the questlines that open them, across zones, to its door." },
 			{ icon = "Interface\\AddOns\\Spellmind\\Media\\Portrait", title = "Ask your AI about it", text = "Your AI sees the same route. Ask \"Review my route\" for what to skip, and why." },

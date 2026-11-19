@@ -170,7 +170,8 @@ function WD.NoteHearth()
 	local w = RT.PlayerWorld()
 	local bind = ns.State.Text(ns.Try(GetBindLocation))
 	if w and bind ~= "" then
-		me.hearthSpot = { name = bind, c = w.c, x = w.x, y = w.y }
+		local here = RT.Here and RT.Here()
+		me.hearthSpot = { name = bind, c = w.c, x = w.x, y = w.y, map = here and here.map or nil }
 		if RT.TravelChanged then RT.TravelChanged() end
 	end
 end
@@ -295,7 +296,7 @@ function WD.SnapFlight(spot)
 					local w = type(at) == "table" and tonumber(at[1]) and tonumber(at[2]) and RT.World(map, at[1], at[2])
 					if w and w.c == spot.c then
 						local d = math.sqrt((w.x - spot.x) ^ 2 + (w.y - spot.y) ^ 2)
-						if d <= WD.SNAP_YARDS and (not bd or d < bd) then best, bd = { c = w.c, x = w.x, y = w.y, npc = ns.Try(L.Npc.name, id), snapped = true }, d end
+						if d <= WD.SNAP_YARDS and (not bd or d < bd) then best, bd = { c = w.c, x = w.x, y = w.y, npc = ns.Try(L.Npc.name, id), snapped = true, map = map }, d end
 					end
 				end
 			end

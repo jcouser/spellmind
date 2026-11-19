@@ -14,6 +14,7 @@ export const NEWS = Object.freeze([
     features: Object.freeze([
       Object.freeze({ title: 'A plan that knows your character', text: 'Every pickup, objective and turn-in around you, in the shortest order, ticked off the moment you finish it.' }),
       Object.freeze({ title: 'Never lose your way', text: 'An arrow on screen points to your next step, and the world map numbers each step and shades where to go.' }),
+      Object.freeze({ title: 'The way there, leg by leg', text: 'Flight paths you know, the roads between zones, the tram and the boats: the arrow and the map take you there by the fastest way you have.' }),
       Object.freeze({ title: 'Always know where to go next', text: 'When a zone runs dry, Spellmind ranks the best zones for your level, counting your flight paths and hearthstone.' }),
       Object.freeze({ title: 'Ready for any dungeon', text: 'Pick a dungeon on the Route tab: Spellmind routes you through its quests and the questlines that open them, across zones, to its door.' }),
       Object.freeze({ title: 'Ask your AI about it', text: 'Your AI sees the same route. Ask "Review my route" for what to skip, and why.' }),

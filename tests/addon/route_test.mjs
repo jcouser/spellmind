@@ -1091,3 +1091,50 @@ test('a step in another zone: the way there on this map, to its edge, as "done h
   assert.match(vm.evaluate('SpellmindArrow.text:GetText()'), /Flight master at Thelsamar/);
   assert.match(vm.evaluate('SpellmindArrow.sub:GetText()'), /^then fly to Sentinel Hill, for: .*In Westfall:/);
 });
+
+// The way there across zones: Loch Modan (0, 0), Ironforge (3000, 0) and Westfall (9000, 0) side by side
+// in the stub's world; crossings at their shared edges, and a long road from Ironforge to Westfall.
+const LINKS = `
+  NS.Route.LINKS = {
+    { "Loch Modan", 99, 50, "Ironforge", 1, 50, name = "the pass" },
+    { "Ironforge", 99, 50, "Westfall", 1, 50, name = "the long road" },
+  }
+  NS.R.routeLinks = nil`;
+
+test('the way there (the player, 2026-11-19): on foot through the crossings, leg by leg; by air when that\'s faster', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run(LINKS);
+  const legs = () => vm.json(`NS.Route.PlanLegs((NS.Route.Plan({ map = 1432, x = 40, y = 40 }, { map = 1436, x = 56, y = 48 })), { "Gryan" }, "Westfall")`);
+  let l = legs();
+  assert.deepEqual(l.map(x => x.tip[0]), ['Cross into Ironforge', 'Cross into Westfall', 'Gryan'], 'through Ironforge on foot');
+  assert.equal(l[0].tip[1], 'By the pass (about here)');
+  // Knowing the flight paths: fly from Thelsamar to Sentinel Hill instead.
+  vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED")');
+  l = legs();
+  assert.deepEqual(l.map(x => x.tip[0]), ['Flight master at Thelsamar', 'Fly to Sentinel Hill', 'Gryan']);
+  // No crossing joins them, no flight: no plan (the straight way stands).
+  vm.run('NS.Route.LINKS = {}; NS.R.routeLinks = nil; SpellmindDB.chars = {}');
+  assert.equal(vm.evaluate('tostring(NS.Route.Plan({ map = 1432, x = 40, y = 40 }, { map = 1436, x = 56, y = 48 }))'), 'nil');
+});
+
+test('the arrow and the map follow the planned legs; a walked crossing is learned and replaces the written one', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run(MAP + LINKS);
+  vm.slash('route');
+  vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)()); NS.R.routePlan = nil; NS.Route.ArrowUpdate(); NS.Route.DrawMap()');
+  assert.equal(vm.evaluate('SpellmindArrow.text:GetText()'), 'Cross into Ironforge');
+  assert.equal(vm.evaluate('SpellmindArrow.sub:GetText()'), 'then cross into Westfall');
+  // Loch Modan's map: the crossing (on the map), then the edge toward Ironforge's next leg.
+  const M = 'NS.Route.marks';
+  assert.equal(vm.evaluate(`${M}.legs[1].tip[1]`), 'Cross into Ironforge');
+  // Walking across at (99.5, 52) into Ironforge (0.5, 52), 30 yards: learned, and it replaces "the pass".
+  vm.run('STUB.player.x, STUB.player.y = 0.995, 0.52; NS.Route.NoteOutside()');
+  vm.run('STUB.player.map, STUB.player.zone, STUB.player.x, STUB.player.y = 1455, "Ironforge", 0.005, 0.52; NS.Route.NoteOutside()');
+  const c = vm.json('SpellmindDB.routeCrossings[1]');
+  assert.deepEqual([c.a.map, c.b.map], [1432, 1455]);
+  const links = vm.json('(function() local o = {} for _, l in ipairs(NS.Route.Links()) do o[#o + 1] = l.name or "learned" end return o end)()');
+  assert.deepEqual(links, ['learned', 'the long road'], 'the walked one in place of the written one');
+  // Now in Ironforge, the plan starts here: the next leg first.
+  vm.run('NS.R.routePlan = nil; NS.Route.ArrowUpdate()');
+  assert.equal(vm.evaluate('SpellmindArrow.text:GetText()'), 'Cross into Westfall');
+});

@@ -829,7 +829,9 @@ function RT.Flights()
 				local s = ns.World.SnapFlight(w)
 				if s then me.flightSpots[name] = s; w = s else R.routeSnapTried[name] = true end
 			end
-			out[#out + 1] = { name = name, c = w.c, x = w.x, y = w.y, npc = w.npc }
+			-- Its zone's map: its flight master's (QuestieDB), else the zone its name says ("Thelsamar, Loch Modan").
+			local map = w.map or (type(name) == "string" and name:match(",%s*(.+)$") and DG().MapNamed(name:match(",%s*(.+)$"))) or nil
+			out[#out + 1] = { name = name, c = w.c, x = w.x, y = w.y, npc = w.npc, map = map }
 		end
 	end
 	return out
@@ -1972,6 +1974,8 @@ function RT.ArrowTarget()
 		local here = RT.Here()
 		-- In another zone: the quickest way there, leg by leg.
 		if target and here and RT.StopMap(cur) ~= here.map then
+			local plan = RT.PlanTo(cur.key, { map = RT.StopMap(cur), x = cur.x, y = cur.y }, { text, "Your next step." }, cur.zoneName)
+			if plan then return RT.PlanTarget(plan) end
 			local way = RT.WayTo(cur.key, target)
 			local legs = Legs(way, target, { text, "Your next step." }, cur.zoneName)
 			if way and way.how == "hearth" then
@@ -1988,6 +1992,11 @@ function RT.ArrowTarget()
 	end
 	z = z or RT.WhereLines(route)[1]
 	if not z then return nil end
+	if z.spot then
+		local plan = RT.PlanTo("zone:" .. tostring(z.area), { map = z.map, x = z.spot.x, y = z.spot.y },
+			{ z.zone .. (z.spot.giver and (": " .. z.spot.giver) or ""), RT.WhereText(z), "Where the arrow is heading." }, z.zone)
+		if plan then local t = RT.PlanTarget(plan); t.zone = z; return t end
+	end
 	local dest = z.spot and World(z.map, z.spot.x, z.spot.y)
 	local legs = Legs({ how = z.how, leg = z.leg, land = z.land }, dest,
 		{ z.zone .. (z.spot and z.spot.giver and (": " .. z.spot.giver) or ""), RT.WhereText(z), "Where the arrow is heading." }, z.zone)
@@ -2516,7 +2525,13 @@ end
 -- into a dungeon notes its way in.
 function RT.NoteOutside()
 	local here = RT.Here()
-	if here then R.routeOutside = { map = here.map, x = here.x, y = here.y, zone = here.zone } end
+	if not here then return end
+	local prev = R.routeOutside
+	if prev and prev.map ~= here.map and not Try(rawget(_G, "UnitOnTaxi"), "player") then
+		local a, b = World(prev.map, prev.x, prev.y), World(here.map, here.x, here.y)
+		if a and b and a.c == b.c and Dist(a, b) <= RT.CROSS_YARDS then RT.LearnCrossing(prev, here) end
+	end
+	R.routeOutside = { map = here.map, x = here.x, y = here.y, zone = here.zone }
 end
 local function Inside()
 	local inst, kind = Try(rawget(_G, "IsInInstance"))
@@ -2709,4 +2724,180 @@ function RT.BuildPrep(name)
 	route.stops = RT.Order(stops, { x = here.x, y = here.y }, here, rules)
 	route.rules = rules
 	return route
+end
+
+---------------------------------------------------------------------------
+-- The way there (the player, 2026-11-19: "fly to Ironforge, walk through Loch Modan and north to
+-- Wetlands: the map and the markers should show that"): the fastest path over walking within a zone,
+-- crossings between zones, the flight paths the character knows, the tram and the boats, and the
+-- hearthstone; shown leg by leg
+---------------------------------------------------------------------------
+
+-- Where one zone meets the next (Spellmind's own, approximate: the game has no such data): { zone, x,
+-- y, zone, x, y, name, how ("road", "tram", "boat"), minutes (a tram's or a boat's) }. A crossing the
+-- player walks is noted exactly (SpellmindDB.routeCrossings) and replaces the one here.
+RT.LINKS = {
+	{ "Stormwind City", 70.5, 89.5, "Elwynn Forest", 32.0, 50.0, name = "Stormwind's gates" },
+	{ "Elwynn Forest", 20.8, 81.0, "Westfall", 61.5, 17.0, name = "the road to Westfall" },
+	{ "Elwynn Forest", 31.8, 93.0, "Duskwood", 21.5, 8.5, name = "the bridge to Duskwood" },
+	{ "Elwynn Forest", 91.0, 72.5, "Redridge Mountains", 2.7, 75.8, name = "the road to Redridge" },
+	{ "Redridge Mountains", 2.0, 95.0, "Duskwood", 87.5, 10.0, name = "Three Corners" },
+	{ "Redridge Mountains", 41.8, 6.5, "Burning Steppes", 66.0, 79.0, name = "the road to Burning Steppes" },
+	{ "Westfall", 68.5, 71.0, "Duskwood", 8.5, 58.0, name = "the road to Duskwood" },
+	{ "Duskwood", 36.0, 95.0, "Stranglethorn Vale", 38.0, 4.0, name = "the road to Stranglethorn" },
+	{ "Duskwood", 88.0, 80.0, "Deadwind Pass", 30.0, 30.0, name = "Deadwind Pass" },
+	{ "Deadwind Pass", 60.0, 60.0, "Swamp of Sorrows", 5.0, 60.0, name = "the road to the Swamp of Sorrows" },
+	{ "Swamp of Sorrows", 32.0, 98.0, "Blasted Lands", 50.0, 2.0, name = "the road to the Blasted Lands" },
+	{ "Ironforge", 15.5, 85.5, "Dun Morogh", 53.5, 34.6, name = "the Gates of Ironforge" },
+	{ "Dun Morogh", 85.8, 51.0, "Loch Modan", 21.0, 68.0, name = "the North Gate Pass" },
+	{ "Loch Modan", 24.5, 1.5, "Wetlands", 57.5, 72.5, name = "Dun Algaz" },
+	{ "Loch Modan", 47.0, 96.0, "Badlands", 50.0, 5.0, name = "the road to the Badlands" },
+	{ "Wetlands", 53.7, 11.6, "Arathi Highlands", 44.5, 92.0, name = "Thandol Span" },
+	{ "Arathi Highlands", 20.0, 30.0, "Hillsbrad Foothills", 86.0, 45.0, name = "the road to Hillsbrad" },
+	{ "Hillsbrad Foothills", 13.0, 45.0, "Silverpine Forest", 68.0, 78.0, name = "the road to Silverpine" },
+	{ "Silverpine Forest", 45.0, 5.0, "Tirisfal Glades", 55.0, 90.0, name = "the road to Tirisfal" },
+	{ "Stormwind City", 64.0, 8.0, "Ironforge", 76.6, 51.0, name = "the Deeprun Tram", how = "tram", minutes = 2 },
+	{ "Wetlands", 4.8, 63.0, "Darkshore", 32.5, 44.0, name = "the boat between Menethil Harbor and Auberdine", how = "boat", minutes = 6 },
+	{ "Wetlands", 4.8, 57.5, "Dustwallow Marsh", 71.6, 56.3, name = "the boat between Menethil Harbor and Theramore", how = "boat", minutes = 6 },
+	{ "Stranglethorn Vale", 25.8, 73.0, "The Barrens", 63.6, 38.6, name = "the boat between Booty Bay and Ratchet", how = "boat", minutes = 6 },
+	{ "Darkshore", 33.0, 40.0, "Teldrassil", 55.0, 96.0, name = "the boat between Auberdine and Rut'theran", how = "boat", minutes = 3 },
+}
+RT.CROSS_YARDS = 60 -- one tick's move across a border, at most (a loading screen or a flight is no crossing)
+RT.LEARNED_NEAR = 400 -- a learned crossing replaces a written one this close, for the same two zones
+
+-- A crossing the player walked: kept, replacing one near it for the same two zones.
+function RT.LearnCrossing(from, to)
+	ns.db.routeCrossings = type(ns.db.routeCrossings) == "table" and ns.db.routeCrossings or {}
+	local list = ns.db.routeCrossings
+	local a = World(from.map, from.x, from.y)
+	for k = #list, 1, -1 do
+		local c = list[k]
+		local same = (c.a.map == from.map and c.b.map == to.map) or (c.a.map == to.map and c.b.map == from.map)
+		local w = same and World(c.a.map, c.a.x, c.a.y)
+		if w and a and Dist(w, a) <= RT.LEARNED_NEAR then table.remove(list, k) end
+	end
+	list[#list + 1] = { a = { map = from.map, x = from.x, y = from.y }, b = { map = to.map, x = to.x, y = to.y } }
+	R.routeLinks = nil
+end
+
+-- Every crossing, with its two sides' maps and world spots: the learned, then the written ones no
+-- learned one replaces. Worked out once a session (and after a crossing is learned).
+function RT.Links()
+	if R.routeLinks then return R.routeLinks end
+	local out = {}
+	local function Side(map, x, y) local w = map and World(map, x, y); return w and { map = map, x = x, y = y, w = w } or nil end
+	for _, c in ipairs(ns.db and type(ns.db.routeCrossings) == "table" and ns.db.routeCrossings or {}) do
+		local a, b = Side(c.a.map, c.a.x, c.a.y), Side(c.b.map, c.b.x, c.b.y)
+		if a and b then out[#out + 1] = { a = a, b = b, how = "road", learned = true } end
+	end
+	for _, l in ipairs(RT.LINKS) do
+		local a, b = Side(DG().MapNamed(l[1]), l[2], l[3]), Side(DG().MapNamed(l[4]), l[5], l[6])
+		if a and b then
+			local replaced = false
+			for _, m in ipairs(out) do
+				if m.learned and ((m.a.map == a.map and m.b.map == b.map) or (m.a.map == b.map and m.b.map == a.map))
+					and (Dist(m.a.w, a.w) <= RT.LEARNED_NEAR or Dist(m.a.w, b.w) <= RT.LEARNED_NEAR) then replaced = true end
+			end
+			if not replaced then out[#out + 1] = { a = a, b = b, name = l.name, how = l.how or "road", minutes = l.minutes, zoneA = l[1], zoneB = l[4] } end
+		end
+	end
+	R.routeLinks = out
+	return out
+end
+
+local function ZoneOf(map)
+	local M = rawget(_G, "C_Map")
+	local info = map and M and Try(M.GetMapInfo, map)
+	return type(info) == "table" and info.name or nil
+end
+
+-- The fastest path from one spot to another ({ map, x, y }), as nodes with the way to each: nil when
+-- no path is known (the crossings don't join the two zones).
+function RT.Plan(from, to, speed)
+	speed = speed or RT.RUN_SPEED
+	local fw, tw = from.map and World(from.map, from.x, from.y), to.map and World(to.map, to.x, to.y)
+	if not fw or not tw then return nil end
+	local nodes = {}
+	local function Node(n) nodes[#nodes + 1] = n; n.i = #nodes; return n end
+	local s = Node({ kind = "start", map = from.map, w = fw })
+	local d = Node({ kind = "dest", map = to.map, w = tw })
+	for _, f in ipairs(RT.Flights()) do if f.map then Node({ kind = "fp", map = f.map, w = f, name = f.name, npc = f.npc }) end end
+	local h = RT.Hearth()
+	local hn = h and h.map and Node({ kind = "hearth", map = h.map, w = h, name = h.name }) or nil
+	for _, l in ipairs(RT.Links()) do
+		local a = Node({ kind = "link", map = l.a.map, w = l.a.w, link = l })
+		local b = Node({ kind = "link", map = l.b.map, w = l.b.w, link = l })
+		a.other, b.other = b, a
+	end
+	local function Walk(u, v) return Dist(u.w, v.w) * RT.PATH_FACTOR / speed / 60 end
+	local dist, prev, how, done = {}, {}, {}, {}
+	dist[s.i] = 0
+	while true do
+		local u, best
+		for i, n in ipairs(nodes) do if not done[i] and dist[i] and (not best or dist[i] < best) then u, best = n, dist[i] end end
+		if not u or u == d then break end
+		done[u.i] = true
+		local function Relax(v, cost, kind)
+			if v ~= u and not done[v.i] and cost and (not dist[v.i] or best + cost < dist[v.i]) then dist[v.i], prev[v.i], how[v.i] = best + cost, u, kind end
+		end
+		for _, v in ipairs(nodes) do
+			if v.map == u.map and v.w.c == u.w.c and v.kind ~= "hearth" then Relax(v, Walk(u, v), "walk") end
+			if u.kind == "fp" and v.kind == "fp" and v.w.c == u.w.c then Relax(v, Dist(u.w, v.w) / RT.FLY_SPEED / 60 + RT.FLY_MINUTES, "fly") end
+		end
+		if u.kind == "link" and u.other then Relax(u.other, u.link.minutes or Walk(u, u.other), u.link.how) end
+		if u == s and hn then Relax(hn, RT.HEARTH_MINUTES, "hearth") end
+	end
+	if not dist[d.i] then return nil end
+	local path = {}
+	local n = d
+	while n do table.insert(path, 1, { node = n, how = how[n.i], at = dist[n.i] }); n = prev[n.i] end
+	return path, dist[d.i]
+end
+
+-- The path as legs to show and follow: { world, map, tip = { title, line }, zone, hearth }.
+function RT.PlanLegs(path, destTip, destZone)
+	local legs = {}
+	for k = 2, #path do
+		local p, n = path[k], path[k].node
+		local nxt = path[k + 1]
+		if n.kind == "dest" then
+			legs[#legs + 1] = { world = n.w, map = n.map, tip = destTip, zone = destZone }
+		elseif p.how == "hearth" then
+			legs[#legs + 1] = { world = n.w, map = n.map, hearth = true, tip = { "Use your hearthstone", "To " .. tostring(n.name) }, zone = ZoneOf(n.map) }
+		elseif n.kind == "fp" and p.how == "fly" then
+			legs[#legs + 1] = { world = n.w, map = n.map, tip = { "Fly to " .. Short(n.name), "Land at the flight master there" }, zone = ZoneOf(n.map) }
+		elseif n.kind == "fp" and nxt and nxt.how == "fly" then
+			legs[#legs + 1] = { world = n.w, map = n.map, tip = { (n.npc and (n.npc .. ", the flight master at ") or "Flight master at ") .. Short(n.name), "Fly to " .. Short(nxt.node.name) }, zone = ZoneOf(n.map) }
+		elseif n.kind == "link" and nxt and nxt.node == n.other then
+			-- The near side of a crossing (the far side is the same place): cross, or take the tram or boat.
+			local l, into = n.link, ZoneOf(n.other.map) or "the next zone"
+			local title = (l.how == "tram" or l.how == "boat") and ("Take " .. (l.name or ("the " .. l.how))) or ("Cross into " .. into)
+			legs[#legs + 1] = { world = n.w, map = n.map, tip = { title, (l.how == "road" and l.name) and ("By " .. l.name .. (l.learned and "" or " (about here)")) or ("To " .. into) }, zone = ZoneOf(n.map), crossing = true }
+		end
+	end
+	return legs
+end
+
+-- Planned from where the player stands, kept a few seconds per target (the arrow asks many times a
+-- second; as the player goes, the next plan starts where they are, so the legs advance).
+function RT.PlanTo(key, to, destTip, destZone)
+	local c = R.routePlan
+	if c and c.key == key and GetTime() - c.at < RT.WAY_KEEP then return c.legs end
+	local here = RT.Here()
+	local legs
+	if here and to.map then
+		local path = RT.Plan({ map = here.map, x = here.x, y = here.y }, to, Level() >= RT.MOUNT_LEVEL and RT.MOUNT_SPEED or RT.RUN_SPEED)
+		if path then legs = RT.PlanLegs(path, destTip, destZone) end
+	end
+	R.routePlan = { key = key, at = GetTime(), legs = legs }
+	return legs
+end
+
+-- The arrow's target for planned legs: the first, with the second as "then …".
+function RT.PlanTarget(legs)
+	local first, second = legs[1], legs[2]
+	if not first then return nil end
+	local thenLine = second and ("then " .. second.tip[1]:gsub("^%u", string.lower)) or first.tip[2]
+	if first.hearth then return { hearth = true, text = first.tip[1], sub = first.tip[2] .. (second and (", " .. thenLine) or ""), legs = legs, away = true } end
+	return { world = first.world, text = first.tip[1], sub = thenLine, legs = legs, away = true }
 end

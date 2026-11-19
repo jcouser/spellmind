@@ -22,12 +22,14 @@ local R = ns.R
 RT.GROUP_YARDS = 90 -- stops this close are one stop
 RT.SPOTS_MAX = 80 -- an objective's spawn points read, at most
 RT.CLUSTER = 7 -- map percent: the radius of an objective's densest spot
-RT.BELOW, RT.ABOVE = 5, 3 -- pickups this far below (grey) or above the character's level are left out
--- A quest is done on the route up to +3 (the player, 2026-11-19: +4 is a lot solo), taken or not; in a
--- group, two levels more. One level past that, a pick up is still a step "for later" when its giver is
--- by another stop (the player: "I should have at least picked up the quest"): taken, it waits in the
--- log until the level (or a group) comes.
-RT.LOG_ABOVE, RT.GROUP_ABOVE = 3, 2
+RT.BELOW, RT.ABOVE = 5, 2 -- quests this far below (grey) or above (past yellow) the character's level aren't done on the route
+-- A quest is done on the route up to +2, yellow, taken or not (the player, 2026-11-19: +4 is a lot solo;
+-- the AI's review: a +3 quest at the top of the route is better left until closer to its level); in a
+-- group, two levels more. Orange ones (+3, +4) are still a pick up "for later" when its giver is by
+-- another stop (the player: "I should have at least picked up the quest"): taken, they wait in the log
+-- until the level (or a group) comes.
+RT.LOG_ABOVE, RT.GROUP_ABOVE = 2, 2
+RT.LATER_ABOVE = 2 -- this many levels past the cap (orange), a pick up is still a step "for later"
 RT.STOPS_MAX = 40
 RT.CHAIN_PASSES = 3 -- follow-ups planned this many steps down a chain
 RT.PASSES = 8 -- improvement passes over the order
@@ -519,7 +521,7 @@ function RT.Build()
 				local req = tonumber((Try(Q.Quest.requiredLevel, id))) or 1
 				local ql = tonumber((Try(Q.Quest.questLevel, id))) or req
 				local later = ql > level + RT.Above()
-				if req <= level and ql >= level - RT.BELOW and ql <= level + RT.Above() + 1 then
+				if req <= level and ql >= level - RT.BELOW and ql <= level + RT.Above() + RT.LATER_ABOVE then
 					local _, friendly, spot = DG().Giver(Q, id)
 					local mine = not friendly or not ctx.faction or tostring(friendly):find(ctx.faction == "Alliance" and "A" or "H", 1, true)
 					if later and mine and spot and spot.zone == here.area then
@@ -892,10 +894,8 @@ function RT.Aim(z)
 	if type(z) ~= "table" then return end
 	if R.routeAim == z.area then
 		R.routeAim = nil
-		ns.Chat.System("The arrow points at the route's steps again.")
 	else
 		R.routeAim = z.area
-		ns.Chat.System("The arrow points the way to " .. z.zone .. ". Click it again to go back to the route's steps.")
 	end
 	RT.Refresh()
 end
@@ -2047,7 +2047,8 @@ local function Plain(s)
 			bits[#bits + 1] = "do " .. list .. (g.buy and (" (buy " .. g.buy .. (g.from and (" from " .. g.from) or "") .. ")") or "")
 		end
 	end
-	return table.concat(bits, "; ")
+	local at = (tonumber(s.x) and tonumber(s.y)) and (" (at " .. math.floor(s.x + 0.5) .. ", " .. math.floor(s.y + 0.5) .. ")") or ""
+	return table.concat(bits, "; ") .. at
 end
 function RT.Part()
 	if not RT.On() then return nil end

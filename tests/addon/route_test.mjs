@@ -536,7 +536,7 @@ test('levels: a quest in the log to +3 is done on the route; +4 and up wait for 
   assert.deepEqual(vm.json('NS.R.route.later').sort(), ['Orange Errand', 'Red Errand']);
   vm.run('STUB.grouped = true');
   ks = keys(vm).join(' ');
-  assert.ok(ks.includes('do:720') && ks.includes('do:721'), 'in a group: both');
+  assert.ok(ks.includes('do:720') && !ks.includes('do:721'), 'in a group: +4 done, +5 still later');
   // Done in the group, then solo again: the turn-in is still on the route (free XP at any level).
   vm.run('STUB.grouped = false; STUB.quests[#STUB.quests].complete = true; STUB.qdb.quests[721] = { name = "Red Errand", zone = 38, level = 20, ender = 801 }');
   ks = keys(vm).join(' ');
@@ -563,7 +563,7 @@ test('talking to a giver to turn in doesn\'t mark the follow-up he\'ll give afte
   assert.ok(keys(vm).join(' ').includes('pickup:706'), 'back on the route');
 });
 
-test('a pick up is suggested to +3 solo (the player, 2026-11-19: +4 is a lot alone), +5 in a group', () => {
+test('a quest is done on the route to +2 solo (the AI\'s review: leave a +3 one until closer), +4 in a group; orange ones picked up for later', () => {
   const vm = newVM({ before: ZONE + `
     STUB.qdb.quests[729] = { name = "Hard Pick Up", zone = 38, level = 18, npc = 802, ender = 802 }
     STUB.qdb.quests[730] = { name = "Orange Pick Up", zone = 38, level = 19, npc = 802, ender = 802 }
@@ -573,7 +573,7 @@ test('a pick up is suggested to +3 solo (the player, 2026-11-19: +4 is a lot alo
     STUB.grouped = false
     IsInGroup = function() return STUB.grouped end` }).login().advance(9);
   let ks = keys(vm).join(' ');
-  assert.ok(ks.includes('pickup:729') && ks.includes('turnin:729'), ks);
+  assert.ok(ks.includes('pickup:729') && !ks.includes('turnin:729'), `solo, +3: picked up for later, not done: ${ks}`);
   assert.ok(ks.includes('pickup:730') && !ks.includes('turnin:730'), `solo, +4: picked up for later, not done: ${ks}`);
   assert.ok(!ks.includes(':731'), `solo, +5: not at all: ${ks}`);
   assert.ok(!ks.includes(':732'), `+4 from a giver the route doesn't pass: no detour: ${ks}`);
@@ -584,7 +584,8 @@ test('a pick up is suggested to +3 solo (the player, 2026-11-19: +4 is a lot alo
     if g.q == 730 then return NS.Route.GoalText(g) end end end end)()`), 'Pick up Orange Pick Up |cff888888(for later)|r');
   vm.run('STUB.grouped = true');
   ks = keys(vm).join(' ');
-  assert.ok(ks.includes('turnin:730') && ks.includes('turnin:731'), `in a group: done: ${ks}`);
+  assert.ok(ks.includes('turnin:729') && ks.includes('turnin:730'), `in a group: +3 and +4 done: ${ks}`);
+  assert.ok(ks.includes('pickup:731') && !ks.includes('turnin:731'), `in a group: +5 for later: ${ks}`);
 });
 
 // The world map: a canvas 1000 x 667 showing Loch Modan.
@@ -691,8 +692,9 @@ test('the AI gets the route (advisor.route): the steps in words, without live co
   const part = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Advisor.Part())'));
   assert.equal(part.route.zone, 'Loch Modan');
   assert.deepEqual([part.route.step, part.route.of], [1, 3]);
-  assert.deepEqual(part.route.steps, ['1. do Kobold Candles', '2. turn in Kobold Candles, Mountaineer\'s Report to Mountaineer Kadrell',
-    '3. pick up Ironband\'s Excavation from Prospector Ironband; do Ironband\'s Excavation; turn in Ironband\'s Excavation to Prospector Ironband; pick up Ironband Wants Help from Prospector Ironband; turn in Ironband Wants Help to Prospector Ironband']);
+  assert.deepEqual(part.route.steps, ['1. do Kobold Candles (at 20, 21)', '2. turn in Kobold Candles, Mountaineer\'s Report to Mountaineer Kadrell (at 50, 52)',
+    '3. pick up Ironband\'s Excavation from Prospector Ironband; do Ironband\'s Excavation; turn in Ironband\'s Excavation to Prospector Ironband; pick up Ironband Wants Help from Prospector Ironband; turn in Ironband Wants Help to Prospector Ironband (at 85, 85)'],
+    'each with where it is (the AI searched the web for a giver\'s place)');
   const { validatePart } = await import('../../core/link/charstate.mjs');
   assert.equal(validatePart('advisor', part).ok, true);
   vm.slash('route');

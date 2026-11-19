@@ -203,7 +203,7 @@ test('one NPC\'s many quests (the player, 2026-11-19: Field Captain Palandar\'s 
   assert.match(vm.evaluate('SpellmindRoute.nowSub:GetText()'), /^Duskwood Mission Done [12], Duskwood Mission Done [12]$/);
   assert.equal(vm.evaluate('SpellmindRoute.thens[1]:GetText()'), '|cff888888Then:|r Pick up 6 quests from Field Captain Palandar');
   const shown = [1, 2, 3, 4].map(i => vm.evaluate(`tostring(SpellmindRoute.next[${i}] and SpellmindRoute.next[${i}].shown)`));
-  assert.deepEqual(shown, ['true', 'true', 'true', 'nil'], 'three Up next lines at most');
+  assert.deepEqual(shown, ['true', 'true', 'true', 'false'], 'three Up next lines at most');
   assert.ok(vm.num('SpellmindRoute.height') <= 260, `the window fits its lines: ${vm.num('SpellmindRoute.height')}`);
 });
 
@@ -261,4 +261,32 @@ test('quests not in this version of the game (the player, 2026-11-19): Questie\'
   const ks = keys(vm).join(' ');
   assert.ok(!ks.includes('pickup:702'), `Questie hides 702: ${ks}`);
   assert.ok(ks.includes('pickup:81730'), 'and says 81730 is fine: its list wins over the id range');
+});
+
+test('the tracker sized by its corner shows more of Up next; the fold shows the current step alone; both kept (the player, 2026-11-19)', () => {
+  const vm = session();
+  // Eight more quests to pick up, each at its own spot along the zone.
+  vm.run(`
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    for i = 1, 8 do
+      N[820 + i] = { name = "Giver " .. i, zone = 38, spawns = { [38] = { { 5 + i * 9, 95 } } }, friendly = "A" }
+      Q[750 + i] = { name = "Errand " .. i, zone = 38, level = 15, npc = 820 + i, ender = 820 + i }
+    end`);
+  vm.slash('route');
+  const shown = () => Array.from({ length: 12 }, (_, i) => vm.evaluate(`tostring(SpellmindRoute.next[${i + 1}].shown)`)).filter(x => x === 'true').length;
+  assert.equal(shown(), 3, 'three until it\'s sized');
+  // The player drags the corner: the size is kept, and more steps fit.
+  vm.run('SpellmindRoute.height = 480; SpellmindRoute.grip.scripts.OnMouseUp(SpellmindRoute.grip)');
+  assert.equal(vm.num('SpellmindDB.routeUI.h'), 480);
+  assert.ok(shown() > 3, `more of Up next: ${shown()}`);
+  assert.equal(vm.num('SpellmindRoute.height'), 480, 'the player\'s height kept');
+  // The fold: the current step alone; the choice kept.
+  vm.run('SpellmindRoute.fold.scripts.OnClick(SpellmindRoute.fold)');
+  assert.equal(shown(), 0);
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.skip.shown)'), 'false');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.go.shown)'), 'true', 'Go stays');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.routeUI.compact)'), 'true');
+  assert.ok(vm.num('SpellmindRoute.height') < 150, 'short when folded');
+  vm.run('SpellmindRoute.fold.scripts.OnClick(SpellmindRoute.fold)');
+  assert.ok(shown() > 3, 'unfolded: back to the player\'s size');
 });

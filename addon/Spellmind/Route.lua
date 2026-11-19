@@ -883,8 +883,15 @@ ns.On("PLAYER_REGEN_ENABLED", function() if R.routeStale and RT.Shown() then R.r
 ---------------------------------------------------------------------------
 
 RT.W, RT.H = 330, 240
-RT.UPNEXT_LINES = 3
+RT.UPNEXT_LINES = 3 -- until the player sizes the window; then as many as fit
+RT.NEXT_MAX = 12
 RT.THEN_LINES = 2
+RT.MIN_W, RT.MIN_H, RT.MAX_W, RT.MAX_H = 260, 150, 640, 720
+-- The window's size and fold, kept: SpellmindDB.routeUI = { w, h, compact }.
+local function UI()
+	ns.db.routeUI = type(ns.db.routeUI) == "table" and ns.db.routeUI or {}
+	return ns.db.routeUI
+end
 
 local BACKDROP = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
 	tile = true, tileSize = 16, edgeSize = 14, insets = { left = 4, right = 4, top = 4, bottom = 4 } }
@@ -921,11 +928,16 @@ local function Build()
 	f.portrait:SetTexture(ns.Marks and ns.Marks.PORTRAIT or "Interface\\AddOns\\Spellmind\\Media\\Portrait")
 	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -12)
-	f.step = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	f.step:SetPoint("TOPRIGHT", f, "TOPRIGHT", -30, -14)
 	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
 	f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
 	f.close:SetScript("OnClick", function() f:Hide() end)
+	-- The fold (the player, 2026-11-19): only the current step, for less on screen while questing.
+	f.fold = CreateFrame("Button", nil, f)
+	f.fold:SetSize(16, 16)
+	f.fold:SetPoint("RIGHT", f.close, "LEFT", 0, 0)
+	f.fold:SetScript("OnClick", function() local ui = UI(); ui.compact = not ui.compact or nil; RT.Draw() end)
+	f.step = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	f.step:SetPoint("RIGHT", f.fold, "LEFT", -4, 0)
 	-- The current step, on a lighter band: its line (with progress), the names under a many-quest
 	-- line, and Go; then up to two more lines of the same stop.
 	f.band = CreateFrame("Frame", nil, f, "BackdropTemplate")
@@ -952,7 +964,7 @@ local function Build()
 	f.nextLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	f.nextLabel:SetText("Up next")
 	f.next = {}
-	for i = 1, RT.UPNEXT_LINES do
+	for i = 1, RT.NEXT_MAX do
 		local l = Line(f, "GameFontHighlightSmall", RT.W - 40)
 		if l.SetWordWrap then l:SetWordWrap(false) end
 		f.next[i] = l
@@ -968,6 +980,27 @@ local function Build()
 	f.rebuild = ns.GearUI.Button(f, "Rebuild", 76)
 	f.rebuild:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 10)
 	f.rebuild:SetScript("OnClick", function() RT.Build(); RT.Draw() end)
+	-- Sized by its corner (the player, 2026-11-19): taller shows more of Up next; the size is kept.
+	f:SetResizable(true)
+	if f.SetResizeBounds then f:SetResizeBounds(RT.MIN_W, RT.MIN_H, RT.MAX_W, RT.MAX_H)
+	elseif f.SetMinResize then f:SetMinResize(RT.MIN_W, RT.MIN_H); if f.SetMaxResize then f:SetMaxResize(RT.MAX_W, RT.MAX_H) end end
+	f.grip = CreateFrame("Button", nil, f)
+	f.grip:SetSize(16, 16)
+	f.grip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -3, 3)
+	f.grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+	f.grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+	f.grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+	f.grip:SetScript("OnMouseDown", function() f.sizing = true; f:StartSizing("BOTTOMRIGHT") end)
+	f.grip:SetScript("OnMouseUp", function()
+		f:StopMovingOrSizing()
+		f.sizing = nil
+		local ui = UI()
+		ui.w, ui.h = math.floor((tonumber(f:GetWidth()) or RT.W) + 0.5), math.floor((tonumber(f:GetHeight()) or RT.H) + 0.5)
+		RT.Draw()
+	end)
+	f:SetScript("OnSizeChanged", function() if f.sizing then RT.Draw() end end)
+	local ui = UI()
+	if ui.w then f:SetWidth(math.max(RT.MIN_W, math.min(RT.MAX_W, ui.w))) end
 	f:Hide()
 	RT.frame = f
 	return f
@@ -1004,6 +1037,13 @@ function RT.Draw()
 	local f = RT.frame
 	if not f then return end
 	local route = R.route or {}
+	local ui = UI()
+	local W = tonumber(f:GetWidth()) or RT.W
+	f.now:SetWidth(W - 96); f.nowSub:SetWidth(W - 96); f.also:SetWidth(W - 28)
+	for _, l in ipairs(f.thens) do l:SetWidth(W - 40) end
+	for _, l in ipairs(f.next) do l:SetWidth(W - 40) end
+	f.fold:SetNormalTexture(ui.compact and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+	f.fold.tip = ui.compact and "Show Up next" or "Only the current step"
 	f.title:SetText("Route" .. (route.zone and (" · " .. ns.Escape(route.zone)) or ""))
 	local cur, i = RT.Current()
 	local done, total = RT.Progress()
@@ -1026,6 +1066,16 @@ function RT.Draw()
 	if cur then f.go:Show() else f.go:Hide() end
 	local bandH = 16 + math.max(20, tonumber(f.now:GetStringHeight()) or 20) + (sub and (3 + (tonumber(f.nowSub:GetStringHeight()) or 12)) or 0)
 	f.band:SetHeight(bandH)
+	local rest = { f.nextLabel, f.also, f.back, f.skip, f.rebuild, f.grip }
+	-- Folded: the current step alone.
+	if ui.compact then
+		for _, l in ipairs(f.thens) do l:Hide() end
+		for _, l in ipairs(f.next) do l:Hide() end
+		for _, r in ipairs(rest) do r:Hide() end
+		if not f.sizing then f:SetHeight(36 + bandH + 10) end
+		return
+	end
+	for _, r in ipairs({ f.also, f.back, f.skip, f.rebuild, f.grip }) do r:Show() end
 	local y = -36 - bandH - 8
 	-- Then: the rest of this stop, two lines at most.
 	for k, l in ipairs(f.thens) do
@@ -1043,7 +1093,14 @@ function RT.Draw()
 		end
 	end
 	y = y - 6
-	local upnext = RT.UpNext(RT.UPNEXT_LINES)
+	-- How many of Up next: three, or as many as the player's size of the window holds.
+	local also = AlsoText(route)
+	f.also:SetText(also and ("|cff888888" .. also .. "|r") or "")
+	local alsoH = also and (8 + (tonumber(f.also:GetStringHeight()) or 12)) or 0
+	local fixedH = f.sizing and (tonumber(f:GetHeight()) or RT.H) or ui.h
+	local lines = RT.UPNEXT_LINES
+	if fixedH then lines = math.max(1, math.min(RT.NEXT_MAX, math.floor((fixedH + y - 16 - alsoH - 44) / 15))) end
+	local upnext = RT.UpNext(lines)
 	f.nextLabel:ClearAllPoints()
 	f.nextLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
 	if #upnext > 0 then f.nextLabel:Show() else f.nextLabel:Hide() end
@@ -1061,13 +1118,12 @@ function RT.Draw()
 			l:Hide()
 		end
 	end
-	local also = AlsoText(route)
 	f.also:ClearAllPoints()
 	f.also:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y - 8)
-	f.also:SetText(also and ("|cff888888" .. also .. "|r") or "")
-	if also then y = y - 8 - (tonumber(f.also:GetStringHeight()) or 12) end
-	-- As tall as what it shows, with room for the buttons (the player, 2026-11-19: text ran out of it).
-	f:SetHeight(math.max(150, -y + 44))
+	y = y - alsoH
+	-- As tall as what it shows, with room for the buttons (the player, 2026-11-19: text ran out of it),
+	-- or the player's own size.
+	if not f.sizing then f:SetHeight(ui.h and math.max(RT.MIN_H, math.min(RT.MAX_H, ui.h)) or math.max(RT.MIN_H, -y + 44)) end
 	if R.routeSkipped and #R.routeSkipped > 0 then f.back:Enable() else f.back:Disable() end
 	if cur then f.skip:Enable() else f.skip:Disable() end
 end

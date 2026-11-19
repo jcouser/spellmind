@@ -1836,12 +1836,24 @@ local DOT_TEX = "Interface\\AddOns\\Spellmind\\Media\\Dot"
 local marks = { areas = {}, dots = {}, shown = 0 }
 RT.marks = marks
 
-local function Layer(canvas)
-	if marks.layer then return marks.layer end
-	local l = CreateFrame("Frame", "SpellmindRouteMap", canvas)
-	l:SetAllPoints(canvas)
-	l:SetFrameLevel((tonumber((canvas:GetFrameLevel())) or 1) + 2)
-	marks.layer = l
+-- Above the map's own art, under its points of interest (Questie's marks among them): the map gives
+-- each kind of pin its frame level (seen in game, 2026-11-19: a layer 2 levels over the canvas was
+-- under the map's art, and nothing showed).
+RT.MAP_POI_LEVEL = "PIN_FRAME_LEVEL_AREA_POI"
+local function LayerLevel(W, canvas)
+	local m = type(W.GetPinFrameLevelsManager) == "function" and Try(W.GetPinFrameLevelsManager, W) or nil
+	local lvl = type(m) == "table" and type(m.GetValidFrameLevel) == "function" and tonumber((Try(m.GetValidFrameLevel, m, RT.MAP_POI_LEVEL))) or nil
+	if lvl then return math.max(1, lvl - 1) end
+	return (tonumber((canvas:GetFrameLevel())) or 1) + 100
+end
+local function Layer(W, canvas)
+	local l = marks.layer
+	if not l then
+		l = CreateFrame("Frame", "SpellmindRouteMap", canvas)
+		l:SetAllPoints(canvas)
+		marks.layer = l
+	end
+	l:SetFrameLevel(LayerLevel(W, canvas))
 	return l
 end
 local function AreaTex(layer, k)
@@ -1892,7 +1904,7 @@ function RT.DrawMap()
 	Hook(W)
 	local canvas = W:GetCanvas()
 	if not canvas then return end
-	local layer = Layer(canvas)
+	local layer = Layer(W, canvas)
 	for _, t in pairs(marks.areas) do t:Hide() end
 	for _, d in pairs(marks.dots) do d:Hide(); d.stop = nil end
 	marks.shown = 0

@@ -664,3 +664,16 @@ test('Settings: the Quest route switch, the arrow and the map\'s steps; the Ques
   assert.equal(vm.evaluate('tostring(SpellmindRoute.shown)'), 'false');
   assert.equal(vm.evaluate('tostring(NS.Route.On())'), 'false');
 });
+
+test('the map\'s layer goes over the map\'s art, under its points of interest (seen in game: it was under the art)', () => {
+  const vm = session();
+  vm.run(MAP + `
+    WorldMapFrame.canvas:SetFrameLevel(5)
+    function WorldMapFrame:GetPinFrameLevelsManager()
+      return { GetValidFrameLevel = function(self, kind) return kind == "PIN_FRAME_LEVEL_AREA_POI" and 600 or 50 end }
+    end`);
+  vm.slash('route');
+  assert.equal(vm.num('SpellmindRouteMap:GetFrameLevel()'), 599);
+  vm.run('WorldMapFrame.GetPinFrameLevelsManager = nil; NS.Route.DrawMap()');
+  assert.equal(vm.num('SpellmindRouteMap:GetFrameLevel()'), 105, 'no levels to ask: well over the canvas');
+});

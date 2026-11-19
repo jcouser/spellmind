@@ -50,6 +50,7 @@ function Methods.SetIgnoreParentScale(self, v) self.ignoreParentScale = v end
 function Methods.SetIgnoreParentAlpha(self, v) self.ignoreParentAlpha = v end
 function Methods.SetFrameStrata(self, s) self.strata = s end
 function Methods.SetFrameLevel(self, l) self.level = l end
+function Methods.GetFrameLevel(self) return self.level or 1 end
 function Methods.SetMaxBytes(self, n) self.maxBytes = n end
 function Methods.SetMovable(self, v) self.movable = v end
 function Methods.AddMessage(self, text) self.messages = self.messages or {}; table.insert(self.messages, tostring(text)) end

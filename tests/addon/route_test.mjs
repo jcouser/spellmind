@@ -1311,3 +1311,22 @@ test('a swim on a trail counts at the swim\'s pace: taken only when it\'s really
   vm.run('GetUnitSpeed = function() return 0, 7, 0, 7 end');
   assert.equal(via(), 'swim');
 });
+
+test('a prep route across zones goes by travel time, not the straight line (the player, 2026-11-19: it zig-zagged)', () => {
+  // A third Deadmines quest from Thane Ironbelly in Ironforge. From Loch Modan, Ironforge is nearer in a
+  // straight line, but Westfall is 5 minutes by air and Ironforge 10 on foot.
+  const vm = newVM({ before: ZONE + PREP + `
+    STUB.qdb.quests[1004] = { name = "Ironforge's Errand", zone = 1581, level = 17, npc = 900, ender = 900 }` }).login().advance(9);
+  vm.run('NS.Route.SetMode("dungeon", "The Deadmines")');
+  const firstZone = () => vm.evaluate('(function() local s = NS.R.route.stops[1]; return s.zoneName or "here" end)()');
+  assert.equal(firstZone(), 'Ironforge', 'no flight paths: the nearer, Ironforge');
+  vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED"); NS.Route.Build()');
+  assert.equal(firstZone(), 'Westfall', 'by air, Westfall first: the quicker');
+});
+
+test('yards between two spots on another zone\'s map are that map\'s, not the player\'s zone\'s size', () => {
+  const vm = session();
+  // Two spots 10% apart east-west on Westfall's map (3000 yards wide in the stub, like Loch Modan's): 300 yards.
+  vm.run('STUB.mapSizes[1436] = { 6000, 4000 }');
+  assert.equal(Math.round(vm.num('NS.Route.Yards({ map = 1436, x = 10, y = 50 }, { map = 1436, x = 20, y = 50 }, NS.Route.Here())')), 600, 'Westfall\'s 6000 yards, not Loch Modan\'s 3000');
+});

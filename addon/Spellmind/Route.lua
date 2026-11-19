@@ -119,7 +119,7 @@ local function PointWorld(p, map)
 end
 function RT.Yards(a, b, here)
 	local am, bm = a.map or (here and here.map), b.map or (here and here.map)
-	if am and bm and am ~= bm then
+	if am and bm and (am ~= bm or (here and here.map and am ~= here.map)) then
 		local wa, wb = PointWorld(a, am), PointWorld(b, bm)
 		if not wa or not wb or wa.c ~= wb.c then return RT.FAR end
 		return math.sqrt((wa.x - wb.x) ^ 2 + (wa.y - wb.y) ^ 2)
@@ -344,15 +344,17 @@ function RT.Keeps(order, rules)
 end
 
 -- The length of a path from start through the stops, in yards.
-function RT.Length(order, start, here)
+function RT.Length(order, start, here, cost)
+	cost = cost or RT.Yards
 	local total, at = 0, start
-	for _, s in ipairs(order) do total = total + RT.Yards(at, s, here); at = s end
+	for _, s in ipairs(order) do total = total + cost(at, s, here); at = s end
 	return total
 end
 
 -- The stops in an efficient order that keeps the rules: nearest next (of the stops whose earlier
 -- goals are done or behind), then 2-opt passes, each kept only when it's shorter and keeps the rules.
-function RT.Order(stops, start, here, rules)
+function RT.Order(stops, start, here, rules, cost)
+	cost = cost or RT.Yards
 	local left, order = {}, {}
 	for _, s in ipairs(stops) do left[#left + 1] = s end
 	local placed = {}
@@ -374,13 +376,13 @@ function RT.Order(stops, start, here, rules)
 		local best, bestD
 		for i, s in ipairs(left) do
 			if Ready(s) then
-				local d = RT.Yards(at, s, here)
+				local d = cost(at, s, here)
 				if not bestD or d < bestD then best, bestD = i, d end
 			end
 		end
 		if not best then -- nothing ready (a rule the data gets wrong): the nearest, so nothing is lost
 			for i, s in ipairs(left) do
-				local d = RT.Yards(at, s, here)
+				local d = cost(at, s, here)
 				if not bestD or d < bestD then best, bestD = i, d end
 			end
 		end
@@ -393,14 +395,14 @@ function RT.Order(stops, start, here, rules)
 	local n = #order
 	for _ = 1, RT.PASSES do
 		local better = false
-		local len = RT.Length(order, start, here)
+		local len = RT.Length(order, start, here, cost)
 		for i = 1, n - 1 do
 			for j = i + 1, n do
 				local try = {}
 				for k = 1, i - 1 do try[#try + 1] = order[k] end
 				for k = j, i, -1 do try[#try + 1] = order[k] end
 				for k = j + 1, n do try[#try + 1] = order[k] end
-				local l2 = RT.Length(try, start, here)
+				local l2 = RT.Length(try, start, here, cost)
 				if l2 < len - 0.5 and RT.Keeps(try, rules) then order, len, better = try, l2, true end
 			end
 		end
@@ -2848,7 +2850,23 @@ function RT.BuildPrep(name)
 		s.key = table.concat(keys, ",")
 	end
 	rules = Rules(stops)
-	route.stops = RT.Order(stops, { x = here.x, y = here.y }, here, rules)
+	-- Across zones by the time to get there (the player, 2026-11-19: Duskwood, Wetlands, then Stormwind
+	-- zig-zagged): the way there's own fastest path (flights, crossings, tram, boats), as yards walked at
+	-- the player's speed; within a zone, the yards. Each pair worked out once.
+	local speed = RT.Speed()
+	local memo = {}
+	local function Cost(p, q)
+		local pm, qm = p.map or here.map, q.map or here.map
+		if pm == qm then return RT.Yards(p, q, here) end
+		memo[p] = memo[p] or {}
+		local c = memo[p][q]
+		if c then return c end
+		local _, minutes = RT.Plan({ map = pm, x = p.x, y = p.y }, { map = qm, x = q.x, y = q.y }, speed)
+		c = minutes and minutes * 60 * speed or RT.Yards(p, q, here) * RT.PATH_FACTOR
+		memo[p][q] = c
+		return c
+	end
+	route.stops = RT.Order(stops, { x = here.x, y = here.y }, here, rules, Cost)
 	route.rules = rules
 	return route
 end

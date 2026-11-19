@@ -1145,7 +1145,7 @@ local function Build()
 	f.thens = {}
 	for i = 1, RT.THEN_LINES do
 		local l = Line(f, "GameFontHighlightSmall", RT.W - 40)
-		if l.SetWordWrap then l:SetWordWrap(false) end
+		if l.SetMaxLines then l:SetMaxLines(3) end
 		f.thens[i] = l
 	end
 	f.nextLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1153,7 +1153,7 @@ local function Build()
 	f.next = {}
 	for i = 1, RT.NEXT_MAX do
 		local l = Line(f, "GameFontHighlightSmall", RT.W - 40)
-		if l.SetWordWrap then l:SetWordWrap(false) end
+		if l.SetMaxLines then l:SetMaxLines(3) end
 		f.next[i] = l
 	end
 	-- Where next: the best zones to go on to, each a line to click for a pin at its quest givers.
@@ -1164,8 +1164,8 @@ local function Build()
 		local b = CreateFrame("Button", nil, f)
 		b:SetSize(RT.W - 40, 15)
 		b.text = Line(b, "GameFontHighlightSmall", RT.W - 40)
-		if b.text.SetWordWrap then b.text:SetWordWrap(false) end
-		b.text:SetPoint("LEFT", b, "LEFT", 0, 0)
+		if b.text.SetMaxLines then b.text:SetMaxLines(3) end
+		b.text:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
 		b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
 		b:SetScript("OnClick", function(self) if self.zone then RT.GoZone(self.zone) end end)
 		f.where[i] = b
@@ -1177,7 +1177,7 @@ local function Build()
 	f.away = {}
 	for i = 1, RT.AWAY_LINES do
 		local l = Line(f, "GameFontHighlightSmall", RT.W - 40)
-		if l.SetWordWrap then l:SetWordWrap(false) end
+		if l.SetMaxLines then l:SetMaxLines(3) end
 		f.away[i] = l
 	end
 	f.credit = Line(f, "GameFontDisableSmall", RT.W - 28)
@@ -1282,6 +1282,11 @@ local function AlsoText(route)
 	return text
 end
 
+local function Row(fs)
+	local h = tonumber(fs:GetStringHeight()) or 12
+	return h > 16 and math.floor(h + 4.5) or 15
+end
+
 function RT.Draw()
 	local f = RT.frame
 	if not f then return end
@@ -1343,7 +1348,7 @@ function RT.Draw()
 			local last = k == RT.THEN_LINES and #groups > RT.THEN_LINES + 1
 			l:SetText("|cff888888Then:|r " .. RT.GroupText(gr) .. (last and (" |cff888888(+" .. (#groups - RT.THEN_LINES - 1) .. ")|r") or ""))
 			l:Show()
-			y = y - 15
+			y = y - Row(l)
 		else
 			l:SetText("")
 			l:Hide()
@@ -1357,26 +1362,39 @@ function RT.Draw()
 	-- Where next, when the band isn't already saying it: the zones after the first.
 	local shownWhere = {}
 	for k, z in ipairs(wl) do if cur or k > 1 then shownWhere[#shownWhere + 1] = z end end
-	local alsoH = (#away > 0 and (14 + 16 + #away * 15) or 0) + (credit and 16 or 0)
-		+ (#shownWhere > 0 and (14 + 16 + #shownWhere * 15) or 0)
+	local whereH, awayH = 0, 0
+	for k, b in ipairs(f.where) do
+		local z = shownWhere[k]
+		b.zone = z
+		b.text:SetText(z and ("|cffffd100" .. ns.Escape(z.zone) .. ":|r " .. RT.WhereText(z)) or "")
+		if z then b:SetHeight(Row(b.text)); whereH = whereH + Row(b.text) end
+	end
+	for k, l in ipairs(f.away) do
+		l:SetText(away[k] or "")
+		if away[k] then awayH = awayH + Row(l) end
+	end
+	local alsoH = (#away > 0 and (14 + 16 + awayH) or 0) + (credit and 16 or 0)
+		+ (#shownWhere > 0 and (14 + 16 + whereH) or 0)
 	local fixedH = f.sizing and (tonumber(f:GetHeight()) or RT.H) or ui.h
-	local lines = RT.UPNEXT_LINES
-	if fixedH then lines = math.max(1, math.min(RT.NEXT_MAX, math.floor((fixedH + y - 16 - alsoH - 44) / 15))) end
-	local upnext = RT.UpNext(lines)
+	-- Room for Up next: three, or as many as the player's size of the window holds (one at least).
+	local room = fixedH and (fixedH + y - 16 - alsoH - 44) or nil
+	local upnext = RT.UpNext(fixedH and RT.NEXT_MAX or RT.UPNEXT_LINES)
 	f.nextLabel:ClearAllPoints()
 	f.nextLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
 	if #upnext > 0 then f.nextLabel:Show() else f.nextLabel:Hide() end
 	y = y - 16
+	local used = 0
 	for k, l in ipairs(f.next) do
 		local s = upnext[k]
 		l:ClearAllPoints()
 		l:SetPoint("TOPLEFT", f, "TOPLEFT", 20, y)
-		if s then
-			l:SetText(RT.StopText(s))
+		if s then l:SetText(RT.StopText(s)) else l:SetText("") end
+		local h = s and Row(l)
+		if s and (k == 1 or not room or used + h <= room) then
 			l:Show()
-			y = y - 15
+			y, used = y - h, used + h
 		else
-			l:SetText("")
+			upnext[k] = nil
 			l:Hide()
 		end
 	end
@@ -1395,15 +1413,7 @@ function RT.Draw()
 		local z = shownWhere[k]
 		b:ClearAllPoints()
 		b:SetPoint("TOPLEFT", f, "TOPLEFT", 20, y)
-		b.zone = z
-		if z then
-			b.text:SetText("|cffffd100" .. ns.Escape(z.zone) .. ":|r " .. RT.WhereText(z))
-			b:Show()
-			y = y - 15
-		else
-			b.text:SetText("")
-			b:Hide()
-		end
+		if z then b:Show(); y = y - Row(b.text) else b:Hide() end
 	end
 	-- Elsewhere: a gap, its heading, its lines.
 	f.awayLabel:ClearAllPoints()
@@ -1418,7 +1428,7 @@ function RT.Draw()
 	for k, l in ipairs(f.away) do
 		l:ClearAllPoints()
 		l:SetPoint("TOPLEFT", f, "TOPLEFT", 20, y)
-		if away[k] then l:SetText(away[k]); l:Show(); y = y - 15 else l:SetText(""); l:Hide() end
+		if away[k] then l:Show(); y = y - Row(l) else l:Hide() end
 	end
 	if credit then y = y - 16 end
 	-- As tall as what it shows, with room for the buttons (the player, 2026-11-19: text ran out of it),

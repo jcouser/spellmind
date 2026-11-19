@@ -352,3 +352,14 @@ test('Where next waits while plenty is left here', () => {
   assert.equal(vm.evaluate('tostring(SpellmindRoute.whereLabel.shown)'), 'false');
   assert.equal(vm.evaluate('tostring(SpellmindRoute.where[1].shown)'), 'false');
 });
+
+test('a narrow window wraps a long line (the player, 2026-11-19: it cut them off) and moves what\'s under it down', () => {
+  const vm = session();
+  vm.slash('route');
+  const top = i => vm.num(`select(5, SpellmindRoute.next[${i}]:GetPoint())`);
+  const gap = top(1) - top(2);
+  assert.equal(gap, 15, 'one line each');
+  // The first line wraps to two (the game measures 26).
+  vm.run('SpellmindRoute.next[1].GetStringHeight = function() return 26 end; NS.Route.Draw()');
+  assert.equal(top(1) - top(2), 30, 'the next line under both of its lines');
+});

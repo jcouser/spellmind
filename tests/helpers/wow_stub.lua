@@ -813,6 +813,13 @@ STUB.tooltips[STUB.ItemLink(1210)] = { "Shadowgem", "Crafting Reagent" }
 STUB.completed = {}
 C_QuestLog.IsQuestFlaggedCompleted = function(id) return STUB.completed[id] or false end
 C_Map.GetAreaInfo = function(id) return ({ [16919] = "The Hall of Thanes", [1581] = "The Deadmines", [1537] = "Ironforge", [40] = "Westfall" })[id] end
+-- The world: each zone map's corner in its continent's yards (the stub's 3000 x 2000 maps, side by side).
+STUB.mapOrigins = { [1432] = { 0, 0 }, [1455] = { 3000, 0 }, [1436] = { 9000, 0 } }
+C_Map.GetWorldPosFromMapPos = function(map, v)
+	local o = STUB.mapOrigins[map]
+	if not o then return nil end
+	return 0, { x = o[1] + v.x * 3000, y = o[2] + v.y * 2000 }
+end
 STUB.qdb = {
 	quests = {
 		[96393] = { name = "Old Ironforge Incursion", zone = 16919, level = 16 },

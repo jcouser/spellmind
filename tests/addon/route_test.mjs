@@ -298,3 +298,57 @@ test('the tracker sized by its corner shows more of Up next; the fold shows the 
   vm.run('SpellmindRoute.fold.scripts.OnClick(SpellmindRoute.fold)');
   assert.ok(shown() > 3, 'unfolded: back to the player\'s size');
 });
+
+// Where next (the player, 2026-11-19: a leveling guide sent them to Stormwind while Duskwood still had
+// quests for them). Ironforge (3000 yards east of Loch Modan's corner): two quests from Thane Ironbelly.
+// Westfall (9000 yards): three from Gryan, and one above the level that doesn't count.
+const MORE = `
+  local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+  Q[710] = { name = "Forge Work", zone = 1537, level = 15, npc = 900 }
+  Q[711] = { name = "Anvil Dust", zone = 1537, level = 16, npc = 900 }
+  N[810] = { name = "Gryan Stoutmantle", zone = 40, spawns = { [40] = { { 56, 48 } } }, friendly = "A" }
+  Q[712] = { name = "Westfall Stew", zone = 40, level = 14, npc = 810 }
+  Q[713] = { name = "Harvest Golems", zone = 40, level = 15, npc = 810 }
+  Q[714] = { name = "Murloc Fins", zone = 40, level = 16, npc = 810 }
+  Q[715] = { name = "The Defias Lair", zone = 40, level = 22, req = 20, npc = 810 }`;
+
+test('Where next: the zones by quests left for this character and the time to get there; the AI has it too', async () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  const zones = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Route.ZonesPart())'));
+  assert.deepEqual(zones.map(z => z.zone), ['Loch Modan', 'Ironforge', 'Westfall'], 'here first while it has quests, then the nearer one');
+  assert.equal(zones[0].here, true);
+  assert.deepEqual([zones[1].toPickUp, zones[1].minutesAway], [2, 10]);
+  assert.deepEqual([zones[2].toPickUp, zones[2].levels], [3, '14–16'], 'the one above the level left out');
+  // The AI's advisor part carries it, and the app's contract takes it.
+  const part = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Advisor.Part())'));
+  assert.equal(part.whereNext.length, 3);
+  const { validatePart } = await import('../../core/link/charstate.mjs');
+  assert.equal(validatePart('advisor', part).ok, true);
+  // Three steps left here: the tracker shows Where next, each line a pin at that zone's quest givers.
+  vm.slash('route');
+  assert.equal(vm.evaluate('SpellmindRoute.whereLabel:GetText()'), 'Where next');
+  assert.equal(vm.evaluate('SpellmindRoute.where[1].text:GetText()'), '|cffffd100Ironforge:|r 2 quests to pick up · about 10 min away');
+  vm.run('SpellmindRoute.where[2].scripts.OnClick(SpellmindRoute.where[2])');
+  assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1436, 'Westfall\'s map');
+  assert.equal(vm.evaluate('string.format("%.0f", STUB.waypoints[1].position.x * 100)'), '56', 'at Gryan');
+});
+
+test('Where next: done here, the band names the next zone and Go pins it', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run('STUB.quests = {}; for id = 700, 704 do STUB.completed[id] = true end');
+  vm.slash('route');
+  assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /Done here at your level.*Next: .*Ironforge/);
+  assert.match(vm.evaluate('SpellmindRoute.nowSub:GetText()'), /2 quests to pick up · about 10 min away/);
+  assert.equal(vm.evaluate('SpellmindRoute.whereLabel:GetText()'), 'Or');
+  assert.match(vm.evaluate('SpellmindRoute.where[1].text:GetText()'), /Westfall/);
+  vm.run('SpellmindRoute.go.scripts.OnClick(SpellmindRoute.go)');
+  assert.equal(vm.num('STUB.waypoints[1].uiMapID'), 1455, 'Ironforge\'s map');
+});
+
+test('Where next waits while plenty is left here', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run('NS.Route.WHERE_WHEN = 1');
+  vm.slash('route');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.whereLabel.shown)'), 'false');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.where[1].shown)'), 'false');
+});

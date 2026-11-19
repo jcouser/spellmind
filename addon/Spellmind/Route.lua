@@ -535,7 +535,191 @@ function RT.Build()
 	rules = RT.Rules(stops, chains)
 	route.stops = RT.Order(stops, { x = here.x, y = here.y }, here, rules)
 	route.rules = rules
+	if Q then route.where = RT.Zones(true) end
 	return route
+end
+
+---------------------------------------------------------------------------
+-- Where next
+---------------------------------------------------------------------------
+
+-- The player (2026-11-19): a leveling guide sent them to Stormwind for its next stretch while Duskwood
+-- still had quests for them, and the AI said stay. So the zones are ranked by what's really left for
+-- this character (quests it can pick up there now, at its level, not done, and its log's quests there),
+-- against the time it takes to get there and do them. Needs QuestieDB.
+RT.WHERE_WHEN = 3 -- steps left here at or below which the tracker shows Where next
+RT.WHERE_SHOWN = 3
+RT.WHERE_MAX = 5 -- other zones kept (for the tracker and the AI)
+RT.WHERE_MIN = 2 -- fewer quests than this isn't somewhere to go next
+RT.QUEST_MINUTES = 5 -- a quest's time, on average: to the giver, the objectives, back
+RT.RUN_SPEED, RT.MOUNT_LEVEL, RT.MOUNT_SPEED = 7, 40, 11 -- yards a second
+RT.PATH_FACTOR = 1.3 -- roads and hills: the way is longer than the straight line
+RT.SEA_MINUTES = 12 -- another continent: a boat or a tram, about
+RT.WHERE_KEEP = 30 -- seconds a count is kept (quest events clear it sooner)
+
+-- A spot's place in the world: { c = continent, x, y } in yards, or nil.
+local function World(map, x, y)
+	local M = rawget(_G, "C_Map")
+	if not map or type(M) ~= "table" or type(M.GetWorldPosFromMapPos) ~= "function" then return nil end
+	local V = rawget(_G, "CreateVector2D")
+	local v = type(V) == "function" and V(x / 100, y / 100) or { x = x / 100, y = y / 100 }
+	local ok, c, pos = pcall(M.GetWorldPosFromMapPos, map, v)
+	if not ok or type(c) ~= "number" or type(pos) ~= "table" then return nil end
+	local px, py
+	if type(pos.GetXY) == "function" then px, py = pos:GetXY() else px, py = pos.x, pos.y end
+	if type(px) ~= "number" or type(py) ~= "number" then return nil end
+	return { c = c, x = px, y = py }
+end
+
+local function ZoneName(area)
+	local M = rawget(_G, "C_Map")
+	local n = area and M and type(M.GetAreaInfo) == "function" and Try(M.GetAreaInfo, area) or nil
+	return type(n) == "string" and n ~= "" and n or nil
+end
+
+-- A quest's fixed facts, read once a session: its levels and (when asked) its giver.
+local facts = {}
+local function Facts(Q, id)
+	local f = facts[id]
+	if not f then
+		local req = tonumber((Try(Q.Quest.requiredLevel, id))) or 1
+		f = { req = req, ql = tonumber((Try(Q.Quest.questLevel, id))) or req }
+		facts[id] = f
+	end
+	return f
+end
+
+-- R.routeWhere.list = { { area, zone, map, here, quests (to pick up), inLog, low, high, minutes (to
+-- get there), spot (its quest givers, for Go), rate } }, best first; the player's own zone is in it
+-- (here = true) for the AI, so "stay" can be the answer. nil without QuestieDB or a position.
+function RT.Zones(fresh)
+	local here = RT.Here()
+	local Q = L()
+	if not here or not Q or not here.area then return nil end
+	local level = Level()
+	local c = R.routeWhere
+	if not fresh and c and c.area == here.area and c.level == level and GetTime() - c.at < RT.WHERE_KEEP then return c.list end
+	local index = DG().Index(function() R.routeWhere = nil; RT.Dirty() end)
+	if not index then return nil end
+	local log = ReadLog()
+	local ctx = DG().Context(Q)
+	local function Has(id) return log[id] ~= nil end
+	local faction = ctx.faction == "Alliance" and "A" or (ctx.faction == "Horde" and "H") or nil
+	local known = ns.db.routeKnown or {}
+	local zones = {}
+	local function Zone(area)
+		local z = zones[area]
+		if not z then z = { area = area, quests = 0, inLog = 0, value = 0, givers = {} }; zones[area] = z end
+		return z
+	end
+	-- To pick up: the same rules as the route's own pick ups.
+	for area, ids in pairs(index) do
+		for _, id in ipairs(ids) do
+			local f = Facts(Q, id)
+			if not log[id] and f.req <= level and f.ql >= level - RT.BELOW and f.ql <= level + RT.ABOVE
+				and not Done(id) and known[id] ~= false and not RT.Hidden(id) and not RT.NotOffered(id)
+				and DG().Fits(Q, id, ctx, Has) and #DG().Missing(id) == 0 then
+				if f.giver == nil then
+					local _, friendly, spot = DG().Giver(Q, id)
+					f.giver, f.friendly = spot or false, friendly
+				end
+				local mine = not f.friendly or not faction or tostring(f.friendly):find(faction, 1, true)
+				if f.giver and mine and f.giver.zone == area then
+					local z = Zone(area)
+					z.quests = z.quests + 1
+					-- A quest a few levels below gives less.
+					z.value = z.value + (f.ql >= level - 2 and 1 or 0.6)
+					z.low, z.high = math.min(z.low or f.ql, f.ql), math.max(z.high or f.ql, f.ql)
+					z.givers[#z.givers + 1] = { f.giver.x, f.giver.y }
+				end
+			end
+		end
+	end
+	-- In the log: where its objectives are, or where it's handed in once complete.
+	for id, q in pairs(log) do
+		local ql = tonumber((Try(Q.Quest.questLevel, id))) or q.level or level
+		if ql <= level + RT.ABOVE then
+			local area
+			if Complete(id) then local fin = RT.TurnIn(Q, id, -1); area = fin and tonumber(fin.zone)
+			else area = tonumber((Try(Q.Quest.zoneOrSort, id))) end
+			if area and area > 0 then local z = Zone(area); z.inLog = z.inLog + 1; z.value = z.value + 1 end
+		end
+	end
+	-- The time: the quests, and the way there (on foot or mounted; flight paths not yet).
+	local me = World(here.map, here.x, here.y)
+	local speed = level >= RT.MOUNT_LEVEL and RT.MOUNT_SPEED or RT.RUN_SPEED
+	local others, mine = {}, nil
+	for area, z in pairs(zones) do
+		local isHere = area == here.area
+		local map = isHere and here.map or DG().MapForArea(area)
+		z.zone = isHere and here.zone or ZoneName(area)
+		if map and z.zone and (isHere or z.quests + z.inLog >= RT.WHERE_MIN) then
+			z.map, z.here = map, isHere or nil
+			local hub = RT.Center(z.givers, 10)
+			z.spot = { zone = area, x = hub and hub.x or 50, y = hub and hub.y or 50, givers = hub and true or nil }
+			local travel = 0
+			if not isHere then
+				local there = World(map, z.spot.x, z.spot.y)
+				if me and there and me.c == there.c then
+					travel = math.sqrt((me.x - there.x) ^ 2 + (me.y - there.y) ^ 2) * RT.PATH_FACTOR / speed / 60
+				elseif me and there then travel = RT.SEA_MINUTES
+				else travel = nil end
+			end
+			z.minutes = travel and math.max(isHere and 0 or 1, math.floor(travel + 0.5)) or nil
+			z.rate = z.value / ((z.quests + z.inLog) * RT.QUEST_MINUTES + (travel or RT.SEA_MINUTES))
+			z.givers = nil
+			if isHere then mine = z else others[#others + 1] = z end
+		end
+	end
+	local function Better(a, b) if a.rate ~= b.rate then return a.rate > b.rate end return a.zone < b.zone end
+	table.sort(others, Better)
+	while #others > RT.WHERE_MAX do table.remove(others) end
+	if mine then others[#others + 1] = mine; table.sort(others, Better) end
+	R.routeWhere = { at = GetTime(), area = here.area, level = level, list = others }
+	return others
+end
+
+-- For the AI (the advisor part): the same ranking, best first, the player's zone marked.
+function RT.ZonesPart()
+	local list = RT.Zones()
+	if not list or #list == 0 then return nil end
+	local O = ns.State.JSON.O
+	local out = {}
+	for _, z in ipairs(list) do
+		out[#out + 1] = O("zone", z.zone, "here", z.here, "toPickUp", z.quests, "inLog", z.inLog,
+			"levels", z.low and DG().Range(z.low, z.high) or nil, "minutesAway", (not z.here) and z.minutes or nil)
+	end
+	return out
+end
+
+-- Go to a zone: a pin at its quest givers.
+function RT.GoZone(z)
+	if type(z) ~= "table" or not z.spot then return nil end
+	if DG().Go(z.spot) then
+		ns.Chat.System("Map pin set: " .. (z.spot.givers and (z.zone .. "'s quest givers") or z.zone) .. ". Follow the arrow.")
+		return "pin"
+	end
+	ns.Chat.System("The game can't pin a spot in " .. z.zone .. ".")
+	return nil
+end
+
+-- "Westfall: 3 quests to pick up, 1 in your log · about 4 min away"
+function RT.WhereText(z)
+	local bits = {}
+	if z.quests > 0 then bits[#bits + 1] = z.quests .. (z.quests == 1 and " quest" or " quests") .. " to pick up" end
+	if z.inLog > 0 then bits[#bits + 1] = z.inLog .. " in your log" end
+	return table.concat(bits, ", ") .. (z.minutes and (" · about " .. z.minutes .. " min away") or "")
+end
+
+-- The other zones for the tracker: once few steps are left here (or none), the best few.
+function RT.WhereLines(route)
+	local out = {}
+	local done, total = RT.Progress()
+	if total - done > RT.WHERE_WHEN then return out end
+	for _, z in ipairs(route.where or {}) do
+		if not z.here and #out < RT.WHERE_SHOWN then out[#out + 1] = z end
+	end
+	return out
 end
 
 -- The current step: the first stop not done and not skipped, with its number.
@@ -871,7 +1055,7 @@ end
 ns.On("MERCHANT_SHOW", function() pcall(RT.OnMerchant) end)
 
 for _, ev in ipairs({ "QUEST_ACCEPTED", "QUEST_TURNED_IN", "QUEST_REMOVED", "ZONE_CHANGED_NEW_AREA", "PLAYER_LEVEL_UP" }) do
-	ns.On(ev, function() RT.Dirty() end)
+	ns.On(ev, function() R.routeWhere = nil; RT.Dirty() end)
 end
 for _, ev in ipairs({ "QUEST_LOG_UPDATE", "QUEST_WATCH_UPDATE", "BAG_UPDATE_DELAYED" }) do
 	ns.On(ev, function() RT.Refresh() end)
@@ -955,7 +1139,9 @@ local function Build()
 	f.nowSub = Line(f.band, "GameFontDisableSmall", RT.W - 96)
 	f.go = ns.GearUI.Button(f.band, "Go", 48)
 	f.go:SetPoint("TOPRIGHT", f.band, "TOPRIGHT", -6, -6)
-	f.go:SetScript("OnClick", function() RT.Go() end)
+	f.go:SetScript("OnClick", function()
+		if RT.Current() then RT.Go() else RT.GoZone(RT.WhereLines(R.route or {})[1]) end
+	end)
 	f.thens = {}
 	for i = 1, RT.THEN_LINES do
 		local l = Line(f, "GameFontHighlightSmall", RT.W - 40)
@@ -969,6 +1155,20 @@ local function Build()
 		local l = Line(f, "GameFontHighlightSmall", RT.W - 40)
 		if l.SetWordWrap then l:SetWordWrap(false) end
 		f.next[i] = l
+	end
+	-- Where next: the best zones to go on to, each a line to click for a pin at its quest givers.
+	f.whereLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	f.whereLabel:SetText("Where next")
+	f.where = {}
+	for i = 1, RT.WHERE_SHOWN do
+		local b = CreateFrame("Button", nil, f)
+		b:SetSize(RT.W - 40, 15)
+		b.text = Line(b, "GameFontHighlightSmall", RT.W - 40)
+		if b.text.SetWordWrap then b.text:SetWordWrap(false) end
+		b.text:SetPoint("LEFT", b, "LEFT", 0, 0)
+		b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+		b:SetScript("OnClick", function(self) if self.zone then RT.GoZone(self.zone) end end)
+		f.where[i] = b
 	end
 	-- Elsewhere: its own heading and lines (the player, 2026-11-19: one crammed line was hard to read),
 	-- and where the route's data comes from, on a line of its own above the buttons.
@@ -1090,6 +1290,8 @@ function RT.Draw()
 	local W = tonumber(f:GetWidth()) or RT.W
 	f.now:SetWidth(W - 96); f.nowSub:SetWidth(W - 96); f.credit:SetWidth(W - 28)
 	for _, l in ipairs(f.away) do l:SetWidth(W - 40) end
+	for _, b in ipairs(f.where) do b:SetWidth(W - 40); b.text:SetWidth(W - 40) end
+	local wl = RT.WhereLines(route)
 	for _, l in ipairs(f.thens) do l:SetWidth(W - 40) end
 	for _, l in ipairs(f.next) do l:SetWidth(W - 40) end
 	f.fold:SetNormalTexture(ui.compact and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
@@ -1102,6 +1304,9 @@ function RT.Draw()
 	local sub
 	if route.nowhere then
 		f.now:SetText("|cff888888No map position here (an instance or a loading screen): the route waits until you're outside.|r")
+	elseif not cur and wl[1] then
+		f.now:SetText("|cff19ff19Done here at your level.|r Next: |cffffd100" .. ns.Escape(wl[1].zone) .. "|r")
+		sub = RT.WhereText(wl[1])
 	elseif not cur then
 		f.now:SetText("|cff19ff19Nothing left here that Spellmind knows of.|r" .. (route.db and "" or
 			"\n|cff888888With QuestieDB installed, the route also lists quests to pick up here, and where mobs are.|r"))
@@ -1113,15 +1318,16 @@ function RT.Draw()
 	f.nowSub:ClearAllPoints()
 	f.nowSub:SetPoint("TOPLEFT", f.now, "BOTTOMLEFT", 0, -3)
 	if sub then f.nowSub:Show() else f.nowSub:Hide() end
-	if cur then f.go:Show() else f.go:Hide() end
+	if cur or wl[1] then f.go:Show() else f.go:Hide() end
 	local bandH = 16 + math.max(20, tonumber(f.now:GetStringHeight()) or 20) + (sub and (3 + (tonumber(f.nowSub:GetStringHeight()) or 12)) or 0)
 	f.band:SetHeight(bandH)
-	local rest = { f.nextLabel, f.awayLabel, f.credit, f.back, f.skip, f.rebuild, f.grip }
+	local rest = { f.nextLabel, f.whereLabel, f.awayLabel, f.credit, f.back, f.skip, f.rebuild, f.grip }
 	-- Folded: the current step alone.
 	if ui.compact then
 		for _, l in ipairs(f.thens) do l:Hide() end
 		for _, l in ipairs(f.next) do l:Hide() end
 		for _, l in ipairs(f.away) do l:Hide() end
+		for _, b in ipairs(f.where) do b:Hide() end
 		for _, r in ipairs(rest) do r:Hide() end
 		if not f.sizing then f:SetHeight(36 + bandH + 10) end
 		return
@@ -1148,7 +1354,11 @@ function RT.Draw()
 	local away = RT.AwayLines(route)
 	local credit = RT.Credit(route)
 	f.credit:SetText(credit and ("|cff777777" .. credit .. "|r") or "")
+	-- Where next, when the band isn't already saying it: the zones after the first.
+	local shownWhere = {}
+	for k, z in ipairs(wl) do if cur or k > 1 then shownWhere[#shownWhere + 1] = z end end
 	local alsoH = (#away > 0 and (14 + 16 + #away * 15) or 0) + (credit and 16 or 0)
+		+ (#shownWhere > 0 and (14 + 16 + #shownWhere * 15) or 0)
 	local fixedH = f.sizing and (tonumber(f:GetHeight()) or RT.H) or ui.h
 	local lines = RT.UPNEXT_LINES
 	if fixedH then lines = math.max(1, math.min(RT.NEXT_MAX, math.floor((fixedH + y - 16 - alsoH - 44) / 15))) end
@@ -1168,6 +1378,31 @@ function RT.Draw()
 		else
 			l:SetText("")
 			l:Hide()
+		end
+	end
+	-- Where next: a gap, its heading ("Or" when the band names the first), its lines.
+	f.whereLabel:ClearAllPoints()
+	if #shownWhere > 0 then
+		y = y - 14
+		f.whereLabel:SetText(cur and "Where next" or "Or")
+		f.whereLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 14, y)
+		f.whereLabel:Show()
+		y = y - 16
+	else
+		f.whereLabel:Hide()
+	end
+	for k, b in ipairs(f.where) do
+		local z = shownWhere[k]
+		b:ClearAllPoints()
+		b:SetPoint("TOPLEFT", f, "TOPLEFT", 20, y)
+		b.zone = z
+		if z then
+			b.text:SetText("|cffffd100" .. ns.Escape(z.zone) .. ":|r " .. RT.WhereText(z))
+			b:Show()
+			y = y - 15
+		else
+			b.text:SetText("")
+			b:Hide()
 		end
 	end
 	-- Elsewhere: a gap, its heading, its lines.

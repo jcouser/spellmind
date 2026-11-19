@@ -8,6 +8,8 @@
 --   upgrades     the gear upgrades within reach (bags, quest rewards), by slot
 --   professions  each one's next rank (train now, or at what skill and level) and its best skill-ups
 --   gold         this session's net and rate, and the known costs coming up
+--   whereNext    the zones by what's left for this character to quest (to pick up, in the log), best
+--                first for its time, the one it stands in marked "here" (Route.lua; needs QuestieDB)
 -- Everything here is computed from the game in Spellmind; nothing is new data.
 
 local _, ns = ...
@@ -133,5 +135,6 @@ end
 
 function AV.Part()
 	local function Safe(fn) local ok, v = pcall(fn); return ok and v or nil end
-	return O("v", 1, "dungeons", Safe(Dungeons), "upgrades", Safe(Upgrades), "professions", Safe(Professions), "gold", Safe(Gold))
+	return O("v", 1, "dungeons", Safe(Dungeons), "upgrades", Safe(Upgrades), "professions", Safe(Professions), "gold", Safe(Gold),
+		"whereNext", Safe(function() return ns.Route and ns.Route.ZonesPart() end))
 end

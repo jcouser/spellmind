@@ -531,3 +531,31 @@ test('levels: a quest in the log up to orange (+4) stays on the route, red waits
   ks = keys(vm).join(' ');
   assert.ok(ks.includes('do:721'), 'in a group: red too');
 });
+
+test('talking to a giver to turn in doesn\'t mark the follow-up he\'ll give after as one he doesn\'t offer (the player, 2026-11-19: Calor); what he shows clears an old mark', () => {
+  const vm = newVM({ before: ZONE + `
+    STUB.qdb.quests[706] = { name = "Kobold Wicks", zone = 38, level = 15, npc = 801, single = { 700 }, obj = { { { 800 } }, {}, {} }, ender = 801 }` }).login().advance(9);
+  assert.ok(keys(vm).join(' ').includes('pickup:706'), 'planned');
+  // At Kadrell, to turn in: he offers nothing to pick up yet.
+  vm.run(`UnitGUID = (function(old) return function(u) if u == "npc" then return "Creature-0-5250-0-38-801-0000ABCD" end return old(u) end end)(UnitGUID)
+    C_GossipInfo = C_GossipInfo or {}
+    C_GossipInfo.GetAvailableQuests = function() return {} end
+    STUB.FireEvent("GOSSIP_SHOW")`);
+  assert.equal(vm.evaluate('tostring(SpellmindDB.routeNotOffered[706])'), 'nil', 'not marked: it waits on Kobold Candles');
+  assert.ok(keys(vm).join(' ').includes('pickup:706'), 'still planned');
+  // An old mark (from before this fix): cleared when he shows it.
+  vm.run('SpellmindDB.routeNotOffered[706] = 15; table.remove(STUB.quests, 2); STUB.completed[700] = true; NS.Route.Build()');
+  assert.ok(!keys(vm).join(' ').includes('pickup:706'), 'off while marked');
+  vm.run('C_GossipInfo.GetAvailableQuests = function() return { { questID = 706, title = "Kobold Wicks" } } end; STUB.FireEvent("GOSSIP_SHOW")');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.routeNotOffered[706])'), 'nil');
+  assert.ok(keys(vm).join(' ').includes('pickup:706'), 'back on the route');
+});
+
+test('a pick up up to orange (+4) is on the route, as one in the log is; red (+5) isn\'t', () => {
+  const vm = newVM({ before: ZONE + `
+    STUB.qdb.quests[730] = { name = "Orange Pick Up", zone = 38, level = 19, npc = 802, ender = 802 }
+    STUB.qdb.quests[731] = { name = "Red Pick Up", zone = 38, level = 20, npc = 802, ender = 802 }` }).login().advance(9);
+  const ks = keys(vm).join(' ');
+  assert.ok(ks.includes('pickup:730'), ks);
+  assert.ok(!ks.includes('pickup:731'), ks);
+});

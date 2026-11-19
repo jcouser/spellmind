@@ -22,9 +22,10 @@ local R = ns.R
 RT.GROUP_YARDS = 90 -- stops this close are one stop
 RT.SPOTS_MAX = 80 -- an objective's spawn points read, at most
 RT.CLUSTER = 7 -- map percent: the radius of an objective's densest spot
-RT.BELOW, RT.ABOVE = 5, 3 -- pickups this far below (grey) or above the character's level are left out
--- A quest already taken stays on the route up to orange (+4); red ones wait for a level. In a group,
--- two levels more for both (the player, 2026-11-19: grouped, a +4 quest they'd taken was "for later").
+RT.BELOW, RT.ABOVE = 5, 4 -- pickups this far below (grey) or above (past orange) the character's level are left out
+-- A quest already taken stays on the route up to orange (+4), as one to pick up does (the player,
+-- 2026-11-19: Calor's +4 follow-up was left out until taken); red ones wait for a level. In a group,
+-- two levels more for both.
 RT.LOG_ABOVE, RT.GROUP_ABOVE = 4, 2
 RT.STOPS_MAX = 40
 RT.CHAIN_PASSES = 3 -- follow-ups planned this many steps down a chain
@@ -1152,10 +1153,21 @@ function RT.OnGiver(event)
 	-- A single-quest window shows one quest, not all he offers: it only confirms, never rules out.
 	local single = event == "QUEST_DETAIL"
 	ns.db.routeNotOffered = ns.db.routeNotOffered or {}
+	-- Whatever he does offer is his, whether the route has it or not (an earlier "doesn't" forgotten).
+	local cleared = false
+	for id in pairs(ids) do
+		if ns.db.routeNotOffered[id] then ns.db.routeNotOffered[id] = nil; cleared = true end
+	end
+	-- A follow-up the route plans after a turn-in can't be offered yet (the player, 2026-11-19: talking to
+	-- Calor to turn in Worgen in the Woods marked its next part as one he doesn't give).
+	local function Waits(q)
+		for _, p in ipairs((route.after or {})[q] or {}) do if not Done(p) then return true end end
+		return false
+	end
 	local dropped = 0
 	for _, st in ipairs(route.stops or {}) do
 		for _, g in ipairs(st.goals) do
-			if g.kind == "pickup" and g.fromID == npc and not RT.GoalDone(g) then
+			if g.kind == "pickup" and g.fromID == npc and not RT.GoalDone(g) and not Waits(g.q) then
 				who = who or g.to
 				if ids[g.q] or titles[g.title] then
 					ns.db.routeNotOffered[g.q] = nil
@@ -1168,6 +1180,8 @@ function RT.OnGiver(event)
 	end
 	if dropped > 0 then
 		ns.Chat.System(ns.Escape(who or "This quest giver") .. " doesn't offer " .. dropped .. " of the quests the route had for him; they're off the route until your next level.")
+	end
+	if dropped > 0 or cleared then
 		if not InCombat() then RT.Build() end
 		RT.Refresh()
 	end

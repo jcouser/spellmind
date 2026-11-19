@@ -1157,3 +1157,12 @@ test('the way to a step in another zone: on the step\'s own map, its numbered do
   vm.run('STUB.mapShown = 1432; NS.Route.DrawMap()');
   assert.equal(vm.evaluate(`${M}.legs[1].tip[1]`), 'Cross into Westfall');
 });
+
+test('a flight path named by its zone\'s short name still has its map (the player, 2026-11-19: "Lakeshire, Redridge" was left out)', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run(TAXI + '; TaxiNodeName = function(i) return ({ "Thelsamar, Loch", "Sentinel Hill, Westfall", "Menethil Harbor, Wetlands" })[i] end; STUB.FireEvent("TAXIMAP_OPENED")');
+  const f = vm.json('(function() for _, f in ipairs(NS.Route.Flights()) do if f.name == "Thelsamar, Loch" then return f end end end)()');
+  assert.equal(f.map, 1432, '"Loch" is Loch Modan');
+  assert.equal(vm.num('NS.Route.ZoneMap("Westfall")'), 1436);
+  assert.equal(vm.evaluate('tostring(NS.Route.ZoneMap("Nowhere"))'), 'nil');
+});

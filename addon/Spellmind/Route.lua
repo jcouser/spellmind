@@ -829,8 +829,10 @@ function RT.Flights()
 				local s = ns.World.SnapFlight(w)
 				if s then me.flightSpots[name] = s; w = s else R.routeSnapTried[name] = true end
 			end
-			-- Its zone's map: its flight master's (QuestieDB), else the zone its name says ("Thelsamar, Loch Modan").
-			local map = w.map or (type(name) == "string" and name:match(",%s*(.+)$") and DG().MapNamed(name:match(",%s*(.+)$"))) or nil
+			-- Its zone's map: its flight master's (QuestieDB), else the zone its name says ("Thelsamar, Loch
+			-- Modan"; the player, 2026-11-19: "Lakeshire, Redridge" found no map named "Redridge", so the
+			-- path left Lakeshire's flight master out).
+			local map = w.map or (type(name) == "string" and name:match(",%s*(.+)$") and RT.ZoneMap(name:match(",%s*(.+)$"))) or nil
 			out[#out + 1] = { name = name, c = w.c, x = w.x, y = w.y, npc = w.npc, map = map }
 		end
 	end
@@ -2747,7 +2749,7 @@ RT.LINKS = {
 	{ "Elwynn Forest", 20.8, 81.0, "Westfall", 61.5, 17.0, name = "the road to Westfall" },
 	{ "Elwynn Forest", 31.8, 93.0, "Duskwood", 21.5, 8.5, name = "the bridge to Duskwood" },
 	{ "Elwynn Forest", 91.0, 72.5, "Redridge Mountains", 2.7, 75.8, name = "the road to Redridge" },
-	{ "Redridge Mountains", 2.0, 95.0, "Duskwood", 87.5, 10.0, name = "Three Corners" },
+	{ "Redridge Mountains", 4.0, 92.0, "Duskwood", 92.0, 25.0, name = "Three Corners" },
 	{ "Redridge Mountains", 41.8, 6.5, "Burning Steppes", 66.0, 79.0, name = "the road to Burning Steppes" },
 	{ "Westfall", 68.5, 71.0, "Duskwood", 8.5, 58.0, name = "the road to Duskwood" },
 	{ "Duskwood", 36.0, 95.0, "Stranglethorn Vale", 38.0, 4.0, name = "the road to Stranglethorn" },
@@ -2788,6 +2790,27 @@ end
 
 -- Every crossing, with its two sides' maps and world spots: the learned, then the written ones no
 -- learned one replaces. Worked out once a session (and after a crossing is learned).
+-- A zone's map by its name, or by the start of it ("Redridge" for Redridge Mountains, "Elwynn" for
+-- Elwynn Forest: the flight paths' short names). Kept for the session.
+function RT.ZoneMap(name)
+	R.routeZoneMaps = R.routeZoneMaps or {}
+	local hit = R.routeZoneMaps[name]
+	if hit ~= nil then return hit or nil end
+	local map = DG().MapNamed(name)
+	if not map then
+		local want = DG().Norm(name)
+		local M = rawget(_G, "C_Map")
+		local E = type(Enum) == "table" and Enum.UIMapType or {}
+		for _, c in ipairs(M and Try(M.GetMapChildrenInfo, 947, E.Continent or 2, true) or {}) do
+			for _, z in ipairs(Try(M.GetMapChildrenInfo, c.mapID, E.Zone or 3, true) or {}) do
+				if not map and type(z) == "table" and type(z.name) == "string" and want ~= "" and DG().Norm(z.name):sub(1, #want) == want then map = z.mapID end
+			end
+		end
+	end
+	R.routeZoneMaps[name] = map or false
+	return map
+end
+
 function RT.Links()
 	if R.routeLinks then return R.routeLinks end
 	local out = {}

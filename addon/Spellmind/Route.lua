@@ -526,7 +526,7 @@ function RT.Build()
 					local mine = not friendly or not ctx.faction or tostring(friendly):find(ctx.faction == "Alliance" and "A" or "H", 1, true)
 					if later and mine and spot and spot.zone == here.area then
 						taken[id] = true
-						forLater[#forLater + 1] = { id = id, title = DG().Name(Q, id) or ("quest " .. id), spot = spot, needs = needs }
+						forLater[#forLater + 1] = { id = id, title = DG().Name(Q, id) or ("quest " .. id), spot = spot, needs = needs, level = ql }
 					elseif mine and spot and spot.zone == here.area then
 						local title = DG().Name(Q, id) or ("quest " .. id)
 						local center = RT.Area(RT.ObjectiveSpots(Q, id, here.area))
@@ -537,7 +537,7 @@ function RT.Build()
 						local doable = center or (v and v.spot) or nil
 						if (hasObjectives and doable) or (not hasObjectives and fin and fin.spot) then
 							taken[id], added = true, true
-							Place("pickup", id, title, spot, spot.name, { fromID = spot.npc })
+							Place("pickup", id, title, spot, spot.name, { fromID = spot.npc, level = ql })
 							if center then Place("do", id, title, center, nil, AreaOf(center))
 							elseif v and v.spot then Place("do", id, title, v.spot, nil, { buy = v.item, buyID = v.itemID, from = v.name, fromID = v.npc, empty = v.empty }) end
 							if fin and fin.spot then Place("turnin", id, title, fin.spot, fin.name) end
@@ -563,7 +563,7 @@ function RT.Build()
 				if RT.Yards(r, p.spot, here) <= RT.GROUP_YARDS then near = true; break end
 			end
 			if near then
-				Place("pickup", p.id, p.title, p.spot, p.spot.name, { fromID = p.spot.npc, later = true })
+				Place("pickup", p.id, p.title, p.spot, p.spot.name, { fromID = p.spot.npc, later = true, level = p.level })
 				for _, q in ipairs(p.needs or {}) do
 					chains[#chains + 1] = { q, p.id }
 					after[p.id] = after[p.id] or {}
@@ -958,8 +958,17 @@ end
 
 -- One line for a goal: "Pick up Collecting Memories", "Do Oh Brother...: 0/1 Foreman Thistlenettle's
 -- Explorers' League Badge", "Turn in Wanted: Lieutenant Fangore to Magistrate Solomon".
+-- A quest's level in the game's difficulty colour, "[28] " (the player, 2026-11-19: shown by a pick up).
+function RT.LevelTag(level)
+	level = tonumber(level)
+	if not level then return "" end
+	local c = Try(rawget(_G, "GetQuestDifficultyColor"), level)
+	local function B(v) return math.max(0, math.min(255, math.floor((tonumber(v) or 1) * 255 + 0.5))) end
+	local hex = type(c) == "table" and string.format("|cff%02x%02x%02x", B(c.r), B(c.g), B(c.b)) or "|cffffffff"
+	return hex .. "[" .. level .. "]|r "
+end
 function RT.GoalText(g)
-	if g.kind == "pickup" then return "Pick up " .. ns.Escape(g.title) .. (g.later and " |cff888888(for later)|r" or "") end
+	if g.kind == "pickup" then return "Pick up " .. RT.LevelTag(g.level) .. ns.Escape(g.title) .. (g.later and " |cff888888(for later)|r" or "") end
 	if g.kind == "turnin" then return "Turn in " .. ns.Escape(g.title) .. (g.to and (" to " .. ns.Escape(g.to)) or "") end
 	local left = ns.Quests and ns.Quests.Left and ns.Quests.Left({ obj = ns.State and ns.State.Objectives and ns.State.Objectives(g.q) }) or nil
 	if g.buy then
@@ -1007,7 +1016,7 @@ function RT.GroupNames(gr, max)
 	local names = {}
 	for k, g in ipairs(gr.goals) do
 		if k > max then break end
-		names[#names + 1] = ns.Escape(g.title)
+		names[#names + 1] = (g.kind == "pickup" and RT.LevelTag(g.level) or "") .. ns.Escape(g.title)
 	end
 	local more = #gr.goals - #names
 	return table.concat(names, ", ") .. (more > 0 and (", +" .. more .. " more") or "")
@@ -2038,7 +2047,7 @@ local function Plain(s)
 	local bits = {}
 	for _, gr in ipairs(RT.Groups(s)) do
 		local names = {}
-		for _, g in ipairs(gr.goals) do names[#names + 1] = g.title end
+		for _, g in ipairs(gr.goals) do names[#names + 1] = g.title .. ((gr.kind == "pickup" and g.level) and (" (level " .. g.level .. ")") or "") end
 		local list = table.concat(names, ", ")
 		if gr.kind == "pickup" then bits[#bits + 1] = "pick up " .. list .. (gr.to and (" from " .. gr.to) or "")
 		elseif gr.kind == "turnin" then bits[#bits + 1] = "turn in " .. list .. (gr.to and (" to " .. gr.to) or "")

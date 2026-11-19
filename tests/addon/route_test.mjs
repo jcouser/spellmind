@@ -98,7 +98,7 @@ test('/sm route: the tracker with the zone, the step, its goals, Go, Up next; Go
   assert.equal(vm.evaluate('SpellmindRoute.step:GetText()'), 'Step 1 of 3');
   assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /^Kobold Candles: 0\/8 Tunnel Rat$/);
   assert.equal(vm.evaluate('SpellmindRoute.next[1]:GetText()'), 'Turn in 2 quests to Mountaineer Kadrell', 'two turn-ins to one NPC: one line');
-  assert.match(vm.evaluate('SpellmindRoute.next[2]:GetText()'), /^Pick up Ironband's Excavation/);
+  assert.match(vm.evaluate('SpellmindRoute.next[2]:GetText()'), /^Pick up \|cffffff00\[15\]\|r Ironband's Excavation/, 'its level, in the game\'s colour');
   assert.equal(vm.evaluate('tostring(SpellmindRoute.go)'), 'nil', 'no Go: the arrow and the map show the way');
   assert.equal(vm.evaluate('string.format("%.2f", NS.Route.Current().x / 100)'), '0.20', 'the rats\' densest spot, not the stray one');
   assert.match(vm.evaluate('SpellmindRoute.credit:GetText()'), /Quest data from Questie/, 'the credit, its own line');
@@ -581,7 +581,7 @@ test('a quest is done on the route to +2 solo (the AI\'s review: leave a +3 one 
   assert.ok(keys(vm).join(' ').includes('pickup:732'), 'standing by that giver: picked up for later');
   vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40');
   assert.equal(vm.evaluate(`(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do
-    if g.q == 730 then return NS.Route.GoalText(g) end end end end)()`), 'Pick up Orange Pick Up |cff888888(for later)|r');
+    if g.q == 730 then return NS.Route.GoalText(g) end end end end)()`), 'Pick up |cffffff00[19]|r Orange Pick Up |cff888888(for later)|r');
   vm.run('STUB.grouped = true');
   ks = keys(vm).join(' ');
   assert.ok(ks.includes('turnin:729') && ks.includes('turnin:730'), `in a group: +3 and +4 done: ${ks}`);
@@ -693,7 +693,7 @@ test('the AI gets the route (advisor.route): the steps in words, without live co
   assert.equal(part.route.zone, 'Loch Modan');
   assert.deepEqual([part.route.step, part.route.of], [1, 3]);
   assert.deepEqual(part.route.steps, ['1. do Kobold Candles (at 20, 21)', '2. turn in Kobold Candles, Mountaineer\'s Report to Mountaineer Kadrell (at 50, 52)',
-    '3. pick up Ironband\'s Excavation from Prospector Ironband; do Ironband\'s Excavation; turn in Ironband\'s Excavation to Prospector Ironband; pick up Ironband Wants Help from Prospector Ironband; turn in Ironband Wants Help to Prospector Ironband (at 85, 85)'],
+    '3. pick up Ironband\'s Excavation (level 15) from Prospector Ironband; do Ironband\'s Excavation; turn in Ironband\'s Excavation to Prospector Ironband; pick up Ironband Wants Help (level 16) from Prospector Ironband; turn in Ironband Wants Help to Prospector Ironband (at 85, 85)'],
     'each with where it is (the AI searched the web for a giver\'s place)');
   const { validatePart } = await import('../../core/link/charstate.mjs');
   assert.equal(validatePart('advisor', part).ok, true);

@@ -457,7 +457,7 @@ function RT.Build()
 		local ctx = DG().Context(Q)
 		local function Has(id) return log[id] ~= nil end
 		for _, id in ipairs(index[here.area]) do
-			if not log[id] and not Done(id) and not RT.NotOffered(id) and DG().Fits(Q, id, ctx, Has) and #DG().Missing(id) == 0 and RT.Known(id) then
+			if not log[id] and not Done(id) and not RT.Hidden(id) and not RT.NotOffered(id) and DG().Fits(Q, id, ctx, Has) and #DG().Missing(id) == 0 and RT.Known(id) then
 				local req = tonumber((Try(Q.Quest.requiredLevel, id))) or 1
 				local ql = tonumber((Try(Q.Quest.questLevel, id))) or req
 				if req <= level and ql >= level - RT.BELOW and ql <= level + RT.ABOVE then
@@ -681,6 +681,36 @@ function RT.Refresh()
 end
 
 function RT.Shown() return RT.frame and RT.frame:IsShown() and true or false end
+
+-- Quests not in this version of the game (the player, 2026-11-19: Season of Discovery's Duskwood
+-- Missions and their Field Captain Palandar are in the quest database, not in Forever; the server even
+-- knows their titles, and nothing in the data marks them). Questie keeps a hand-made list of the quests
+-- it hides on each version (QuestieCorrections.hiddenQuests): read when Questie is loaded, read only,
+-- by the maintainer's choice (2026-11-19) the one exception to "only QuestieDB's and Auctionator's
+-- public interfaces"; a list it stops keeping there is simply not read. Without Questie, on WoW
+-- Forever: Season of Discovery's quest ids (the 76000s to 91000s), a rough fallback.
+RT.SOD_FROM, RT.SOD_TO = 76000, 91999
+local function QuestieHidden()
+	local loader = rawget(_G, "QuestieLoader")
+	local mods = type(loader) == "table" and rawget(loader, "_modules")
+	local qc = type(mods) == "table" and rawget(mods, "QuestieCorrections")
+	local hidden = type(qc) == "table" and rawget(qc, "hiddenQuests")
+	if type(hidden) == "table" and next(hidden) ~= nil then return hidden end
+	return nil
+end
+function RT.IsForever()
+	local iface = select(4, Try(GetBuildInfo))
+	iface = tonumber(iface)
+	return iface ~= nil and iface >= 16000 and iface < 17000
+end
+function RT.Hidden(id)
+	local ok, hidden = pcall(QuestieHidden)
+	if ok and hidden then
+		local v = hidden[id]
+		return v ~= nil and v ~= false
+	end
+	return RT.IsForever() and id >= RT.SOD_FROM and id <= RT.SOD_TO or false
+end
 
 -- Does the game server have this quest at all? (The player, 2026-11-19: the quest database has
 -- Season of Discovery's Duskwood Missions and their Field Captain Palandar; Forever has neither,

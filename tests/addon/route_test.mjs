@@ -228,13 +228,30 @@ test('a quest the game server doesn\'t have (the player, 2026-11-19: Season of D
     local Q, N = STUB.qdb.quests, STUB.qdb.npcs
     N[807] = { name = "Field Captain Palandar", zone = 38, spawns = { [38] = { { 30, 60 } } }, friendly = "A" }
     N[808] = { name = "Deranged Ogre", zone = 38, spawns = { [38] = { { 31, 62 } } } }
-    Q[81730] = { name = "Duskwood Mission I", zone = 38, level = 15, npc = 807, obj = { { { 808 } }, {}, {} }, ender = 807 }
-    STUB.serverUnknown[81730] = true
+    Q[7777] = { name = "Duskwood Mission I", zone = 38, level = 15, npc = 807, obj = { { { 808 } }, {}, {} }, ender = 807 }
+    STUB.serverUnknown[7777] = true
     NS.db.routeKnown = nil`);
-  assert.ok(!keys(vm).join(' ').includes('81730'), 'not while the server is asked');
+  assert.ok(!keys(vm).join(' ').includes('7777'), 'not while the server is asked');
   vm.advance(1);
-  assert.equal(vm.evaluate('tostring(SpellmindDB.routeKnown[81730])'), 'false', 'the server said no: kept');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.routeKnown[7777])'), 'false', 'the server said no: kept');
   assert.equal(vm.evaluate('tostring(SpellmindDB.routeKnown[702])'), 'true', 'a quest it has: kept too');
-  assert.ok(!keys(vm).join(' ').includes('81730'));
+  assert.ok(!keys(vm).join(' ').includes('7777'));
   assert.ok(keys(vm).join(' ').includes('pickup:702'), 'the zone\'s real quest is still there');
+});
+
+test('quests not in this version of the game (the player, 2026-11-19): Questie\'s own hidden list when Questie is loaded; Season of Discovery\'s ids on Forever without it', () => {
+  const vm = session();
+  vm.run(`
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    N[807] = { name = "Field Captain Palandar", zone = 38, spawns = { [38] = { { 30, 60 } } }, friendly = "A" }
+    N[808] = { name = "Deranged Ogre", zone = 38, spawns = { [38] = { { 31, 62 } } } }
+    Q[81730] = { name = "Duskwood Mission I", zone = 38, level = 15, npc = 807, obj = { { { 808 } }, {}, {} }, ender = 807 }`);
+  // The server knows its title (as Forever's does): only the hidden list or the id range can tell.
+  assert.ok(!keys(vm).join(' ').includes('81730'), 'without Questie, on Forever: a Season of Discovery id is left out');
+  assert.ok(keys(vm).join(' ').includes('pickup:702'));
+  // With Questie's list: what it hides is left out, whatever the id; what it doesn't, stays.
+  vm.run('QuestieLoader = { _modules = { QuestieCorrections = { hiddenQuests = { [702] = true, [81730] = false } } } }');
+  const ks = keys(vm).join(' ');
+  assert.ok(!ks.includes('pickup:702'), `Questie hides 702: ${ks}`);
+  assert.ok(ks.includes('pickup:81730'), 'and says 81730 is fine: its list wins over the id range');
 });

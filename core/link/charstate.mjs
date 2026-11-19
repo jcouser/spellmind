@@ -78,6 +78,7 @@ const ADV_UPGRADE = { slot: str, name: str, from: str };
 const ADV_SKILLUP = { name: str, color: str, makes: int };
 const ADV_PROF = { name: str, next: str, skillUps: list(ADV_SKILLUP, 3) };
 const ADV_GOLD = { sessionNet: num, todayNet: num, costs: strList(6), costsTotal: num };
+const ADV_ROUTE = { zone: str, step: int, of: int, steps: strList(10), later: strList(6), skipped: int };
 const ADV_ZONE = { zone: str, here: bool, toPickUp: int, inLog: int, levels: str, minutesAway: num, via: str };
 const SHAPES = {
   char: { class: str, classFile: str, race: str, raceFile: str, faction: str, level: int, xp: num, xpMax: num, rested: num, resting: bool, money: num, loc: shape(LOC) },
@@ -90,7 +91,7 @@ const SHAPES = {
   quests: { count: int, max: int, unread: int, list: list(QUEST, LIST_MAX.quests) },
   rep: { list: list(REP, LIST_MAX.rep), collapsed: int, more: int },
   world: { zone: str, sub: str, x: num, y: num, hearth: str, flights: strList(LIST_MAX.flights), npcs: list(WORLD_NPC, LIST_MAX.worldNpcs) },
-  advisor: { dungeons: list(ADV_DUNGEON, 4), upgrades: list(ADV_UPGRADE, 6), professions: list(ADV_PROF, LIST_MAX.skills), gold: shape(ADV_GOLD), whereNext: list(ADV_ZONE, 6) },
+  advisor: { dungeons: list(ADV_DUNGEON, 4), upgrades: list(ADV_UPGRADE, 6), professions: list(ADV_PROF, LIST_MAX.skills), gold: shape(ADV_GOLD), route: shape(ADV_ROUTE), whereNext: list(ADV_ZONE, 6) },
   // What the player clicked Explain on (docs/milestone-5.md): a quest, for now.
   // A quest (milestone 5's Break it down, or a quest linked in the chat box) or an item (linked, milestone 6).
   focus: { kind: v => v === 'quest' || v === 'item', id: int, title: str, level: num, diff: str, trivial: bool, elite: bool, group: int, complete: bool,

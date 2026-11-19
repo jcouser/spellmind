@@ -80,19 +80,6 @@ function ST.List()
 	end
 	out[#out + 1] = marks
 
-	-- The route (Route.lua): its tracker, kept open while on; the arrow and the map's steps with it.
-	local RT = ns.Route
-	if RT then
-		local route = { section = "Quest route", rows = {} }
-		route.rows[1] = { id = "route", label = "Quest route", sub = "Your next steps in a window that stays on screen, through /reload and logins (/sm route too). Best with Questie.",
-			get = function() return RT.On() end, set = function(v) RT.SetOn(v) end }
-		route.rows[2] = { id = "route:arrow", label = "The arrow", sub = "Points at the current step, with the yards to it.", indent = true,
-			get = function() return RT.ArrowOn() end, set = function(v) RT.SetArrow(v) end, dim = function() return not RT.On() end }
-		route.rows[3] = { id = "route:map", label = "Steps on the world map", sub = "Numbered, with each objective's area shaded.", indent = true,
-			get = function() return RT.MapOn() end, set = function(v) RT.SetMap(v) end, dim = function() return not RT.On() end }
-		out[#out + 1] = route
-	end
-
 	local nudges = { section = "Nudges", rows = {} }
 	local N = ns.Nudges
 	nudges.rows[1] = { id = "nudges", label = "Nudges by the minimap", sub = "Off: none of the kinds below.",

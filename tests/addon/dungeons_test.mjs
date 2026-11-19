@@ -22,7 +22,7 @@ const drawn = vm => { vm.run('NS.Panel.Show("dungeons")'); return list(vm, 'Spel
 test('the tab: second in the rail; your quests\' dungeons with their quests, level and Go', () => {
   const vm = session();
   const d = drawn(vm);
-  assert.equal(vm.evaluate('SpellmindPanel.tabs[3].text:GetText()'), 'Dungeons');
+  assert.equal(vm.evaluate('SpellmindPanel.tabs[4].text:GetText()'), 'Dungeons');
   assert.equal(d[0].text, 'Dungeons you have quests for');
   assert.equal(d[1].text, 'The Hall of Thanes');
   assert.match(d[1].sub, /1 in your log · quests level 16/);

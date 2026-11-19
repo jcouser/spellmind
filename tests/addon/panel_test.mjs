@@ -20,7 +20,7 @@ test('opens from the minimap button\'s right-click and /sm panel; the header say
   assert.equal(vm.evaluate('tostring(SpellmindPanel.shown)'), 'false', '/sm panel toggles');
   vm.slash('panel');
   assert.equal(vm.evaluate('tostring(SpellmindPanel.shown)'), 'true');
-  assert.equal(vm.num('#SpellmindPanel.tabs'), 10, 'Chat, Quests, Dungeons, five more, Nudges and Settings');
+  assert.equal(vm.num('#SpellmindPanel.tabs'), 11, 'Chat, Quests, Route, Dungeons, five more, Nudges and Settings');
   assert.equal(vm.evaluate('NS.Panel.tab'), 'quests', 'the right-click opens a tab other than Chat');
 });
 
@@ -55,7 +55,7 @@ test('Quests: ready; Do now grouped by the log\'s own headers (the zone you\'re 
   assert.match(later[0].text, /\[18\]\|r Gathering Idols/);
   assert.equal(later[0].right, 'NE · 560 yd');
   assert.ok(d.filter(x => x.kind === 'item' && x !== dungeon[0] && !/Quest route/.test(x.text)).every(x => typeof x.quest === 'number'), 'every quest row has its mark');
-  assert.equal(vm.evaluate('SpellmindPanel.asks[1].text:GetText()'), 'Ask: Plan my next hour');
+  assert.equal(vm.evaluate('SpellmindPanel.asks[1].text:GetText()'), 'Ask: Review my route');
 });
 
 test('Go: the game\'s own map pin and arrow for a quest on this map; super-tracking for one elsewhere; a line says which', () => {

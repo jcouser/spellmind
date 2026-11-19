@@ -1,6 +1,6 @@
 # Milestone 23: the route (design)
 
-*Status: design, 2026-11-18. Not built yet.*
+*Status: design 2026-11-18; built on the route branch 2026-11-19 (the notes marked "Built" below), tried in game by the maintainer.*
 
 The player (2026-11-18), after a fixed leveling guide's "Redridge 25-26" sent them to Stormwind for a turn-in across the world, with quests still open around them: a route that follows **this character** (its quest log, where it stands, what it has done), efficient like a hand-tuned guide, with navigation (a step tracker, an arrow, the world map), steps that advance by themselves, and the AI where judgment helps.
 
@@ -17,6 +17,8 @@ Written from scratch: other guide addons (OpenXP) showed what players expect, no
 5. **The world map:** numbered step markers and the route line through them. Objective areas only without Questie (Questie already draws them; Spellmind doesn't draw them twice).
    *Built (2026-11-19), changed by the player's ask:* a numbered dot at each step still to do (up to 12; the tracker's step numbers; hover for the step) and, over each kill or loot objective, the area of its densest spawns shaded (current step gold, the rest purple), with Questie or without: Questie marks each spawn, the area says which step it's for. On the route's zone map while the tracker is open, drawn on the map canvas under the map's pins. The route line waits for paths learned from where the player walks (no road data in the game).
 6. **The AI (with the app):** "Plan my next hour" returns route steps, not only text; the player can ask why this order, or say "skip Duskwood". The AI reviews and reorders; Spellmind checks every step it returns against the quest log and drops what doesn't fit.
+   *Changed (the maintainer, 2026-11-19):* the AI doesn't write routes; it reviews Spellmind's. The game data carries the route (advisor.route: the zone, the step, the next ten in words, what waits for a level) and Where next, so every answer starts from the plan the player sees. "Plan my next hour" became "Review my route", with "Why this order?"; the player's own questions go through the chat. Next: a suggestion to skip a step comes back as a chip that skips it (as the chat's Pin chips set pins).
+7. **The Route tab** (the maintainer, 2026-11-19: "one of the core features", known only by switches in Settings): in the Spellmind window after Quests. The route's switches (the route, the arrow, the map's steps; moved from Settings); every step numbered (done, now, skipped, to come) with Skip or Unskip; Where next, every zone, with Aim for the arrow; Elsewhere; Ask about your route; the two quick asks. The tracker's owl opens it; the Quests tab's first row has Show or Hide and Open.
 
 Every part works without the app; the AI parts need it.
 
@@ -66,7 +68,7 @@ The events: quest log and objective updates, quest accepted and turned in, bag u
 
 1. **Where next, the route, the tracker** (with the routing above and auto-advance).
 2. **Navigation:** the arrow; world map markers and route line; objective areas without Questie.
-3. **The AI:** route steps from "Plan my next hour", review, "why", "skip".
+3. **The AI:** reviews the route ("Review my route", "Why this order?", the player's questions), its suggestions applied with a click.
 
 ## Open questions
 

@@ -638,31 +638,65 @@ test('the route on stays on: open again after a /reload and at login; the X turn
   assert.equal(vm.evaluate('tostring(SpellmindRoute and SpellmindRoute.shown or false)'), 'false', 'off stays off');
 });
 
-test('Settings: the Quest route switch, the arrow and the map\'s steps; the Quests tab\'s route row', () => {
-  const vm = session();
-  vm.run(`WorldMapFrame.canvas = CreateFrame("Frame", nil, WorldMapFrame)
-    WorldMapFrame.canvas:SetSize(1000, 667)
-    function WorldMapFrame:GetCanvas() return self.canvas end
-    function WorldMapFrame:GetMapID() return 1432 end`);
-  vm.run('NS.Settings.Flip("route")');
+test('the Route tab (the player, 2026-11-19: the route is a core feature, not a switch in Settings): its switches, every step with Skip, where next with Aim', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run(MAP);
+  vm.run('NS.Panel.Show("route")');
+  const drawn = () => { const v = vm.json('SpellmindPanel.drawn'); return Array.isArray(v) ? v : Object.values(v || {}); };
+  const rowOf = text => drawn().findIndex(x => x.kind === 'item' && typeof x.text === 'string' && x.text.includes(text)) + 1;
+  const click = (row, k = 1) => vm.run(`SpellmindPanel.rows[${row}].actions[${k}].scripts.OnClick(SpellmindPanel.rows[${row}].actions[${k}], "LeftButton")`);
+  assert.equal(vm.evaluate('SpellmindPanel.tabs[3].text:GetText()'), 'Route');
+  // Off: the switch, the arrow's and the map's dimmed, no steps.
+  assert.ok(rowOf('Quest route') > 0);
+  assert.equal(drawn().filter(x => x.kind === 'head').map(x => x.text).join(','), 'Quest route');
+  click(rowOf('Quest route'));
   assert.equal(vm.evaluate('tostring(SpellmindRoute.shown)'), 'true', 'on: the tracker opens');
   assert.equal(vm.evaluate('tostring(SpellmindArrow.shown)'), 'true');
-  assert.equal(vm.num('NS.Route.marks.shown'), 3);
-  vm.run('NS.Settings.Flip("route:arrow")');
-  assert.equal(vm.evaluate('tostring(SpellmindArrow.shown)'), 'false', 'the arrow off');
-  vm.run('NS.Settings.Flip("route:map")');
-  assert.equal(vm.num('NS.Route.marks.shown'), 0, 'the map\'s steps off');
-  vm.run('NS.Settings.Flip("route:map"); NS.Settings.Flip("route:arrow")');
-  assert.equal(vm.num('NS.Route.marks.shown'), 3);
-  // The Quests tab: the route's row, with where it stands; Hide turns it off.
-  vm.run('NS.Panel.Show("quests")');
-  const v = vm.json('SpellmindPanel.drawn'); const d = Array.isArray(v) ? v : Object.values(v || {});
-  const row = d.findIndex(x => /Quest route/.test(x.text)) + 1;
-  assert.ok(row > 0, JSON.stringify(d.slice(0, 3)));
-  assert.match(d[row - 1].sub || '', /Step 1 of 3 · Loch Modan/);
-  vm.run(`SpellmindPanel.rows[${row}].actions[1].scripts.OnClick(SpellmindPanel.rows[${row}].actions[1], "LeftButton")`);
+  // On: the steps, numbered, the current one "now"; where next; the arrow's and map's switches.
+  const heads = drawn().filter(x => x.kind === 'head').map(x => x.text);
+  assert.deepEqual(heads.slice(0, 3), ['Quest route', 'Steps', 'Where next']);
+  const first = drawn()[rowOf('1.|r ') - 1];
+  assert.match(first.text, /Kobold Candles/);
+  assert.match(first.right, /now/);
+  assert.match(drawn()[rowOf('Quest route') - 1].sub, /Step 1 of 3 · Loch Modan/);
+  // Skip the first from here: the tracker moves on; Unskip brings it back.
+  click(rowOf('1.|r '));
+  assert.equal(vm.evaluate('NS.Route.Current().key'), 'turnin:700,turnin:701');
+  assert.match(drawn()[rowOf('1.|r ') - 1].right, /skipped/);
+  click(rowOf('1.|r '));
+  assert.equal(vm.evaluate('NS.Route.Current().key'), 'do:700');
+  // Aim at a zone: the arrow's target.
+  click(rowOf('Westfall'));
+  assert.equal(vm.evaluate('tostring(NS.R.routeAim)'), '40');
+  // The arrow and the map's steps off from here.
+  click(rowOf('The arrow'));
+  assert.equal(vm.evaluate('tostring(SpellmindArrow.shown)'), 'false');
+  click(rowOf('Steps on the world map'));
+  assert.equal(vm.num('NS.Route.marks.shown'), 0);
+  // The quick asks: Review my route and Why this order?, with the route on.
+  assert.equal(vm.evaluate('SpellmindPanel.asks[1].text:GetText()'), 'Ask: Review my route');
+  assert.equal(vm.evaluate('SpellmindPanel.asks[2].text:GetText()'), 'Ask: Why this order?');
+  assert.match(vm.evaluate('NS.Panel.RouteQuestion("ROUTE_REVIEW")'), /Review my quest route/);
+  // The tracker's owl opens this tab.
+  vm.run('NS.Panel.Show("quests"); SpellmindRoute.owl.scripts.OnClick(SpellmindRoute.owl)');
+  assert.equal(vm.evaluate('NS.Panel.tab'), 'route');
+  // Off again from here.
+  click(rowOf('Quest route'));
   assert.equal(vm.evaluate('tostring(SpellmindRoute.shown)'), 'false');
-  assert.equal(vm.evaluate('tostring(NS.Route.On())'), 'false');
+});
+
+test('the AI gets the route (advisor.route): the steps in words, without live counts; the contract takes it', async () => {
+  const vm = session();
+  vm.slash('route');
+  const part = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Advisor.Part())'));
+  assert.equal(part.route.zone, 'Loch Modan');
+  assert.deepEqual([part.route.step, part.route.of], [1, 3]);
+  assert.deepEqual(part.route.steps, ['1. do Kobold Candles', '2. turn in Kobold Candles, Mountaineer\'s Report to Mountaineer Kadrell',
+    '3. pick up Ironband\'s Excavation from Prospector Ironband; do Ironband\'s Excavation; turn in Ironband\'s Excavation to Prospector Ironband; pick up Ironband Wants Help from Prospector Ironband; turn in Ironband Wants Help to Prospector Ironband']);
+  const { validatePart } = await import('../../core/link/charstate.mjs');
+  assert.equal(validatePart('advisor', part).ok, true);
+  vm.slash('route');
+  assert.equal(JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Advisor.Part())')).route, undefined, 'the route off: not sent');
 });
 
 test('the map\'s layer goes over the map\'s art, under its points of interest (seen in game: it was under the art)', () => {

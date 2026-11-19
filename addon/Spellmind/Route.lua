@@ -976,10 +976,10 @@ end
 -- A stop's goals still to do, grouped: the pick ups from one NPC, the turn-ins to one NPC, the
 -- objectives here (the player, 2026-11-19: one captain's thirteen pick ups and three turn-ins were
 -- sixteen lines). { { kind, to, goals } }, in the stop's order.
-function RT.Groups(st)
+function RT.Groups(st, all)
 	local out, last, lastKey = {}, nil, nil
 	for _, g in ipairs(st.goals) do
-		if not RT.GoalDone(g) then
+		if all or not RT.GoalDone(g) then
 			local key = g.kind .. "|" .. (g.kind == "do" and "" or (g.to or ""))
 			if key ~= lastKey then
 				last = { kind = g.kind, to = g.kind ~= "do" and g.to or nil, goals = {} }
@@ -1031,6 +1031,18 @@ function RT.Skip()
 	table.insert(R.routeSkipped, s)
 	RT.Refresh()
 end
+function RT.SetSkip(key, on)
+	R.routeSkip = R.routeSkip or {}
+	R.routeSkipped = R.routeSkipped or {}
+	if on and not R.routeSkip[key] then
+		R.routeSkip[key] = true
+		for _, s in ipairs(R.route and R.route.stops or {}) do if s.key == key then table.insert(R.routeSkipped, s) end end
+	elseif not on and R.routeSkip[key] then
+		R.routeSkip[key] = nil
+		for k = #R.routeSkipped, 1, -1 do if R.routeSkipped[k].key == key then table.remove(R.routeSkipped, k) end end
+	end
+	RT.Refresh()
+end
 function RT.Back()
 	local list = R.routeSkipped
 	if not list or #list == 0 then return end
@@ -1060,6 +1072,8 @@ end
 -- Progress changed (an objective ticked, an item looted): the tracker drawn again, the order kept.
 function RT.Refresh()
 	if RT.Shown() and RT.Draw then RT.Draw() end
+	local P = ns.Panel
+	if P and P.tab == "route" and P.Soon then P.Soon() end
 end
 
 function RT.Shown() return RT.frame and RT.frame:IsShown() and true or false end
@@ -1326,6 +1340,18 @@ local function Build()
 	f.portrait:SetSize(22, 22)
 	f.portrait:SetPoint("TOPLEFT", f, "TOPLEFT", 9, -8)
 	f.portrait:SetTexture(ns.Marks and ns.Marks.PORTRAIT or "Interface\\AddOns\\Spellmind\\Media\\Portrait")
+	-- The owl: the Route tab, with every step, the switches and the questions (the player, 2026-11-19).
+	f.owl = CreateFrame("Button", nil, f)
+	f.owl:SetAllPoints(f.portrait)
+	f.owl:SetScript("OnClick", function() if ns.Panel then ns.Panel.Show("route") end end)
+	f.owl:SetScript("OnEnter", function(self)
+		if not GameTooltip then return end
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetText("The Route tab")
+		GameTooltip:AddLine("Every step, where next, the switches, and questions for your AI.", 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	f.owl:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 	f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -12)
 	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
@@ -1998,4 +2024,48 @@ function RT.DrawMap()
 		end
 	end
 	marks.shown = nd
+end
+
+---------------------------------------------------------------------------
+-- For the AI (the advisor part's route): the plan the player sees, so every answer starts from it
+---------------------------------------------------------------------------
+
+-- The player (2026-11-19): with the route in place, "Plan my next hour" became "Review my route". The
+-- steps in words without their live counts (the quests part has those; a count in here would send the
+-- part again at every kill).
+RT.AI_STEPS = 10
+local function Plain(s)
+	local bits = {}
+	for _, gr in ipairs(RT.Groups(s)) do
+		local names = {}
+		for _, g in ipairs(gr.goals) do names[#names + 1] = g.title end
+		local list = table.concat(names, ", ")
+		if gr.kind == "pickup" then bits[#bits + 1] = "pick up " .. list .. (gr.to and (" from " .. gr.to) or "")
+		elseif gr.kind == "turnin" then bits[#bits + 1] = "turn in " .. list .. (gr.to and (" to " .. gr.to) or "")
+		else
+			local g = gr.goals[1]
+			bits[#bits + 1] = "do " .. list .. (g.buy and (" (buy " .. g.buy .. (g.from and (" from " .. g.from) or "") .. ")") or "")
+		end
+	end
+	return table.concat(bits, "; ")
+end
+function RT.Part()
+	if not RT.On() then return nil end
+	local route = R.route
+	if not route or route.nowhere then return nil end
+	local O = ns.State.JSON.O
+	local steps, skipped = {}, 0
+	local _, i = RT.Current()
+	local _, total = RT.Progress()
+	for k, s in ipairs(route.stops or {}) do
+		local skip = R.routeSkip and R.routeSkip[s.key]
+		if skip then skipped = skipped + 1 end
+		if #steps < RT.AI_STEPS and not RT.StopDone(s) and not skip then
+			steps[#steps + 1] = ns.State.Text(k .. ". " .. Plain(s), 400)
+		end
+	end
+	local later = {}
+	for _, t in ipairs(route.later or {}) do if #later < 6 then later[#later + 1] = ns.State.Text(t, 80) end end
+	return O("zone", route.zone, "step", i, "of", total, "steps", #steps > 0 and steps or nil,
+		"later", #later > 0 and later or nil, "skipped", skipped > 0 and skipped or nil)
 end

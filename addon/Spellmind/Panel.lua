@@ -13,7 +13,7 @@ ns.Panel = P
 local R = ns.R
 
 P.W, P.H = 600, 480
-P.MIN_W, P.MIN_H, P.MAX_W, P.MAX_H = 560, 400, 1100, 1000 -- the rail's ten tabs fit
+P.MIN_W, P.MIN_H, P.MAX_W, P.MAX_H = 560, 430, 1100, 1000 -- the rail's eleven tabs fit
 -- Compact: the chat alone.
 P.CW, P.CH = 440, 460
 P.CMIN_W, P.CMIN_H = 406, 366
@@ -45,6 +45,7 @@ P.BAG_ROWS = 8
 P.TABS = {
 	{ id = "chat", name = "Chat", icon = "Interface\\AddOns\\Spellmind\\Media\\Portrait" },
 	{ id = "quests", name = "Quests", icon = "Interface\\Icons\\INV_Letter_15" },
+	{ id = "route", name = "Route", icon = "Interface\\Icons\\INV_Misc_Map_01" },
 	{ id = "dungeons", name = "Dungeons", icon = "Interface\\Icons\\INV_Misc_Key_03" },
 	{ id = "gear", name = "Gear", icon = "Interface\\Icons\\INV_Chest_Leather_09" },
 	{ id = "talents", name = "Talents", icon = "Interface\\Icons\\Ability_Marksmanship" },
@@ -57,7 +58,8 @@ P.TABS = {
 -- Each tab's two Ask buttons: { label, the question }.
 P.ASKS = {
 	dungeons = { { "Which dungeon now?", "DUNGEON_WHICH" }, { "Brief my next one", "DUNGEON_NEXT" } },
-	quests = { { "Plan my next hour", "Plan my next hour of questing: which of my quests to do, in what order, and where." }, { "What's worth skipping?", "Which of my quests are worth skipping or leaving for later, and why?" } },
+	quests = { { "Review my route", "ROUTE_REVIEW" }, { "What's worth skipping?", "Which of my quests are worth skipping or leaving for later, and why?" } },
+	route = { { "Review my route", "ROUTE_REVIEW" }, { "Why this order?", "ROUTE_WHY" } },
 	gear = { { "Find my next upgrades", "GEAR_UPGRADES" }, { "What should I sell?", "What in my bags should I sell, keep or put on the auction house?" } },
 	talents = { { "Plan my next points", "Plan my next talent points for how I play now." }, { "Is my build good?", "Is my talent build good for my level and role? What would you change?" } },
 	spells = { { "What do I train next?", "What should I train next, and when? Which spells matter most for me?" }, { "My rotation", "What should my basic rotation be with the spells I have?" } },
@@ -480,7 +482,8 @@ function Tabs.quests()
 		end
 		out[#out + 1] = { kind = "item", left = "|cffb48cffQuest route|r", sub = "|cff888888" .. sub .. "|r",
 			actions = { { on and "Hide" or "Show", function() RT.SetOn(not on); P.Show("quests", true) end,
-				tip = on and "Turn the route off (Settings has it too)." or "Turn the route on: it stays on screen through /reload." } } }
+				tip = on and "Turn the route off." or "Turn the route on: it stays on screen through /reload." },
+				{ "Open", function() P.Show("route") end, tip = "The Route tab: every step, where next, the switches." } } }
 	end
 	Section("Ready to turn in", groups.ready)
 	-- What turning them all in does for the level.
@@ -514,6 +517,88 @@ end
 -- LFG on a quest row: the message in the game's chat box, to edit and send with Enter.
 -- Every click asks where it goes: the menu of the chat box's current channel, the channels the
 -- player is in, Say, Party and Guild (the player preferred choosing each time to a kept pick).
+-- The Route tab's questions (the player, 2026-11-19: "Review my route" took "Plan my next hour"'s
+-- place). The route itself is in the game data the AI gets (advisor.route, advisor.whereNext).
+function P.RouteQuestion(kind)
+	local on = ns.Route and ns.Route.On()
+	if kind == "ROUTE_WHY" then
+		return on and "Why is my quest route in this order? Explain its first few steps briefly, from the route in my game data."
+			or "The route is off. In what order should I do my quests here, and why?"
+	end
+	return on and "Review my quest route (the route in my game data): is the order good, which steps are worth skipping or leaving for later (and why), and where should I go after this zone? Keep it short."
+		or "Plan my next hour of questing: which of my quests to do, in what order, and where."
+end
+
+-- The Route tab (Route.lua): the switches, every step with Skip, where next with Aim, what's elsewhere.
+function Tabs.route()
+	local RT = ns.Route
+	local out = {}
+	if not RT then return { { kind = "text", text = "The route isn't loaded." } } end
+	local on = RT.On()
+	local route = on and R.route or nil
+	local function Switch(label, sub, value, set, indent, dim)
+		out[#out + 1] = { kind = "item", indent = indent, left = dim and ("|cff888888" .. label .. "|r") or label,
+			sub = sub and ("|cff888888" .. sub .. "|r") or nil,
+			actions = { { value and "|cff19ff19On|r" or "|cff888888Off|r", function() set(not value); P.Show("route", true) end,
+				tip = "Click to turn it on or off." } } }
+	end
+	out[#out + 1] = { kind = "head", text = "Quest route" }
+	local status
+	if route then
+		local cur, i = RT.Current()
+		local _, total = RT.Progress()
+		status = route.nowhere and "Waiting for a position (an instance or a loading screen)."
+			or ((cur and ("Step " .. i .. " of " .. total) or "Nothing left here") .. (route.zone and (" · " .. ns.Escape(route.zone)) or ""))
+	end
+	Switch("Quest route", status or ("Your next steps in a small window that stays on screen, an arrow and the steps on the world map, from your quest log"
+		.. (ns.Dungeons.HasDB() and " and Questie's quest data." or ". Questie adds the quests to pick up and where mobs are.")), on, RT.SetOn)
+	Switch("The arrow", "Points at the current step, with the yards to it.", RT.ArrowOn(), RT.SetArrow, true, not on)
+	Switch("Steps on the world map", "Numbered, with each objective's area shaded.", RT.MapOn(), RT.SetMap, true, not on)
+	out[#out + 1] = { kind = "item", indent = true, left = "Ask about your route", sub = "|cff888888Anything: your AI has the route. Or the two questions below.|r",
+		actions = { { "Ask", function() ns.Chat.Open("About my route: ") end, tip = "The chat, ready for your question." } } }
+	if not route or route.nowhere then return out end
+	-- Every step: done, now, skipped, or to come.
+	out[#out + 1] = { kind = "head", text = "Steps" }
+	local cur = RT.Current()
+	local skips = R.routeSkip or {}
+	for i, s in ipairs(route.stops or {}) do
+		local done, skipped = RT.StopDone(s), skips[s.key]
+		local groups = RT.Groups(s, true)
+		local more = {}
+		for k = 2, #groups do more[#more + 1] = RT.GroupText(groups[k]) end
+		local first = groups[1] and RT.GroupText(groups[1]) or ""
+		local grey = done or skipped
+		local key = s.key
+		out[#out + 1] = { kind = "item", left = (grey and "|cff888888" or (s == cur and "|cffffd100" or "|cffffffff")) .. i .. ".|r " .. first,
+			sub = #more > 0 and ("|cff888888Then: " .. table.concat(more, "; ") .. "|r") or nil,
+			right = done and "|cff19ff19done|r" or skipped and "|cff888888skipped|r" or (s == cur and "|cffffd100now|r") or nil,
+			actions = (not done) and { { skipped and "Unskip" or "Skip", function() RT.SetSkip(key, not skipped); P.Show("route", true) end,
+				tip = skipped and "Back on the route." or "Off the route for now (a /reload brings it back)." } } or nil }
+	end
+	if #(route.stops or {}) == 0 then out[#out + 1] = { kind = "text", text = "|cff19ff19Nothing left here that Spellmind knows of.|r" } end
+	-- Where next: every zone counted, Aim for the arrow.
+	local zones = {}
+	for _, z in ipairs(route.where or {}) do if not z.here then zones[#zones + 1] = z end end
+	if #zones > 0 then
+		out[#out + 1] = { kind = "head", text = "Where next" }
+		for _, z in ipairs(zones) do
+			local aimed = R.routeAim == z.area
+			out[#out + 1] = { kind = "item", left = "|cffffd100" .. ns.Escape(z.zone) .. "|r", sub = "|cff888888" .. RT.WhereText(z) .. "|r",
+				right = z.low and ns.Dungeons.Range(z.low, z.high) or nil,
+				actions = { { aimed and "Aimed" or "Aim", function() RT.Aim(z); P.Show("route", true) end,
+					tip = aimed and "Back to the route's steps." or "Point the arrow the way there." } } }
+		end
+	end
+	local away = RT.AwayLines(route)
+	if #away > 0 then
+		out[#out + 1] = { kind = "head", text = "Elsewhere" }
+		for _, l in ipairs(away) do out[#out + 1] = { kind = "text", text = l } end
+	end
+	local credit = RT.Credit(route)
+	if credit then out[#out + 1] = { kind = "text", text = "|cff777777" .. credit .. "|r" } end
+	return out
+end
+
 function P.LFG(id, button, anchor)
 	P.LFGMenu(id, anchor)
 	return nil
@@ -1376,7 +1461,8 @@ local function AskButton(f)
 		local q = self.ask[2]
 		if q == "GEAR_UPGRADES" then q = P.UpgradeQuestion()
 		elseif q == "DUNGEON_WHICH" then q = ns.Dungeons.WhichQuestion()
-		elseif q == "DUNGEON_NEXT" then q = P.NextDungeonQuestion() end
+		elseif q == "DUNGEON_NEXT" then q = P.NextDungeonQuestion()
+		elseif q == "ROUTE_REVIEW" or q == "ROUTE_WHY" then q = P.RouteQuestion(q) end
 		P.Ask(self.ask[1], q)
 	end)
 	return b

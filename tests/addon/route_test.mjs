@@ -677,3 +677,17 @@ test('the map\'s layer goes over the map\'s art, under its points of interest (s
   vm.run('WorldMapFrame.GetPinFrameLevelsManager = nil; NS.Route.DrawMap()');
   assert.equal(vm.num('SpellmindRouteMap:GetFrameLevel()'), 105, 'no levels to ask: well over the canvas');
 });
+
+test('the tracker\'s place is kept through a /reload (the player, 2026-11-19), and its size', () => {
+  let vm = session();
+  vm.slash('route');
+  // Dragged: the game re-anchors it to the screen's corner.
+  vm.run('SpellmindRoute:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 120, -80); SpellmindRoute.scripts.OnDragStop(SpellmindRoute)');
+  assert.deepEqual(vm.json('SpellmindDB.routeUI.pos'), ['TOPLEFT', 'TOPLEFT', 120, -80]);
+  vm.run('SpellmindRoute:SetSize(400, 420); SpellmindRoute.grip.scripts.OnMouseUp(SpellmindRoute.grip)');
+  vm = reloadVM(vm, { before: ZONE }).login().advance(5);
+  const p = vm.json('(function() local a, _, _, x, y = SpellmindRoute:GetPoint(); return { a, 0, 0, x, y } end)()');
+  assert.deepEqual([p[0], p[3], p[4]], ['TOPLEFT', 120, -80], 'where it was left');
+  assert.equal(vm.num('SpellmindRoute:GetWidth()'), 400);
+  assert.equal(vm.num('SpellmindRoute:GetHeight()'), 420);
+});

@@ -1291,18 +1291,31 @@ local function Line(parent, font, width)
 	return fs
 end
 
+-- The tracker's place, kept: SpellmindDB.routeUI.pos = { point, relative point, x, y }.
+function RT.KeepPlace(f)
+	local p, _, rp, x, y = f:GetPoint()
+	if not p then return end
+	UI().pos = { p, rp or p, math.floor((tonumber(x) or 0) + 0.5), math.floor((tonumber(y) or 0) + 0.5) }
+end
+
 local function Build()
 	if RT.frame then return RT.frame end
 	local f = CreateFrame("Frame", "SpellmindRoute", UIParent, "BackdropTemplate")
 	f:SetSize(RT.W, RT.H)
-	f:SetPoint("RIGHT", UIParent, "RIGHT", -60, 40)
+	-- Where the player left it (the player, 2026-11-19: back in the default spot after a /reload).
+	local pos = UI().pos
+	if type(pos) == "table" and pos[1] then
+		f:SetPoint(pos[1], UIParent, pos[2] or pos[1], tonumber(pos[3]) or 0, tonumber(pos[4]) or 0)
+	else
+		f:SetPoint("RIGHT", UIParent, "RIGHT", -60, 40)
+	end
 	f:SetFrameStrata("MEDIUM")
 	f:SetClampedToScreen(true)
 	f:EnableMouse(true)
 	f:SetMovable(true)
 	f:RegisterForDrag("LeftButton")
 	f:SetScript("OnDragStart", function(self) self:StartMoving() end)
-	f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+	f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing(); RT.KeepPlace(self) end)
 	if f.SetBackdrop then
 		f:SetBackdrop(BACKDROP)
 		f:SetBackdropColor(0.05, 0.04, 0.1, 0.94)
@@ -1408,6 +1421,7 @@ local function Build()
 		f.sizing = nil
 		local ui = UI()
 		ui.w, ui.h = math.floor((tonumber(f:GetWidth()) or RT.W) + 0.5), math.floor((tonumber(f:GetHeight()) or RT.H) + 0.5)
+		RT.KeepPlace(f)
 		RT.Draw()
 	end)
 	f:SetScript("OnSizeChanged", function() if f.sizing then RT.Draw() end end)

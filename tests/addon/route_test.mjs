@@ -21,17 +21,17 @@ const ZONE = `
   STUB.objectives = { [700] = { { text = "Tunnel Rat: 0/8", numFulfilled = 0, numRequired = 8 } } }
   STUB.questsOnMap = {}
   local Q, N = STUB.qdb.quests, STUB.qdb.npcs
-  Q[700] = { name = "Kobold Candles", zone = 38, level = 14, obj = { { 800 } }, ender = 801 }
+  Q[700] = { name = "Kobold Candles", zone = 38, level = 14, obj = { { { 800 } }, {}, {} }, ender = 801 }
   Q[701] = { name = "Mountaineer's Report", zone = 38, level = 13, ender = 801 }
-  Q[702] = { name = "Ironband's Excavation", zone = 38, level = 15, npc = 802, obj = { { 803 } }, ender = 802 }
+  Q[702] = { name = "Ironband's Excavation", zone = 38, level = 15, npc = 802, obj = { { { 803 } }, {}, {} }, ender = 802 }
   Q[703] = { name = "Ironband Wants Help", zone = 38, level = 16, npc = 802, single = { 702 }, ender = 802 }
-  Q[704] = { name = "Grey Pelts", zone = 38, level = 6, npc = 802, obj = { { 803 } }, ender = 802 }
+  Q[704] = { name = "Grey Pelts", zone = 38, level = 6, npc = 802, obj = { { { 803 } }, {}, {} }, ender = 802 }
   N[800] = { name = "Tunnel Rat", zone = 38, spawns = { [38] = { { 20, 20 }, { 21, 21 }, { 19.5, 20.5 }, { 60, 10 } } } }
   N[801] = { name = "Mountaineer Kadrell", zone = 38, spawns = { [38] = { { 50, 52 } } }, friendly = "A" }
   N[802] = { name = "Prospector Ironband", zone = 38, spawns = { [38] = { { 85, 85 } } }, friendly = "A" }
   N[803] = { name = "Stonesplinter Trogg", zone = 38, spawns = { [38] = { { 87, 83 }, { 88, 84 } } } }
   STUB.UseQuestieDB()
-  LibQuestieDB.Quest.objectives = function(id) local q = Q[id]; if q then return { q.obj or {}, {}, {} } end end
+  LibQuestieDB.Quest.objectives = function(id) local q = Q[id]; if q then return q.obj or { {}, {}, {} } end end
   LibQuestieDB.Quest.finishedBy = function(id) local q = Q[id]; if q and q.ender then return { { q.ender }, {} } end end
 `;
 const session = () => newVM({ before: ZONE }).login().advance(9);
@@ -116,4 +116,36 @@ test('without QuestieDB: the log\'s quests the game places on this map; no picku
   vm.run('STUB.questsOnMap = {}; NS.R.routeStale = true');
   vm.slash('route');
   assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /Nothing left here.*With QuestieDB installed/s);
+});
+
+// Look to the Stars (705): bring a Bronze Tube (item 900), which nothing in Loch Modan drops.
+const TUBE = `
+  table.insert(STUB.quests, { title = "Look to the Stars", questID = 705, level = 15 })
+  STUB.objectives[705] = { { text = "Bronze Tube: 0/1", numFulfilled = 0, numRequired = 1 } }
+  local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+  Q[705] = { name = "Look to the Stars", zone = 38, level = 15, obj = { {}, {}, { { 900 } } }, ender = 801 }
+  N[804] = { name = "Tinkerwiz", zone = 1537, spawns = { [1537] = { { 68, 44 } } }, friendly = "A" }
+  local items = { [900] = { name = "Bronze Tube", vendors = { 804 } } }
+  LibQuestieDB.Item = { name = function(id) return items[id] and items[id].name end, vendors = function(id) return items[id] and items[id].vendors end,
+    npcDrops = function() return nil end, objectDrops = function() return nil end }`;
+
+test('an item nothing here drops (the player, 2026-11-19: a Bronze Tube): no turn-in step before it; where it\'s sold, under Elsewhere', () => {
+  const vm = session();
+  vm.run(TUBE);
+  const ks = keys(vm);
+  assert.ok(!ks.some(k => /turnin:705/.test(k)), `no turn-in before the tube: ${ks}`);
+  assert.equal(vm.evaluate('(function() local z = {} for k in pairs(NS.R.route.elsewhere) do z[#z + 1] = k end table.sort(z) return table.concat(z, ",") end)()'), 'Ironforge');
+  assert.equal(vm.evaluate('NS.R.route.elsewhere.Ironforge[1].buy'), 'Bronze Tube');
+  assert.equal(vm.evaluate('NS.Route.GoalText(NS.R.route.elsewhere.Ironforge[1])'), 'Look to the Stars: 0/1 Bronze Tube |cff888888(sold by Tinkerwiz)|r');
+  vm.slash('route');
+  assert.match(vm.evaluate('SpellmindRoute.also:GetText()'), /Elsewhere: Ironforge: 1/);
+});
+
+test('an item sold in this zone: a step at the vendor, then the turn-in', () => {
+  const vm = session();
+  vm.run(TUBE + `
+    STUB.qdb.npcs[804].spawns = { [38] = { { 45, 45 } } }`);
+  const ks = keys(vm);
+  const buy = ks.findIndex(k => /do:705/.test(k)), back = ks.findIndex(k => /turnin:705/.test(k));
+  assert.ok(buy >= 0 && back > buy, `buy, then turn in: ${ks}`);
 });

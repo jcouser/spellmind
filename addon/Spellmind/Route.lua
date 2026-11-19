@@ -87,22 +87,61 @@ function RT.ObjectiveSpots(Q, id, area)
 	local pts = {}
 	local o = Try(Q.Quest.objectives, id)
 	local N, O, I = Q.Npc, Q.Object, Q.Item
+	-- An objective is a tuple { id, text, count }; anything else is skipped, never indexed.
+	local function Ids(list)
+		local out = {}
+		for _, c in ipairs(type(list) == "table" and list or {}) do
+			if type(c) == "table" and tonumber(c[1]) then out[#out + 1] = c[1] end
+		end
+		return out
+	end
 	if type(o) == "table" then
-		for _, c in ipairs(type(o[1]) == "table" and o[1] or {}) do if N then AddSpawns(pts, Try(N.spawns, c[1]), area) end end
-		for _, c in ipairs(type(o[2]) == "table" and o[2] or {}) do if O then AddSpawns(pts, Try(O.spawns, c[1]), area) end end
-		for _, c in ipairs(type(o[3]) == "table" and o[3] or {}) do
+		for _, npc in ipairs(Ids(o[1])) do if N then AddSpawns(pts, Try(N.spawns, npc), area) end end
+		for _, obj in ipairs(Ids(o[2])) do if O then AddSpawns(pts, Try(O.spawns, obj), area) end end
+		for _, item in ipairs(Ids(o[3])) do
 			if I then
-				for _, npc in ipairs(Try(I.npcDrops, c[1]) or {}) do if N then AddSpawns(pts, Try(N.spawns, npc), area) end end
-				for _, obj in ipairs(Try(I.objectDrops, c[1]) or {}) do if O then AddSpawns(pts, Try(O.spawns, obj), area) end end
+				for _, npc in ipairs(type(I.npcDrops) == "function" and Try(I.npcDrops, item) or {}) do if N then AddSpawns(pts, Try(N.spawns, npc), area) end end
+				for _, obj in ipairs(type(I.objectDrops) == "function" and Try(I.objectDrops, item) or {}) do if O then AddSpawns(pts, Try(O.spawns, obj), area) end end
 			end
 		end
 		for _, c in ipairs(type(o[5]) == "table" and o[5] or {}) do
-			for _, npc in ipairs(type(c[1]) == "table" and c[1] or {}) do if N then AddSpawns(pts, Try(N.spawns, npc), area) end end
+			for _, npc in ipairs(type(c) == "table" and type(c[1]) == "table" and c[1] or {}) do if N then AddSpawns(pts, Try(N.spawns, npc), area) end end
 		end
 	end
 	local trig = type(Q.Quest.triggerEnd) == "function" and Try(Q.Quest.triggerEnd, id) or nil
 	if type(trig) == "table" then AddSpawns(pts, trig[2], area) end
 	return pts
+end
+
+-- Whether QuestieDB lists any objective for a quest (mobs, objects, items, kill credit, a spot to reach).
+function RT.HasObjectives(Q, id)
+	local o = Try(Q.Quest.objectives, id)
+	if type(o) == "table" then
+		for _, k in ipairs({ 1, 2, 3, 5 }) do if type(o[k]) == "table" and #o[k] > 0 then return true end end
+	end
+	local trig = type(Q.Quest.triggerEnd) == "function" and Try(Q.Quest.triggerEnd, id) or nil
+	return type(trig) == "table"
+end
+
+-- An item objective nothing here drops (the player, 2026-11-19: a Bronze Tube, bought or crafted):
+-- who sells it, { item, name, spot } in this area, else { item, name, zone } or { item } (no vendor known).
+function RT.Vendor(Q, id, area)
+	local o = Try(Q.Quest.objectives, id)
+	local I, N = Q.Item, Q.Npc
+	if type(o) ~= "table" or type(o[3]) ~= "table" or not I or not N then return nil end
+	local away
+	for _, c in ipairs(o[3]) do
+		local item = type(c) == "table" and Try(I.name, c[1]) or nil
+		for _, npc in ipairs(type(I.vendors) == "function" and Try(I.vendors, c[1]) or {}) do
+			local sp = Try(N.spawns, npc)
+			local at = type(sp) == "table" and type(sp[area]) == "table" and sp[area][1]
+			local name = Try(N.name, npc)
+			if at and tonumber(at[1]) and tonumber(at[2]) then return { item = item, name = name, spot = { x = at[1], y = at[2] } } end
+			away = away or { item = item, name = name, zone = Try(N.zoneID, npc) }
+		end
+		if not away and type(item) == "string" then away = { item = item } end
+	end
+	return away
 end
 
 -- The middle of the densest group of points (where most of a quest's mobs are), or nil.
@@ -310,13 +349,20 @@ function RT.Build()
 	for id in pairs(log) do R.routeLog[id] = true end
 	local raw = {}
 	local chains = {}
-	local function Place(kind, id, title, spot, to)
-		raw[#raw + 1] = { x = spot.x, y = spot.y, goals = { { kind = kind, q = id, title = title, to = to } } }
+	-- extra: { buy = item name, from = vendor } for an item to buy.
+	local function Goal(kind, id, title, to, extra)
+		local g = { kind = kind, q = id, title = title, to = to }
+		for k, v in pairs(extra or {}) do g[k] = v end
+		return g
 	end
-	local function Elsewhere(zoneName, kind, id, title, to)
-		local key = zoneName or "Elsewhere"
+	local function Place(kind, id, title, spot, to, extra)
+		raw[#raw + 1] = { x = spot.x, y = spot.y, goals = { Goal(kind, id, title, to, extra) } }
+	end
+	-- What's left in another zone, by its name; "" for what Spellmind can't place at all.
+	local function Elsewhere(zoneName, kind, id, title, to, extra)
+		local key = zoneName or ""
 		route.elsewhere[key] = route.elsewhere[key] or {}
-		table.insert(route.elsewhere[key], { kind = kind, q = id, title = title, to = to })
+		table.insert(route.elsewhere[key], Goal(kind, id, title, to, extra))
 	end
 	local function AreaName(area)
 		local M = rawget(_G, "C_Map")
@@ -340,17 +386,32 @@ function RT.Build()
 		else
 			local complete = Complete(id)
 			local fin = Q and here.area and RT.TurnIn(Q, id, here.area) or nil
+			local doHere = false
 			if not complete then
 				local center = Q and here.area and RT.Center(RT.ObjectiveSpots(Q, id, here.area)) or nil
 				center = center or GameSpot(id)
-				if center then Place("do", id, title, center) else Elsewhere(nil, "do", id, title) end
+				if center then
+					Place("do", id, title, center); doHere = true
+				else
+					-- An item nothing here drops: bought here, or got elsewhere.
+					local v = Q and here.area and RT.Vendor(Q, id, here.area) or nil
+					if v and v.spot then
+						Place("do", id, title, v.spot, nil, { buy = v.item, from = v.name }); doHere = true
+					else
+						Elsewhere(v and AreaName(v.zone), "do", id, title, nil, v and { buy = v.item, from = v.name })
+					end
+				end
 			end
-			if fin and fin.spot then Place("turnin", id, title, fin.spot, fin.name)
-			elseif complete then
-				local spot = GameSpot(id)
-				if spot then Place("turnin", id, title, spot, fin and fin.name)
-				else Elsewhere(fin and AreaName(fin.zone), "turnin", id, title, fin and fin.name) end
-			elseif fin then Elsewhere(AreaName(fin.zone), "turnin", id, title, fin.name) end
+			-- Its turn-in: on the route once the quest is complete, or once its objectives are on it too
+			-- (the player, 2026-11-19: a turn-in came up as the step before the item it needed).
+			if complete or doHere then
+				if fin and fin.spot then Place("turnin", id, title, fin.spot, fin.name)
+				elseif complete then
+					local spot = GameSpot(id)
+					if spot then Place("turnin", id, title, spot, fin and fin.name)
+					else Elsewhere(fin and AreaName(fin.zone), "turnin", id, title, fin and fin.name) end
+				elseif fin then Elsewhere(AreaName(fin.zone), "turnin", id, title, fin.name) end
+			end
 		end
 	end
 	-- This zone's quests to pick up (QuestieDB): for this character, open now, at its level, given here,
@@ -368,13 +429,16 @@ function RT.Build()
 					local mine = not friendly or not ctx.faction or tostring(friendly):find(ctx.faction == "Alliance" and "A" or "H", 1, true)
 					if mine and spot and spot.zone == here.area then
 						local title = DG().Name(Q, id) or ("quest " .. id)
-						local pts = RT.ObjectiveSpots(Q, id, here.area)
-						local center = RT.Center(pts)
+						local center = RT.Center(RT.ObjectiveSpots(Q, id, here.area))
 						local fin = RT.TurnIn(Q, id, here.area)
-						local hasObjectives = #pts > 0
-						if (hasObjectives and center) or (not hasObjectives and fin and fin.spot) then
+						-- Its objectives have to be doable here (mobs, objects, a vendor), or it has none.
+						local hasObjectives = RT.HasObjectives(Q, id)
+						local v = hasObjectives and not center and RT.Vendor(Q, id, here.area) or nil
+						local doable = center or (v and v.spot) or nil
+						if (hasObjectives and doable) or (not hasObjectives and fin and fin.spot) then
 							Place("pickup", id, title, spot)
-							if center then Place("do", id, title, center) end
+							if center then Place("do", id, title, center)
+							elseif v and v.spot then Place("do", id, title, v.spot, nil, { buy = v.item, from = v.name }) end
 							if fin and fin.spot then Place("turnin", id, title, fin.spot, fin.name) end
 							local pre = Try(Q.Quest.preQuestSingle, id)
 							if type(pre) == "table" and pre[1] then chains[#chains + 1] = { pre[1], id } end
@@ -455,6 +519,10 @@ function RT.GoalText(g)
 	if g.kind == "pickup" then return "Pick up " .. ns.Escape(g.title) end
 	if g.kind == "turnin" then return "Turn in " .. ns.Escape(g.title) .. (g.to and (" to " .. ns.Escape(g.to)) or "") end
 	local left = ns.Quests and ns.Quests.Left and ns.Quests.Left({ obj = ns.State and ns.State.Objectives and ns.State.Objectives(g.q) }) or nil
+	if g.buy then
+		return ns.Escape(g.title) .. ": " .. (left or ("get " .. ns.Escape(g.buy)))
+			.. (g.from and (" |cff888888(sold by " .. ns.Escape(g.from) .. ")|r") or "")
+	end
 	return ns.Escape(g.title) .. (left and (": " .. left) or "")
 end
 
@@ -606,14 +674,17 @@ end
 
 -- "Also: Stormwind City: 2 turn-ins · Lakeshire: 1" for what's left elsewhere.
 local function AlsoText(route)
-	local bits = {}
-	for zone, goals in pairs(route.elsewhere or {}) do bits[#bits + 1] = { zone = zone, n = #goals } end
+	local bits, unplaced = {}, 0
+	for zone, goals in pairs(route.elsewhere or {}) do
+		if zone == "" then unplaced = #goals else bits[#bits + 1] = { zone = zone, n = #goals } end
+	end
 	table.sort(bits, function(a, b) if a.n ~= b.n then return a.n > b.n end return a.zone < b.zone end)
 	local words = {}
 	for i, b in ipairs(bits) do
 		if i > 3 then break end
 		words[#words + 1] = ns.Escape(b.zone) .. ": " .. b.n
 	end
+	if unplaced > 0 then words[#words + 1] = unplaced .. " Spellmind can't place" end
 	local text = #words > 0 and ("Elsewhere: " .. table.concat(words, " · ")) or nil
 	if #(route.later or {}) > 0 then
 		text = (text and (text .. "\n") or "") .. #route.later .. " quest" .. (#route.later > 1 and "s" or "") .. " in your log for later (above your level)"

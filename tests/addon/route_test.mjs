@@ -925,9 +925,10 @@ test('a flight that lands short of the zone says where (the player, 2026-11-19: 
   v2.run(TAXI + '; TaxiNodeName = function(i) return ({ "Thelsamar, Loch Modan", "Sentinel Hill, Elwynn", "Menethil Harbor, Wetlands" })[i] end; STUB.FireEvent("TAXIMAP_OPENED")');
   v2.slash('route');
   v2.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)()); STUB.mapShown = 1415; NS.Route.DrawMap()');
-  assert.equal(v2.num('NS.Route.marks.legsShown'), 3, 'the flight master, where it lands, the quest giver');
+  assert.equal(v2.num('NS.Route.marks.legsShown'), 2, 'the flight master; where it lands and the quest giver, one stacked mark');
   assert.equal(v2.evaluate('NS.Route.marks.legs[2].tip[1]'), 'Land at Sentinel Hill');
   assert.equal(v2.evaluate('NS.Route.marks.legs[2].tip[2]'), 'Then on to Westfall from there');
+  assert.equal(v2.evaluate('NS.Route.marks.legs[2].num:GetText()'), '»2', 'two legs in it');
 });
 
 // A detour (the player, 2026-11-19): Thane's Errand (750, done) is handed in to Thane Ironbelly in
@@ -1165,4 +1166,21 @@ test('a flight path named by its zone\'s short name still has its map (the playe
   assert.equal(f.map, 1432, '"Loch" is Loch Modan');
   assert.equal(vm.num('NS.Route.ZoneMap("Westfall")'), 1436);
   assert.equal(vm.evaluate('tostring(NS.Route.ZoneMap("Nowhere"))'), 'nil');
+});
+
+test('legs too close together for two marks are one, its tooltip naming both (the player, 2026-11-19: Darkshire\'s landing and step on the continent\'s map)', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run(MAP);
+  vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED")');
+  vm.slash('route');
+  // Westfall chosen: the flight master at Thelsamar, the landing at Sentinel Hill and Gryan there,
+  // on the continent's map (12000 x 8000 on 1000 px: Sentinel Hill and Gryan are the same few pixels).
+  vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)()); NS.R.routePlan = nil; STUB.mapShown = 1415; NS.Route.DrawMap()');
+  const M = 'NS.Route.marks';
+  const tips = vm.json(`(function() local o = {} for k = 1, ${M}.legsShown do o[k] = ${M}.legs[k].tip end return o end)()`);
+  const list = Array.isArray(tips) ? tips : Object.values(tips || {});
+  assert.equal(list.length, 2, `the flight master, then one mark for the landing and Gryan: ${JSON.stringify(list)}`);
+  const last = Array.isArray(list[1]) ? list[1] : Object.values(list[1]);
+  assert.match(last.join(' | '), /Fly to Sentinel Hill.*Westfall: Gryan Stoutmantle/);
+  assert.equal(vm.evaluate(`${M}.legs[2].num:GetText()`), '»2');
 });

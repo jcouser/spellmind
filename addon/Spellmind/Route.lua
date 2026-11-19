@@ -2406,10 +2406,24 @@ function RT.DrawMap()
 			local rx, ry = OnMapRaw(leg.world, shownMap)
 			if rx then x, y = Clip(prev[1], prev[2], rx, ry); edge = x ~= nil end
 		end
-		if x then
+		-- Too close to the last leg's mark to be its own (the player, 2026-11-19: on the continent's map the
+		-- landing at Darkshire and the step there were one on the other, and the step was pushed aside
+		-- over Deadwind Pass): it joins that mark, its words added to the tooltip.
+		local last = marks.legsShown > 0 and marks.legs[marks.legsShown] or nil
+		if x and last and last.at and math.abs(last.at[1] - x / 100 * cw) < RT.DOT and math.abs(last.at[2] - y / 100 * ch) < RT.DOT then
+			local tip = { last.tip and last.tip[1] or "" }
+			for k = 2, #(last.tip or {}) do tip[#tip + 1] = last.tip[k] end
+			for _, line in ipairs(edge and { "Toward " .. (leg.zone or "the next zone") } or leg.tip or {}) do tip[#tip + 1] = line end
+			last.tip = tip
+			-- How many legs it holds (the player's idea: a number on stacked marks, their tooltips joined).
+			last.count = (last.count or 1) + 1
+			last.num:SetText("\194\187" .. last.count)
+			if edge then break end
+		elseif x then
 			legPts[#legPts + 1] = { x / 100 * cw, y / 100 * ch }
 			marks.legsShown = marks.legsShown + 1
 			local d = Dot(layer, marks.legsShown, marks.legs)
+			d.at, d.count = { x / 100 * cw, y / 100 * ch }, 1
 			d:ClearAllPoints()
 			local px, py = Free(x / 100 * cw, y / 100 * ch)
 			d:SetPoint("CENTER", layer, "TOPLEFT", px, -py)

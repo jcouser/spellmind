@@ -54,7 +54,7 @@ test('Quests: ready; Do now grouped by the log\'s own headers (the zone you\'re 
   const later = section('Later');
   assert.match(later[0].text, /\[18\]\|r Gathering Idols/);
   assert.equal(later[0].right, 'NE · 560 yd');
-  assert.ok(d.filter(x => x.kind === 'item' && x !== dungeon[0]).every(x => typeof x.quest === 'number'), 'every quest row has its mark');
+  assert.ok(d.filter(x => x.kind === 'item' && x !== dungeon[0] && !/Quest route/.test(x.text)).every(x => typeof x.quest === 'number'), 'every quest row has its mark');
   assert.equal(vm.evaluate('SpellmindPanel.asks[1].text:GetText()'), 'Ask: Plan my next hour');
 });
 

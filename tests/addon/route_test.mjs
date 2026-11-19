@@ -3,7 +3,7 @@
 // short; ticked off by the game's state; the tracker window (/sm route).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { newVM } from '../helpers/addon-vm.mjs';
+import { newVM, reloadVM } from '../helpers/addon-vm.mjs';
 
 // A small Loch Modan (area 38, map 1432, 3000 x 2000 yards in the stub). The player stands at (40, 40).
 // In the log: Kobold Candles (700, kill Tunnel Rats around (20, 20), back to Mountaineer Kadrell at
@@ -622,4 +622,45 @@ test('the world map: each step still to do numbered at its spot, its objective\'
   vm.slash('route');
   assert.equal(vm.num(`${M}.shown`), 0, 'closed with the tracker');
   assert.equal(vm.evaluate(`tostring(${M}.dots[1].shown)`), 'false');
+});
+
+test('the route on stays on: open again after a /reload and at login; the X turns it off, kept (the player, 2026-11-19)', () => {
+  let vm = session();
+  vm.slash('route');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.routeUI.on)'), 'true');
+  vm = reloadVM(vm, { before: ZONE }).login().advance(5);
+  assert.equal(vm.evaluate('tostring(SpellmindRoute and SpellmindRoute.shown)'), 'true', 'open again after the /reload');
+  assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /Kobold Candles/);
+  vm.run('SpellmindRoute.close.scripts.OnClick(SpellmindRoute.close)');
+  assert.equal(vm.evaluate('tostring(SpellmindDB.routeUI.on)'), 'nil');
+  assert.ok(vm.chatLines().some(l => /The route is off\. \/sm route, or Settings, brings it back\./.test(l)));
+  vm = reloadVM(vm, { before: ZONE }).login().advance(5);
+  assert.equal(vm.evaluate('tostring(SpellmindRoute and SpellmindRoute.shown or false)'), 'false', 'off stays off');
+});
+
+test('Settings: the Quest route switch, the arrow and the map\'s steps; the Quests tab\'s route row', () => {
+  const vm = session();
+  vm.run(`WorldMapFrame.canvas = CreateFrame("Frame", nil, WorldMapFrame)
+    WorldMapFrame.canvas:SetSize(1000, 667)
+    function WorldMapFrame:GetCanvas() return self.canvas end
+    function WorldMapFrame:GetMapID() return 1432 end`);
+  vm.run('NS.Settings.Flip("route")');
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.shown)'), 'true', 'on: the tracker opens');
+  assert.equal(vm.evaluate('tostring(SpellmindArrow.shown)'), 'true');
+  assert.equal(vm.num('NS.Route.marks.shown'), 3);
+  vm.run('NS.Settings.Flip("route:arrow")');
+  assert.equal(vm.evaluate('tostring(SpellmindArrow.shown)'), 'false', 'the arrow off');
+  vm.run('NS.Settings.Flip("route:map")');
+  assert.equal(vm.num('NS.Route.marks.shown'), 0, 'the map\'s steps off');
+  vm.run('NS.Settings.Flip("route:map"); NS.Settings.Flip("route:arrow")');
+  assert.equal(vm.num('NS.Route.marks.shown'), 3);
+  // The Quests tab: the route's row, with where it stands; Hide turns it off.
+  vm.run('NS.Panel.Show("quests")');
+  const v = vm.json('SpellmindPanel.drawn'); const d = Array.isArray(v) ? v : Object.values(v || {});
+  const row = d.findIndex(x => /Quest route/.test(x.text)) + 1;
+  assert.ok(row > 0, JSON.stringify(d.slice(0, 3)));
+  assert.match(d[row - 1].sub || '', /Step 1 of 3 · Loch Modan/);
+  vm.run(`SpellmindPanel.rows[${row}].actions[1].scripts.OnClick(SpellmindPanel.rows[${row}].actions[1], "LeftButton")`);
+  assert.equal(vm.evaluate('tostring(SpellmindRoute.shown)'), 'false');
+  assert.equal(vm.evaluate('tostring(NS.Route.On())'), 'false');
 });

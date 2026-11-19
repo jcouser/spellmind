@@ -465,12 +465,29 @@ function Tabs.quests()
 		out[#out + 1] = { kind = "head", text = title }
 		for _, r in ipairs(rows) do out[#out + 1] = r end
 	end
+	-- The route (Route.lua): on or off from here, with where it stands.
+	local RT = ns.Route
+	if RT then
+		local on = RT.On()
+		local sub
+		if on then
+			local cur, i = RT.Current()
+			local _, total = RT.Progress()
+			local zone = R.route and R.route.zone
+			sub = (cur and ("Step " .. i .. " of " .. total) or "Nothing left here") .. (zone and (" · " .. ns.Escape(zone)) or "")
+		else
+			sub = "Your next steps, an arrow and the map's areas, from your quest log" .. (ns.Dungeons.HasDB() and " and Questie." or ".")
+		end
+		out[#out + 1] = { kind = "item", left = "|cffb48cffQuest route|r", sub = "|cff888888" .. sub .. "|r",
+			actions = { { on and "Hide" or "Show", function() RT.SetOn(not on); P.Show("quests", true) end,
+				tip = on and "Turn the route off (Settings has it too)." or "Turn the route on: it stays on screen through /reload." } } }
+	end
 	Section("Ready to turn in", groups.ready)
 	-- What turning them all in does for the level.
 	local total = 0
 	for _, r in ipairs(groups.ready) do total = total + (r.xp or 0) end
 	local line = #groups.ready > 0 and ns.Quests.XpLine(total) or nil
-	if line then table.insert(out, 2, { kind = "text", text = line }) end
+	if line then table.insert(out, RT and 3 or 2, { kind = "text", text = line }) end
 	for _, g in ipairs(now) do Section("Do now: " .. ns.Escape(g.title), g.rows) end
 	-- Dungeons, the lowest first: one row each, its quests named, Open for the Dungeons tab, which has
 	-- their givers, chains and hand-ins (the review, and the player's call: a dungeon's quests in

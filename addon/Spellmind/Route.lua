@@ -1317,7 +1317,10 @@ local function Build()
 	f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 36, -12)
 	f.close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
 	f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
-	f.close:SetScript("OnClick", function() f:Hide() end)
+	f.close:SetScript("OnClick", function()
+		RT.Toggle(false)
+		ns.Chat.System("The route is off. /sm route, or Settings, brings it back.")
+	end)
 	-- The fold (the player, 2026-11-19): only the current step, for less on screen while questing.
 	f.fold = CreateFrame("Button", nil, f)
 	f.fold:SetSize(16, 16)
@@ -1638,10 +1641,26 @@ function RT.Draw()
 	if cur then f.skip:Enable() else f.skip:Disable() end
 end
 
+-- The route on or off, kept (SpellmindDB.routeUI.on): on, the tracker is open through /reload and
+-- logins (the player, 2026-11-19: "I have to type /sm route every time").
+function RT.On() return UI().on == true end
+function RT.SetOn(v) RT.Toggle(v and true or false) end
+ns.On("PLAYER_LOGIN", function()
+	C_Timer.After(RT.OPEN_DELAY, function() if RT.On() and not RT.Shown() then RT.Toggle(true) end end)
+end)
+RT.OPEN_DELAY = 3 -- seconds after login: the map and the quest log are ready
+
+-- The arrow and the map's steps, each its own switch (Settings).
+function RT.ArrowOn() return not UI().arrowOff end
+function RT.SetArrow(v) UI().arrowOff = (not v) or nil; RT.ArrowSync() end
+function RT.MapOn() return not UI().mapOff end
+function RT.SetMap(v) UI().mapOff = (not v) or nil; pcall(RT.DrawMap) end
+
 -- /sm route: open (built fresh when it's stale) or close.
 function RT.Toggle(show)
 	local f = Build()
 	if show == nil then show = not f:IsShown() end
+	UI().on = show or nil
 	if not show then f:Hide(); return false end
 	f:Show()
 	if not R.route or R.routeStale then R.routeStale = nil; RT.Build() end
@@ -1878,7 +1897,7 @@ function RT.DrawMap()
 	for _, d in pairs(marks.dots) do d:Hide(); d.stop = nil end
 	marks.shown = 0
 	local route = R.route
-	if not RT.Shown() or not W:IsShown() or not route or not route.map or W:GetMapID() ~= route.map then return end
+	if not RT.Shown() or not RT.MapOn() or not W:IsShown() or not route or not route.map or W:GetMapID() ~= route.map then return end
 	local cw, ch = tonumber((canvas:GetWidth())) or 0, tonumber((canvas:GetHeight())) or 0
 	if cw <= 0 or ch <= 0 then return end
 	local cur = RT.Current()

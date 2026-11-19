@@ -568,7 +568,7 @@ function Tabs.route()
 		local groups = RT.Groups(s, true)
 		local more = {}
 		for k = 2, #groups do more[#more + 1] = RT.GroupText(groups[k]) end
-		local first = groups[1] and RT.GroupText(groups[1]) or ""
+		local first = groups[1] and (RT.StopZone(s) .. RT.GroupText(groups[1])) or ""
 		local grey = done or skipped
 		local key = s.key
 		out[#out + 1] = { kind = "item", left = (grey and "|cff888888" or (s == cur and "|cffffd100" or "|cffffffff")) .. i .. ".|r " .. first,

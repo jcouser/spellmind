@@ -32,6 +32,8 @@ RT.LOG_ABOVE, RT.GROUP_ABOVE = 2, 2
 RT.LATER_ABOVE = 2 -- this many levels past the cap (orange), a pick up is still a step "for later"
 RT.STOPS_MAX = 40
 RT.CHAIN_PASSES = 3 -- follow-ups planned this many steps down a chain
+RT.DETOUR_MIN_RATE = 0.05 -- a detour's value a minute, at least, when no other zone is counted
+
 RT.PASSES = 8 -- improvement passes over the order
 RT.REBUILD_DELAY = 1.5 -- seconds: game events coalesce into one rebuild
 RT.NEXT_SHOWN = 3
@@ -48,6 +50,36 @@ local function InGroup()
 end
 -- The most levels above the character a quest may be: one in the log (inLog) or one to pick up.
 function RT.Above(inLog) return (inLog and RT.LOG_ABOVE or RT.ABOVE) + (InGroup() and RT.GROUP_ABOVE or 0) end
+
+-- The quests each quest opens (its follow-ups): QuestieDB's prerequisites turned around, once a
+-- session (one pass over the quests the index has).
+function RT.FollowUps(id)
+	if not R.routeFollow then
+		local Q = L()
+		local index = Q and DG().Index()
+		if not index then return {} end
+		local rev = {}
+		local function Add(p, q) if type(p) == "number" then rev[p] = rev[p] or {}; table.insert(rev[p], q) end end
+		for _, ids in pairs(index) do
+			for _, q in ipairs(ids) do
+				local single, group = Try(Q.Quest.preQuestSingle, q), Try(Q.Quest.preQuestGroup, q)
+				for _, p in ipairs(type(single) == "table" and single or {}) do Add(p, q) end
+				for _, p in ipairs(type(group) == "table" and group or {}) do Add(p, q) end
+			end
+		end
+		R.routeFollow = rev
+	end
+	return R.routeFollow[id] or {}
+end
+
+-- The rate a detour has to reach: the best other zone's (Where next), else RT.DETOUR_MIN_RATE.
+function RT.DetourBar()
+	local best = RT.DETOUR_MIN_RATE
+	for _, z in ipairs(RT.Zones and RT.Zones() or {}) do
+		if not z.here and z.rate and z.rate > best then best = z.rate end
+	end
+	return best
+end
 
 ---------------------------------------------------------------------------
 -- Where the player is
@@ -77,10 +109,30 @@ function RT.Here()
 		w = (type(w) == "number" and w > 0) and w or 1000, h = (type(h) == "number" and h > 0) and h or 1000 }
 end
 
--- Yards between two points on the same map (x, y 0-100).
+-- Yards between two points (x, y 0-100 on their map). On the same map, by the map's size; a point on
+-- another map (a route across zones: map = its uiMapID; none is the player's) by the world's yards,
+-- and another continent is as good as out of reach.
+RT.FAR = 1e6
+local function PointWorld(p, map)
+	if p.w == nil then p.w = (RT.World and RT.World(map, p.x, p.y)) or false end
+	return p.w or nil
+end
 function RT.Yards(a, b, here)
+	local am, bm = a.map or (here and here.map), b.map or (here and here.map)
+	if am and bm and am ~= bm then
+		local wa, wb = PointWorld(a, am), PointWorld(b, bm)
+		if not wa or not wb or wa.c ~= wb.c then return RT.FAR end
+		return math.sqrt((wa.x - wb.x) ^ 2 + (wa.y - wb.y) ^ 2)
+	end
 	local dx, dy = (a.x - b.x) * here.w / 100, (a.y - b.y) * here.h / 100
 	return math.sqrt(dx * dx + dy * dy)
+end
+-- A stop's map: its own, or the route's (the zone the route is built in).
+function RT.StopMap(s) return s and (s.map or (R.route and R.route.map)) or nil end
+-- "In Ironforge: " for a stop in another zone than the route's.
+function RT.StopZone(s)
+	if s and s.map and R.route and s.map ~= R.route.map then return "|cffffd100In " .. ns.Escape(s.zoneName or "another zone") .. ":|r " end
+	return ""
 end
 
 ---------------------------------------------------------------------------
@@ -435,9 +487,12 @@ function RT.Build()
 	-- The quests turned in on this route (a follow-up of one can be planned: picked up after it).
 	local turnsHere = {}
 	local function Place(kind, id, title, spot, to, extra)
-		raw[#raw + 1] = { x = spot.x, y = spot.y, goals = { Goal(kind, id, title, to, extra) } }
+		raw[#raw + 1] = { x = spot.x, y = spot.y, map = spot.map, zoneName = spot.zoneName, goals = { Goal(kind, id, title, to, extra) } }
 		if kind == "turnin" then turnsHere[id] = true end
 	end
+	-- after[id] = { the quests on this route it opens after }: a follow-up, planned. planned: the
+	-- quests a detour already placed.
+	local after, planned = {}, {}
 	-- What's left in another zone, by its name; "" for what Spellmind can't place at all.
 	local function Elsewhere(zoneName, kind, id, title, to, extra)
 		local key = zoneName or ""
@@ -457,6 +512,58 @@ function RT.Build()
 			end
 		end
 	end
+	-- A detour (the player, 2026-11-19): a quest of this zone handed in somewhere else, whose follow-ups
+	-- are done here again, goes there and back when the turn-in and what it opens pay for the trip as
+	-- well as the best other zone would. Otherwise it waits under Elsewhere.
+	local function Detour(id, title, fin)
+		if not Q or not here.area or type(fin) ~= "table" or not fin.zone or fin.zone == here.area then return false end
+		local follow = RT.FollowUps(id)
+		if #follow == 0 then return false end
+		local finAt = RT.TurnIn(Q, id, fin.zone)
+		local finMap = DG().MapForArea(fin.zone)
+		if not finAt or not finAt.spot or not finMap then return false end
+		local ctx = DG().Context(Q)
+		local function Has(x) return log[x] ~= nil end
+		local cands = {}
+		for _, f in ipairs(follow) do
+			if not log[f] and not Done(f) and not RT.Hidden(f) and not RT.NotOffered(f) and DG().Fits(Q, f, ctx, Has) then
+				local req = tonumber((Try(Q.Quest.requiredLevel, f))) or 1
+				local ql = tonumber((Try(Q.Quest.questLevel, f))) or req
+				if req <= level and ql >= level - RT.BELOW and ql <= level + RT.Above() then
+					local center = RT.Area(RT.ObjectiveSpots(Q, f, here.area))
+					local _, _, gspot = DG().Giver(Q, f)
+					if center and gspot then
+						cands[#cands + 1] = { id = f, title = DG().Name(Q, f) or ("quest " .. f), level = ql, center = center, giver = gspot, fin = RT.TurnIn(Q, f, here.area) }
+					end
+				end
+			end
+		end
+		if #cands == 0 then return false end
+		-- Worth the way there and back?
+		local me = RT.PlayerWorld()
+		local there = RT.World(finMap, finAt.spot.x, finAt.spot.y)
+		local way = me and there and RT.Travel(me, there, level >= RT.MOUNT_LEVEL and RT.MOUNT_SPEED or RT.RUN_SPEED)
+		if not way then return false end
+		local value = 1 + #cands
+		if value / (2 * way.minutes + value * RT.QUEST_MINUTES) < RT.DetourBar() then return false end
+		local zname = AreaName(fin.zone)
+		Place("turnin", id, title, { x = finAt.spot.x, y = finAt.spot.y, map = finMap, zoneName = zname }, fin.name)
+		for _, c in ipairs(cands) do
+			local gMap = c.giver.zone ~= here.area and DG().MapForArea(c.giver.zone) or nil
+			if c.giver.zone == here.area or gMap then
+				planned[c.id] = true
+				Place("pickup", c.id, c.title, { x = c.giver.x, y = c.giver.y, map = gMap, zoneName = gMap and AreaName(c.giver.zone) or nil },
+					c.giver.name, { fromID = c.giver.npc, level = c.level })
+				Place("do", c.id, c.title, c.center, nil, AreaOf(c.center))
+				if c.fin and c.fin.spot then Place("turnin", c.id, c.title, c.fin.spot, c.fin.name) end
+				chains[#chains + 1] = { id, c.id }
+				after[c.id] = { id }
+			end
+		end
+		route.detours = (route.detours or 0) + 1
+		return true
+	end
+
 	-- The log's quests: what's left of each, here or elsewhere.
 	for id, q in pairs(log) do
 		local title = q.title or ("quest " .. id)
@@ -490,8 +597,8 @@ function RT.Build()
 				elseif complete then
 					local spot = GameSpot(id)
 					if spot then Place("turnin", id, title, spot, fin and fin.name)
-					else Elsewhere(fin and AreaName(fin.zone), "turnin", id, title, fin and fin.name) end
-				elseif fin then Elsewhere(AreaName(fin.zone), "turnin", id, title, fin.name) end
+					elseif not Detour(id, title, fin) then Elsewhere(fin and AreaName(fin.zone), "turnin", id, title, fin and fin.name) end
+				elseif fin and not Detour(id, title, fin) then Elsewhere(AreaName(fin.zone), "turnin", id, title, fin.name) end
 			end
 		end
 	end
@@ -499,8 +606,6 @@ function RT.Build()
 	-- with their objectives here too (or none), so a pick up never sends the player away.
 	local index = Q and here.area and DG().Index(function() RT.Dirty() end)
 	R.routeAskedNow = 0
-	-- after[id] = { the quests on this route it opens after }: a follow-up, planned.
-	local after = {}
 	if index and index[here.area] then
 		local ctx = DG().Context(Q)
 		local function Has(id) return log[id] ~= nil end
@@ -516,7 +621,7 @@ function RT.Build()
 		local added = false
 		for _, id in ipairs(index[here.area]) do
 			local open, needs = false, nil
-			if not taken[id] and not log[id] and not Done(id) then open, needs = Opens(id) end
+			if not taken[id] and not planned[id] and not log[id] and not Done(id) then open, needs = Opens(id) end
 			if open and not RT.Hidden(id) and not RT.NotOffered(id) and DG().Fits(Q, id, ctx, Has) and RT.Known(id) then
 				local req = tonumber((Try(Q.Quest.requiredLevel, id))) or 1
 				local ql = tonumber((Try(Q.Quest.questLevel, id))) or req
@@ -1051,7 +1156,7 @@ function RT.StopText(st)
 	local groups = RT.Groups(st)
 	if #groups == 0 then return "" end
 	local more = #groups - 1
-	return RT.GroupText(groups[1]) .. (more > 0 and (" |cff888888(+" .. more .. ")|r") or "")
+	return RT.StopZone(st) .. RT.GroupText(groups[1]) .. (more > 0 and (" |cff888888(+" .. more .. ")|r") or "")
 end
 
 -- Skip the current step (the player's Next); Back brings the last one skipped back.
@@ -1612,7 +1717,7 @@ function RT.Draw()
 		f.now:SetText("|cff19ff19Nothing left here that Spellmind knows of.|r" .. (route.db and "" or
 			"\n|cff888888With QuestieDB installed, the route also lists quests to pick up here, and where mobs are.|r"))
 	else
-		f.now:SetText(groups[1] and RT.GroupText(groups[1]) or "")
+		f.now:SetText(groups[1] and (RT.StopZone(cur) .. RT.GroupText(groups[1])) or "")
 		sub = groups[1] and RT.GroupNames(groups[1])
 	end
 	f.nowSub:SetText(sub or "")
@@ -1799,7 +1904,7 @@ function RT.ArrowTarget()
 	local cur = RT.Current()
 	if cur and not z then
 		local gr = RT.Groups(cur)[1]
-		return { world = World(route.map, cur.x, cur.y), text = gr and RT.GroupText(gr) or RT.GoalText(cur.goals[1]) }
+		return { world = World(RT.StopMap(cur), cur.x, cur.y), text = RT.StopZone(cur) .. (gr and RT.GroupText(gr) or RT.GoalText(cur.goals[1])) }
 	end
 	z = z or RT.WhereLines(route)[1]
 	if not z then return nil end
@@ -2118,9 +2223,9 @@ function RT.DrawMap()
 		placed[#placed + 1] = { px, py }
 		return px, py
 	end
-	for i, s in ipairs(onRouteMap and route.stops or {}) do
+	for i, s in ipairs(route.stops or {}) do
 		if nd >= RT.MAP_STEPS then break end
-		if not RT.StopDone(s) and not (R.routeSkip and R.routeSkip[s.key]) then
+		if RT.StopMap(s) == shownMap and not RT.StopDone(s) and not (R.routeSkip and R.routeSkip[s.key]) then
 			local now = s == cur
 			local r, g, b = now and 1 or 0.62, now and 0.82 or 0.49, now and 0 or 1
 			for _, goal in ipairs(s.goals) do
@@ -2248,7 +2353,7 @@ function RT.Part()
 		local skip = R.routeSkip and R.routeSkip[s.key]
 		if skip then skipped = skipped + 1 end
 		if #steps < RT.AI_STEPS and not RT.StopDone(s) and not skip then
-			steps[#steps + 1] = ns.State.Text(k .. ". " .. Plain(s), 400)
+			steps[#steps + 1] = ns.State.Text(k .. ". " .. RT.StopZone(s) .. Plain(s), 400)
 		end
 	end
 	local later = {}

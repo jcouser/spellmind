@@ -927,3 +927,47 @@ test('a flight that lands short of the zone says where (the player, 2026-11-19: 
   assert.equal(v2.evaluate('NS.Route.marks.legs[2].tip[1]'), 'Land at Sentinel Hill');
   assert.equal(v2.evaluate('NS.Route.marks.legs[2].tip[2]'), 'Then on to Westfall from there');
 });
+
+// A detour (the player, 2026-11-19): Thane's Errand (750, done) is handed in to Thane Ironbelly in
+// Ironforge, and opens Thane's Second Errand (751, from him), whose rats are here in Loch Modan.
+const DETOUR = `
+  table.insert(STUB.quests, { title = "Thane's Errand", questID = 750, level = 15, complete = true })
+  local Q = STUB.qdb.quests
+  Q[750] = { name = "Thane's Errand", zone = 38, level = 15, ender = 900 }
+  Q[751] = { name = "Thane's Second Errand", zone = 38, level = 15, npc = 900, single = { 750 }, obj = { { { 800 } }, {}, {} }, ender = 801 }`;
+
+test('routes across zones: a detour to hand in a quest elsewhere when what it opens here pays for the trip', () => {
+  const vm = newVM({ before: ZONE + DETOUR }).login().advance(9);
+  const ks = keys(vm);
+  const at = k => ks.findIndex(x => x.split(',').includes(k));
+  assert.ok(at('turnin:750') >= 0, `the turn-in in Ironforge: ${ks}`);
+  assert.ok(at('pickup:751') >= 0 && at('do:751') > at('pickup:751') && at('turnin:751') >= at('do:751'), `then the follow-up, back here: ${ks}`);
+  assert.ok(at('turnin:750') <= at('pickup:751'));
+  // That stop is Ironforge's: its own map, and the tracker says so.
+  const stop = vm.json(`(function() for _, s in ipairs(NS.R.route.stops) do if s.key:find("turnin:750") then return { map = s.map, zone = s.zoneName } end end end)()`);
+  assert.deepEqual(stop, { map: 1455, zone: 'Ironforge' });
+  assert.equal(vm.evaluate('tostring(NS.R.route.elsewhere.Ironforge)'), 'nil', 'not under Elsewhere any more');
+  vm.slash('route');
+  const lines = [1, 2, 3, 4].map(k => vm.evaluate(`SpellmindRoute.next[${k}]:GetText()`));
+  assert.ok(lines.some(l => /^\|cffffd100In Ironforge:\|r Turn in Thane's Errand to Thane Ironbelly/.test(l)), JSON.stringify(lines));
+  // The AI's steps name the zone too.
+  const part = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Advisor.Part())'));
+  assert.ok(part.route.steps.some(s => /In Ironforge: .*turn in Thane's Errand/.test(s)), JSON.stringify(part.route.steps));
+});
+
+test('no detour when another zone pays better: the turn-in waits under Elsewhere', () => {
+  const vm = newVM({ before: ZONE + MORE + DETOUR }).login().advance(9);
+  const ks = keys(vm).join(' ');
+  assert.ok(!ks.includes('turnin:750') && !ks.includes(':751'), ks);
+  assert.ok(vm.evaluate('NS.R.route.elsewhere.Ironforge[1].q') === '750' || vm.num('NS.R.route.elsewhere.Ironforge[1].q') === 750);
+});
+
+test('the map shows a stop on its own map: the Ironforge turn-in on Ironforge\'s, not on Loch Modan\'s', () => {
+  const vm = newVM({ before: ZONE + DETOUR }).login().advance(9);
+  vm.run(MAP);
+  vm.slash('route');
+  const shownHere = vm.num('NS.Route.marks.shown');
+  vm.run('STUB.mapShown = 1455; NS.Route.DrawMap()');
+  assert.equal(vm.num('NS.Route.marks.shown'), 1, 'the one in Ironforge');
+  assert.ok(shownHere >= 3, `Loch Modan's: ${shownHere}`);
+});

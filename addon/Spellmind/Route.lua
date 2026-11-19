@@ -1169,6 +1169,13 @@ function RT.WhereText(z)
 	return table.concat(bits, ", ") .. (z.minutes and (" · about " .. z.minutes .. " min" .. how) or "")
 end
 
+-- The zone the arrow heads for: the one the player chose (Aim), else nil.
+function RT.NextZone(route)
+	if not R.routeAim then return nil end
+	for _, z in ipairs(route and route.where or {}) do if z.area == R.routeAim then return z end end
+	return nil
+end
+
 -- The other zones for the tracker: once few steps are left here (or none), the best few.
 function RT.WhereLines(route)
 	local out = {}
@@ -1854,8 +1861,11 @@ function RT.Draw()
 	if route.nowhere then
 		f.now:SetText("|cff888888No map position here (an instance or a loading screen): the route waits until you're outside.|r")
 	elseif not cur and wl[1] then
-		f.now:SetText("|cff19ff19Done here at your level.|r Next: |cffffd100" .. ns.Escape(wl[1].zone) .. "|r")
-		sub = RT.WhereText(wl[1])
+		-- The zone the player chose, else the best (the player, 2026-11-19: Wetlands chosen, the band still
+		-- said Stormwind City).
+		local nz = RT.NextZone(route) or wl[1]
+		f.now:SetText("|cff19ff19Done here at your level.|r Next: |cffffd100" .. ns.Escape(nz.zone) .. "|r" .. (R.routeAim == nz.area and " |cff888888(your choice)|r" or ""))
+		sub = RT.WhereText(nz)
 	elseif not cur then
 		f.now:SetText("|cff19ff19Nothing left here that Spellmind knows of.|r" .. (route.db and "" or
 			"\n|cff888888With QuestieDB installed, the route also lists quests to pick up here, and where mobs are.|r"))
@@ -1936,7 +1946,8 @@ function RT.Draw()
 	f.credit:SetText(credit and ("|cff777777" .. credit .. "|r") or "")
 	-- Where next, when the band isn't already saying it: the zones after the first.
 	local shownWhere = {}
-	for k, z in ipairs(wl) do if cur or k > 1 then shownWhere[#shownWhere + 1] = z end end
+	local named = not cur and (RT.NextZone(route) or wl[1]) or nil
+	for _, z in ipairs(wl) do if z ~= named then shownWhere[#shownWhere + 1] = z end end
 	local whereH, awayH = 0, 0
 	for k, b in ipairs(f.where) do
 		local z = shownWhere[k]

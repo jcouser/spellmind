@@ -1374,3 +1374,15 @@ test('skip chips (the player, 2026-11-19): the review\'s "Skip: <quest>" lines b
   // The review question asks for the lines.
   assert.match(vm.evaluate('NS.Panel.RouteQuestion("ROUTE_REVIEW")'), /Skip: <the quest's exact name>/);
 });
+
+test('done here with a zone chosen: the band names the chosen one, "Or" offers the rest (the player, 2026-11-19)', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run('STUB.quests = {}; for id = 700, 704 do STUB.completed[id] = true end');
+  vm.slash('route');
+  assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /Next: .*Ironforge/, 'the best first');
+  vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)())');
+  assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /Next: \|cffffd100Westfall\|r \|cff888888\(your choice\)/);
+  const or = [1, 2, 3].map(k => vm.evaluate(`SpellmindRoute.where[${k}].text:GetText()`) || '');
+  assert.ok(or.some(x => /Ironforge/.test(x)), `Ironforge under Or now: ${JSON.stringify(or)}`);
+  assert.ok(!or.some(x => /Westfall/.test(x)), 'not Westfall twice');
+});

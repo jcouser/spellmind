@@ -40,10 +40,9 @@ const keys = vm => JSON.parse(vm.evaluate(`NS.State.JSON.encode((function()
 
 test('the route: the log\'s quests and the zone\'s pickup, close goals as one stop, in an order that keeps the rules and is short', () => {
   const vm = session();
-  assert.deepEqual(keys(vm), ['do:700', 'turnin:700,turnin:701', 'pickup:702,do:702,turnin:702'],
-    'the rats first (the nearest step that can be done), then both turn-ins at Kadrell, then Ironband\'s quest at his camp');
+  assert.deepEqual(keys(vm), ['do:700', 'turnin:700,turnin:701', 'pickup:702,do:702,turnin:702,pickup:703,turnin:703'],
+    'the rats first (the nearest step that can be done), then both turn-ins at Kadrell, then Ironband\'s quest at his camp, and its follow-up from him after the turn-in');
   const later = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Route.Build().stops)'));
-  assert.ok(!JSON.stringify(later).includes('"q":703'), 'a quest behind one not done isn\'t a step');
   assert.ok(!JSON.stringify(later).includes('"q":704'), 'a quest far below the level isn\'t a step');
   assert.equal(vm.evaluate('NS.Route.Here().zone'), 'Loch Modan');
 });
@@ -72,13 +71,13 @@ test('steps advance by the game\'s state: objectives full, a turn-in, a pick up;
   assert.equal(cur(), 'turnin:700,turnin:701', 'on to the turn-ins, without a rebuild');
   // Both turned in.
   vm.run('table.remove(STUB.quests, 3); table.remove(STUB.quests, 2); STUB.completed[700] = true; STUB.completed[701] = true');
-  assert.equal(cur(), 'pickup:702,do:702,turnin:702');
+  assert.equal(cur(), 'pickup:702,do:702,turnin:702,pickup:703,turnin:703');
   // Picked up: that goal is done, the stop isn't yet.
   vm.run('table.insert(STUB.quests, { title = "Ironband\'s Excavation", questID = 702, level = 15 })');
   assert.equal(vm.evaluate('tostring(NS.Route.GoalDone({ kind = "pickup", q = 702 }))'), 'true');
-  assert.equal(cur(), 'pickup:702,do:702,turnin:702');
+  assert.equal(cur(), 'pickup:702,do:702,turnin:702,pickup:703,turnin:703');
   // A rebuild now leaves out what's done.
-  assert.deepEqual(keys(vm), ['do:702,turnin:702']);
+  assert.deepEqual(keys(vm), ['do:702,turnin:702,pickup:703,turnin:703'], 'and the follow-up after it');
 });
 
 test('Skip moves past a step, Back brings it back; a rebuild keeps the skip', () => {
@@ -486,4 +485,49 @@ test('the arrow: right-click hides it (kept), /sm arrow brings it back; closing 
   assert.equal(vm.evaluate('tostring(SpellmindArrow.shown)'), 'true');
   vm.slash('route');
   assert.equal(vm.evaluate('tostring(SpellmindArrow.shown)'), 'false', 'closed with the tracker');
+});
+
+test('a follow-up is planned after the turn-in that opens it (the player, 2026-11-19: Calor\'s next Worgen in the Woods); not one behind a quest done elsewhere', () => {
+  const vm = newVM({ before: ZONE + `
+    local Q = STUB.qdb.quests
+    -- Kobold Candles (700, in the log, turned in to Kadrell here) opens Kobold Wicks (706) from Kadrell, then Kobold Wax (707).
+    Q[706] = { name = "Kobold Wicks", zone = 38, level = 15, npc = 801, single = { 700 }, obj = { { { 800 } }, {}, {} }, ender = 801 }
+    Q[707] = { name = "Kobold Wax", zone = 38, level = 16, npc = 801, single = { 706 }, ender = 801 }
+    -- One behind a quest neither done nor on the route stays out.
+    Q[708] = { name = "Far Errand", zone = 38, level = 15, npc = 801, single = { 9999 }, ender = 801 }` }).login().advance(9);
+  const ks = keys(vm);
+  const at = k => ks.findIndex(x => x.split(',').includes(k));
+  assert.ok(at('turnin:700') >= 0 && at('pickup:706') >= 0, `planned: ${ks}`);
+  assert.ok(at('turnin:700') <= at('pickup:706'), 'picked up after the turn-in');
+  assert.ok(at('do:706') > at('pickup:706') && at('turnin:706') >= at('do:706'));
+  assert.ok(at('pickup:707') >= at('turnin:706'), 'two steps down the chain');
+  assert.ok(!ks.join(' ').includes(':708'), 'not behind a quest done elsewhere');
+  // At Kadrell's stop: the turn-in before the pick up it opens.
+  const stop = ks[at('pickup:706')].split(',');
+  assert.ok(stop.indexOf('turnin:700') < stop.indexOf('pickup:706'), `in the stop: ${stop}`);
+});
+
+test('the follow-up after a turn-in is its own line in the stop, not counted with the pick up before it', () => {
+  const vm = session();
+  vm.run('NS.Route.Build()');
+  const gs = JSON.parse(vm.evaluate(`NS.State.JSON.encode((function()
+    for _, s in ipairs(NS.R.route.stops) do if s.key:find("pickup:703") then
+      local o = {} for _, g in ipairs(NS.Route.Groups(s)) do o[#o + 1] = g.kind .. ":" .. g.goals[1].q .. "x" .. #g.goals end return o end end end)())`));
+  assert.deepEqual(gs, ['pickup:702x1', 'do:702x1', 'turnin:702x1', 'pickup:703x1', 'turnin:703x1'], 'five lines, in order');
+});
+
+test('levels: a quest in the log up to orange (+4) stays on the route, red waits; in a group, two more', () => {
+  const vm = newVM({ before: ZONE + `
+    table.insert(STUB.quests, { title = "Orange Errand", questID = 720, level = 19 })
+    table.insert(STUB.quests, { title = "Red Errand", questID = 721, level = 20 })
+    STUB.questsOnMap = { [1432] = { { questID = 720, x = 0.3, y = 0.3 }, { questID = 721, x = 0.31, y = 0.31 } } }
+    STUB.grouped = false
+    IsInGroup = function() return STUB.grouped end` }).login().advance(9);
+  let ks = keys(vm).join(' ');
+  assert.ok(ks.includes('do:720'), 'orange: on the route');
+  assert.ok(!ks.includes('do:721'), 'red: for later');
+  assert.ok(vm.json('NS.R.route.later').includes('Red Errand'));
+  vm.run('STUB.grouped = true');
+  ks = keys(vm).join(' ');
+  assert.ok(ks.includes('do:721'), 'in a group: red too');
 });

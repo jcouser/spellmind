@@ -23,7 +23,11 @@ RT.GROUP_YARDS = 90 -- stops this close are one stop
 RT.SPOTS_MAX = 80 -- an objective's spawn points read, at most
 RT.CLUSTER = 7 -- map percent: the radius of an objective's densest spot
 RT.BELOW, RT.ABOVE = 5, 3 -- pickups this far below (grey) or above the character's level are left out
+-- A quest already taken stays on the route up to orange (+4); red ones wait for a level. In a group,
+-- two levels more for both (the player, 2026-11-19: grouped, a +4 quest they'd taken was "for later").
+RT.LOG_ABOVE, RT.GROUP_ABOVE = 4, 2
 RT.STOPS_MAX = 40
+RT.CHAIN_PASSES = 3 -- follow-ups planned this many steps down a chain
 RT.PASSES = 8 -- improvement passes over the order
 RT.REBUILD_DELAY = 1.5 -- seconds: game events coalesce into one rebuild
 RT.NEXT_SHOWN = 3
@@ -33,6 +37,13 @@ local function DG() return ns.Dungeons end
 local function L() return ns.Dungeons and ns.Dungeons.DB and ns.Dungeons.DB() end
 local function Level() return tonumber((Try(UnitLevel, "player"))) or 1 end
 local function InCombat() return type(InCombatLockdown) == "function" and InCombatLockdown() and true or false end
+local function InGroup()
+	local f = rawget(_G, "IsInGroup")
+	if type(f) == "function" then return Try(f) and true or false end
+	return (tonumber((Try(rawget(_G, "GetNumPartyMembers")))) or 0) > 0
+end
+-- The most levels above the character a quest may be: one in the log (inLog) or one to pick up.
+function RT.Above(inLog) return (inLog and RT.LOG_ABOVE or RT.ABOVE) + (InGroup() and RT.GROUP_ABOVE or 0) end
 
 ---------------------------------------------------------------------------
 -- Where the player is
@@ -399,8 +410,11 @@ function RT.Build()
 		for k, v in pairs(extra or {}) do g[k] = v end
 		return g
 	end
+	-- The quests turned in on this route (a follow-up of one can be planned: picked up after it).
+	local turnsHere = {}
 	local function Place(kind, id, title, spot, to, extra)
 		raw[#raw + 1] = { x = spot.x, y = spot.y, goals = { Goal(kind, id, title, to, extra) } }
+		if kind == "turnin" then turnsHere[id] = true end
 	end
 	-- What's left in another zone, by its name; "" for what Spellmind can't place at all.
 	local function Elsewhere(zoneName, kind, id, title, to, extra)
@@ -425,7 +439,7 @@ function RT.Build()
 	for id, q in pairs(log) do
 		local title = q.title or ("quest " .. id)
 		local qlevel = (Q and tonumber((Try(Q.Quest.questLevel, id)))) or q.level or level
-		if qlevel > level + RT.ABOVE then
+		if qlevel > level + RT.Above(true) then
 			route.later[#route.later + 1] = title
 		else
 			local complete = Complete(id)
@@ -462,14 +476,28 @@ function RT.Build()
 	-- with their objectives here too (or none), so a pick up never sends the player away.
 	local index = Q and here.area and DG().Index(function() RT.Dirty() end)
 	R.routeAskedNow = 0
+	-- after[id] = { the quests on this route it opens after }: a follow-up, planned.
+	local after = {}
 	if index and index[here.area] then
 		local ctx = DG().Context(Q)
 		local function Has(id) return log[id] ~= nil end
+		local taken = {}
+		-- Open now, or once the quests it needs are turned in on this route.
+		local function Opens(id)
+			local miss = DG().Missing(id)
+			if #miss == 0 then return true end
+			for _, p in ipairs(miss) do if not turnsHere[p] then return false end end
+			return true, miss
+		end
+		for pass = 1, RT.CHAIN_PASSES do
+		local added = false
 		for _, id in ipairs(index[here.area]) do
-			if not log[id] and not Done(id) and not RT.Hidden(id) and not RT.NotOffered(id) and DG().Fits(Q, id, ctx, Has) and #DG().Missing(id) == 0 and RT.Known(id) then
+			local open, needs = false, nil
+			if not taken[id] and not log[id] and not Done(id) then open, needs = Opens(id) end
+			if open and not RT.Hidden(id) and not RT.NotOffered(id) and DG().Fits(Q, id, ctx, Has) and RT.Known(id) then
 				local req = tonumber((Try(Q.Quest.requiredLevel, id))) or 1
 				local ql = tonumber((Try(Q.Quest.questLevel, id))) or req
-				if req <= level and ql >= level - RT.BELOW and ql <= level + RT.ABOVE then
+				if req <= level and ql >= level - RT.BELOW and ql <= level + RT.Above() then
 					local _, friendly, spot = DG().Giver(Q, id)
 					local mine = not friendly or not ctx.faction or tostring(friendly):find(ctx.faction == "Alliance" and "A" or "H", 1, true)
 					if mine and spot and spot.zone == here.area then
@@ -481,18 +509,27 @@ function RT.Build()
 						local v = hasObjectives and not center and RT.Vendor(Q, id, here.area) or nil
 						local doable = center or (v and v.spot) or nil
 						if (hasObjectives and doable) or (not hasObjectives and fin and fin.spot) then
+							taken[id], added = true, true
 							Place("pickup", id, title, spot, spot.name, { fromID = spot.npc })
 							if center then Place("do", id, title, center)
 							elseif v and v.spot then Place("do", id, title, v.spot, nil, { buy = v.item, buyID = v.itemID, from = v.name, fromID = v.npc, empty = v.empty }) end
 							if fin and fin.spot then Place("turnin", id, title, fin.spot, fin.name) end
 							local pre = Try(Q.Quest.preQuestSingle, id)
 							if type(pre) == "table" and pre[1] then chains[#chains + 1] = { pre[1], id } end
+							for _, p in ipairs(needs or {}) do
+								chains[#chains + 1] = { p, id }
+								after[id] = after[id] or {}
+								table.insert(after[id], p)
+							end
 						end
 					end
 				end
 			end
 		end
+		if not added then break end
+		end
 	end
+	route.after = after
 	-- Goals already done never show (a quest completed since the log was read, a pick up taken).
 	local keep = {}
 	for _, s in ipairs(raw) do if not RT.StopDone(s) then keep[#keep + 1] = s end end
@@ -517,13 +554,25 @@ function RT.Build()
 	end
 	-- In a stop: turn-ins first (one may open the next quest), then pick ups, then objectives; a quest
 	-- picked up and finished in the same stop keeps its own order.
-	local function Rank(g, st)
+	local function Base(g, st)
 		if g.kind == "turnin" then
 			for _, h in ipairs(st.goals) do if h.q == g.q and h.kind ~= "turnin" then return 4 end end
 			return 0
 		end
 		return RANK[g.kind]
 	end
+	-- How far down a chain a quest is in this stop: 0, or 1 + its opener's when that's turned in here.
+	local function Depth(q, st, n)
+		n = n or 0
+		if n > RT.CHAIN_PASSES then return n end
+		for _, p in ipairs(after[q] or {}) do
+			for _, h in ipairs(st.goals) do
+				if h.kind == "turnin" and h.q == p then return 1 + Depth(p, st, n + 1) end
+			end
+		end
+		return 0
+	end
+	local function Rank(g, st) return Depth(g.q, st) * 10 + Base(g, st) end
 	for _, s in ipairs(stops) do
 		table.sort(s.goals, function(a, b) return Rank(a, s) < Rank(b, s) end)
 		-- A stop's key: its goals, so a skip outlives a rebuild that keeps the stop.
@@ -709,7 +758,7 @@ function RT.Zones(fresh)
 	for area, ids in pairs(index) do
 		for _, id in ipairs(ids) do
 			local f = Facts(Q, id)
-			if not log[id] and f.req <= level and f.ql >= level - RT.BELOW and f.ql <= level + RT.ABOVE
+			if not log[id] and f.req <= level and f.ql >= level - RT.BELOW and f.ql <= level + RT.Above()
 				and not Done(id) and known[id] ~= false and not RT.Hidden(id) and not RT.NotOffered(id)
 				and DG().Fits(Q, id, ctx, Has) and #DG().Missing(id) == 0 then
 				if f.giver == nil then
@@ -731,7 +780,7 @@ function RT.Zones(fresh)
 	-- In the log: where its objectives are, or where it's handed in once complete.
 	for id, q in pairs(log) do
 		local ql = tonumber((Try(Q.Quest.questLevel, id))) or q.level or level
-		if ql <= level + RT.ABOVE then
+		if ql <= level + RT.Above(true) then
 			local area
 			if Complete(id) then local fin = RT.TurnIn(Q, id, -1); area = fin and tonumber(fin.zone)
 			else area = tonumber((Try(Q.Quest.zoneOrSort, id))) end
@@ -884,13 +933,15 @@ end
 -- objectives here (the player, 2026-11-19: one captain's thirteen pick ups and three turn-ins were
 -- sixteen lines). { { kind, to, goals } }, in the stop's order.
 function RT.Groups(st)
-	local out, at = {}, {}
+	local out, last, lastKey = {}, nil, nil
 	for _, g in ipairs(st.goals) do
 		if not RT.GoalDone(g) then
 			local key = g.kind .. "|" .. (g.kind == "do" and "" or (g.to or ""))
-			local gr = at[key]
-			if not gr then gr = { kind = g.kind, to = g.kind ~= "do" and g.to or nil, goals = {} }; at[key] = gr; out[#out + 1] = gr end
-			gr.goals[#gr.goals + 1] = g
+			if key ~= lastKey then
+				last = { kind = g.kind, to = g.kind ~= "do" and g.to or nil, goals = {} }
+				out[#out + 1], lastKey = last, key
+			end
+			last.goals[#last.goals + 1] = g
 		end
 	end
 	return out
@@ -1160,7 +1211,7 @@ function RT.OnMerchant()
 end
 ns.On("MERCHANT_SHOW", function() pcall(RT.OnMerchant) end)
 
-for _, ev in ipairs({ "QUEST_ACCEPTED", "QUEST_TURNED_IN", "QUEST_REMOVED", "ZONE_CHANGED_NEW_AREA", "PLAYER_LEVEL_UP" }) do
+for _, ev in ipairs({ "QUEST_ACCEPTED", "QUEST_TURNED_IN", "QUEST_REMOVED", "ZONE_CHANGED_NEW_AREA", "PLAYER_LEVEL_UP", "GROUP_ROSTER_UPDATE" }) do
 	ns.On(ev, function() R.routeWhere = nil; RT.Dirty() end)
 end
 for _, ev in ipairs({ "QUEST_LOG_UPDATE", "QUEST_WATCH_UPDATE", "BAG_UPDATE_DELAYED" }) do

@@ -11,6 +11,11 @@
 -- Spellmind's own: the points (the route's, in the game's world yards: x north, y west), the look
 -- (the map's dots: the current step gold, the next purple, the way to another zone green).
 --
+-- The lines (the player, 2026-11-19: "thin versions of the map lines in the minimap"): Spellmind's own.
+-- The world map's lines, thin: from the player to the current step along the trails they've walked
+-- (gold), on to the step after (purple); the way to another zone in green. Cut at the minimap's rim
+-- (its shapes are all convex: the part of a segment inside is one piece, found by halving). A switch.
+--
 -- Display only: plain frames parented to Minimap (not protected, so they update in combat too); no
 -- Blizzard frame is hooked or changed. Checks run 20 times a second while the route is on, and the
 -- pins move only when the player, the view or the points changed.
@@ -66,12 +71,31 @@ function RP.Refresh()
 				num = t.zone and "\194\187" or (i and tostring(i) or ""),
 				color = t.zone and { 0.3, 0.95, 0.4 } or { 1, 0.82, 0 }, dark = true }
 			-- The step after (not while the arrow heads to another zone).
-			local s = not t.zone and RT.UpNext(1)[1] or nil
+			local s = not t.zone and not t.away and RT.UpNext(1)[1] or nil
 			if s and R.route and R.route.map then
 				local k
 				for n, st in ipairs(R.route.stops or {}) do if st == s then k = n end end
 				pts.next = { world = RT.World(RT.StopMap(s), s.x, s.y), text = RT.StopText(s), num = k and tostring(k) or "",
 					color = { 0.62, 0.49, 1 } }
+			end
+			-- The lines: { color, pts (world spots), fromMe (it starts at the player, live) }.
+			if RT.MinimapLinesOn() then
+				local lines = {}
+				if (t.zone or t.away) and type(t.legs) == "table" and #t.legs > 0 then
+					local way = {}
+					for _, leg in ipairs(t.legs) do
+						for _, p in ipairs(leg.path or {}) do way[#way + 1] = p end
+						if leg.world then way[#way + 1] = leg.world end
+					end
+					lines[1] = { color = { 0.3, 0.95, 0.4 }, pts = way, fromMe = true }
+				else
+					local way = {}
+					for _, p in ipairs(t.path or {}) do way[#way + 1] = p end
+					way[#way + 1] = t.world
+					lines[1] = { color = { 1, 0.82, 0 }, pts = way, fromMe = true }
+					if pts.next and pts.next.world then lines[2] = { color = { 0.62, 0.49, 1 }, pts = { t.world, pts.next.world } } end
+				end
+				pts.lines = lines
 			end
 		end
 	end
@@ -133,8 +157,30 @@ local function Place(b, dx, dy)
 	b:Show()
 end
 
+local lines, holder = {}, nil
+RP.lines = lines
+RP.LINE_W = 1.5 -- thin: the minimap is small
+RP.LINE_A = 0.85
+RP.LINES_MAX = 120
+RP.linesShown = 0
+RP.CLIP_SAMPLES = 24
+local function HideLines(from)
+	for k = from or 1, #lines do lines[k]:Hide() end
+	if not from then RP.linesShown = 0 end
+end
 local function HideAll()
 	for _, b in pairs(pins) do b:Hide(); b.pt = nil end
+	HideLines()
+end
+local function LineAt(k)
+	if not holder then
+		holder = CreateFrame("Frame", nil, Minimap)
+		holder:SetAllPoints(Minimap)
+	end
+	holder:SetFrameLevel((tonumber((Minimap:GetFrameLevel())) or 1) + 4) -- under the pins
+	local l = lines[k]
+	if not l then l = holder:CreateLine(nil, "OVERLAY"); lines[k] = l end
+	return l
 end
 
 -- Pixels from the minimap's centre to a world spot: east is right, north is up, and a turning
@@ -155,6 +201,92 @@ local function Clamp(dx, dy, w, h, margin, shape)
 	local d = shape[q] and sqrt(nx * nx + ny * ny) or max(abs(nx), abs(ny))
 	if d <= 1 then return dx, dy, false end
 	return dx / d, dy / d, true
+end
+
+-- The part of a segment inside the minimap (inset a pixel): its ends, or nil. Inside: one end, the
+-- point nearest the middle, or one of a few along it; from there, the rim toward each outside end by
+-- halving.
+local function Inside(x, y, w, h, shape) local _, _, out = Clamp(x, y, w, h, 1, shape); return not out end
+local function ClipSeg(ax, ay, bx, by, w, h, shape)
+	local ina, inb = Inside(ax, ay, w, h, shape), Inside(bx, by, w, h, shape)
+	if ina and inb then return ax, ay, bx, by end
+	local vx, vy = bx - ax, by - ay
+	local function At(t) return ax + vx * t, ay + vy * t end
+	local tin = ina and 0 or (inb and 1) or nil
+	if not tin then
+		local len2 = vx * vx + vy * vy
+		local tn = len2 > 0 and math.min(1, math.max(0, -(ax * vx + ay * vy) / len2)) or 0
+		local x, y = At(tn)
+		if Inside(x, y, w, h, shape) then tin = tn end
+		for k = 1, RP.CLIP_SAMPLES - 1 do
+			if tin then break end
+			x, y = At(k / RP.CLIP_SAMPLES)
+			if Inside(x, y, w, h, shape) then tin = k / RP.CLIP_SAMPLES end
+		end
+	end
+	if not tin then return nil end
+	local function Rim(tout)
+		local lo, hi = tin, tout
+		for _ = 1, 14 do
+			local mid = (lo + hi) / 2
+			local x, y = At(mid)
+			if Inside(x, y, w, h, shape) then lo = mid else hi = mid end
+		end
+		return lo
+	end
+	local t0, t1 = ina and 0 or Rim(0), inb and 1 or Rim(1)
+	if math.abs(t1 - t0) * math.sqrt(vx * vx + vy * vy) < 0.5 then return nil end
+	local x0, y0 = At(t0)
+	local x1, y1 = At(t1)
+	return x0, y0, x1, y1
+end
+
+-- A line's points ahead of the player: from the nearest one on (those behind them are walked).
+local function Ahead(me, list)
+	local from, fd = 1, nil
+	for k, p in ipairs(list) do
+		if p.c == nil or p.c == me.c then
+			local d = (p.x - me.x) ^ 2 + (p.y - me.y) ^ 2
+			if not fd or d < fd then from, fd = k, d end
+		end
+	end
+	-- The nearest is the target itself, or the player is past it toward the next: from the next one.
+	local out = {}
+	for k = from, #list do out[#out + 1] = list[k] end
+	if #out > 1 then
+		local a, b = out[1], out[2]
+		local abx, aby = b.x - a.x, b.y - a.y
+		if (me.x - a.x) * abx + (me.y - a.y) * aby > 0 then table.remove(out, 1) end
+	end
+	return out
+end
+
+local function DrawLines(pts, me, scale, facing, sn, cs, w, h, shape)
+	local n = 0
+	for _, ln in ipairs(pts.lines or {}) do
+		local list = ln.fromMe and Ahead(me, ln.pts) or ln.pts
+		local prev = ln.fromMe and { x = me.x, y = me.y, c = me.c } or nil
+		for _, p in ipairs(list) do
+			if n >= RP.LINES_MAX then break end
+			if prev and (p.c == nil or p.c == me.c) and (prev.c == nil or prev.c == me.c) then
+				local ax, ay = Offset(prev, me, scale, facing, sn, cs)
+				local bx, by = Offset(p, me, scale, facing, sn, cs)
+				local x0, y0, x1, y1 = ClipSeg(ax, ay, bx, by, w, h, shape)
+				if x0 then
+					n = n + 1
+					local l = LineAt(n)
+					l:SetThickness(RP.LINE_W)
+					l:SetColorTexture(ln.color[1], ln.color[2], ln.color[3], RP.LINE_A)
+					l:SetStartPoint("CENTER", Minimap, x0, y0)
+					l:SetEndPoint("CENTER", Minimap, x1, y1)
+					l:Show()
+				end
+			end
+			prev = p
+		end
+	end
+	HideLines(n + 1)
+	RP.linesShown = n
 end
 
 ---------------------------------------------------------------------------
@@ -188,6 +320,7 @@ function RP.Update(force)
 	local scale = (w / 2) / radius
 	local sn, cs = 0, 1
 	if facing then sn, cs = sin(facing), cos(facing) end
+	DrawLines(pts, me, scale, facing, sn, cs, w, h, shape)
 	-- The step after: only when it's in view.
 	local b2 = Pin(2, RP.NEXT)
 	b2:Hide()

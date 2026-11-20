@@ -2120,6 +2120,9 @@ function RT.ArrowOn() return not UI().arrowOff end
 function RT.SetArrow(v) UI().arrowOff = (not v) or nil; RT.ArrowSync() end
 function RT.MapOn() return not UI().mapOff end
 function RT.LinesOn() return not UI().linesOff end
+-- The lines on the minimap (the player, 2026-11-19), on by default: thin, under the pins.
+function RT.MinimapLinesOn() return not UI().miniLinesOff end
+function RT.SetMinimapLines(v) UI().miniLinesOff = (not v) or nil; if ns.RoutePins then ns.RoutePins.Refresh(); pcall(ns.RoutePins.Update, true) end end
 function RT.MinimapOn() return not UI().minimapOff end
 function RT.SetMinimap(v) UI().minimapOff = (not v) or nil; if ns.RoutePins then ns.RoutePins.Refresh(); pcall(ns.RoutePins.Update, true) end end
 function RT.SetLines(v) UI().linesOff = (not v) or nil; pcall(RT.DrawMap) end

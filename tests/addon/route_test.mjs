@@ -1461,3 +1461,33 @@ test('quest here instead: one click ends the trip, the steps here come back', ()
   assert.doesNotMatch(vm.evaluate('SpellmindRoute.now:GetText()'), /On the way to/);
   assert.equal(String(vm.evaluate('SpellmindRoute.next[1]:IsShown()')), 'true', 'Up next back');
 });
+
+test('lines on the minimap (the player, 2026-11-19: thin versions of the map lines, a switch): you to the step, on to the next; cut at the rim', () => {
+  const vm = session();
+  vm.slash('route');
+  // Near the rats, a minimap 2000 yards to its rim: the gold line, you to them, and the purple on to Kadrell.
+  vm.run('STUB.player.x, STUB.player.y = 0.22, 0.22; STUB.minimapRadius = 2000; NS.Route.Draw(); NS.RoutePins.Update(true)');
+  const L = 'NS.RoutePins.lines';
+  assert.ok(vm.num('NS.RoutePins.linesShown') >= 2, 'two lines at least');
+  const first = vm.json(`{ from = ${L}[1].from, to = ${L}[1].to, color = ${L}[1].color, thick = ${L}[1].thickness }`);
+  assert.deepEqual(first.color.slice(0, 3), [1, 0.82, 0], 'gold, to the current step');
+  assert.ok(Math.hypot(first.from[0], first.from[1]) < 0.01, 'from you, the middle');
+  assert.equal(first.thick, 1.5, 'thin');
+  const pin = vm.json('(function() local _, _, _, x, y = NS.RoutePins.pins[1]:GetPoint(); return { x, y } end)()');
+  assert.ok(Math.abs(first.to[0] - pin[0]) < 0.5 && Math.abs(first.to[1] - pin[1]) < 0.5, 'to its pin');
+  const n = vm.num('NS.RoutePins.linesShown');
+  const last = vm.json(`{ color = ${L}[${n}].color }`);
+  assert.deepEqual(last.color.slice(0, 3), [0.62, 0.49, 1], 'purple, on to the next');
+  // Zoomed in (200 yards): the steps are off the minimap; the lines end at its rim.
+  vm.run('STUB.player.x, STUB.player.y = 0.4, 0.4; STUB.minimapRadius = 200; NS.Route.Draw(); NS.RoutePins.Update(true)');
+  assert.ok(vm.num('NS.RoutePins.linesShown') >= 1);
+  const cut = vm.json(`${L}[1].to`);
+  assert.ok(Math.hypot(cut[0], cut[1]) <= 70, 'inside the rim: ' + JSON.stringify(cut));
+  assert.ok(Math.hypot(cut[0], cut[1]) > 65, 'at the rim: ' + JSON.stringify(cut));
+  // The switch: off, none; the pins stay.
+  vm.run('NS.Route.SetMinimapLines(false)');
+  assert.equal(vm.num('NS.RoutePins.linesShown'), 0);
+  assert.equal(vm.evaluate('tostring(NS.RoutePins.pins[1].shown)'), 'true');
+  vm.run('NS.Route.SetMinimapLines(true)');
+  assert.ok(vm.num('NS.RoutePins.linesShown') >= 1);
+});

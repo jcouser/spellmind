@@ -558,6 +558,7 @@ function Tabs.route()
 	Switch("The arrow", "Points at the current step, with the yards to it.", RT.ArrowOn(), RT.SetArrow, true, not on)
 	Switch("Steps on the world map", "Numbered, with each objective's area shaded.", RT.MapOn(), RT.SetMap, true, not on)
 	Switch("Current step on the minimap", "Your current step, and the next one when it's in view. On the edge with an arrow when it's farther.", RT.MinimapOn(), RT.SetMinimap, true, not on)
+	Switch("Lines on the minimap", "Thin lines from you to the current step along your trails, and on to the next one.", RT.MinimapLinesOn(), RT.SetMinimapLines, true, not on or not RT.MinimapOn())
 	Switch("Lines on the world map", "From you to the current step, and on through the next ones, along the trails you've walked.", RT.LinesOn(), RT.SetLines, true, not on or not RT.MapOn())
 	-- Trails learned from walking: on this PC only.
 	local trailN = RT.TrailCount and RT.TrailCount() or 0

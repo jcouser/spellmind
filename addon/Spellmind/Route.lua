@@ -4165,9 +4165,12 @@ function RT.LookAhead(me, path, target)
 	local pts = {}
 	for _, p in ipairs(path) do pts[#pts + 1] = p end
 	pts[#pts + 1] = target
-	-- From the nearest point of the way, onward.
+	-- From the nearest point of the way, onward: the way's own points, not the target (in Stormwind the
+	-- target was nearer in a straight line than the trail around the walls: the arrow aimed through them).
 	local from, fd = 1, nil
-	for k, p in ipairs(pts) do local d = Dist(me, p); if not fd or d < fd then from, fd = k, d end end
+	for k, p in ipairs(pts) do
+		if k < #pts or #pts == 1 then local d = Dist(me, p); if not fd or d < fd then from, fd = k, d end end
+	end
 	local ahead, along, sx, sy, n = 0, fd, 0, 0, 0
 	local at = me
 	for k = from, #pts do

@@ -2123,3 +2123,17 @@ test('items sold nearby and dropped far away: bought (the player, 2026-11-20: Th
   assert.equal(g.buy, 'Leaded Vial', JSON.stringify(g));
   assert.equal(g.from, 'Ironforge Seller');
 });
+
+test('a trail around a wall: the minimap and the arrow follow it, though the target is nearer in a straight line (the player, 2026-11-20, in Stormwind)', () => {
+  const vm = session();
+  vm.slash('route');
+  // You at (0, 0) yards; the target 150 north; the trail goes 200 west, 400 north, then back east.
+  const r = vm.json(`(function()
+    local me = { c = 0, x = 0, y = 0 }
+    local path = { { c = 0, x = 0, y = 200 }, { c = 0, x = 400, y = 200 }, { c = 0, x = 400, y = 0 } }
+    local target = { c = 0, x = 150, y = 0 }
+    local aim = NS.Route.LookAhead(me, path, target)
+    return { x = aim.x, y = aim.y }
+  end)()`);
+  assert.ok(r.y > 50, 'aimed along the trail (west), not at the target: ' + JSON.stringify(r));
+});

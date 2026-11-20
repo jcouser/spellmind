@@ -262,10 +262,13 @@ local function ClipSeg(ax, ay, bx, by, w, h, shape)
 end
 
 -- A line's points ahead of the player: from the nearest one on (those behind them are walked).
+-- Where you are on it: the nearest of the way's own points, never the target (the player, 2026-11-20,
+-- in Stormwind: the target was nearer in a straight line than the trail around the walls, and the
+-- minimap drew straight to it while the map followed the trail).
 local function Ahead(me, list)
 	local from, fd = 1, nil
 	for k, p in ipairs(list) do
-		if p.c == nil or p.c == me.c then
+		if (k < #list or #list == 1) and (p.c == nil or p.c == me.c) then
 			local d = (p.x - me.x) ^ 2 + (p.y - me.y) ^ 2
 			if not fd or d < fd then from, fd = k, d end
 		end

@@ -1337,7 +1337,7 @@ end
 
 -- What else a stop holds, after the groups a line shows (the player, 2026-11-19: "(+2)" at the end of
 -- Up next's rows wasn't descriptive): " (also here: 2 to pick up, 1 to turn in)", or "".
-function RT.AlsoText(groups, from)
+local function AlsoBits(groups, from)
 	local n = { turnin = 0, pickup = 0, ["do"] = 0, enter = 0 }
 	for k = from or 2, #groups do
 		local gr = groups[k]
@@ -1348,16 +1348,28 @@ function RT.AlsoText(groups, from)
 	if n.pickup > 0 then bits[#bits + 1] = n.pickup .. " to pick up" end
 	if n["do"] > 0 then bits[#bits + 1] = n["do"] .. (n["do"] == 1 and " objective" or " objectives") end
 	if n.enter > 0 then bits[#bits + 1] = "the way in" end
+	return bits
+end
+function RT.AlsoText(groups, from)
+	local bits = AlsoBits(groups, from)
 	if #bits == 0 then return "" end
 	return " |cff888888(also here: " .. table.concat(bits, ", ") .. ")|r"
+end
+-- The same as a line of its own, under a row (the player, 2026-11-19: "better as subtext as a line
+-- underneath"): "Also here: 2 to pick up", or nil.
+function RT.AlsoLine(st)
+	local bits = AlsoBits(RT.Groups(st), 2)
+	if #bits == 0 then return nil end
+	return "Also here: " .. table.concat(bits, ", ")
 end
 
 -- A stop in one short line (Up next): its first group, and what else is done there.
 RT.LOW_TAG = " |cff888888(worth skipping? little XP for the walk)|r"
-function RT.StopText(st)
+-- short: without what else is done there (the tracker puts that on a line underneath).
+function RT.StopText(st, short)
 	local groups = RT.Groups(st)
 	if #groups == 0 then return "" end
-	return RT.StopZone(st) .. RT.GroupText(groups[1]) .. RT.AlsoText(groups, 2) .. (RT.StopLow(st) and RT.LOW_TAG or "")
+	return RT.StopZone(st) .. RT.GroupText(groups[1]) .. (short and "" or RT.AlsoText(groups, 2)) .. (RT.StopLow(st) and RT.LOW_TAG or "")
 end
 
 -- Skip the current step (the player's Next); Back brings the last one skipped back.
@@ -1767,11 +1779,15 @@ local function Build()
 	end
 	f.nextLabel = C:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	f.nextLabel:SetText("Up next")
-	f.next = {}
+	f.next, f.nextSub = {}, {}
 	for i = 1, RT.NEXT_MAX do
 		local l = Line(C, "GameFontHighlightSmall", RT.W - 40)
 		if l.SetMaxLines then l:SetMaxLines(3) end
 		f.next[i] = l
+		local sub = Line(C, "GameFontDisableSmall", RT.W - 50)
+		if sub.SetTextScale then sub:SetTextScale(0.92) end
+		sub:Hide()
+		f.nextSub[i] = sub
 	end
 	-- Where next: the best zones to go on to, each a line to click for a pin at its quest givers.
 	f.whereLabel = C:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1925,6 +1941,7 @@ function RT.Draw()
 	local wl = RT.WhereLines(route)
 	for _, l in ipairs(f.thens) do l:SetWidth(W - 40) end
 	for _, l in ipairs(f.next) do l:SetWidth(W - 40) end
+	for _, l in ipairs(f.nextSub) do l:SetWidth(W - 50) end
 	f.fold:SetNormalTexture(ui.compact and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
 	f.fold.tip = ui.compact and "Show Up next" or "Only the current step"
 	f.title:SetText("Route" .. (route.prep and (" · " .. ns.Escape(route.prep) .. " prep") or (route.zone and (" · " .. ns.Escape(route.zone)) or "")))
@@ -1967,6 +1984,7 @@ function RT.Draw()
 	if ui.compact then
 		for _, l in ipairs(f.thens) do l:Hide() end
 		for _, l in ipairs(f.next) do l:Hide() end
+		for _, l in ipairs(f.nextSub) do l:Hide() end
 		for _, l in ipairs(f.away) do l:Hide() end
 		for _, l in ipairs(f.way) do l:Hide() end
 		for _, b in ipairs(f.where) do b:Hide() end
@@ -2070,16 +2088,25 @@ function RT.Draw()
 	local used = 0
 	for k, l in ipairs(f.next) do
 		local s = upnext[k]
+		local sub = f.nextSub[k]
 		l:ClearAllPoints()
 		l:SetPoint("TOPLEFT", f.content, "TOPLEFT", 20 - 8, y - top)
-		if s then l:SetText(RT.StopText(s)) else l:SetText("") end
-		local h = s and Row(l)
+		if s then l:SetText(RT.StopText(s, true)) else l:SetText("") end
+		-- What else is done there: a grey line underneath, indented.
+		local also = s and RT.AlsoLine(s)
+		sub:SetText(also or "")
+		local h1 = s and Row(l)
+		local h = s and (h1 + (also and (Row(sub) - 3) or 0))
 		if s and (k == 1 or not room or used + h <= room) then
 			l:Show()
+			sub:ClearAllPoints()
+			sub:SetPoint("TOPLEFT", f.content, "TOPLEFT", 20 - 8 + 10, y - h1 + 2 - top)
+			if also then sub:Show() else sub:Hide() end
 			y, used = y - h, used + h
 		else
 			upnext[k] = nil
 			l:Hide()
+			sub:Hide()
 		end
 	end
 	-- Where next: a gap, its heading ("Or" when the band names the first), its lines.

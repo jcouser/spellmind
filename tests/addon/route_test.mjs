@@ -1525,4 +1525,12 @@ test('Up next says what else a stop holds (the player, 2026-11-19: "(+2)" wasn\'
   const text = vm.evaluate(`NS.Route.StopText(NS.R.route.stops[${k}])`);
   assert.match(text, /\(also here: .*to (turn in|pick up)/, text);
   assert.doesNotMatch(text, /\(\+\d+\)/);
+  // On the tracker: a grey line of its own under the row (the player: "better as subtext").
+  const row = vm.num(`(function() for i, x in ipairs(NS.Route.UpNext(9)) do if x == NS.R.route.stops[${k}] then return i end end end)()`);
+  assert.doesNotMatch(vm.evaluate(`SpellmindRoute.next[${row}]:GetText()`), /also here/);
+  assert.match(vm.evaluate(`SpellmindRoute.nextSub[${row}]:GetText()`), /^Also here: .*to (turn in|pick up)/);
+  assert.equal(vm.evaluate(`tostring(SpellmindRoute.nextSub[${row}].shown)`), 'true');
+  const top = i => vm.num(`select(5, SpellmindRoute.${i}:GetPoint())`);
+  assert.ok(top(`nextSub[${row}]`) < top(`next[${row}]`), 'under its row');
+  if (vm.evaluate(`tostring(SpellmindRoute.next[${row + 1}].shown)`) === 'true') assert.ok(top(`next[${row + 1}]`) < top(`nextSub[${row}]`), 'the next row under it');
 });

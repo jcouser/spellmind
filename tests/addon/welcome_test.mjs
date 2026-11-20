@@ -156,3 +156,19 @@ test('a What\'s new taller than the screen is scaled down to fit', () => {
   assert.ok(s.h > 340, 'taller than the room: ' + s.h);
   assert.ok(Math.abs(s.h * s.s - 340) < 0.5, 'scaled to fit: ' + JSON.stringify(s));
 });
+
+test('What\'s new across versions: the newest headline\'s highlights alone, an older headline in one line; /sm news, this version\'s (the player, 2026-11-20)', () => {
+  const vm = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true, seenVersion = "0.4.7" }', before: 'NS.VERSION = "0.6.0"' }).login().advance(7);
+  const feats = [1, 2, 3, 4, 5].map(k => vm.evaluate(`tostring(SpellmindNews.features[${k}] and SpellmindNews.features[${k}].shown and SpellmindNews.features[${k}].title:GetText())`));
+  assert.equal(vm.evaluate('SpellmindNews.headline:GetText()'), 'Your class quests, planned');
+  assert.ok(!feats.includes('A plan that knows your character'), '0.5.0\'s highlights not again: ' + feats);
+  const lines = []; for (let k = 1; k <= 12; k++) { const t = vm.evaluate(`tostring(SpellmindNews.changes[${k}] and SpellmindNews.changes[${k}].shown and SpellmindNews.changes[${k}]:GetText())`); if (t !== 'false' && t !== 'nil') lines.push(t); }
+  assert.ok(lines.some(l => /0\.5\.0.*Meet your quest route/.test(l)), '0.5.0 in one line: ' + lines.join(' / '));
+  assert.ok(!lines.some(l => /Plan my next hour/.test(l)), 'not its changes');
+  // /sm news: this version's alone.
+  vm.run('SpellmindNews:Hide()');
+  vm.slash('news');
+  const after = []; for (let k = 1; k <= 12; k++) { const t = vm.evaluate(`tostring(SpellmindNews.changes[${k}] and SpellmindNews.changes[${k}].shown and SpellmindNews.changes[${k}]:GetText())`); if (t !== 'false' && t !== 'nil') after.push(t); }
+  assert.ok(!after.some(l => /0\.5\.0|Meet your quest route/.test(l)), after.join(' / '));
+  assert.ok(after.some(l => /keeps its order/.test(l)));
+});

@@ -426,16 +426,21 @@ end
 
 -- Several versions since the one last seen: the newest headline, every version's highlights (newest
 -- first) and every version's changes.
+-- The highlights are the newest headline's alone (the player, 2026-11-20: /sm news showed every
+-- version's, ten highlights and eleven changes, the window shrunk to fit and its text cut short): the
+-- changes of it and the versions after it; an older version with a headline, that headline in one
+-- line ("0.5.0  Meet your quest route"). /sm news: this version's.
 function WL.ShowNews(list)
-	list = list or WL.Since("0", ns.VERSION)
+	list = list or { WL.NEWS[#WL.NEWS] }
 	if #list == 0 then list = { WL.NEWS[#WL.NEWS] } end
 	local n = list[#list]
-	local features, lead = {}, nil
+	local lead, leadAt = nil, nil
 	for k = #list, 1, -1 do
-		for _, ft in ipairs(list[k].features or {}) do features[#features + 1] = ft end
-		if not lead and list[k].headline then lead = list[k] end
+		if not lead and list[k].headline then lead, leadAt = list[k], k end
 	end
-	lead = lead or n
+	lead, leadAt = lead or n, leadAt or #list
+	local features = {}
+	for _, ft in ipairs(lead.features or {}) do features[#features + 1] = ft end
 	local f = BuildNews()
 	local P = WL.PAD
 	f.title:SetText("What's new in Spellmind " .. n.version)
@@ -444,8 +449,11 @@ function WL.ShowNews(list)
 	-- highlights; on their own, the headline says it).
 	local lines = {}
 	for k = #list, 1, -1 do
-		for _, c in ipairs(list[k].changes or {}) do
-			lines[#lines + 1] = (#list > 1 and ("|cff888888" .. list[k].version .. "|r  ") or "") .. c
+		local tag = #list > 1 and ("|cff888888" .. list[k].version .. "|r  ") or ""
+		if k < leadAt and list[k].headline then
+			lines[#lines + 1] = tag .. list[k].headline
+		else
+			for _, c in ipairs(list[k].changes or {}) do lines[#lines + 1] = tag .. c end
 		end
 	end
 	for _, l in ipairs(f.changes) do l:Hide() end

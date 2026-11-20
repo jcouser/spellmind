@@ -70,10 +70,14 @@ export function digest(list) {
   const n = list[list.length - 1];
   const newestFirst = list.slice().reverse();
   const lead = newestFirst.find((e) => e.headline) || null;
-  const features = [], changes = [];
+  // The newest headline's highlights alone (the player, 2026-11-20: every version's made a window too
+  // long to read); an older version with a headline is its headline in one line.
+  const leadAt = lead ? list.indexOf(lead) : list.length - 1;
+  const features = [...(lead?.features || [])], changes = [];
   for (const e of newestFirst) {
-    for (const f of e.features || []) features.push(f);
-    for (const c of e.changes || []) changes.push({ version: e.version, text: c });
+    const i = list.indexOf(e);
+    if (i < leadAt && e.headline) changes.push({ version: e.version, text: e.headline });
+    else for (const c of e.changes || []) changes.push({ version: e.version, text: c });
   }
   return { version: n.version, headline: lead?.headline || "What's changed", tagline: lead?.tagline || null,
     features, note: lead?.note || null, changes, versions: list.length };

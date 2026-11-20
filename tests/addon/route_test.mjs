@@ -1491,3 +1491,25 @@ test('lines on the minimap (the player, 2026-11-19: thin versions of the map lin
   vm.run('NS.Route.SetMinimapLines(true)');
   assert.ok(vm.num('NS.RoutePins.linesShown') >= 1);
 });
+
+test('/sm route why <step> (the player, 2026-11-19: "so we can ensure we\'re optimizing our routes"): its rules, its way, and every earlier place it could go', () => {
+  const vm = session();
+  vm.slash('route');
+  const n = vm.num('#NS.R.route.stops');
+  // A turn-in step: its objectives must come first, so earlier places say which step forbids them.
+  const k = vm.num(`(function() for i, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "turnin" and g.q == 700 then return i end end end end)()`);
+  const lines = vm.json(`NS.Route.Why(${k})`);
+  const all = (Array.isArray(lines) ? lines : Object.values(lines)).join('\n');
+  assert.match(all, new RegExp(`^Step ${k} of ${n}: `));
+  assert.match(all, /The way: \d+ yd from/);
+  assert.match(all, /After step \d+ \(Kobold Candles: .*\): its objectives come before the turn-in\./);
+  if (k > 1) assert.match(all, /As step \d+: .*(shorter|longer|the same); (allowed|not allowed: step \d+ .* must come first)\./);
+  // The command prints it; a step that isn't there says so.
+  vm.slash(`route why ${k}`);
+  assert.ok(vm.chatLines().some(l => /Step \d+ of/.test(l)), JSON.stringify(vm.chatLines()));
+  assert.match(vm.json('NS.Route.Why(99)')[0] ?? Object.values(vm.json('NS.Route.Why(99)'))[0], /There's no step 99/);
+  // An order that could be better is called out.
+  vm.run('local s = NS.R.route.stops; s[1], s[2] = s[2], s[1]');
+  const swapped = vm.json('NS.Route.Why(2)'); const sw = (Array.isArray(swapped) ? swapped : Object.values(swapped)).join('\n');
+  assert.match(sw, /As step 1: /);
+});

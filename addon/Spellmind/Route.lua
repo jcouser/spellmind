@@ -791,6 +791,12 @@ function RT.Build()
 		route.stops = RT.Order(stops, start, here, rules, Cost)
 	end
 	route.rules = rules
+	-- What the order was made from, for /sm route why.
+	route.start, route.here, route.cost = start, here, route.low and next(route.low) and function(a, b, h)
+		local d = RT.Yards(a, b, h)
+		if b.goals and RT.StopLow(b, route.low) then d = d * RT.LOW_LATER end
+		return d
+	end or nil
 	if Q then route.where = RT.Zones(true) end
 	return route
 end
@@ -3564,4 +3570,134 @@ function RT.SkipQuest(q)
 		if only and not (R.routeSkip and R.routeSkip[st.key]) and not RT.StopDone(st) then RT.SetSkip(st.key, true); n = n + 1 end
 	end
 	return n
+end
+
+---------------------------------------------------------------------------
+-- /sm route why <step> (the player, 2026-11-19: "so we can ensure we're optimizing our routes"): why a
+-- step sits where it is. Its rules (what must come before and after it, and why), its weighting, its
+-- spot (for an objective: which of the mobs' groups, and how near the others are), and every earlier
+-- place it could go: how much shorter or longer the route would be, and the rule that forbids it.
+---------------------------------------------------------------------------
+
+RT.WHY_TRIES = 3 -- the best earlier places shown
+local function Bare(t) return (tostring(t or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+local function Yd(n) return math.floor(n + 0.5) .. " yd" end
+-- The goal for a rule's key on the route ("turnin:702"), its stop's number and its words.
+local function GoalAt(route, key)
+	for i, st in ipairs(route.stops or {}) do
+		for _, g in ipairs(st.goals) do
+			if g.kind .. ":" .. g.q == key then return i, Bare(RT.GoalText(g)) end
+		end
+	end
+	return nil, key
+end
+local function RuleWhy(a, b)
+	local ka, qa = a:match("^(%a+):(%d+)$")
+	local kb, qb = b:match("^(%a+):(%d+)$")
+	if qa == qb and ka == "pickup" then return "it has to be picked up first" end
+	if qa == qb and ka == "do" then return "its objectives come before the turn-in" end
+	if ka == "turnin" and kb == "pickup" then return "a chain: turning in the one opens the other" end
+	return "a rule"
+end
+-- The first rule an order breaks, or nil.
+function RT.Broken(order, rules)
+	local at = {}
+	for i, st in ipairs(order) do for _, g in ipairs(st.goals) do at[g.kind .. ":" .. g.q] = i end end
+	for _, r in ipairs(rules) do
+		local a, b = at[r[1]], at[r[2]]
+		if a and b and a > b then return r end
+	end
+	return nil
+end
+
+function RT.Why(n)
+	local route = R.route
+	n = tonumber(n)
+	if not route or route.nowhere or not route.stops then return { "No route to explain: open it with /sm route." } end
+	local st = n and route.stops[n]
+	if not st then return { "There's no step " .. tostring(n) .. ": the route has " .. #route.stops .. " (/sm route why <step>)." } end
+	local here, cost = route.here or RT.Here(), route.cost or RT.Yards
+	local start = route.start or (here and { x = here.x, y = here.y })
+	local out = {}
+	local function Add(t) out[#out + 1] = t end
+	Add("Step " .. n .. " of " .. #route.stops .. ": " .. Bare(Plain(st)))
+	local prev, nxt = route.stops[n - 1] or start, route.stops[n + 1]
+	if here and prev then
+		Add("  The way: " .. Yd(RT.Yards(prev, st, here)) .. " from " .. (n > 1 and ("step " .. (n - 1)) or "where the route began")
+			.. (nxt and (", then " .. Yd(RT.Yards(st, nxt, here)) .. " to step " .. (n + 1)) or ""))
+	end
+	-- Its rules.
+	local mine = {}
+	for _, g in ipairs(st.goals) do mine[g.kind .. ":" .. g.q] = true end
+	local after, before = {}, {}
+	for _, r in ipairs(route.rules or {}) do
+		if mine[r[2]] and not mine[r[1]] then
+			local k, words = GoalAt(route, r[1])
+			after[#after + 1] = "  After step " .. tostring(k or "?") .. " (" .. words .. "): " .. RuleWhy(r[1], r[2]) .. "."
+		elseif mine[r[1]] and not mine[r[2]] then
+			local k, words = GoalAt(route, r[2])
+			before[#before + 1] = "  Before step " .. tostring(k or "?") .. " (" .. words .. "): " .. RuleWhy(r[1], r[2]) .. "."
+		end
+	end
+	if #after == 0 and #before == 0 then Add("  No rule ties it to another step.") end
+	for _, t in ipairs(after) do Add(t) end
+	for _, t in ipairs(before) do Add(t) end
+	-- Its weighting.
+	if RT.StopLow(st) then
+		Add("  Marked worth skipping? (little XP for the walk): its way counts " .. RT.LOW_LATER .. "x in the order, so it comes later.")
+	end
+	-- Its spot: for an objective, which group of the mobs, and the nearest one to the steps around it.
+	local Q = L()
+	for _, g in ipairs(st.goals) do
+		if g.kind == "do" and Q and here and here.area and not st.map then
+			local pts = RT.ObjectiveSpots(Q, g.q, here.area)
+			if #pts > 1 then
+				local c = RT.Center(pts)
+				local r2, inGroup = RT.CLUSTER * RT.CLUSTER, 0
+				for _, p in ipairs(pts) do if c and (p[1] - c.x) ^ 2 + (p[2] - c.y) ^ 2 <= r2 then inGroup = inGroup + 1 end end
+				if inGroup < #pts then Add("  " .. Bare(g.title) .. ": the spot is the busiest group, " .. inGroup .. " of " .. #pts .. " spawns here.") end
+				local function Nearest(from)
+					local best
+					for _, p in ipairs(pts) do
+						local d = RT.Yards(from, { x = p[1], y = p[2] }, here)
+						if not best or d < best then best = d end
+					end
+					return best
+				end
+				if prev then
+					local near = Nearest(prev)
+					local spot = RT.Yards(prev, st, here)
+					if near and near + 50 < spot then Add("    The nearest of them to the step before is " .. Yd(near) .. " from it (the spot: " .. Yd(spot) .. ").") end
+				end
+			end
+		end
+	end
+	-- Every earlier place: the route's length with this step moved there.
+	if here and start then
+		local base = RT.Length(route.stops, start, here, cost)
+		local tries = {}
+		for p = 1, n - 1 do
+			local try = {}
+			for k, s2 in ipairs(route.stops) do if k ~= n then try[#try + 1] = s2 end end
+			table.insert(try, p, st)
+			tries[#tries + 1] = { p = p, d = RT.Length(try, start, here, cost) - base, broken = RT.Broken(try, route.rules or {}) }
+		end
+		table.sort(tries, function(a, b) return a.d < b.d end)
+		local shown = 0
+		for _, t in ipairs(tries) do
+			if shown >= RT.WHY_TRIES then break end
+			shown = shown + 1
+			local what = t.d < -0.5 and (Yd(-t.d) .. " shorter") or (t.d > 0.5 and (Yd(t.d) .. " longer") or "the same")
+			local why
+			if t.broken then
+				local k, words = GoalAt(route, t.broken[1])
+				why = "not allowed: step " .. tostring(k or "?") .. " (" .. words .. ") must come first"
+			else
+				why = t.d < -0.5 and "allowed: |cffff9933the order could be better|r" or "allowed"
+			end
+			Add("  As step " .. t.p .. ": " .. what .. "; " .. why .. ".")
+		end
+		if #tries == 0 then Add("  It's the first step.") end
+	end
+	return out
 end

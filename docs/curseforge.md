@@ -139,6 +139,7 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 > | `/sm <question>` | Ask your AI (with the app) |
 > | `/sm app` | Where to get the free app |
 > | `/sm route` | The quest route on or off (the Route tab has its switches) |
+> | `/sm route why <step>` | Why a step is where it is: what must come before it, and how long the route would be with it earlier |
 > | `/sm arrow` | The route's arrow on or off |
 > | `/sm news` | What's new in this version |
 > | `/sm welcome` | The first-time welcome again |

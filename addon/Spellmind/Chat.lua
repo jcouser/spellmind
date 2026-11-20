@@ -639,7 +639,7 @@ C.HELP = {
 	"Spellmind commands:",
 	"  /sm: open or close the chat.  /sm <question>: ask.",
 	"  /sm quests, dungeons, gear, talents, spells, professions, gold, nudges, settings: open that tab.",
-	"  /sm route: the quest route on or off (the Route tab has its switches).  /sm arrow: its arrow.",
+	"  /sm route: the quest route on or off (the Route tab has its switches).  /sm arrow: its arrow.  /sm route why <step>: why a step is where it is.",
 	"  /sm guide <link>: your leveling guide, read by your AI.",
 	"  /sm nudges on/off/reset · /sm marks on/off · /sm data, or data on/off · /sm minimap on/off.",
 	"  /sm app: where to get the free Spellmind app (the chat needs it; every other tab works without).  /sm welcome: the first-time welcome again.  /sm news: what's new in this version.",
@@ -690,6 +690,13 @@ SlashCmdList.SPELLMIND = function(msg)
 		local n = ns.Nudges.Reset()
 		ChatFrame(n > 0 and ("Spellmind: " .. n .. " nudge" .. (n > 1 and "s" or "") .. " to show.")
 			or "Spellmind: nothing to nudge about right now (no spells due, points to spend, broken gear, full bags or capped professions).")
+		return
+	end
+	-- /sm route why <step>: why that step sits where it is (Route.lua).
+	local why = lower:match("^route%s+why%s*(%d*)$")
+	if why and ns.Route and ns.db then
+		local cur = select(2, ns.Route.Current())
+		for _, line in ipairs(ns.Route.Why(tonumber(why) or cur)) do ChatFrame("|cff9d7dffSpellmind:|r " .. line) end
 		return
 	end
 	-- /sm route: the route tracker (Route.lua), opened or closed.

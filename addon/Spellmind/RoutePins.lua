@@ -265,24 +265,7 @@ end
 -- Where you are on it: the nearest of the way's own points, never the target (the player, 2026-11-20,
 -- in Stormwind: the target was nearer in a straight line than the trail around the walls, and the
 -- minimap drew straight to it while the map followed the trail).
-local function Ahead(me, list)
-	local from, fd = 1, nil
-	for k, p in ipairs(list) do
-		if (k < #list or #list == 1) and (p.c == nil or p.c == me.c) then
-			local d = (p.x - me.x) ^ 2 + (p.y - me.y) ^ 2
-			if not fd or d < fd then from, fd = k, d end
-		end
-	end
-	-- The nearest is the target itself, or the player is past it toward the next: from the next one.
-	local out = {}
-	for k = from, #list do out[#out + 1] = list[k] end
-	if #out > 1 then
-		local a, b = out[1], out[2]
-		local abx, aby = b.x - a.x, b.y - a.y
-		if (me.x - a.x) * abx + (me.y - a.y) * aby > 0 then table.remove(out, 1) end
-	end
-	return out
-end
+local function Ahead(me, list) return ns.Route.Ahead(me, list) end
 
 RP.AREA_ALPHA = 0.16 -- faint: the minimap's own marks stay readable
 local DOT_AREA_TEX = "Interface\\AddOns\\Spellmind\\Media\\Area"

@@ -3422,7 +3422,20 @@ function RT.DrawMap()
 		marks.inArea = path[1] and path[1].now and RT.InArea(cur) or false
 		-- Only to the current step, when it's on this map (the player, 2026-11-20: with it in Westfall, the
 		-- gold line ran to the first step on Stormwind's map instead).
-		if me and path[1] and path[1].now and not away and not marks.inArea then Along(me, path[1], t and t.path or nil, 1, 0.82, 0, true) end
+		if me and path[1] and path[1].now and not away and not marks.inArea then
+			local way, meW = t and t.path or nil, RT.PlayerWorld()
+			local ahead
+			if way and meW and t.world then
+				local list = {}
+				for _, p in ipairs(way) do list[#list + 1] = p end
+				list[#list + 1] = t.world
+				ahead = RT.Ahead(meW, list)
+				way = {}
+				for k = 1, #ahead - 1 do way[k] = ahead[k] end
+			end
+			Along(me, path[1], way, 1, 0.82, 0, true)
+			if marks.live then marks.live.path, marks.live.first, marks.live.target, marks.live.track = t and t.path, ahead and ahead[1], t and t.world, true end
+		end
 		for k = 1, #path - 1 do MapLine(layer, path[k][1], path[k][2], path[k + 1][1], path[k + 1][2], 0.62, 0.49, 1, 0.7, 2) end
 	end
 	-- The way somewhere else (the player, 2026-11-19: with the pins gone a chosen zone showed nothing, and
@@ -3496,6 +3509,17 @@ function RT.MapLive()
 	-- Into or out of the current step's area: the line goes or comes back.
 	if marks.inArea ~= nil and (RT.InArea((RT.Current())) or false) ~= marks.inArea then pcall(RT.DrawMap); return end
 	if not live then return end
+	if live.track then
+		local cur = R.routeTrailWay and R.routeTrailWay.path or nil
+		if cur ~= live.path then pcall(RT.DrawMap); return end
+		local meW = live.path and live.target and RT.PlayerWorld()
+		if meW then
+			local list = {}
+			for _, p in ipairs(live.path) do list[#list + 1] = p end
+			list[#list + 1] = live.target
+			if RT.Ahead(meW, list)[1] ~= live.first then pcall(RT.DrawMap); return end
+		end
+	end
 	local canvas = W:GetCanvas()
 	local cw, ch = tonumber((canvas:GetWidth())) or 0, tonumber((canvas:GetHeight())) or 0
 	local me = PlayerOnMap(W:GetMapID(), R.route, cw, ch)
@@ -4207,6 +4231,7 @@ RT.TRAIL_JUMP = 40 -- farther in one tick is a loading screen, a flight or a por
 RT.TRAIL_CELL = 25 -- the index's cells
 RT.TRAIL_JOIN = 150 -- how far to look for a trail from where a way starts or ends
 RT.TRAIL_ENDS = 4 -- the trail points tried at each end
+RT.TRAIL_BACK = 60 -- outside a city, a trail taking you farther than this from the target than you are is left
 RT.TRAIL_MAX = 15000 -- points kept, at most (a saved file holds about 262,000 values in all, AzerothGPS's notes say)
 -- yards cost: off a trail, and a straight line with no trail. A straight line costs 3 here, not the 2 AzerothGPS
 -- uses: it knows whether the straight line is blocked (its terrain), Spellmind doesn't, and a trail walked is a way
@@ -4391,6 +4416,16 @@ function RT.TrailBetween(a, b)
 	if bestCost >= Dist(a, b) * RT.STRAIGHT then return nil end
 	local pts, n = {}, best
 	while n do table.insert(pts, 1, { c = a.c, x = X[n], y = Y[n] }); n = prev[n] end
+	-- Not back the way you came (the player, 2026-11-20, in the Wetlands: the line went back along the
+	-- road walked, then round to the target). Out in the open the straight way is likelier open than a
+	-- city's (its walls are why a trail is taken at all), so there a trail that first goes well away from
+	-- the target is left. In a city (resting) it stands.
+	if not Try(rawget(_G, "IsResting")) then
+		local now = Dist(a, b)
+		for _, p in ipairs(pts) do
+			if Dist(p, b) > now + RT.TRAIL_BACK then return nil end
+		end
+	end
 	-- Fewer points to draw: those that bend the way (within 3 yards of the line otherwise).
 	local function Simplify(list, tol)
 		if #list < 3 then return list end
@@ -4421,6 +4456,28 @@ function RT.TrailTo(key, target)
 	local path = me and target and RT.TrailBetween(me, target) or nil
 	R.routeTrailWay = { key = key, at = GetTime(), path = path }
 	return path
+end
+
+-- A way's points still ahead of the player (world spots, the target last): from the nearest of its own
+-- points on, never the target (the player, 2026-11-20, in Stormwind: the target was nearer in a straight
+-- line than the trail around the walls), and that one dropped too once they're past it toward the next.
+-- The minimap and the world map alike (the player, 2026-11-20: the map's line went back to a point walked past).
+function RT.Ahead(me, list)
+	local from, fd = 1, nil
+	for k, p in ipairs(list) do
+		if (k < #list or #list == 1) and (p.c == nil or p.c == me.c) then
+			local d = (p.x - me.x) ^ 2 + (p.y - me.y) ^ 2
+			if not fd or d < fd then from, fd = k, d end
+		end
+	end
+	local out = {}
+	for k = from, #list do out[#out + 1] = list[k] end
+	if #out > 1 then
+		local a, b = out[1], out[2]
+		local abx, aby = b.x - a.x, b.y - a.y
+		if (me.x - a.x) * abx + (me.y - a.y) * aby > 0 then table.remove(out, 1) end
+	end
+	return out
 end
 
 -- Where the arrow aims on a way along points (world spots) to a target: the average of the points

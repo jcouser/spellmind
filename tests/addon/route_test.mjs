@@ -2284,3 +2284,40 @@ test('a sold-out seller of one of a class quest\'s goods: seen at the window, th
   assert.match(tx, /Bronze Tube .*Jasper Fel has none right now/, tx);
   assert.match(tx, /buy Simple Wildflowers .*from Florist/, tx);
 });
+
+test('out in the open, a trail back the way you came is left: the straight way; in a city it stands (the player, 2026-11-20, in the Wetlands)', () => {
+  const vm = session();
+  vm.slash('route');
+  // From (40, 40) south to (40, 60), west to (20, 60), north to the rats (20, 21): first well away from them.
+  const pts = [];
+  for (let y = 40; y <= 60; y += 0.5) pts.push([0.40, y / 100]);
+  for (let x = 40; x >= 20; x -= 0.5) pts.push([x / 100, 0.60]);
+  for (let y = 60; y >= 21; y -= 0.5) pts.push([0.20, y / 100]);
+  WALK(vm, pts);
+  vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40; NS.R.routeTrailWay = nil; NS.R.routeTrailAt = nil');
+  const c = vm.json('NS.Route.Current()');
+  const way = `NS.Route.TrailBetween(NS.Route.PlayerWorld(), NS.Route.World(1432, ${c.x}, ${c.y}))`;
+  vm.run('STUB.player.resting = false');
+  assert.equal(vm.evaluate(`tostring(${way})`), 'nil', 'straight');
+  vm.run('STUB.player.resting = true');
+  assert.notEqual(vm.evaluate(`tostring(${way})`), 'nil', 'in a city: the trail');
+});
+
+test('the world map\'s gold line leaves a trail point once you\'re past it, as the minimap does (the player, 2026-11-20: the line went back to it)', () => {
+  const vm = session();
+  vm.run(MAP);
+  vm.slash('route');
+  // A trail from (40, 40) south to (40, 60), west, north to the rats; in a city, so it's taken.
+  const pts = [];
+  for (let y = 40; y <= 60; y += 0.5) pts.push([0.40, y / 100]);
+  for (let x = 40; x >= 20; x -= 0.5) pts.push([x / 100, 0.60]);
+  for (let y = 60; y >= 21; y -= 0.5) pts.push([0.20, y / 100]);
+  WALK(vm, pts);
+  vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40; NS.R.routeTrailWay = nil; NS.R.routeTrailAt = nil; NS.Route.ArrowUpdate(); NS.Route.DrawMap()');
+  const first = vm.json('NS.Route.marks.live.first');
+  assert.ok(first, 'the line drawn along the trail');
+  // Walked down the trail, past its first bend's point, the kept way unchanged: the map draws again, from the next one.
+  vm.run('STUB.player.x, STUB.player.y = 0.40, 0.61; NS.Route.MapLive()');
+  const after = vm.json('NS.Route.marks.live.first');
+  assert.notDeepEqual(after, first, 'not back to the point walked past');
+});

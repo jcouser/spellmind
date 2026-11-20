@@ -4007,6 +4007,22 @@ function RT.Snapshot(whyLines, n)
 			done = RT.StopDone(st) or nil, skipped = (R.routeSkip and R.routeSkip[st.key]) or nil, goals = goals }
 	end
 	for _, r in ipairs(route.rules or {}) do snap.rules[#snap.rules + 1] = r[1] .. ">" .. r[2] end
+	-- The class questlines, each quest's own data (the player, 2026-11-20: a dwarf's list had night elf
+	-- and Horde rogue quests): its races and classes masks, levels, who gives it and their faction.
+	local DGm = DG()
+	local ctx = Q and DGm.Context(Q)
+	snap.you = ctx and { race = ctx.race, class = ctx.class, faction = ctx.faction } or nil
+	snap.classLines = {}
+	for _, l in ipairs(Q and DGm.ClassLines and DGm.ClassLines() or {}) do
+		local qs = {}
+		for _, id in ipairs(l.steps) do
+			local from, friendly = DGm.Giver(Q, id)
+			qs[#qs + 1] = { id = id, name = DGm.Name(Q, id), races = tonumber((Try(Q.Quest.requiredRaces, id))), classes = tonumber((Try(Q.Quest.requiredClasses, id))),
+				level = tonumber((Try(Q.Quest.questLevel, id))), req = tonumber((Try(Q.Quest.requiredLevel, id))), zone = tonumber((Try(Q.Quest.zoneOrSort, id))),
+				from = from, friendly = friendly, done = DGm.Done(id) or nil }
+		end
+		snap.classLines[#snap.classLines + 1] = { id = l.id, name = l.name, quests = qs }
+	end
 	for q in pairs(route.low or {}) do snap.low[#snap.low + 1] = q end
 	return snap
 end

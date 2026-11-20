@@ -51,7 +51,7 @@ export const NEWS = Object.freeze([
   Object.freeze({
     version: '0.6.1',
     changes: Object.freeze([
-      "Skipping a quest's pickup takes the quest off the route: its objective, its turn-in, and the follow-ups it opens. Back brings them back.",
+      "Skipping a step skips what needs it: skip a pickup or an objective and the quest's turn-in and follow-ups go with it; skip a turn-in and its follow-ups go. Back brings them back.",
     ]),
   }),
 ]);

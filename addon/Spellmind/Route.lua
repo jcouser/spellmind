@@ -1591,18 +1591,19 @@ function RT.StopOff(s)
 end
 function RT.Skipped(s) return (R.routeSkip and R.routeSkip[s.key]) or RT.StopOff(s) end
 
--- Skipping a pick up of a quest not in the log (the player, 2026-11-20: its objective and turn-in
--- stayed on the route, for a quest they didn't have) takes the quest off: its objectives, its
--- turn-in, and the follow-ups it would open, down the chain. Returns what it took ({ quests }), for
--- Back and Unskip.
+-- Skipping a step skips what needs it (the player, 2026-11-20: a skipped pick up left its objective
+-- and turn-in on the route; "effectively any required step of a quest"). A pick up or an objective:
+-- the quest is off the route (its turn-in with it), and the follow-ups it opens, down the chain. A
+-- turn-in: the follow-ups it opens (its objective stays: it can still be done and handed in later).
+-- Returns what it took ({ quests }), for Back and Unskip.
 local function Cascade(s)
 	local route = R.route
 	if not route then return nil end
-	local Q, log = {}, R.routeLog or {}
+	local Q, opens, log = {}, {}, R.routeLog or {}
 	for _, g in ipairs(s.goals or {}) do
-		if g.kind == "pickup" and not log[g.q] and not RT.GoalOff(g) then Q[g.q] = true end
+		if (g.kind == "pickup" or g.kind == "do") and g.q and g.q > 0 and not RT.GoalOff(g) then Q[g.q] = true
+		elseif g.kind == "turnin" then opens[g.q] = true end
 	end
-	if not next(Q) then return nil end
 	local grew = true
 	while grew do
 		grew = false
@@ -1610,9 +1611,10 @@ local function Cascade(s)
 			local ka, qa = tostring(r[1]):match("^(%a+):(%d+)$")
 			local kb, qb = tostring(r[2]):match("^(%a+):(%d+)$")
 			qa, qb = tonumber(qa), tonumber(qb)
-			if ka == "turnin" and kb == "pickup" and Q[qa] and not Q[qb] and not log[qb] then Q[qb] = true; grew = true end
+			if ka == "turnin" and kb == "pickup" and (Q[qa] or opens[qa]) and not Q[qb] and not log[qb] then Q[qb] = true; grew = true end
 		end
 	end
+	if not next(Q) then return nil end
 	R.routeSkipQ = R.routeSkipQ or {}
 	local took = { quests = {} }
 	for q in pairs(Q) do R.routeSkipQ[q] = true; took.quests[#took.quests + 1] = q end

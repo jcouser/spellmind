@@ -1837,3 +1837,30 @@ test('skipping a pick up takes the quest off the route: its objective, its turn-
   vm.run(`NS.Route.SetSkip("${t700}", true)`);
   assert.equal(vm.evaluate('tostring(NS.R.routeSkipQ[700])'), 'nil', 'in the log: not taken off');
 });
+
+test('skipping an objective of a quest in the log skips its turn-in and the follow-ups; a turn-in, its follow-ups (the player, 2026-11-20: "any required step")', () => {
+  const vm = session();
+  vm.run(`
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    NS.Dungeons.index, NS.Dungeons.classIds, NS.Dungeons.classCache = nil, nil, nil
+    Q[707] = { name = "Kobold Candles Again", zone = 38, level = 15, npc = 801, single = { 700 }, ender = 801 }`);
+  vm.slash('route');
+  const live = () => vm.evaluate('(function() local o = {} local c = NS.Route.Current() if c then o[#o + 1] = c.key end for _, s in ipairs(NS.Route.UpNext(20)) do o[#o + 1] = s.key end return table.concat(o, " | ") end)()');
+  const groups = () => vm.evaluate('(function() local o = {} for _, s in ipairs(NS.R.route.stops) do if not NS.Route.Skipped(s) then for _, gr in ipairs(NS.Route.Groups(s)) do for _, g in ipairs(gr.goals) do o[#o + 1] = g.kind .. ":" .. g.q end end end end return table.concat(o, " ") end)()');
+  assert.match(groups(), /turnin:700/);
+  // Kobold Candles (in the log): skip its rats.
+  const rats = vm.evaluate('(function() for _, s in ipairs(NS.R.route.stops) do if s.key:find("do:700") then return s.key end end end)()');
+  vm.run(`NS.Route.SetSkip("${rats}", true)`);
+  const g = groups();
+  assert.doesNotMatch(g, /turnin:700/, 'its turn-in: ' + g);
+  assert.doesNotMatch(g, /:707/, 'its follow-up: ' + g);
+  assert.match(g, /turnin:701/, 'Kadrell\'s other turn-in stays: ' + g);
+  vm.run('NS.Route.Back()');
+  assert.match(groups(), /turnin:700/);
+  // Its turn-in skipped: the follow-up goes, the rats stay.
+  const back = vm.evaluate('(function() for _, s in ipairs(NS.R.route.stops) do if s.key:find("turnin:700") then return s.key end end end)()');
+  vm.run(`NS.Route.SetSkip("${back}", true)`);
+  const g2 = groups();
+  assert.match(g2, /do:700/, 'the rats stay: ' + g2);
+  assert.doesNotMatch(g2, /pickup:707/, 'the follow-up goes: ' + g2);
+});

@@ -283,6 +283,40 @@ function RT.Vendor(Q, id, area)
 	return away
 end
 
+-- The nearest vendor of a quest's goods friendly to the player's faction (or to both), from a world
+-- spot (another continent last): { zone, x, y, item, name }, or nil.
+function RT.NearestVendor(Q, id, from)
+	local o = Try(Q.Quest.objectives, id)
+	local I, N = Q.Item, Q.Npc
+	if type(o) ~= "table" or type(o[3]) ~= "table" or not I or not N or type(I.vendors) ~= "function" then return nil end
+	local faction = Try(UnitFactionGroup, "player")
+	local mine = faction == "Alliance" and "A" or (faction == "Horde" and "H") or nil
+	local best, bestD
+	for _, c in ipairs(o[3]) do
+		local itemID = type(c) == "table" and tonumber(c[1]) or nil
+		local item = itemID and Try(I.name, itemID) or nil
+		for _, npc in ipairs(itemID and Try(I.vendors, itemID) or {}) do
+			local friendly = Try(N.friendlyToFaction, npc)
+			if not (friendly and mine and not tostring(friendly):find(mine, 1, true)) and not RT.NoStock(npc, itemID) then
+				local sp = Try(N.spawns, npc)
+				for zone, list in pairs(type(sp) == "table" and sp or {}) do
+					zone = tonumber(zone)
+					local at = zone and zone > 0 and type(list) == "table" and list[1]
+					if at and tonumber(at[1]) and tonumber(at[2]) then
+						local map = DG().MapForArea(zone)
+						local w = map and RT.World(map, at[1], at[2])
+						local d = (w and from and w.c == from.c) and ((w.x - from.x) ^ 2 + (w.y - from.y) ^ 2) or 1e12
+						if not bestD or d < bestD then
+							best, bestD = { zone = zone, x = tonumber(at[1]), y = tonumber(at[2]), item = item, name = Try(N.name, npc) }, d
+						end
+					end
+				end
+			end
+		end
+	end
+	return best
+end
+
 -- The middle of the densest group of points (where most of a quest's mobs are), or nil.
 function RT.Center(pts, radius)
 	radius = radius or RT.CLUSTER
@@ -3103,7 +3137,9 @@ function RT.DrawMap()
 	if lines then
 		-- Not while you're inside the current step's area: you're there.
 		marks.inArea = path[1] and path[1].now and RT.InArea(cur) or false
-		if me and path[1] and not away and not marks.inArea then Along(me, path[1], path[1].now and t and t.path or nil, 1, 0.82, 0, true) end
+		-- Only to the current step, when it's on this map (the player, 2026-11-20: with it in Westfall, the
+		-- gold line ran to the first step on Stormwind's map instead).
+		if me and path[1] and path[1].now and not away and not marks.inArea then Along(me, path[1], t and t.path or nil, 1, 0.82, 0, true) end
 		for k = 1, #path - 1 do MapLine(layer, path[k][1], path[k][2], path[k + 1][1], path[k + 1][2], 0.62, 0.49, 1, 0.7, 2) end
 	end
 	-- The way somewhere else (the player, 2026-11-19: with the pins gone a chosen zone showed nothing, and
@@ -3366,18 +3402,26 @@ function RT.QuestPlaces(Q, id, here)
 		if at and at.spot then out.fin = SpotOn(tonumber(fin.zone), at.spot.x, at.spot.y, here); if out.fin then out.fin.name = at.name end end
 	end
 	-- Nowhere to do it, and something to buy (the player, 2026-11-20: The Touch of Zanzil's goods): a
-	-- vendor in the giver's zone, the turn-in's, here, else wherever it's sold.
+	-- vendor in the giver's zone, the turn-in's or here; else the nearest one friendly to the player,
+	-- from the giver (the first one found was in The Barrens, for a Stormwind quest).
 	if not out.area then
 		local tried = {}
 		for _, z in ipairs({ g and tonumber(g.zone), fin and tonumber(fin.zone), here and here.area }) do
 			if z and not tried[z] and not out.buy then
 				tried[z] = true
 				local v = RT.Vendor(Q, id, z)
-				if v and not v.spot and v.zone then z = tonumber(v.zone); v = z and RT.Vendor(Q, id, z) or nil end
 				if v and v.spot then
 					out.buy = SpotOn(z, v.spot.x, v.spot.y, here)
 					if out.buy then out.buy.item, out.buy.vendor = v.item, v.name end
 				end
+			end
+		end
+		if not out.buy then
+			local fromW = g and DG().MapForArea(tonumber(g.zone)) and World(DG().MapForArea(tonumber(g.zone)), g.x, g.y) or RT.PlayerWorld()
+			local v = RT.NearestVendor(Q, id, fromW)
+			if v then
+				out.buy = SpotOn(v.zone, v.x, v.y, here)
+				if out.buy then out.buy.item, out.buy.vendor = v.item, v.name end
 			end
 		end
 	end

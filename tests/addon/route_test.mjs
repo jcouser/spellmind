@@ -2042,3 +2042,36 @@ test('on a flight path the way there starts at the landing, "In flight to …"; 
   assert.match(d[0], /^In flight to /, JSON.stringify(d));
   assert.ok(!d.some(x => /Flight master at Thelsamar/.test(x)), 'the takeoff left behind');
 });
+
+test('goods to buy away from the giver: the nearest vendor friendly to you, not the first one found (the player, 2026-11-20: a Stormwind quest\'s goods placed in The Barrens)', () => {
+  const vm = newVM({ before: ZONE + CLASS + `
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    Q[950].zone = -162
+    STUB.qdb.items = STUB.qdb.items or {}
+    -- Sold in Westfall by a Horde-only goblin (listed first), and in Westfall by a friendly one.
+    STUB.qdb.items[5000] = { name = "Leaded Vial", vendors = { 961, 962 } }
+    N[961] = { name = "Horde Goblin", zone = 40, spawns = { [40] = { { 10, 10 } } }, friendly = "H" }
+    N[962] = { name = "Friendly Seller", zone = 40, spawns = { [40] = { { 50, 50 } } }, friendly = "AH" }
+    Q[950].obj = { {}, {}, { { 5000 } } }` }).login().advance(9);
+  vm.run(`LibQuestieDB.Item = LibQuestieDB.Item or {}
+    LibQuestieDB.Item.name = function(id) local it = STUB.qdb.items[id]; return it and it.name end
+    LibQuestieDB.Item.vendors = function(id) local it = STUB.qdb.items[id]; return it and it.vendors end
+    LibQuestieDB.Item.npcDrops = LibQuestieDB.Item.npcDrops or function() return nil end
+    LibQuestieDB.Item.objectDrops = LibQuestieDB.Item.objectDrops or function() return nil end`);
+  vm.slash('route');
+  vm.run('NS.Route.SetMode("class", 952, "Mastery of Shadows")');
+  const buy = vm.json('(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 950 then return { from = g.from, zone = s.zoneName } end end end end)()');
+  assert.equal(buy.from, 'Friendly Seller', JSON.stringify(buy));
+});
+
+test('the gold line runs only to the current step: not to another step on this map when the current one is elsewhere (the player, 2026-11-20)', () => {
+  const vm = session();
+  vm.run(MAP);
+  vm.slash('route');
+  vm.run('NS.Route.DrawMap()');
+  const gold = () => { const n = vm.num('NS.Route.marks.linesShown'); let g = 0; for (let k = 1; k <= n; k++) { const c = vm.json(`NS.Route.marks.lines[${k}].color`); if (c && c[0] === 1 && c[1] === 0.82) g++; } return g; };
+  assert.ok(gold() > 0, 'to the rats, here');
+  // Skip the rats: the current step is Kadrell's; then mark his stop as another map's: none on this one.
+  vm.run('local s = NS.Route.Current(); NS.Route.SetSkip(s.key, true); local c = NS.Route.Current(); c.map = 1436; NS.Route.DrawMap()');
+  assert.equal(gold(), 0, 'the current step elsewhere: no gold line to another step');
+});

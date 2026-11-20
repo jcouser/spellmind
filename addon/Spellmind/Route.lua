@@ -950,6 +950,28 @@ end
 -- way) where it adds the least way and keeps the rules. nil when the order should be made again: more
 -- new stops than kept ones, none kept, or the kept order breaking a rule.
 RT.SHORTER_YARDS = 800 -- a fresh plan at least this much shorter is offered on Rebuild
+RT.REBUILD_NOTE = 3 -- seconds Rebuild says what it did
+
+-- Rebuild: made again from here, and it says what came of it (the player, 2026-11-20: when the order
+-- was already the best one, the click seemed to do nothing).
+local function Order()
+	local o = {}
+	for _, s in ipairs(R.route and R.route.stops or {}) do
+		if not RT.StopDone(s) and not RT.Skipped(s) then o[#o + 1] = s.key end
+	end
+	return table.concat(o, "|")
+end
+function RT.Replan()
+	local before = Order()
+	R.routeReplan = true
+	RT.Build()
+	local same = Order() == before
+	R.rebuildNote = same and "Already the best order" or "Re-planned from here"
+	R.rebuildNoteUntil = GetTime() + RT.REBUILD_NOTE
+	RT.Draw()
+	C_Timer.After(RT.REBUILD_NOTE + 0.1, function() if RT.Shown() then RT.Draw() end end)
+	return same
+end
 function RT.KeptOrder(prev, stops, start, here, rules, cost)
 	cost = cost or RT.Yards
 	local rank = {}
@@ -2141,7 +2163,7 @@ local function Build()
 	f.skip:SetScript("OnClick", function() RT.Skip() end)
 	f.rebuild = ns.GearUI.Button(f, "Rebuild", 76)
 	f.rebuild:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 10)
-	f.rebuild:SetScript("OnClick", function() R.routeReplan = true; RT.Build(); RT.Draw() end)
+	f.rebuild:SetScript("OnClick", function() RT.Replan() end)
 	-- Sized by its corner (the player, 2026-11-19): taller shows more of Up next; the size is kept.
 	f:SetResizable(true)
 	if f.SetResizeBounds then f:SetResizeBounds(RT.MIN_W, RT.MIN_H, RT.MAX_W, RT.MAX_H)
@@ -2481,6 +2503,7 @@ function RT.Draw()
 	-- Rebuild, with what a fresh plan from here saves when it's worth it.
 	local shorter = route.kept and route.shorter
 	local label = shorter and ("Rebuild: |cff19ff19" .. RT.Thousands(shorter) .. " yd shorter|r") or "Rebuild"
+	if R.rebuildNoteUntil and GetTime() < R.rebuildNoteUntil then label = "|cff19ff19" .. R.rebuildNote .. "|r" end
 	if f.rebuild.text then
 		f.rebuild.text:SetText(label)
 		f.rebuild:SetWidth(math.max(76, (tonumber((f.rebuild.text:GetStringWidth())) or 60) + 20))

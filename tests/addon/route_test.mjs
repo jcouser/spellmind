@@ -1916,8 +1916,23 @@ test('a kept order much longer than a fresh plan from here: Rebuild says how muc
   const label = vm.evaluate('SpellmindRoute.rebuild.text:GetText()');
   assert.match(label, /^Rebuild: \|cff19ff19[\d,]+ yd shorter\|r$/, label);
   assert.ok(vm.num('SpellmindRoute.rebuild:GetWidth()') > 76, 'wide enough for it');
-  // Taken: the fresh plan, and the button plain again.
+  // Taken: the fresh plan; the button says so, then is plain again.
   vm.run('SpellmindRoute.rebuild.scripts.OnClick(SpellmindRoute.rebuild)');
+  assert.match(vm.evaluate('SpellmindRoute.rebuild.text:GetText()'), /Re-planned from here/);
+  vm.advance(4);
   assert.equal(vm.evaluate('SpellmindRoute.rebuild.text:GetText()'), 'Rebuild');
   assert.notDeepEqual(keys(vm), first);
+});
+
+test('Rebuild says what it did: the same order ("Already the best order") or a new one, for a few seconds (the player, 2026-11-20: it seemed to do nothing)', () => {
+  const vm = session();
+  vm.slash('route');
+  vm.run('SpellmindRoute.rebuild.scripts.OnClick(SpellmindRoute.rebuild)');
+  assert.match(vm.evaluate('SpellmindRoute.rebuild.text:GetText()'), /Already the best order/);
+  vm.advance(4);
+  assert.equal(vm.evaluate('SpellmindRoute.rebuild.text:GetText()'), 'Rebuild', 'back after a moment');
+  // Elsewhere, kept, then made again: a new order.
+  vm.run('STUB.player.x, STUB.player.y = 0.84, 0.84; NS.Route.Build(); NS.Route.Draw()');
+  vm.run('SpellmindRoute.rebuild.scripts.OnClick(SpellmindRoute.rebuild)');
+  assert.match(vm.evaluate('SpellmindRoute.rebuild.text:GetText()'), /Re-planned from here/);
 });

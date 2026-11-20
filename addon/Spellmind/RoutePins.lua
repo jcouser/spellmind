@@ -78,6 +78,15 @@ function RP.Refresh()
 				pts.next = { world = RT.World(RT.StopMap(s), s.x, s.y), text = RT.StopText(s), num = k and tostring(k) or "",
 					color = { 0.62, 0.49, 1 } }
 			end
+			-- The current step's area (the player, 2026-11-20): shown faintly while you're inside it.
+			local st = t.step
+			for _, g in ipairs(st and st.goals or {}) do
+				if not pts.area and g.kind == "do" and g.ax and g.rx and g.ry and R.route and R.route.map then
+					local mapW, mapH = RT.MapYards(RT.StopMap(st))
+					local c = RT.World(RT.StopMap(st), g.ax, g.ay)
+					if c and mapW then pts.area = { world = c, rx = g.rx / 100 * mapW, ry = g.ry / 100 * mapH, step = st } end
+				end
+			end
 			-- The lines: { color, pts (world spots), fromMe (it starts at the player, live) }.
 			if RT.MinimapLinesOn() then
 				local lines = {}
@@ -180,6 +189,7 @@ end
 local function HideAll()
 	for _, b in pairs(pins) do b:Hide(); b.pt = nil end
 	HideLines()
+	if RP.areaTex then RP.areaTex:Hide(); RP.areaShown = nil end
 end
 local function LineAt(k)
 	if not holder then
@@ -270,6 +280,44 @@ local function Ahead(me, list)
 	return out
 end
 
+RP.AREA_ALPHA = 0.16 -- faint: the minimap's own marks stay readable
+local DOT_AREA_TEX = "Interface\\AddOns\\Spellmind\\Media\\Area"
+local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+local SQUARE_MASK = "Interface\\Buttons\\WHITE8X8"
+-- The current step's area while you're inside it: the world map's shading, faint, cut to the
+-- minimap's shape (round, or square for a square minimap), turned with a turning minimap.
+local function DrawArea(pts, me, scale, facing, sn, cs, shapeName)
+	local a = pts.area
+	local on = a and ns.Route.InArea(a.step)
+	local t = RP.areaTex
+	if not on then if t then t:Hide() end; RP.areaShown = nil; return end
+	if not t then
+		local holder = CreateFrame("Frame", nil, Minimap)
+		holder:SetAllPoints(Minimap)
+		holder:SetFrameLevel((tonumber((Minimap:GetFrameLevel())) or 1) + 3) -- under the lines and pins
+		t = holder:CreateTexture(nil, "ARTWORK")
+		t:SetTexture(DOT_AREA_TEX)
+		local mask = type(holder.CreateMaskTexture) == "function" and holder:CreateMaskTexture() or nil
+		if mask then
+			mask:SetAllPoints(Minimap)
+			if type(t.AddMaskTexture) == "function" then t:AddMaskTexture(mask) end
+		end
+		RP.areaTex, RP.areaMask = t, mask
+	end
+	if RP.areaMask and RP.areaMaskShape ~= shapeName then
+		RP.areaMask:SetTexture(shapeName == "SQUARE" and SQUARE_MASK or ROUND_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+		RP.areaMaskShape = shapeName
+	end
+	local dx, dy = Offset(a.world, me, scale, facing, sn, cs)
+	t:ClearAllPoints()
+	t:SetPoint("CENTER", Minimap, "CENTER", dx, dy)
+	t:SetSize(2 * a.rx * scale, 2 * a.ry * scale)
+	if t.SetRotation then t:SetRotation(facing and -facing or 0) end
+	t:SetVertexColor(1, 0.82, 0, RP.AREA_ALPHA)
+	t:Show()
+	RP.areaShown = true
+end
+
 local function DrawLines(pts, me, scale, facing, sn, cs, w, h, shape)
 	local n = 0
 	local width = RP.LineWidth()
@@ -332,6 +380,7 @@ function RP.Update(force)
 	local scale = (w / 2) / radius
 	local sn, cs = 0, 1
 	if facing then sn, cs = sin(facing), cos(facing) end
+	DrawArea(pts, me, scale, facing, sn, cs, shapeName)
 	DrawLines(pts, me, scale, facing, sn, cs, w, h, shape)
 	-- The step after: only when it's in view.
 	local b2 = Pin(2, RP.NEXT)

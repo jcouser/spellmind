@@ -109,6 +109,15 @@ function RT.Here()
 		w = (type(w) == "number" and w > 0) and w or 1000, h = (type(h) == "number" and h > 0) and h or 1000 }
 end
 
+-- A map's size in yards: width (east-west), height (north-south), or nil.
+function RT.MapYards(map)
+	local M = rawget(_G, "C_Map")
+	if type(M) ~= "table" then return nil end
+	local w, h = Try(M.GetMapWorldSize, map)
+	if type(w) == "number" and w > 0 and type(h) == "number" and h > 0 then return w, h end
+	return nil
+end
+
 -- Inside a step's objective area (the player, 2026-11-20: standing among the murlocs, the line to the
 -- area's middle said nothing): the shaded ellipse of one of its objectives not done, on the map the
 -- player is on.

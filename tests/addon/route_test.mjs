@@ -1689,7 +1689,16 @@ test('inside the current step\'s area, no line from you to it, on the map or the
   assert.match(vm.evaluate('SpellmindArrow.dist:GetText()'), /You're in the area/);
   assert.equal(vm.evaluate('tostring(SpellmindArrow.tex.shown)'), 'false');
   assert.match(vm.evaluate('SpellmindArrow.text:GetText()'), /Kobold Candles/);
+  // The minimap shows the area, faintly, centred on it (the player, 2026-11-20).
+  assert.equal(vm.evaluate('tostring(NS.RoutePins.areaShown)'), 'true');
+  const area = vm.json('(function() local t = NS.RoutePins.areaTex; local _, _, _, x, y = t:GetPoint(); return { w = t:GetWidth(), h = t:GetHeight(), x = x, y = y, a = t.vertexColor and t.vertexColor[4] } end)()');
+  const g = vm.json('(function() for _, g in ipairs(NS.Route.Current().goals) do if g.kind == "do" then return { ax = g.ax, ay = g.ay, rx = g.rx, ry = g.ry } end end end)()');
+  // 3000 x 2000 yards, 70 px to 2000 yards: 0.035 px a yard.
+  assert.ok(Math.abs(area.w - 2 * g.rx / 100 * 3000 * 0.035) < 0.01 && Math.abs(area.h - 2 * g.ry / 100 * 2000 * 0.035) < 0.01, JSON.stringify([area, g]));
+  assert.ok(Math.abs(area.x - (g.ax - 20.5) * 30 * 0.035) < 0.05 && Math.abs(area.y - (20.5 - g.ay) * 20 * 0.035) < 0.05, 'at its middle: ' + JSON.stringify([area, g]));
   // Out again: back.
   vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40; NS.Route.MapLive()');
   assert.ok(gold(vm) > 0, 'back on the map');
+  vm.run('NS.RoutePins.Update(true)');
+  assert.equal(vm.evaluate('tostring(NS.RoutePins.areaShown)'), 'nil', 'out of it: gone');
 });

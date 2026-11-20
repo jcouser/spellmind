@@ -504,8 +504,10 @@ function Tabs.quests()
 		local mode, key = RT and RT.Mode()
 		for _, l in ipairs(lines) do
 			local onLine = mode == "class" and tonumber(key) == l.id
-			out[#out + 1] = { kind = "item", left = "|cffff9933" .. (l.level and ("[" .. l.level .. "] ") or "") .. "|r" .. ns.Escape(l.name),
-				sub = "|cff888888" .. ns.Escape(ns.Dungeons.ClassLineText(l)) .. "|r",
+			local lv = l.stepLevel or l.level
+			local vers = ns.Dungeons.VersionsText(l)
+			out[#out + 1] = { kind = "item", left = "|cffff9933" .. (lv and ("[" .. lv .. "] ") or "") .. "|r" .. ns.Escape(l.name),
+				sub = "|cff888888" .. ns.Escape(ns.Dungeons.ClassLineText(l)) .. (vers and ("\n" .. ns.Escape(vers)) or "") .. "|r",
 				right = l.current.at and ("|cff888888at " .. l.current.at .. "|r") or nil,
 				actions = RT and { { onLine and "Planned" or "Route", function()
 					if onLine then RT.SetMode("questing") else RT.SetMode("class", l.id, l.name); if not RT.On() then RT.SetOn(true) end end
@@ -600,7 +602,8 @@ function Tabs.route()
 	for _, l in ipairs(ns.Dungeons.ClassLines and ns.Dungeons.ClassLines() or {}) do
 		local onLine = mode == "class" and tonumber(prep) == l.id
 		out[#out + 1] = { kind = "item", indent = true, left = "|cffff9933Class quest:|r " .. ns.Escape(l.name),
-			right = l.level and ("[" .. l.level .. "]") or nil, sub = "|cff888888" .. ns.Escape(ns.Dungeons.ClassLineText(l)) .. "|r",
+			right = (l.stepLevel or l.level) and ("[" .. (l.stepLevel or l.level) .. "]") or nil,
+			sub = "|cff888888" .. ns.Escape(ns.Dungeons.ClassLineText(l)) .. (ns.Dungeons.VersionsText(l) and ("\n" .. ns.Escape(ns.Dungeons.VersionsText(l))) or "") .. "|r",
 			actions = { { onLine and "Planned" or "Route", function()
 				if onLine then RT.SetMode("questing") else RT.SetMode("class", l.id, l.name); if not RT.On() then RT.SetOn(true) end end
 				P.Show("route", true)

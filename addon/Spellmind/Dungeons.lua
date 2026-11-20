@@ -509,10 +509,26 @@ function DG.ClassLines()
 				if not at or at <= level + DG.CLASS_SOON then
 					local inLog = Have(cur)
 					local from, _, spot = Giver(L, cur)
+					-- The starting areas its steps are given in (for its versions, below).
+					local homes = {}
+					for _, sid in ipairs(order) do
+						local _, _, sp = Giver(L, sid)
+						local h = sp and DG.HOME_OF[tonumber(sp.zone)]
+						if h then homes[h] = true end
+					end
+					local home, many = nil, false
+					for h in pairs(homes) do if home then many = true end home = home or h end
+					local minReq
+					for _, sid in ipairs(order) do
+						local r = tonumber((ns.Try(L.Quest.requiredLevel, sid))) or 1
+						minReq = minReq and math.min(minReq, r) or r
+					end
 					local last = order[#order]
 					local lineLevel = tonumber((ns.Try(L.Quest.questLevel, last)))
 					out[#out + 1] = { id = last, name = Name(L, last) or ("quest " .. last), steps = order, done = done, total = #order,
 						level = lineLevel, low = (lineLevel and lineLevel < level - DG.CLASS_BELOW and not inLog) or nil,
+						stepLevel = tonumber((ns.Try(L.Quest.questLevel, cur))), home = (not many) and home or nil, tier = minReq,
+						started = (inLog or done > 0) or nil,
 						current = { id = cur, name = Name(L, cur) or ("quest " .. cur), step = k, inLog = inLog or nil,
 							from = (not inLog) and from or nil, to = inLog and Finisher(L, cur) or nil, spot = (not inLog) and spot or nil, at = at } }
 				end
@@ -527,13 +543,86 @@ function DG.ClassLines()
 		if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) < (b.level or 0) end
 		return a.name < b.name
 	end)
-	DG.classCache = { at = GetTime(), level = level, lines = out }
+	local all = out
+	out = DG.FoldVersions(out)
+	DG.classCache = { at = GetTime(), level = level, lines = out, all = all }
 	return out
 end
--- A line by its key, or nil.
+
+-- The starting areas (QuestieDB's zone ids) by the race whose start they are (the player, 2026-11-20:
+-- a dwarf's list had the human and night elf versions of the same rogue step). Spellmind's own table.
+DG.HOMES = {
+	human = { 12, 1519 }, -- Elwynn Forest, Stormwind City
+	dwarf = { 1, 1537 }, -- Dun Morogh, Ironforge (dwarves and gnomes)
+	nightelf = { 141, 1657 }, -- Teldrassil, Darnassus
+	orc = { 14, 1637 }, -- Durotar, Orgrimmar (orcs and trolls)
+	tauren = { 215, 1638 }, -- Mulgore, Thunder Bluff
+	undead = { 85, 1497 }, -- Tirisfal Glades, Undercity
+}
+DG.HOME_OF = {}
+for home, zones in pairs(DG.HOMES) do for _, z in ipairs(zones) do DG.HOME_OF[z] = home end end
+DG.RACE_HOME = { [1] = "human", [2] = "orc", [3] = "dwarf", [4] = "nightelf", [5] = "undead", [6] = "tauren", [7] = "dwarf", [8] = "orc" }
+
+-- Versions of one step: lines at the same level (their first step's), each from a different race's
+-- starting area. One is shown: the one started, else the player's own race's, else the nearest; the
+-- others are under it (versions = { { name, from } }).
+function DG.FoldVersions(lines)
+	local _, _, raceID = ns.Try(UnitRace, "player")
+	local mine = DG.RACE_HOME[tonumber(raceID) or 0]
+	local RT = ns.Route
+	local me = RT and RT.PlayerWorld and RT.PlayerWorld()
+	local function Far(l)
+		local sp = l.current.spot
+		local w = me and sp and RT.World and DG.MapForArea(sp.zone) and RT.World(DG.MapForArea(sp.zone), sp.x, sp.y)
+		if not w or w.c ~= me.c then return math.huge end
+		return (w.x - me.x) ^ 2 + (w.y - me.y) ^ 2
+	end
+	local byTier = {}
+	for _, l in ipairs(lines) do
+		if l.home and l.tier then
+			byTier[l.tier] = byTier[l.tier] or {}
+			table.insert(byTier[l.tier], l)
+		end
+	end
+	local folded = {}
+	for _, group in pairs(byTier) do
+		local homes, n = {}, 0
+		for _, l in ipairs(group) do if not homes[l.home] then homes[l.home] = true; n = n + 1 end end
+		if n >= 2 then
+			local keep
+			for _, l in ipairs(group) do if l.started then keep = l end end
+			if not keep then for _, l in ipairs(group) do if l.home == mine then keep = l end end end
+			if not keep then
+				local best
+				for _, l in ipairs(group) do local d = Far(l); if not best or d < best then keep, best = l, d end end
+			end
+			keep.versions = {}
+			for _, l in ipairs(group) do
+				if l ~= keep and not l.started then
+					folded[l] = true
+					keep.versions[#keep.versions + 1] = { name = l.name, from = l.current.from }
+				end
+			end
+		end
+	end
+	local out = {}
+	for _, l in ipairs(lines) do if not folded[l] then out[#out + 1] = l end end
+	return out
+end
+
+-- A line by its key (a version folded under another too), or nil.
 function DG.ClassLine(id)
-	for _, l in ipairs(DG.ClassLines() or {}) do if l.id == tonumber(id) then return l end end
+	DG.ClassLines()
+	local c = DG.classCache
+	for _, l in ipairs(c and c.all or {}) do if l.id == tonumber(id) then return l end end
 	return nil
+end
+-- "Other versions: Keryn Sylvius, Elwynn Forest; Jannok Breezesong, Teldrassil", or nil.
+function DG.VersionsText(l)
+	if not l.versions or #l.versions == 0 then return nil end
+	local bits = {}
+	for _, v in ipairs(l.versions) do bits[#bits + 1] = v.from and (v.from:gsub("%s*%(.-%)$", "")) or v.name end
+	return "Other versions: " .. table.concat(bits, "; ")
 end
 -- "Step 2 of 4 · in your log, to Mountaineer Kadrell", "Step 1 of 3 · from Tannok Frosthammer,
 -- Ironforge (50, 50)", "Opens at level 20".

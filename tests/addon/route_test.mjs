@@ -1726,3 +1726,33 @@ test('class lines on real data (the player, 2026-11-20): Season of Discovery\'s 
   const n = vm.json('NS.Nudges.Detect.classq()'); const one = Array.isArray(n) ? n[0] : n[1];
   assert.doesNotMatch(one.text, /Old Rogue Errand/);
 });
+
+test('versions of one class step (the player, 2026-11-20): from each race\'s starting area, one shown (your race\'s), the others under it; the step\'s level shown', () => {
+  const vm = newVM({ before: ZONE + CLASS + `
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    -- The same rogue step at 16 from Stormwind, Teldrassil and Ironforge.
+    Q[981] = { name = "Alther's Mill", zone = 38, level = 16, req = 16, classes = 8, npc = 981, ender = 981 }
+    Q[982] = { name = "Erion's Behest", zone = 38, level = 16, req = 16, classes = 8, npc = 982, ender = 982 }
+    Q[983] = { name = "To Hulfdan!", zone = 38, level = 16, req = 16, classes = 8, npc = 983, ender = 983 }
+    N[981] = { name = "Renzik", zone = 1519, spawns = { [1519] = { { 78, 71 } } }, friendly = "A" }
+    N[982] = { name = "Jannok Breezesong", zone = 141, spawns = { [141] = { { 56, 60 } } }, friendly = "A" }
+    N[983] = { name = "Hulfdan Blackbeard", zone = 1537, spawns = { [1537] = { { 52, 15 } } }, friendly = "A" }` }).login().advance(9);
+  const names = lines(vm).map(l => l.name);
+  assert.ok(names.includes('To Hulfdan!'), 'the dwarf\'s own: ' + names);
+  assert.ok(!names.includes("Alther's Mill") && !names.includes("Erion's Behest"), 'the others folded: ' + names);
+  const v = vm.evaluate('NS.Dungeons.VersionsText(NS.Dungeons.ClassLine(983))');
+  assert.match(v, /^Other versions: /);
+  assert.match(v, /Renzik/); assert.match(v, /Jannok Breezesong/);
+  // A folded one can still be routed (as when it was planned before).
+  assert.equal(vm.evaluate('NS.Dungeons.ClassLine(981).name'), "Alther's Mill");
+  // A human: the human's shown.
+  vm.run('STUB.player.race = { "Human", "Human", 1 }; NS.Dungeons.classCache = nil');
+  const h = lines(vm).map(l => l.name);
+  assert.ok(h.includes("Alther's Mill") && !h.includes('To Hulfdan!'), 'the human\'s own: ' + h);
+  // Started one wins: the night elf version in the log.
+  vm.run('STUB.quests[#STUB.quests + 1] = { title = "Erion\'s Behest", questID = 982, level = 16 }; NS.Dungeons.classCache = nil');
+  const s = lines(vm).map(l => l.name);
+  assert.ok(s.includes("Erion's Behest"), 'the one started: ' + s);
+  // The line's level is its current step's: the Mastery of Shadows line shows 10 (Rogue Training), not 20.
+  assert.equal(vm.num('NS.Dungeons.ClassLine(952).stepLevel'), 10);
+});

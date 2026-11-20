@@ -124,6 +124,11 @@ end
 function RT.StopPoint(st)
 	local gr = st and RT.Groups(st)[1]
 	local g = gr and gr.goals[1]
+	if g and type(g.buys) == "table" and #g.buys > 1 then
+		for _, b in ipairs(g.buys) do
+			if not RT.ItemHad(g.q, b.item) and DG().MapForArea(b.zone) == RT.StopMap(st) then return b.x, b.y end
+		end
+	end
 	if g and g.sx and g.sy then return g.sx, g.sy end
 	return st and st.x, st and st.y
 end
@@ -281,6 +286,57 @@ function RT.Vendor(Q, id, area)
 		if not away and type(item) == "string" then away = { item = item, itemID = itemID, empty = empty } end
 	end
 	return away
+end
+
+-- A seller for each of a quest's goods (the player, 2026-11-20: The Touch of Zanzil's wildflowers and
+-- bronze tube are sold in two shops; one seller was named for both): in the zones given, in order,
+-- else the nearest friendly one from a world spot. { { item, name, zone, x, y } }.
+function RT.ItemSellers(Q, id, from, zones)
+	local out = {}
+	local o = Try(Q.Quest.objectives, id)
+	local I, N = Q.Item, Q.Npc
+	if type(o) ~= "table" or type(o[3]) ~= "table" or not I or not N or type(I.vendors) ~= "function" then return out end
+	local faction = Try(UnitFactionGroup, "player")
+	local mine = faction == "Alliance" and "A" or (faction == "Horde" and "H") or nil
+	for _, c in ipairs(o[3]) do
+		local itemID = type(c) == "table" and tonumber(c[1]) or nil
+		local item = itemID and Try(I.name, itemID) or nil
+		local best, bestD, bestZ
+		for _, npc in ipairs(itemID and Try(I.vendors, itemID) or {}) do
+			local friendly = Try(N.friendlyToFaction, npc)
+			if not (friendly and mine and not tostring(friendly):find(mine, 1, true)) and not RT.NoStock(npc, itemID) then
+				local sp = Try(N.spawns, npc)
+				for zone, list in pairs(type(sp) == "table" and sp or {}) do
+					zone = tonumber(zone)
+					local at = zone and zone > 0 and type(list) == "table" and list[1]
+					if at and tonumber(at[1]) and tonumber(at[2]) then
+						-- A zone given first (its place in the list), then the distance.
+						local rank = 99
+						for k, z in ipairs(zones or {}) do if z == zone then rank = k; break end end
+						local map = DG().MapForArea(zone)
+						local w = map and RT.World(map, at[1], at[2])
+						local d = (w and from and w.c == from.c) and ((w.x - from.x) ^ 2 + (w.y - from.y) ^ 2) or 1e12
+						if not best or rank < bestZ or (rank == bestZ and d < bestD) then
+							best, bestD, bestZ = { item = item, name = Try(N.name, npc), zone = zone, x = tonumber(at[1]), y = tonumber(at[2]) }, d, rank
+						end
+					end
+				end
+			end
+		end
+		if best then out[#out + 1] = best end
+	end
+	return out
+end
+
+-- An item a quest asks for, had already (its objective counted full in the log).
+function RT.ItemHad(q, item)
+	local obj = ns.State and ns.State.Objectives and ns.State.Objectives(q)
+	for _, o in ipairs(type(obj) == "table" and obj or {}) do
+		local f = {}
+		for _, kv in ipairs(type(o) == "table" and o._o or {}) do f[kv[1]] = kv[2] end
+		if type(f.text) == "string" and item and f.text:find(item, 1, true) and (tonumber(f.have) or 0) >= (tonumber(f.need) or 1) then return true end
+	end
+	return false
 end
 
 -- A quest whose objectives are items alone (what a vendor could sell), no mobs, objects or spots.
@@ -1678,6 +1734,14 @@ function RT.GoalText(g)
 		if g.empty then
 			return ns.Escape(g.title) .. ": " .. (left or ("get " .. ns.Escape(g.buy)))
 				.. " |cff888888(" .. ns.Escape(g.empty) .. " has none right now: try the Auction House or an engineer)|r"
+		end
+		-- Two sellers or more: each item still needed, from its own.
+		if type(g.buys) == "table" and #g.buys > 1 then
+			local bits = {}
+			for _, b in ipairs(g.buys) do
+				if not RT.ItemHad(g.q, b.item) then bits[#bits + 1] = ns.Escape(b.item or "?") .. " |cff888888from " .. ns.Escape(b.name or "?") .. "|r" end
+			end
+			if #bits > 0 then return ns.Escape(g.title) .. ": buy " .. table.concat(bits, ", ") end
 		end
 		return ns.Escape(g.title) .. ": " .. (left or ("get " .. ns.Escape(g.buy)))
 			.. (g.from and (" |cff888888(sold by " .. ns.Escape(g.from) .. ")|r") or "")
@@ -3469,6 +3533,7 @@ function RT.QuestPlaces(Q, id, here)
 	-- Nowhere to do it, and something to buy (the player, 2026-11-20: The Touch of Zanzil's goods): a
 	-- vendor in the giver's zone, the turn-in's or here; else the nearest one friendly to the player,
 	-- from the giver (the first one found was in The Barrens, for a Stormwind quest).
+	if out.buy then out.buy.buys = RT.ItemSellers(Q, id, fromW, { g and tonumber(g.zone), fin and tonumber(fin.zone), here and here.area }) end
 	if not out.area and not out.buy then
 		local tried = {}
 		for _, z in ipairs({ g and tonumber(g.zone), fin and tonumber(fin.zone), here and here.area }) do
@@ -3488,6 +3553,7 @@ function RT.QuestPlaces(Q, id, here)
 				if out.buy then out.buy.item, out.buy.vendor = v.item, v.name end
 			end
 		end
+		if out.buy then out.buy.buys = RT.ItemSellers(Q, id, fromW, { g and tonumber(g.zone), fin and tonumber(fin.zone), here and here.area }) end
 	end
 	return out
 end
@@ -3538,7 +3604,7 @@ local function QuestPlacer(route, Q, here, log)
 		if p.area and not (log[id] and Complete(id)) then
 			P.Place("do", id, title, p.area, nil, { ax = p.area.cx, ay = p.area.cy, rx = p.area.rx, ry = p.area.ry })
 		elseif p.buy and not (log[id] and Complete(id)) then
-			P.Place("do", id, title, p.buy, nil, { buy = p.buy.item, from = p.buy.vendor })
+			P.Place("do", id, title, p.buy, nil, { buy = p.buy.item, from = p.buy.vendor, buys = p.buy.buys })
 		end
 		if not dungeonQuest or (log[id] and Complete(id)) then P.Place("turnin", id, title, p.fin, p.fin and p.fin.name) end
 		return true

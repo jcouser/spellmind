@@ -2147,3 +2147,30 @@ test('in a class line\'s stop, the quests\' own order: turn in the one done befo
   const at = k => order.split(' ').indexOf(k);
   assert.ok(at('pickup:950') < at('turnin:950') && at('turnin:950') < at('pickup:951'), order);
 });
+
+test('goods from two shops: each item with its own seller, the arrow to the next one still needed (the player, 2026-11-20: The Touch of Zanzil)', () => {
+  const vm = newVM({ before: ZONE + CLASS + `
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    Q[950].zone = -162
+    STUB.qdb.items = STUB.qdb.items or {}
+    STUB.qdb.items[5000] = { name = "Simple Wildflowers", vendors = { 964 } }
+    STUB.qdb.items[5001] = { name = "Bronze Tube", vendors = { 965 } }
+    N[964] = { name = "Florist", zone = 1537, spawns = { [1537] = { { 40, 30 } } }, friendly = "A" }
+    N[965] = { name = "Jasper Fel", zone = 1537, spawns = { [1537] = { { 60, 30 } } }, friendly = "A" }
+    Q[950].obj = { {}, {}, { { 5000 }, { 5001 } } }` }).login().advance(9);
+  vm.run(`LibQuestieDB.Item = LibQuestieDB.Item or {}
+    LibQuestieDB.Item.name = function(id) local it = STUB.qdb.items[id]; return it and it.name end
+    LibQuestieDB.Item.vendors = function(id) local it = STUB.qdb.items[id]; return it and it.vendors end
+    LibQuestieDB.Item.npcDrops = function() return nil end
+    LibQuestieDB.Item.objectDrops = function() return nil end`);
+  vm.slash('route');
+  vm.run('NS.Route.SetMode("class", 952, "Mastery of Shadows")');
+  const find = '(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 950 then return s, g end end end end)()';
+  const text = vm.evaluate(`NS.Route.GoalText(select(2, ${find}))`);
+  assert.match(text, /buy Simple Wildflowers .*from Florist.*Bronze Tube .*from Jasper Fel/, text);
+  // The wildflowers bought: the words and the arrow move on to the tube.
+  vm.run('STUB.quests[#STUB.quests + 1] = { title = "Rogue Training", questID = 950, level = 10 }; STUB.objectives[950] = { { text = "Simple Wildflowers: 1/1", numFulfilled = 1, numRequired = 1 }, { text = "Bronze Tube: 0/1", numFulfilled = 0, numRequired = 1 } }');
+  const after = vm.evaluate(`NS.Route.GoalText(select(2, ${find}))`);
+  assert.doesNotMatch(after, /Simple Wildflowers/, after);
+  assert.match(after, /Bronze Tube .*from Jasper Fel/);
+});

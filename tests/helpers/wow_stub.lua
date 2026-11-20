@@ -797,7 +797,7 @@ ClassTrainerFrame = CreateFrame("Frame", "ClassTrainerFrame", UIParent)
 STUB.trainer = nil
 STUB.tradeskillTrainer = false
 function GetNumTrainerServices() return STUB.trainer and #STUB.trainer or 0 end
-function GetTrainerServiceInfo(i) local s = STUB.trainer and STUB.trainer[i]; if s then return s[1], s[2], s[3] end end
+function GetTrainerServiceInfo(i) local s = STUB.trainer and STUB.trainer[i]; if s then if s.ret then return (table.unpack or unpack)(s.ret) end return s[1], s[2], s[3] end end
 function GetTrainerServiceCost(i) local s = STUB.trainer and STUB.trainer[i]; return s and s[4] or 0 end
 function GetTrainerServiceLevelReq(i) local s = STUB.trainer and STUB.trainer[i]; return s and s[5] or 0 end
 function IsTradeskillTrainer() return STUB.tradeskillTrainer end

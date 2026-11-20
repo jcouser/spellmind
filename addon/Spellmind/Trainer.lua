@@ -35,6 +35,39 @@ function TR.TooltipRank(i)
 	return nil
 end
 
+-- One service: its name, the trainer's word for it and its rank, each read by what it is, not where
+-- (a player's friend, 2026-11-20: Mend Pet 3 trained, and "a spell to train" kept saying it wasn't; the
+-- kept lists showed why: on Forever GetTrainerServiceInfo's third value is the icon, so "used" was
+-- never seen, and no rank came back). The word: available, unavailable, used or header; the rank: a
+-- "Rank 3" among its values, else the tooltip's.
+TR.KINDS = { available = true, unavailable = true, used = true, header = true }
+function TR.ServiceInfo(i)
+	local function Pack(...) return select("#", ...), { ... } end
+	local n, r = Pack(pcall(GetTrainerServiceInfo, i))
+	if not r[1] or type(r[2]) ~= "string" or r[2] == "" then return nil end
+	local kind, rank
+	for k = 3, n do
+		local v = r[k]
+		if type(v) == "string" then
+			local low = v:lower()
+			if not kind and TR.KINDS[low] then kind = low
+			elseif not rank then rank = tonumber(v:match("[Rr]ank%s*(%d+)")) end
+		end
+	end
+	rank = rank or tonumber(r[2]:match("%(Rank (%d+)%)"))
+	-- What the game gave, by type and where the word was (SpellmindDB.trainerShape), so the order on
+	-- Forever can be checked rather than guessed.
+	if ns.db and i == 1 then
+		local types, at = {}, nil
+		for k = 2, n do
+			types[#types + 1] = type(r[k])
+			if not at and type(r[k]) == "string" and TR.KINDS[r[k]:lower()] then at = k - 1 end
+		end
+		ns.db.trainerShape = { types = table.concat(types, ","), kindAt = at, rankRead = rank ~= nil or nil }
+	end
+	return r[2], kind, rank
+end
+
 -- The trainer's list now into the store (the class trainer only). Returns how many services.
 function TR.Read()
 	if type(GetNumTrainerServices) ~= "function" then return 0 end
@@ -43,12 +76,11 @@ function TR.Read()
 	if not me then return 0 end
 	local list = {}
 	for i = 1, math.min(tonumber((ns.Try(GetNumTrainerServices))) or 0, TR.MAX) do
-		local name, sub, kind = ns.Try(GetTrainerServiceInfo, i)
-		if type(name) == "string" and name ~= "" and kind ~= "header" then
-			-- The rank: the service's subtext ("Rank 3"); on Forever that came back empty (seen in game:
-			-- Eviscerate 3 taken for the Eviscerate 2 already known), so the tooltip's text too.
-			local rank = type(sub) == "string" and tonumber(sub:match("(%d+)")) or nil
-			rank = rank or tonumber(name:match("%(Rank (%d+)%)")) or TR.TooltipRank(i)
+		local name, kind, rank = TR.ServiceInfo(i)
+		if name and kind ~= "header" then
+			-- The rank: among its values ("Rank 3"); on Forever that came back empty (seen in game: Eviscerate
+			-- 3 taken for the Eviscerate 2 already known), so the tooltip's text too.
+			rank = rank or TR.TooltipRank(i)
 			list[#list + 1] = { name = ns.State.Text(name), rank = rank, kind = kind,
 				cost = tonumber((ns.Try(GetTrainerServiceCost, i))) or 0, level = tonumber((ns.Try(GetTrainerServiceLevelReq, i))) or 0 }
 		end
@@ -107,6 +139,9 @@ function TR.Plan(known)
 		-- rank, or, for a service with no rank read, the book has the spell with no rank at all (a known
 		-- Eviscerate 2 is no proof of an unranked "Eviscerate" being learned: seen in game).
 		local learned = s.kind == "used" or (have ~= nil and ((s.rank ~= nil and have >= s.rank) or (s.rank == nil and have == 0)))
+		-- A list kept by the old read (its word an icon's number, no rank): a spell in the book counts as
+		-- learned, rather than "to train" until the next visit.
+		if not learned and type(s.kind) ~= "string" and s.rank == nil and have ~= nil then learned = true end
 		if not learned then
 			if (tonumber(s.level) or 0) <= level then
 				due[#due + 1] = s

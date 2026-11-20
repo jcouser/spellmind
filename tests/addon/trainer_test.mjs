@@ -142,3 +142,24 @@ test('a weapon master\'s list doesn\'t replace the class trainer\'s (the review)
   vm.advance(0.3);
   assert.equal(list(vm, 'NS.State.Me().trainer.services')[0].name, 'Backstab', 'still the class trainer\'s');
 });
+
+test('Forever\'s order (a friend\'s report, 2026-11-20: Mend Pet 3 trained, still "to train"): the word and the rank read by what they are', () => {
+  const vm = session({ visit: false });
+  // The icon third, the word fourth, no rank: Backstab 2 trained (used), Sprint to train.
+  vm.run(`STUB.trainer = {
+    { "Backstab", 0, 0, 300, 12, ret = { "Backstab", "", 132090, "used" } },
+    { "Sprint", 0, 0, 600, 10, ret = { "Sprint", "", 132307, "available" } },
+    { "Kick", 0, 0, 1000, 12, ret = { "Kick", "Rank 2", 132219, "available" } },
+  }; STUB.FireEvent("TRAINER_SHOW")`);
+  vm.advance(0.3);
+  const s = list(vm, 'NS.State.Me().trainer.services');
+  assert.deepEqual(s.map(x => `${x.name}:${x.kind}:${x.rank ?? '-'}`), ['Backstab:used:-', 'Sprint:available:-', 'Kick:available:2']);
+  assert.deepEqual(list(vm, 'NS.Trainer.Plan().due').map(x => x.name), ['Sprint', 'Kick'], 'Backstab: used, not to train');
+});
+
+test('a list kept by the old read (its word an icon, no rank): a spell in the book counts as learned', () => {
+  const vm = session({ visit: false });
+  // As the friend's: Backstab (known, rank 1 in the book) kept with an icon for its word.
+  vm.run('NS.State.Me().trainer = { at = 1, services = { { name = "Backstab", kind = 132090, cost = 300, level = 12 }, { name = "Sprint", kind = 132307, cost = 600, level = 10 } } }');
+  assert.deepEqual(list(vm, 'NS.Trainer.Plan().due').map(x => x.name), ['Sprint'], 'Backstab is in the book; Sprint isn\'t');
+});

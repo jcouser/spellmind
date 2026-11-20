@@ -1999,3 +1999,30 @@ test('in combat the client keeps some values secret (a player\'s report, 2026-11
   assert.equal(vm.evaluate('tostring(NS.Plain(GetPlayerFacing()))'), 'nil');
   assert.equal(vm.num('NS.Plain(3)'), 3);
 });
+
+test('a class line\'s objectives placed though the quest has a category, not a zone; its goods bought at a vendor (the player, 2026-11-20: The Touch of Zanzil)', () => {
+  const vm = newVM({ before: ZONE + CLASS + `
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    -- Class quests carry a category (-162, Rogue) where a zone would be.
+    Q[950].zone, Q[951].zone, Q[952].zone = -162, -162, -162
+    -- The Sly Trade: kill troggs in Loch Modan.
+    Q[951].obj = { { { 803 } }, {}, {} }
+    -- Rogue Training: goods a vendor in Ironforge sells.
+    STUB.qdb.items = STUB.qdb.items or {}
+    STUB.qdb.items[5000] = { name = "Leaded Vial", vendors = { 960 } }
+    N[960] = { name = "Vial Seller", zone = 1537, spawns = { [1537] = { { 55, 20 } } }, friendly = "A" }
+    Q[950].obj = { {}, {}, { { 5000 } } }` }).login().advance(9);
+  vm.run(`LibQuestieDB.Item = LibQuestieDB.Item or {}
+    LibQuestieDB.Item.name = function(id) local it = STUB.qdb.items[id]; return it and it.name end
+    LibQuestieDB.Item.vendors = function(id) local it = STUB.qdb.items[id]; return it and it.vendors end
+    LibQuestieDB.Item.npcDrops = LibQuestieDB.Item.npcDrops or function() return nil end
+    LibQuestieDB.Item.objectDrops = LibQuestieDB.Item.objectDrops or function() return nil end`);
+  vm.slash('route');
+  vm.run('NS.Route.SetMode("class", 952, "Mastery of Shadows")');
+  const goals = vm.json('(function() local o = {} for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do o[#o + 1] = { k = g.kind .. ":" .. g.q, buy = g.buy, from = g.from, map = s.map } end end return o end)()');
+  const gs = Array.isArray(goals) ? goals : Object.values(goals);
+  const doTrogg = gs.find(g => g.k === 'do:951');
+  assert.ok(doTrogg, 'the troggs, a step: ' + JSON.stringify(gs));
+  const buy = gs.find(g => g.k === 'do:950');
+  assert.ok(buy && buy.buy === 'Leaded Vial' && buy.from === 'Vial Seller', 'the vial, bought: ' + JSON.stringify(gs));
+});

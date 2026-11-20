@@ -184,34 +184,54 @@ end
 
 -- Every spot a quest's objectives can be done in this area: its mobs, objects, the mobs and objects
 -- that drop its items, its kill-credit mobs, its "go there" spot.
-function RT.ObjectiveSpots(Q, id, area)
-	local pts = {}
+local function SpawnTables(Q, id)
+	local out = {}
 	local o = Try(Q.Quest.objectives, id)
 	local N, O, I = Q.Npc, Q.Object, Q.Item
 	-- An objective is a tuple { id, text, count }; anything else is skipped, never indexed.
 	local function Ids(list)
-		local out = {}
+		local ids = {}
 		for _, c in ipairs(type(list) == "table" and list or {}) do
-			if type(c) == "table" and tonumber(c[1]) then out[#out + 1] = c[1] end
+			if type(c) == "table" and tonumber(c[1]) then ids[#ids + 1] = c[1] end
 		end
-		return out
+		return ids
 	end
+	local function Add(t) if type(t) == "table" then out[#out + 1] = t end end
 	if type(o) == "table" then
-		for _, npc in ipairs(Ids(o[1])) do if N then AddSpawns(pts, Try(N.spawns, npc), area) end end
-		for _, obj in ipairs(Ids(o[2])) do if O then AddSpawns(pts, Try(O.spawns, obj), area) end end
+		for _, npc in ipairs(Ids(o[1])) do if N then Add(Try(N.spawns, npc)) end end
+		for _, obj in ipairs(Ids(o[2])) do if O then Add(Try(O.spawns, obj)) end end
 		for _, item in ipairs(Ids(o[3])) do
 			if I then
-				for _, npc in ipairs(type(I.npcDrops) == "function" and Try(I.npcDrops, item) or {}) do if N then AddSpawns(pts, Try(N.spawns, npc), area) end end
-				for _, obj in ipairs(type(I.objectDrops) == "function" and Try(I.objectDrops, item) or {}) do if O then AddSpawns(pts, Try(O.spawns, obj), area) end end
+				for _, npc in ipairs(type(I.npcDrops) == "function" and Try(I.npcDrops, item) or {}) do if N then Add(Try(N.spawns, npc)) end end
+				for _, obj in ipairs(type(I.objectDrops) == "function" and Try(I.objectDrops, item) or {}) do if O then Add(Try(O.spawns, obj)) end end
 			end
 		end
 		for _, c in ipairs(type(o[5]) == "table" and o[5] or {}) do
-			for _, npc in ipairs(type(c) == "table" and type(c[1]) == "table" and c[1] or {}) do if N then AddSpawns(pts, Try(N.spawns, npc), area) end end
+			for _, npc in ipairs(type(c) == "table" and type(c[1]) == "table" and c[1] or {}) do if N then Add(Try(N.spawns, npc)) end end
 		end
 	end
 	local trig = type(Q.Quest.triggerEnd) == "function" and Try(Q.Quest.triggerEnd, id) or nil
-	if type(trig) == "table" then AddSpawns(pts, trig[2], area) end
+	if type(trig) == "table" then Add(trig[2]) end
+	return out
+end
+function RT.ObjectiveSpots(Q, id, area)
+	local pts = {}
+	for _, t in ipairs(SpawnTables(Q, id)) do AddSpawns(pts, t, area) end
 	return pts
+end
+-- The zone where most of a quest's objectives are (the player, 2026-11-20: class quests have a
+-- category, "Rogue", where a zone would be, and Klaven's Tower's objective had no step at all), or nil.
+function RT.ObjectiveZone(Q, id)
+	local n = {}
+	for _, t in ipairs(SpawnTables(Q, id)) do
+		for z, list in pairs(t) do
+			z = tonumber(z)
+			if z and z > 0 and type(list) == "table" then n[z] = (n[z] or 0) + #list end
+		end
+	end
+	local best, most
+	for z, c in pairs(n) do if not most or c > most or (c == most and z < best) then best, most = z, c end end
+	return best
 end
 
 -- Whether QuestieDB lists any objective for a quest (mobs, objects, items, kill credit, a spot to reach).
@@ -3331,6 +3351,7 @@ function RT.QuestPlaces(Q, id, here)
 	local _, _, g = DG().Giver(Q, id)
 	if g then out.giver = SpotOn(g.zone, g.x, g.y, here); if out.giver then out.giver.name, out.giver.npc = g.name, g.npc end end
 	local area = tonumber((Try(Q.Quest.zoneOrSort, id)))
+	if not area or area <= 0 then area = RT.ObjectiveZone(Q, id) end
 	if area and area > 0 then
 		local c = RT.Area(RT.ObjectiveSpots(Q, id, area))
 		if c then out.area = SpotOn(area, c.x, c.y, here); if out.area then out.area.rx, out.area.ry, out.area.cx, out.area.cy = c.rx, c.ry, c.x, c.y end end
@@ -3339,6 +3360,22 @@ function RT.QuestPlaces(Q, id, here)
 	if fin and fin.zone then
 		local at = RT.TurnIn(Q, id, fin.zone)
 		if at and at.spot then out.fin = SpotOn(tonumber(fin.zone), at.spot.x, at.spot.y, here); if out.fin then out.fin.name = at.name end end
+	end
+	-- Nowhere to do it, and something to buy (the player, 2026-11-20: The Touch of Zanzil's goods): a
+	-- vendor in the giver's zone, the turn-in's, here, else wherever it's sold.
+	if not out.area then
+		local tried = {}
+		for _, z in ipairs({ g and tonumber(g.zone), fin and tonumber(fin.zone), here and here.area }) do
+			if z and not tried[z] and not out.buy then
+				tried[z] = true
+				local v = RT.Vendor(Q, id, z)
+				if v and not v.spot and v.zone then z = tonumber(v.zone); v = z and RT.Vendor(Q, id, z) or nil end
+				if v and v.spot then
+					out.buy = SpotOn(z, v.spot.x, v.spot.y, here)
+					if out.buy then out.buy.item, out.buy.vendor = v.item, v.name end
+				end
+			end
+		end
 	end
 	return out
 end
@@ -3388,6 +3425,8 @@ local function QuestPlacer(route, Q, here, log)
 		end
 		if p.area and not (log[id] and Complete(id)) then
 			P.Place("do", id, title, p.area, nil, { ax = p.area.cx, ay = p.area.cy, rx = p.area.rx, ry = p.area.ry })
+		elseif p.buy and not (log[id] and Complete(id)) then
+			P.Place("do", id, title, p.buy, nil, { buy = p.buy.item, from = p.buy.vendor })
 		end
 		if not dungeonQuest or (log[id] and Complete(id)) then P.Place("turnin", id, title, p.fin, p.fin and p.fin.name) end
 		return true

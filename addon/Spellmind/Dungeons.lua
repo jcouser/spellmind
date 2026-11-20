@@ -433,6 +433,8 @@ end
 
 DG.CLASS_SOON = 4 -- levels: a line whose next step opens within this many is listed ("at 20")
 DG.CLASS_KEEP = 5 -- seconds the lines are kept (the tracker draws often)
+DG.CLASS_BELOW = 5 -- a line whose last quest is this far below the level is "low level": listed last, no nudge
+-- (not hidden: a druid's bear form or a warlock's demon is worth it at any level)
 
 -- { { id (its last quest: the line's key), name (that quest's), steps = { ids, in order }, done, total,
 -- level, current = { id, name, step, inLog, from, to, spot, at } } }, the open ones first, then by level;
@@ -457,7 +459,9 @@ function DG.ClassLines()
 	for _, id in ipairs(DG.classIds) do
 		local cls = tonumber((ns.Try(L.Quest.requiredClasses, id))) or 0
 		if Band(cls, ctx.class) > 0 and DG.Fits(L, id, ctx, Have) and Name(L, id)
-			and not (ns.Route and ns.Route.Hidden and ns.Route.Hidden(id)) then
+			and not (ns.Route and ns.Route.Hidden and ns.Route.Hidden(id))
+			-- The game server has it (the player, 2026-11-20: The Syndicate Sting's 967xx steps aren't Forever's).
+			and not (ns.Route and ns.Route.Known and not ns.Route.Known(id)) then
 			local _, friendly = Giver(L, id)
 			if not (friendly and faction and not tostring(friendly):find(faction == "Alliance" and "A" or "H", 1, true)) then mine[id] = true end
 		end
@@ -506,8 +510,9 @@ function DG.ClassLines()
 					local inLog = Have(cur)
 					local from, _, spot = Giver(L, cur)
 					local last = order[#order]
+					local lineLevel = tonumber((ns.Try(L.Quest.questLevel, last)))
 					out[#out + 1] = { id = last, name = Name(L, last) or ("quest " .. last), steps = order, done = done, total = #order,
-						level = tonumber((ns.Try(L.Quest.questLevel, last))),
+						level = lineLevel, low = (lineLevel and lineLevel < level - DG.CLASS_BELOW and not inLog) or nil,
 						current = { id = cur, name = Name(L, cur) or ("quest " .. cur), step = k, inLog = inLog or nil,
 							from = (not inLog) and from or nil, to = inLog and Finisher(L, cur) or nil, spot = (not inLog) and spot or nil, at = at } }
 				end
@@ -515,6 +520,7 @@ function DG.ClassLines()
 		end
 	end
 	table.sort(out, function(a, b)
+		if (a.low and 1 or 0) ~= (b.low and 1 or 0) then return not a.low end
 		local oa, ob = a.current.at and 1 or 0, b.current.at and 1 or 0
 		if oa ~= ob then return oa < ob end
 		if (a.current.at or 0) ~= (b.current.at or 0) then return (a.current.at or 0) < (b.current.at or 0) end
@@ -534,6 +540,7 @@ end
 function DG.ClassLineText(l)
 	local c = l.current
 	if c.at then return "Opens at level " .. c.at .. (c.from and (": " .. c.from) or "") end
+	if l.low then return "Low level now · " .. c.name .. (c.from and (" · from " .. c.from) or "") end
 	local where = c.inLog and ("in your log" .. (c.to and (", to " .. c.to) or "")) or (c.from and ("from " .. c.from) or "where to start it isn't known")
 	return (l.total > 1 and ("Step " .. c.step .. " of " .. l.total .. ": ") or "") .. c.name .. " · " .. where
 end

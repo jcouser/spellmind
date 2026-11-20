@@ -256,7 +256,7 @@ function Detect.classq()
 	if not lines then return {} end
 	local open, keys = {}, {}
 	for _, l in ipairs(lines) do
-		if not l.current.at and not l.current.inLog then open[#open + 1] = l; keys[#keys + 1] = l.current.id end
+		if not l.current.at and not l.current.inLog and not l.low then open[#open + 1] = l; keys[#keys + 1] = l.current.id end
 	end
 	if #open == 0 then return {} end
 	table.sort(keys)

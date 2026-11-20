@@ -1344,7 +1344,7 @@ end
 function RT.ClassReady(route)
 	if not route or route.prep or route.classLine or route.nowhere or not DG().ClassLines then return nil end
 	for _, l in ipairs(DG().ClassLines() or {}) do
-		if not l.current.at and not l.current.inLog then return l end
+		if not l.current.at and not l.current.inLog and not l.low then return l end
 	end
 	return nil
 end
@@ -1611,10 +1611,13 @@ function RT.IsForever()
 	return iface ~= nil and iface >= 16000 and iface < 17000
 end
 function RT.Hidden(id)
+	-- Questie's own word first, either way; a quest it doesn't name, on Forever, by the id: Season of
+	-- Discovery's (the player, 2026-11-20: Questie's list doesn't name Goblin Lockpicks or The Eye of
+	-- Bhossca, 78270 and 78676, and they came through as class quests).
 	local ok, hidden = pcall(QuestieHidden)
 	if ok and hidden then
 		local v = hidden[id]
-		return v ~= nil and v ~= false
+		if v ~= nil then return v ~= false end
 	end
 	return RT.IsForever() and id >= RT.SOD_FROM and id <= RT.SOD_TO or false
 end
@@ -1654,6 +1657,7 @@ ns.On("QUEST_DATA_LOAD_RESULT", function(_, id, ok)
 	ns.db.routeKnown = ns.db.routeKnown or {}
 	ns.db.routeKnown[id] = ok and true or false
 	R.routeAsked[id] = nil
+	if DG() then DG().classCache = nil end
 	if ok then RT.Dirty() end
 end)
 

@@ -1702,3 +1702,27 @@ test('inside the current step\'s area, no line from you to it, on the map or the
   vm.run('NS.RoutePins.Update(true)');
   assert.equal(vm.evaluate('tostring(NS.RoutePins.areaShown)'), 'nil', 'out of it: gone');
 });
+
+test('class lines on real data (the player, 2026-11-20): Season of Discovery\'s ids and quests the server lacks left out; one far below listed last as "low level", no nudge', () => {
+  const vm = newVM({ before: ZONE + CLASS + `
+    STUB.isForever = true
+    local Q = STUB.qdb.quests
+    -- A Season of Discovery class quest (no race limit, an object gives it), and one the server doesn't have.
+    Q[78270] = { name = "Goblin Lockpicks", zone = 38, level = 23, req = 1, classes = 8, npc = 951, ender = 951 }
+    Q[96786] = { name = "The Syndicate Sting", zone = 38, level = 14, req = 10, classes = 8, npc = 951, ender = 951 }
+    STUB.serverUnknown[96786] = true
+    -- A low one: level 6 at 15.
+    Q[970] = { name = "Old Rogue Errand", zone = 38, level = 6, req = 4, classes = 8, npc = 951, ender = 951 }` }).login().advance(9);
+  vm.run('NS.Dungeons.classCache = nil');
+  vm.advance(6); // the server's answers
+  vm.run('NS.Dungeons.classCache = nil');
+  const ls = lines(vm);
+  const names = ls.map(l => l.name);
+  assert.ok(!names.includes('Goblin Lockpicks'), 'Season of Discovery: ' + names);
+  assert.ok(!names.includes('The Syndicate Sting'), 'not on the server: ' + names);
+  assert.equal(names[names.length - 1], 'Old Rogue Errand', 'the low one last');
+  assert.equal(ls[ls.length - 1].low, true);
+  assert.match(vm.evaluate('NS.Dungeons.ClassLineText(NS.Dungeons.ClassLine(970))'), /^Low level now/);
+  const n = vm.json('NS.Nudges.Detect.classq()'); const one = Array.isArray(n) ? n[0] : n[1];
+  assert.doesNotMatch(one.text, /Old Rogue Errand/);
+});

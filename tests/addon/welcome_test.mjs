@@ -138,9 +138,9 @@ test('What\'s new: the changes under the highlights; a version with only changes
 });
 
 test('the welcome: highlights of the versions after the last public one first, then what\'s always there', () => {
-  const vm = newVM({ welcome: true, before: `NS.VERSION = "0.5.1"
-    table.insert(NS.Welcome.NEWS, { version = "0.5.1", features = { { icon = "x", title = "The way there", text = "Leg by leg." } } })` }).login().advance(7);
-  assert.equal(vm.evaluate('SpellmindWelcome.labels[1]:GetText()'), 'New in 0.5.1');
+  const vm = newVM({ welcome: true, before: `NS.VERSION = "0.6.1"
+    table.insert(NS.Welcome.NEWS, { version = "0.6.1", features = { { icon = "x", title = "The way there", text = "Leg by leg." } } })` }).login().advance(7);
+  assert.equal(vm.evaluate('SpellmindWelcome.labels[1]:GetText()'), 'New in 0.6.1');
   assert.equal(vm.evaluate('SpellmindWelcome.features[1].title:GetText()'), 'The way there');
   assert.equal(vm.evaluate('SpellmindWelcome.labels[2]:GetText()'), 'Always in Spellmind');
   assert.equal(vm.evaluate('SpellmindWelcome.features[2].title:GetText()'), 'Your quest route', '0.5.0 is public: no longer new');

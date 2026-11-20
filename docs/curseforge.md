@@ -32,7 +32,7 @@ Upload `Spellmind-<version>.zip` from the GitHub release, the same file, unchang
 
 ## Description
 
-As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19) and described in full after its release (2026-11-20; paste it into the project's description by hand). Keep it to what the addon does; anything that needs the app says so. The images come from this repository (raw.githubusercontent.com); renaming or moving one in docs/images breaks it here.
+As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19) and described in full after its release (2026-11-20); class quests for 0.6.0. Paste it into the project's description by hand. Keep it to what the addon does; anything that needs the app says so. The images come from this repository (raw.githubusercontent.com); renaming or moving one in docs/images breaks it here.
 
 > **Spellmind** is a companion for **WoW Forever** that knows your character as you play: your quests, gear, bags, talents, spells and professions. It plans your quest route, tells you what to do next, and with the free Spellmind app, it becomes an **AI chatbot** you can ask anything about your character, right in the game.
 >
@@ -60,6 +60,7 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 > - **The arrow:** points to your next step with the yards to it, along the roads you've walked rather than straight through a mountain.
 > - **The world map:** numbered steps, each objective's area shaded, and a line from you through them.
 > - **The minimap:** the current step and the next one, with thin lines to them.
+> - **When you're there:** inside an objective's area, the arrow says so and the minimap shades it faintly.
 >
 > ![The route window in the Wetlands: the current step, the next ones numbered, where to go next and quests elsewhere](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-wetlands-tracker.png)
 >
@@ -74,12 +75,16 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 > ### And more
 >
 > - **Ready for a dungeon:** pick a dungeon on the Route tab, and Spellmind routes you through its quests and the questlines that open them, across zones, to its door.
-> - **Your class quests:** the questlines for your class, wherever they start. The Quests tab lists them with the step you're on; **Route** plans the way through one, across zones. A nudge says when a new one opens at your level.
+> - **Your class quests:** the questlines for your class, wherever they start, one per level milestone (the versions from other races' starting areas fold under yours). The Quests tab and the Route tab list them with the step you're on; **Route** plans the way through one, across zones. A nudge says when a new one opens at your level.
 > - **It learns your roads:** as you go, Spellmind remembers the way you went, so the arrow and the lines follow real paths. They stay on your PC.
 > - **Ask about it:** with the free app, your AI sees the same route. "Review my route" says what to skip and why, with a **Skip** button for each. Without the app, `/sm route why <step>` says why a step is where it is.
 > - **A switch for every part** on the Route tab: the window, the arrow, the world map's steps, the minimap, and the lines.
 >
 > **Works best with Questie installed:** it adds the quests to pick up and where the mobs are. Without it, the route covers the quests in your log.
+>
+> ![Your class questlines on the Route tab: the step you're on, where it starts, and Route](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-class-tab.png)
+>
+> ![The route window on a class questline, by boat to Teldrassil](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-class-window.png)
 >
 > ![The world map at Lakeshire: the line to the flight master follows the road you walked](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-trail.png)
 >

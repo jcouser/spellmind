@@ -75,6 +75,22 @@ WL.NEWS = {
 			"Far quests that give little XP for the walk are marked \"worth skipping?\", and each kill step goes to the mobs least out of your way.",
 			"Up next numbers each step as the map does. /sm route why <step> says why a step is where it is.",
 		} },
+	{ version = "0.6.0", try = "classq",
+		headline = "Your class quests, planned",
+		tagline = "Spellmind now finds your class's own questlines, wherever they start, and takes you through them.",
+		features = {
+			{ icon = "Interface\\Icons\\INV_Misc_Book_11", title = "Every class questline for you", text = "The Quests tab lists your class's questlines at your level, with the step you're on and where it starts. Versions from other starting areas fold under yours." },
+			{ icon = "Interface\\Icons\\INV_Misc_Map_01", title = "Routed like a dungeon", text = "Pick one and the route takes you through it, across zones, by boat and flight path, to its last turn-in." },
+			{ icon = "Interface\\AddOns\\Spellmind\\Media\\Mark", title = "Never miss one", text = "A nudge when a new class questline opens at your level, and a pointer in the route window while you quest." },
+			{ icon = "Interface\\Icons\\INV_Misc_Spyglass_02", title = "Know when you're there", text = "Inside an objective's area, the arrow says so and the minimap shades it, with no line pointing at its middle." },
+		},
+		note = "Works best with Questie installed. Find it on the Quests tab and the Route tab.",
+		changes = {
+			"Class quests, and quests whose reward is an upgrade for you, are never marked \"worth skipping?\".",
+			"Fixed: a spell you had trained could stay \"to train\" after a trainer visit.",
+			"Season of Discovery quests no longer slip into the route on WoW Forever.",
+			"Spellmind's lines in the game's chat have their own colours, and nudges grow to fit their words.",
+		} },
 }
 
 -- What each news's "Try it now" does: the route on, and its tab.
@@ -82,6 +98,10 @@ WL.TRY = {
 	route = function()
 		if ns.Route and not ns.Route.On() then ns.Route.SetOn(true) end
 		if ns.Panel and ns.Panel.Show then ns.Panel.Show("route") end
+	end,
+	-- The class questlines: the Quests tab lists them, each with Route.
+	classq = function()
+		if ns.Panel and ns.Panel.Show then ns.Panel.Show("quests") end
 	end,
 }
 

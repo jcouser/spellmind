@@ -63,6 +63,7 @@ Turn it on in the **Route tab** (or `/sm route`). Spellmind plans your leveling 
 - **The arrow:** points to your next step with the yards to it, along the roads you've walked rather than straight through a mountain.
 - **The world map:** numbered steps, the current one gold; each objective's area shaded; a line from you to the current step and on through the rest.
 - **The minimap:** the current step and the next one, with thin lines to them. On the rim with an arrow when it's farther.
+- **When you're there:** inside an objective's area, the arrow says "You're in the area", the minimap shades it faintly, and no line points at its middle.
 
 **Where next, and the way there**
 
@@ -72,7 +73,18 @@ Turn it on in the **Route tab** (or `/sm route`). Spellmind plans your leveling 
 
 **Ready for a dungeon:** pick a dungeon on the Route tab (or **Route** on the Dungeons tab). Spellmind routes you through its quests and the questlines that open them, across zones, to its door, and the turn-ins after the run.
 
-**Your class quests:** the questlines for your class (a new form, a pet, a totem, a weapon), wherever they start. The Quests tab lists them with the step you're on and where to go; **Route** plans the way through one, across zones, and the route window points out one that's ready while you quest. A nudge says when a new one opens at your level. Class quests, and quests whose reward is an upgrade for you, are never marked "worth skipping?".
+**Your class quests:** the questlines for your class (a new form, a pet, a totem, a weapon), wherever they start. The Quests tab and the Route tab list them with the step you're on and where to go, one per level milestone: the versions offered in other races' starting areas fold under your own. **Route** plans the way through one, across zones, by boat and flight path, and the route window points out one that's ready while you quest. A nudge says when a new one opens at your level. Class quests, and quests whose reward is an upgrade for you, are never marked "worth skipping?".
+
+<table>
+  <tr>
+    <td width="58%"><img src="docs/images/route-class-tab.png" alt="The Route tab for a level 25 dwarf rogue: Plan for, then the class questlines (The Touch of Zanzil, The Syndicate Sting, and two low level ones with their other versions under them), then the dungeons, each with Route or Prep"></td>
+    <td width="42%"><img src="docs/images/route-class-window.png" alt="The route window on a class questline, Destiny Calls: pick up The Apple Falls in Teldrassil, the way there by the boats from Menethil Harbor to Auberdine and Rut'theran, then Darnassus"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/route-class-map.png" alt="The world map: the way to a class quest across the sea, from the Wetlands by boat to Auberdine, then on to Teldrassil"></td>
+    <td><img src="docs/images/route-in-area-minimap.png" alt="The minimap among the crocolisks of the current step: no line from you to it, the line on to the next step"><br><img src="docs/images/route-in-area-arrow.png" alt="The arrow inside the step's area: You're in the area, Young Crocolisk Skins 0 of 6"></td>
+  </tr>
+</table>
 
 **It learns your roads:** as you walk, swim and ride, Spellmind remembers the way you went, so the arrow and the lines follow real paths. They stay on your PC; **Forget my trails** on the Route tab clears them.
 

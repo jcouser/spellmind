@@ -2562,6 +2562,9 @@ function RT.ArrowUpdate()
 	if not me or type(facing) ~= "number" then return Still("|cff888888No position in here|r", t.text, t.sub) end
 	if not t.world then return Still("", t.text, t.sub) end
 	if t.world.c ~= me.c then return Still("|cff888888On another continent|r", t.text, t.sub) end
+	-- Inside the current step's area (the player, 2026-11-20: 139 yd to the middle of the murlocs, standing
+	-- among them): no arrow, no yards; it says so.
+	if t.step and RT.InArea(t.step) then return Still("|cff19ff19You're in the area|r", t.text, t.sub) end
 	local aim, along = t.world, nil
 	if t.path then aim, along = RT.LookAhead(me, t.path, t.world) end
 	local turn, yards = RT.Bearing(me, aim, facing)

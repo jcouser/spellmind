@@ -488,9 +488,9 @@ test('the arrow: points at the current step from where you face, with the yards;
   // Facing west: it's to the right (clockwise, a negative turn).
   vm.run(`STUB.player.facing = ${Math.PI / 2}; NS.Route.ArrowUpdate()`);
   assert.ok(Math.abs(vm.num('SpellmindArrow.tex.rotation') - (angle - Math.PI / 2)) < 1e-6);
-  // Standing on it.
+  // Standing on it (a kill step: inside its area, which says so).
   vm.run(`STUB.player.x, STUB.player.y = ${c.x / 100}, ${c.y / 100}; NS.Route.ArrowUpdate()`);
-  assert.match(vm.evaluate('SpellmindArrow.dist:GetText()'), /You're there/);
+  assert.match(vm.evaluate('SpellmindArrow.dist:GetText()'), /You're there|You're in the area/);
   assert.equal(vm.evaluate('tostring(SpellmindArrow.tex.shown)'), 'false');
   // In an instance: no position, and it says so.
   vm.run('STUB.player.facing = false; NS.Route.ArrowUpdate()');
@@ -1684,6 +1684,11 @@ test('inside the current step\'s area, no line from you to it, on the map or the
   assert.equal(vm.evaluate('tostring(NS.Route.InArea(NS.Route.Current()))'), 'true');
   assert.equal(gold(vm), 0, 'none on the map');
   assert.equal(miniGold(), 0, 'none on the minimap');
+  // The arrow says you're there, no yards, no arrow.
+  vm.run('NS.Route.ArrowSync(); NS.Route.ArrowUpdate()');
+  assert.match(vm.evaluate('SpellmindArrow.dist:GetText()'), /You're in the area/);
+  assert.equal(vm.evaluate('tostring(SpellmindArrow.tex.shown)'), 'false');
+  assert.match(vm.evaluate('SpellmindArrow.text:GetText()'), /Kobold Candles/);
   // Out again: back.
   vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40; NS.Route.MapLive()');
   assert.ok(gold(vm) > 0, 'back on the map');

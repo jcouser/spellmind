@@ -118,6 +118,16 @@ function RT.MapYards(map)
 	return nil
 end
 
+-- Where a stop points now (the player, 2026-11-20: Alchemical Hazards' pick up, joined to The Third
+-- Fleet's stop nearby, was marked at the Third Fleet's spot): the spot of the goal to do first there,
+-- else the stop's.
+function RT.StopPoint(st)
+	local gr = st and RT.Groups(st)[1]
+	local g = gr and gr.goals[1]
+	if g and g.sx and g.sy then return g.sx, g.sy end
+	return st and st.x, st and st.y
+end
+
 -- Inside a step's objective area (the player, 2026-11-20: standing among the murlocs, the line to the
 -- area's middle said nothing): the shaded ellipse of one of its objectives not done, on the map the
 -- player is on.
@@ -596,7 +606,9 @@ function RT.Build()
 	-- The quests turned in on this route (a follow-up of one can be planned: picked up after it).
 	local turnsHere = {}
 	local function Place(kind, id, title, spot, to, extra)
-		raw[#raw + 1] = { x = spot.x, y = spot.y, map = spot.map, zoneName = spot.zoneName, goals = { Goal(kind, id, title, to, extra) } }
+		local g = Goal(kind, id, title, to, extra)
+		g.sx, g.sy = spot.x, spot.y -- its own spot, kept when its stop is joined to a nearby one
+		raw[#raw + 1] = { x = spot.x, y = spot.y, map = spot.map, zoneName = spot.zoneName, goals = { g } }
 		if kind == "turnin" then turnsHere[id] = true end
 	end
 	-- after[id] = { the quests on this route it opens after }: a follow-up, planned. planned: the
@@ -919,7 +931,7 @@ function RT.PlaceObjectives(order, start, here, cost)
 				end
 				if best then
 					st.x, st.y = best.x, best.y
-					for _, g in ipairs(st.goals) do g.ax, g.ay, g.rx, g.ry = best.x, best.y, best.rx, best.ry end
+					for _, g in ipairs(st.goals) do g.ax, g.ay, g.rx, g.ry, g.sx, g.sy = best.x, best.y, best.rx, best.ry, best.x, best.y end
 					moved = true
 				end
 			end
@@ -2552,7 +2564,8 @@ function RT.ArrowTarget()
 	if cur and not z then
 		local gr = RT.Groups(cur)[1]
 		local text = RT.StopZone(cur) .. (gr and RT.GroupText(gr) or RT.GoalText(cur.goals[1]))
-		local target = World(RT.StopMap(cur), cur.x, cur.y)
+		local cx, cy = RT.StopPoint(cur)
+		local target = World(RT.StopMap(cur), cx, cy)
 		local here = RT.Here()
 		-- In another zone: the quickest way there, leg by leg.
 		if target and here and RT.StopMap(cur) ~= here.map then
@@ -2570,7 +2583,7 @@ function RT.ArrowTarget()
 			local dir = RT.Heading(target)
 			return { world = target, text = text, sub = dir and ("head " .. dir .. " to " .. (cur.zoneName or "the next zone")) or nil, legs = legs, away = true }
 		end
-		return { world = target, text = text, path = RT.TrailTo(cur.key, target), step = cur }
+		return { world = target, text = text, path = RT.TrailTo(cur.key .. "@" .. math.floor(cx * 10) .. "," .. math.floor(cy * 10), target), step = cur }
 	end
 	z = z or RT.WhereLines(route)[1]
 	if not z then return nil end
@@ -2949,8 +2962,9 @@ function RT.DrawMap()
 			nd = nd + 1
 			local d = Dot(layer, nd)
 			d:ClearAllPoints()
-			path[#path + 1] = { s.x / 100 * cw, s.y / 100 * ch, now = now }
-			local px, py = Free(s.x / 100 * cw, s.y / 100 * ch)
+			local sx, sy = RT.StopPoint(s)
+			path[#path + 1] = { sx / 100 * cw, sy / 100 * ch, now = now }
+			local px, py = Free(sx / 100 * cw, sy / 100 * ch)
 			d:SetPoint("CENTER", layer, "TOPLEFT", px, -py)
 			d.tex:SetVertexColor(r, g, b)
 			d.num:SetText(tostring(i))
@@ -3276,6 +3290,7 @@ local function QuestPlacer(route, Q, here, log)
 		if not spot then return false end
 		local g = { kind = kind, q = id, title = title, to = to }
 		for k, v in pairs(x or {}) do g[k] = v end
+		g.sx, g.sy = spot.x, spot.y
 		P.raw[#P.raw + 1] = { x = spot.x, y = spot.y, map = spot.map, zoneName = spot.zoneName, goals = { g } }
 		P.placed[kind .. ":" .. id] = true
 		return true

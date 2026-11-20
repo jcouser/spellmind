@@ -1874,3 +1874,21 @@ test('the counter says what\'s left, skipped apart (the player, 2026-11-20: "Ste
   vm.run('NS.Route.Back()');
   assert.equal(vm.evaluate('SpellmindRoute.step:GetText()'), '3 steps left');
 });
+
+test('a stop joined from nearby goals points at the goal to do first there, then the next (the player, 2026-11-20: Alchemical Hazards marked at The Third Fleet\'s spot)', () => {
+  const vm = session();
+  vm.run(`
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    NS.Dungeons.index, NS.Dungeons.classIds, NS.Dungeons.classCache = nil, nil, nil
+    -- A giver 60 yards from Kadrell: one stop with his turn-ins.
+    N[991] = { name = "Caitlin Grassman", zone = 38, spawns = { [38] = { { 50, 55 } } }, friendly = "A" }
+    Q[991] = { name = "Alchemical Hazards", zone = 38, level = 15, npc = 991, ender = 991 }`);
+  vm.slash('route');
+  const stop = vm.evaluate('(function() for _, s in ipairs(NS.R.route.stops) do if s.key:find("pickup:991") and s.key:find("turnin:700") then return s.key end end end)()');
+  assert.ok(stop, 'one stop: ' + vm.evaluate('(function() local o = {} for _, s in ipairs(NS.R.route.stops) do o[#o + 1] = s.key end return table.concat(o, " | ") end)()'));
+  const point = () => vm.json(`(function() for _, s in ipairs(NS.R.route.stops) do if s.key == "${stop}" then local x, y = NS.Route.StopPoint(s) return { x, y } end end end)()`);
+  assert.deepEqual(point(), [50, 52], 'Kadrell first: his turn-ins');
+  // Turned in: Caitlin's spot, not his.
+  vm.run('for id = 700, 701 do STUB.completed[id] = true end; STUB.quests = { { title = "Loch Modan", isHeader = true } }');
+  assert.deepEqual(point(), [50, 55], 'then Caitlin');
+});

@@ -75,7 +75,8 @@ function RP.Refresh()
 			if s and R.route and R.route.map then
 				local k
 				for n, st in ipairs(R.route.stops or {}) do if st == s then k = n end end
-				pts.next = { world = RT.World(RT.StopMap(s), s.x, s.y), text = RT.StopText(s), num = k and tostring(k) or "",
+				local sx, sy = RT.StopPoint(s)
+				pts.next = { world = RT.World(RT.StopMap(s), sx, sy), text = RT.StopText(s), num = k and tostring(k) or "",
 					color = { 0.62, 0.49, 1 } }
 			end
 			-- The current step's area (the player, 2026-11-20): shown faintly while you're inside it.

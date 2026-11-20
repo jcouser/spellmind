@@ -532,14 +532,20 @@ end
 local RANK = { pickup = 1, ["do"] = 2, turnin = 3, enter = 5 }
 RT.RANK = RANK
 
+-- A goal's key: "pickup:123", or with its item for a quest's goods taken one by one ("do:123.4567":
+-- the player, 2026-11-20, four of The Touch of Zanzil's items in four places were one step).
+function RT.GoalKey(g) return g.kind .. ":" .. g.q .. (g.sub and ("." .. g.sub) or "") end
+
 -- The order rules as pairs { before, after } of goal keys ("pickup:123"): a quest's pick up, do and
 -- turn in in that order, and a chain's turn in before the next quest's pick up.
 function RT.Rules(stops, chains)
 	local have = {}
-	for _, s in ipairs(stops) do for _, g in ipairs(s.goals) do have[g.kind .. ":" .. g.q] = true end end
+	for _, s in ipairs(stops) do for _, g in ipairs(s.goals) do have[RT.GoalKey(g)] = true end end
 	local rules = {}
 	local function Rule(a, b) if have[a] and have[b] then rules[#rules + 1] = { a, b } end end
 	for key in pairs(have) do
+		local sq = key:match("^%a+:(%d+)%.")
+		if sq then Rule("pickup:" .. sq, key); Rule(key, "turnin:" .. sq) end
 		local kind, q = key:match("^(%a+):(%d+)$")
 		if kind == "pickup" then Rule(key, "do:" .. q); Rule(key, "turnin:" .. q) end
 		if kind == "do" then Rule(key, "turnin:" .. q) end
@@ -577,7 +583,7 @@ end
 -- Does an order of stops keep every rule? (A goal and the one it must follow may share a stop.)
 function RT.Keeps(order, rules)
 	local at = {}
-	for i, s in ipairs(order) do for _, g in ipairs(s.goals) do at[g.kind .. ":" .. g.q] = i end end
+	for i, s in ipairs(order) do for _, g in ipairs(s.goals) do at[RT.GoalKey(g)] = i end end
 	for _, r in ipairs(rules) do
 		local a, b = at[r[1]], at[r[2]]
 		if a and b and a > b then return false end
@@ -604,10 +610,10 @@ function RT.Order(stops, start, here, rules, cost, placedBefore)
 	local function Ready(s)
 		for _, r in ipairs(rules) do
 			for _, g in ipairs(s.goals) do
-				if r[2] == g.kind .. ":" .. g.q and not placed[r[1]] then
+				if r[2] == RT.GoalKey(g) and not placed[r[1]] then
 					-- the earlier goal may be in this same stop
 					local mine = false
-					for _, h in ipairs(s.goals) do if h.kind .. ":" .. h.q == r[1] then mine = true end end
+					for _, h in ipairs(s.goals) do if RT.GoalKey(h) == r[1] then mine = true end end
 					if not mine then return false end
 				end
 			end
@@ -631,7 +637,7 @@ function RT.Order(stops, start, here, rules, cost, placedBefore)
 		end
 		local s = table.remove(left, best)
 		order[#order + 1] = s
-		for _, g in ipairs(s.goals) do placed[g.kind .. ":" .. g.q] = true end
+		for _, g in ipairs(s.goals) do placed[RT.GoalKey(g)] = true end
 		at = s
 	end
 	-- 2-opt: reverse a stretch when that's shorter and still keeps the rules.
@@ -680,6 +686,7 @@ end
 function RT.GoalDone(g)
 	if g.kind == "enter" then return RT.Entered(g.title) end
 	if g.kind == "pickup" then return Have(g.q) or Done(g.q) end
+	if g.kind == "do" and g.sub and g.buy then return Done(g.q) or (Have(g.q) and (Complete(g.q) or RT.ItemHad(g.q, g.buy))) end
 	if g.kind == "do" then return Done(g.q) or (Have(g.q) and Complete(g.q)) end
 	return Done(g.q)
 end
@@ -993,7 +1000,7 @@ function RT.Build()
 		local joined
 		for _, t in ipairs(stops) do
 			if RT.Yards(s, t, here) <= RT.GROUP_YARDS then
-				for _, g in ipairs(s.goals) do stopOf[g.kind .. ":" .. g.q] = t end
+				for _, g in ipairs(s.goals) do stopOf[RT.GoalKey(g)] = t end
 				if RT.Orderable(stops, rules, stopOf) then joined = t; break end
 			end
 		end
@@ -1001,7 +1008,7 @@ function RT.Build()
 			for _, g in ipairs(s.goals) do joined.goals[#joined.goals + 1] = g end
 		else
 			stops[#stops + 1] = s
-			for _, g in ipairs(s.goals) do stopOf[g.kind .. ":" .. g.q] = s end
+			for _, g in ipairs(s.goals) do stopOf[RT.GoalKey(g)] = s end
 		end
 	end
 	-- In a stop: turn-ins first (one may open the next quest), then pick ups, then objectives; a quest
@@ -1029,7 +1036,7 @@ function RT.Build()
 		table.sort(s.goals, function(a, b) return Rank(a, s) < Rank(b, s) end)
 		-- A stop's key: its goals, so a skip outlives a rebuild that keeps the stop.
 		local keys = {}
-		for _, g in ipairs(s.goals) do keys[#keys + 1] = g.kind .. ":" .. g.q end
+		for _, g in ipairs(s.goals) do keys[#keys + 1] = RT.GoalKey(g) end
 		s.key = table.concat(keys, ",")
 	end
 	while #stops > RT.STOPS_MAX do table.remove(stops) end
@@ -1053,7 +1060,7 @@ function RT.Build()
 			if cur then
 				local rest, placedBefore = {}, {}
 				for _, s in ipairs(keptOrder) do if s ~= cur then rest[#rest + 1] = s end end
-				for _, g in ipairs(cur.goals) do placedBefore[g.kind .. ":" .. g.q] = true end
+				for _, g in ipairs(cur.goals) do placedBefore[RT.GoalKey(g)] = true end
 				local anchored = { cur }
 				for _, s in ipairs(RT.Order(rest, { x = cur.x, y = cur.y, map = cur.map }, here, rules, nil, placedBefore)) do anchored[#anchored + 1] = s end
 				local gain = RT.Length(keptOrder, start, here) - RT.Length(anchored, start, here)
@@ -1188,7 +1195,7 @@ function RT.KeptOrder(prev, stops, start, here, rules, cost)
 	local rank = {}
 	for i, s in ipairs(prev.stops or {}) do
 		for _, g in ipairs(s.goals or {}) do
-			local k = g.kind .. ":" .. g.q
+			local k = RT.GoalKey(g)
 			if not rank[k] then rank[k] = i end
 		end
 	end
@@ -1196,7 +1203,7 @@ function RT.KeptOrder(prev, stops, start, here, rules, cost)
 	for _, s in ipairs(stops) do
 		local r
 		for _, g in ipairs(s.goals) do
-			local k = rank[g.kind .. ":" .. g.q]
+			local k = rank[RT.GoalKey(g)]
 			if k and (not r or k < r) then r = k end
 		end
 		if r then kept[#kept + 1] = { s = s, r = r } else new[#new + 1] = s end
@@ -1752,6 +1759,11 @@ function RT.GoalText(g)
 	if g.kind == "pickup" then return "Pick up " .. RT.LevelTag(g.level) .. ns.Escape(g.title) .. (g.later and " |cff888888(for later)|r" or "") end
 	if g.kind == "turnin" then return "Turn in " .. ns.Escape(g.title) .. (g.to and (" to " .. ns.Escape(g.to)) or "") end
 	local left = ns.Quests and ns.Quests.Left and ns.Quests.Left({ obj = ns.State and ns.State.Objectives and ns.State.Objectives(g.q) }) or nil
+	if g.buy and g.sub then
+		if g.take then return ns.Escape(g.title) .. ": take " .. ns.Escape(g.buy) .. " |cff888888(on the ground)|r" end
+		if g.none then return ns.Escape(g.title) .. ": get " .. ns.Escape(g.buy) .. " |cff888888(no seller known)|r" end
+		return ns.Escape(g.title) .. ": buy " .. ns.Escape(g.buy) .. (g.from and (" |cff888888from " .. ns.Escape(g.from) .. "|r") or "")
+	end
 	if g.buy then
 		if g.empty then
 			return ns.Escape(g.title) .. ": " .. (left or ("get " .. ns.Escape(g.buy)))
@@ -1803,6 +1815,12 @@ function RT.GroupText(gr)
 	if n == 1 then return RT.GoalText(gr.goals[1]) end
 	if gr.kind == "pickup" then return "Pick up " .. n .. " quests" .. (gr.to and (" from " .. ns.Escape(gr.to)) or "") end
 	if gr.kind == "turnin" then return "Turn in " .. n .. " quests" .. (gr.to and (" to " .. ns.Escape(gr.to)) or "") end
+	local items, same = {}, true
+	for _, g in ipairs(gr.goals) do
+		if not (g.sub and g.buy) or g.q ~= gr.goals[1].q then same = false end
+		items[#items + 1] = ns.Escape(g.buy or "?")
+	end
+	if same then return ns.Escape(gr.goals[1].title) .. ": get " .. table.concat(items, ", ") .. " here" end
 	return "Objectives of " .. n .. " quests here"
 end
 
@@ -3616,7 +3634,7 @@ local function QuestPlacer(route, Q, here, log)
 		for k, v in pairs(x or {}) do g[k] = v end
 		g.sx, g.sy = spot.x, spot.y
 		P.raw[#P.raw + 1] = { x = spot.x, y = spot.y, map = spot.map, zoneName = spot.zoneName, goals = { g } }
-		P.placed[kind .. ":" .. id] = true
+		P.placed[kind .. ":" .. id .. ((x and x.sub) and ("." .. x.sub) or "")] = true
 		return true
 	end
 	-- One quest, as far as it goes: picked up (unless in the log), its objectives (when outside), its
@@ -3634,7 +3652,15 @@ local function QuestPlacer(route, Q, here, log)
 		if p.area and not (log[id] and Complete(id)) then
 			P.Place("do", id, title, p.area, nil, { ax = p.area.cx, ay = p.area.cy, rx = p.area.rx, ry = p.area.ry })
 		elseif p.buy and not (log[id] and Complete(id)) then
-			P.Place("do", id, title, p.buy, nil, { buy = p.buy.item, from = p.buy.vendor, buys = p.buy.buys })
+			-- Each item where it's got, a step of its own (the player, 2026-11-20).
+			local placedOne = false
+			if type(p.buy.buys) == "table" and #p.buy.buys > 1 then
+				for k, b in ipairs(p.buy.buys) do
+					local at = (not b.none) and b.zone and SpotOn(b.zone, b.x, b.y, here) or p.buy
+					if P.Place("do", id, title, at, nil, { sub = k, buy = b.item, from = b.name, take = b.take, none = b.none }) then placedOne = true end
+				end
+			end
+			if not placedOne then P.Place("do", id, title, p.buy, nil, { buy = p.buy.item, from = p.buy.vendor, buys = p.buy.buys }) end
 		end
 		if not dungeonQuest or (log[id] and Complete(id)) then P.Place("turnin", id, title, p.fin, p.fin and p.fin.name) end
 		return true
@@ -3648,7 +3674,7 @@ end
 RT.STOP_BASE = { turnin = 0, pickup = 1, ["do"] = 2, enter = 5 }
 function RT.SortStop(s, rules)
 	local here, level = {}, {}
-	for _, g in ipairs(s.goals) do here[g.kind .. ":" .. g.q] = g; level[g] = 0 end
+	for _, g in ipairs(s.goals) do here[RT.GoalKey(g)] = g; level[g] = 0 end
 	for _ = 1, #s.goals do
 		local changed = false
 		for _, r in ipairs(rules or {}) do
@@ -3670,7 +3696,7 @@ local function OrderAcross(route, raw, chains, extra, here)
 	local function Rules(stops)
 		local rules = RT.Rules(stops, chains)
 		local have = {}
-		for _, s in ipairs(stops) do for _, g in ipairs(s.goals) do have[g.kind .. ":" .. g.q] = true end end
+		for _, s in ipairs(stops) do for _, g in ipairs(s.goals) do have[RT.GoalKey(g)] = true end end
 		for _, r in ipairs(extra) do if have[r[1]] and have[r[2]] then rules[#rules + 1] = r end end
 		return rules
 	end
@@ -3680,7 +3706,7 @@ local function OrderAcross(route, raw, chains, extra, here)
 		local joined
 		for _, t in ipairs(stops) do
 			if RT.Yards(s, t, here) <= RT.GROUP_YARDS then
-				for _, g in ipairs(s.goals) do stopOf[g.kind .. ":" .. g.q] = t end
+				for _, g in ipairs(s.goals) do stopOf[RT.GoalKey(g)] = t end
 				if RT.Orderable(stops, rules, stopOf) then joined = t; break end
 			end
 		end
@@ -3688,13 +3714,13 @@ local function OrderAcross(route, raw, chains, extra, here)
 			for _, g in ipairs(s.goals) do joined.goals[#joined.goals + 1] = g end
 		else
 			stops[#stops + 1] = s
-			for _, g in ipairs(s.goals) do stopOf[g.kind .. ":" .. g.q] = s end
+			for _, g in ipairs(s.goals) do stopOf[RT.GoalKey(g)] = s end
 		end
 	end
 	for _, s in ipairs(stops) do
 		RT.SortStop(s, rules)
 		local keys = {}
-		for _, g in ipairs(s.goals) do keys[#keys + 1] = g.kind .. ":" .. g.q end
+		for _, g in ipairs(s.goals) do keys[#keys + 1] = RT.GoalKey(g) end
 		s.key = table.concat(keys, ",")
 	end
 	rules = Rules(stops)
@@ -4381,7 +4407,7 @@ local function Yd(n) return math.floor(n + 0.5) .. " yd" end
 local function GoalAt(route, key)
 	for i, st in ipairs(route.stops or {}) do
 		for _, g in ipairs(st.goals) do
-			if g.kind .. ":" .. g.q == key then return i, Bare(RT.GoalText(g)) end
+			if RT.GoalKey(g) == key then return i, Bare(RT.GoalText(g)) end
 		end
 	end
 	return nil, key
@@ -4397,7 +4423,7 @@ end
 -- The first rule an order breaks, or nil.
 function RT.Broken(order, rules)
 	local at = {}
-	for i, st in ipairs(order) do for _, g in ipairs(st.goals) do at[g.kind .. ":" .. g.q] = i end end
+	for i, st in ipairs(order) do for _, g in ipairs(st.goals) do at[RT.GoalKey(g)] = i end end
 	for _, r in ipairs(rules) do
 		local a, b = at[r[1]], at[r[2]]
 		if a and b and a > b then return r end
@@ -4423,7 +4449,7 @@ function RT.Why(n)
 	end
 	-- Its rules.
 	local mine = {}
-	for _, g in ipairs(st.goals) do mine[g.kind .. ":" .. g.q] = true end
+	for _, g in ipairs(st.goals) do mine[RT.GoalKey(g)] = true end
 	local after, before = {}, {}
 	for _, r in ipairs(route.rules or {}) do
 		if mine[r[2]] and not mine[r[1]] then

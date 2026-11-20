@@ -2148,15 +2148,15 @@ test('in a class line\'s stop, the quests\' own order: turn in the one done befo
   assert.ok(at('pickup:950') < at('turnin:950') && at('turnin:950') < at('pickup:951'), order);
 });
 
-test('goods from two shops: each item with its own seller, the arrow to the next one still needed (the player, 2026-11-20: The Touch of Zanzil)', () => {
+test('goods from two shops: a step for each item, with its seller; done as the log counts it (the player, 2026-11-20: four items in four places were one step)', () => {
   const vm = newVM({ before: ZONE + CLASS + `
     local Q, N = STUB.qdb.quests, STUB.qdb.npcs
     Q[950].zone = -162
     STUB.qdb.items = STUB.qdb.items or {}
     STUB.qdb.items[5000] = { name = "Simple Wildflowers", vendors = { 964 } }
     STUB.qdb.items[5001] = { name = "Bronze Tube", vendors = { 965 } }
-    N[964] = { name = "Florist", zone = 1537, spawns = { [1537] = { { 40, 30 } } }, friendly = "A" }
-    N[965] = { name = "Jasper Fel", zone = 1537, spawns = { [1537] = { { 60, 30 } } }, friendly = "A" }
+    N[964] = { name = "Florist", zone = 1537, spawns = { [1537] = { { 20, 30 } } }, friendly = "A" }
+    N[965] = { name = "Jasper Fel", zone = 1537, spawns = { [1537] = { { 80, 70 } } }, friendly = "A" }
     Q[950].obj = { {}, {}, { { 5000 }, { 5001 } } }` }).login().advance(9);
   vm.run(`LibQuestieDB.Item = LibQuestieDB.Item or {}
     LibQuestieDB.Item.name = function(id) local it = STUB.qdb.items[id]; return it and it.name end
@@ -2165,17 +2165,21 @@ test('goods from two shops: each item with its own seller, the arrow to the next
     LibQuestieDB.Item.objectDrops = function() return nil end`);
   vm.slash('route');
   vm.run('NS.Route.SetMode("class", 952, "Mastery of Shadows")');
-  const find = '(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 950 then return s, g end end end end)()';
-  const text = vm.evaluate(`NS.Route.GoalText(select(2, ${find}))`);
-  assert.match(text, /buy Simple Wildflowers .*from Florist.*Bronze Tube .*from Jasper Fel/, text);
-  // The wildflowers bought: the words and the arrow move on to the tube.
+  const items = vm.json('(function() local o = {} for i, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 950 then o[#o + 1] = { stop = i, key = NS.Route.GoalKey(g), text = NS.Route.GoalText(g) } end end end return o end)()');
+  const it = Array.isArray(items) ? items : Object.values(items);
+  assert.equal(it.length, 2, JSON.stringify(it));
+  assert.notEqual(it[0].stop, it[1].stop, 'two stops: the shops are far apart');
+  assert.ok(it.some(x => /buy Simple Wildflowers .*from Florist/.test(x.text)) && it.some(x => /buy Bronze Tube .*from Jasper Fel/.test(x.text)), JSON.stringify(it));
+  // Each before the turn-in.
+  assert.equal(vm.evaluate('tostring(NS.Route.Keeps(NS.R.route.stops, NS.R.route.rules))'), 'true');
+  // The wildflowers counted in the log: that step done.
   vm.run('STUB.quests[#STUB.quests + 1] = { title = "Rogue Training", questID = 950, level = 10 }; STUB.objectives[950] = { { text = "Simple Wildflowers: 1/1", numFulfilled = 1, numRequired = 1 }, { text = "Bronze Tube: 0/1", numFulfilled = 0, numRequired = 1 } }');
-  const after = vm.evaluate(`NS.Route.GoalText(select(2, ${find}))`);
-  assert.doesNotMatch(after, /Simple Wildflowers/, after);
-  assert.match(after, /Bronze Tube .*from Jasper Fel/);
+  const done = vm.json('(function() local o = {} for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 950 then o[#o + 1] = { buy = g.buy, done = NS.Route.GoalDone(g) } end end end return o end)()');
+  const d = Array.isArray(done) ? done : Object.values(done);
+  assert.deepEqual(d.map(x => x.buy + ':' + x.done).sort(), ['Bronze Tube:false', 'Simple Wildflowers:true']);
 });
 
-test('an item no one sells, taken from the ground: listed with the bought ones, the arrow to it in turn (the player, 2026-11-20: the silk thread spool)', () => {
+test('an item no one sells, taken from the ground: a step of its own, "take … (on the ground)" (the player, 2026-11-20: the silk thread spool)', () => {
   const vm = newVM({ before: ZONE + CLASS + `
     local Q, N = STUB.qdb.quests, STUB.qdb.npcs
     Q[950].zone = -162
@@ -2183,8 +2187,8 @@ test('an item no one sells, taken from the ground: listed with the bought ones, 
     STUB.qdb.items[5001] = { name = "Bronze Tube", vendors = { 965 } }
     STUB.qdb.items[5002] = { name = "Spool of Silk Thread", objs = { 970 } }
     STUB.qdb.objects = STUB.qdb.objects or {}
-    STUB.qdb.objects[970] = { spawns = { [1537] = { { 45, 35 } } } }
-    N[965] = { name = "Jasper Fel", zone = 1537, spawns = { [1537] = { { 60, 30 } } }, friendly = "A" }
+    STUB.qdb.objects[970] = { spawns = { [1537] = { { 20, 80 } } } }
+    N[965] = { name = "Jasper Fel", zone = 1537, spawns = { [1537] = { { 80, 20 } } }, friendly = "A" }
     Q[950].obj = { {}, {}, { { 5001 }, { 5002 } } }` }).login().advance(9);
   vm.run(`LibQuestieDB.Item = LibQuestieDB.Item or {}
     LibQuestieDB.Item.name = function(id) local it = STUB.qdb.items[id]; return it and it.name end
@@ -2196,7 +2200,8 @@ test('an item no one sells, taken from the ground: listed with the bought ones, 
     LibQuestieDB.Object.name = function() return "Spool" end`);
   vm.slash('route');
   vm.run('NS.Route.SetMode("class", 952, "Mastery of Shadows")');
-  const find = '(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 950 then return s, g end end end end)()';
-  const text = vm.evaluate(`NS.Route.GoalText(select(2, ${find}))`);
-  assert.match(text, /buy Bronze Tube .*from Jasper Fel.*; take Spool of Silk Thread .*on the ground/, text);
+  const texts = vm.json('(function() local o = {} for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 950 then o[#o + 1] = NS.Route.GoalText(g) end end end return o end)()');
+  const tx = (Array.isArray(texts) ? texts : Object.values(texts)).join(' | ');
+  assert.match(tx, /buy Bronze Tube .*from Jasper Fel/, tx);
+  assert.match(tx, /take Spool of Silk Thread .*on the ground/, tx);
 });

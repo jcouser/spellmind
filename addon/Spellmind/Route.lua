@@ -2751,7 +2751,7 @@ end
 -- objective the area its mobs or objects are in (the current step gold, the rest Spellmind's purple).
 -- Drawn on the map's canvas, under the map's own pins (Questie's spawn marks stay on top).
 RT.MAP_STEPS = 12
-RT.DOT = 15 -- on screen at any zoom (the player, 2026-11-20: zoomed in, the dots were big and overlapped)
+RT.DOT = 19 -- on screen at any zoom (the player, 2026-11-20: zoomed in, the dots were big and overlapped)
 local AREA_TEX = "Interface\\AddOns\\Spellmind\\Media\\Area"
 local DOT_TEX = "Interface\\AddOns\\Spellmind\\Media\\Dot"
 local marks = { areas = {}, dots = {}, shown = 0 }

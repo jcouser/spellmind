@@ -1472,7 +1472,7 @@ test('lines on the minimap (the player, 2026-11-19: thin versions of the map lin
   const first = vm.json(`{ from = ${L}[1].from, to = ${L}[1].to, color = ${L}[1].color, thick = ${L}[1].thickness }`);
   assert.deepEqual(first.color.slice(0, 3), [1, 0.82, 0], 'gold, to the current step');
   assert.ok(Math.hypot(first.from[0], first.from[1]) < 0.01, 'from you, the middle');
-  assert.equal(first.thick, 1.5, 'thin');
+  assert.ok(Math.abs(first.thick - 1.25 * 768 / 1080) < 1e-6, 'thin: 1.25 screen pixels at 1080p, scale 1: ' + first.thick);
   const pin = vm.json('(function() local _, _, _, x, y = NS.RoutePins.pins[1]:GetPoint(); return { x, y } end)()');
   assert.ok(Math.abs(first.to[0] - pin[0]) < 0.5 && Math.abs(first.to[1] - pin[1]) < 0.5, 'to its pin');
   const n = vm.num('NS.RoutePins.linesShown');

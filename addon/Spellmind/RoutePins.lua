@@ -159,7 +159,16 @@ end
 
 local lines, holder = {}, nil
 RP.lines = lines
-RP.LINE_W = 1.5 -- thin: the minimap is small
+RP.LINE_PX = 1.25 -- thin, in the screen's own pixels (the player, 2026-11-19: 1.5 UI units came out
+-- about 3 pixels at their resolution and scale: "could it be any thinner?")
+-- The thickness in the minimap's units for RP.LINE_PX screen pixels: the UI is 768 units tall at
+-- scale 1, whatever the screen.
+function RP.LineWidth()
+	local h = select(2, Try(GetPhysicalScreenSize))
+	local scale = tonumber((Try(Minimap.GetEffectiveScale, Minimap))) or 1
+	local unit = (tonumber(h) and h > 0) and (768 / h) or 1
+	return RP.LINE_PX * unit / (scale > 0 and scale or 1)
+end
 RP.LINE_A = 0.85
 RP.LINES_MAX = 120
 RP.linesShown = 0
@@ -263,6 +272,7 @@ end
 
 local function DrawLines(pts, me, scale, facing, sn, cs, w, h, shape)
 	local n = 0
+	local width = RP.LineWidth()
 	for _, ln in ipairs(pts.lines or {}) do
 		local list = ln.fromMe and Ahead(me, ln.pts) or ln.pts
 		local prev = ln.fromMe and { x = me.x, y = me.y, c = me.c } or nil
@@ -275,7 +285,7 @@ local function DrawLines(pts, me, scale, facing, sn, cs, w, h, shape)
 				if x0 then
 					n = n + 1
 					local l = LineAt(n)
-					l:SetThickness(RP.LINE_W)
+					l:SetThickness(width)
 					l:SetColorTexture(ln.color[1], ln.color[2], ln.color[3], RP.LINE_A)
 					l:SetStartPoint("CENTER", Minimap, x0, y0)
 					l:SetEndPoint("CENTER", Minimap, x1, y1)

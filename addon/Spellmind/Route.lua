@@ -1454,6 +1454,20 @@ function RT.UpNext(n)
 	return out
 end
 
+-- What's left (the player, 2026-11-20: "Step 3 of 25" was the current step's place in a list that
+-- starts again at each rebuild, and counted the skipped): "22 steps left", "22 steps left · 2 skipped",
+-- or "" with nothing left.
+function RT.LeftText()
+	local left, skipped = 0, 0
+	for _, s in ipairs(R.route and R.route.stops or {}) do
+		if not RT.StopDone(s) then
+			if RT.Skipped(s) then skipped = skipped + 1 else left = left + 1 end
+		end
+	end
+	if left == 0 then return "" end
+	return left .. (left == 1 and " step left" or " steps left") .. (skipped > 0 and (" · " .. skipped .. " skipped") or "")
+end
+
 -- How many of the route's stops are done (or skipped).
 function RT.Progress()
 	local done, total = 0, 0
@@ -2233,7 +2247,7 @@ function RT.Draw()
 	local going = RT.Traveling(route)
 	if going and not cur and route.area == R.routeAimFrom then going = nil end
 	if going then cur = nil end
-	f.step:SetText(going and "" or total > 0 and ("Step " .. (i or math.min(done + 1, total)) .. " of " .. total) or "")
+	f.step:SetText(going and "" or RT.LeftText())
 	local groups = cur and RT.Groups(cur) or {}
 	local sub
 	if route.nowhere then

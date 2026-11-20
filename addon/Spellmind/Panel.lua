@@ -477,7 +477,7 @@ function Tabs.quests()
 			local _, total = RT.Progress()
 			local zone = R.route and R.route.zone
 			local going = RT.Traveling()
-			sub = going and ("On the way to " .. ns.Escape(going.zone)) or ((cur and ("Step " .. i .. " of " .. total) or "Nothing left here") .. (zone and (" · " .. ns.Escape(zone)) or ""))
+			sub = going and ("On the way to " .. ns.Escape(going.zone)) or ((cur and RT.LeftText() or "Nothing left here") .. (zone and (" · " .. ns.Escape(zone)) or ""))
 		else
 			sub = "Your next steps, an arrow and the map's areas, from your quest log" .. (ns.Dungeons.HasDB() and " and Questie." or ".")
 		end
@@ -573,7 +573,7 @@ function Tabs.route()
 		local going = RT.Traveling(route)
 		status = route.nowhere and "Waiting for a position (an instance or a loading screen)."
 			or (going and ("On the way to " .. ns.Escape(going.zone) .. " (your choice). The steps in " .. ns.Escape(route.zone or "this zone") .. " wait."))
-			or ((cur and ("Step " .. i .. " of " .. total) or "Nothing left here") .. (route.zone and (" · " .. ns.Escape(route.zone)) or ""))
+			or ((cur and RT.LeftText() or "Nothing left here") .. (route.zone and (" · " .. ns.Escape(route.zone)) or ""))
 	end
 	Switch("Quest route", status or ("Your next steps in a small window that stays on screen, an arrow and the steps on the world map, from your quest log"
 		.. (ns.Dungeons.HasDB() and " and Questie's quest data." or ". Questie adds the quests to pick up and where mobs are.")), on, RT.SetOn)

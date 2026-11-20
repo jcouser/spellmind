@@ -95,7 +95,7 @@ test('/sm route: the tracker with the zone, the step, its goals, Go, Up next; Go
   vm.slash('route');
   assert.equal(vm.evaluate('tostring(SpellmindRoute.shown)'), 'true');
   assert.equal(vm.evaluate('SpellmindRoute.title:GetText()'), 'Route · Loch Modan');
-  assert.equal(vm.evaluate('SpellmindRoute.step:GetText()'), 'Step 1 of 3');
+  assert.equal(vm.evaluate('SpellmindRoute.step:GetText()'), '3 steps left');
   assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /^Kobold Candles: 0\/8 Tunnel Rat$/);
   assert.equal(vm.evaluate('SpellmindRoute.next[1]:GetText()').replace(/^\|cffb48cff\d+\.\|r /, ''), 'Turn in 2 quests to Mountaineer Kadrell', 'two turn-ins to one NPC: one line');
   assert.match(vm.evaluate('SpellmindRoute.next[2]:GetText()'), /^\|cffb48cff\d+\.\|r Pick up \|cffffff00\[15\]\|r Ironband's Excavation/, 'its level, in the game\'s colour');
@@ -644,7 +644,7 @@ test('the world map: each step still to do numbered at its spot, its objective\'
   vm.run('STUB.objectives[700][1].numFulfilled = 8; STUB.quests[2].complete = true; STUB.FireEvent("QUEST_LOG_UPDATE")');
   assert.equal(vm.num(`${M}.shown`), 2);
   assert.equal(vm.evaluate(`${M}.dots[1].num:GetText()`), '2');
-  assert.equal(vm.evaluate('SpellmindRoute.step:GetText()'), 'Step 2 of 3');
+  assert.equal(vm.evaluate('SpellmindRoute.step:GetText()'), '2 steps left');
   // Another map shown: none; the tracker closed: none.
   vm.run('STUB.mapShown = 1436; NS.Route.DrawMap()');
   assert.equal(vm.num(`${M}.shown`), 0);
@@ -689,7 +689,7 @@ test('the Route tab (the player, 2026-11-19: the route is a core feature, not a 
   const first = drawn()[rowOf('1.|r ') - 1];
   assert.match(first.text, /Kobold Candles/);
   assert.match(first.right, /now/);
-  assert.match(drawn()[rowOf('Quest route') - 1].sub, /Step 1 of 3 · Loch Modan/);
+  assert.match(drawn()[rowOf('Quest route') - 1].sub, /3 steps left · Loch Modan/);
   // Skip the first from here: the tracker moves on; Unskip brings it back.
   click(rowOf('1.|r '));
   assert.equal(vm.evaluate('NS.Route.Current().key'), 'turnin:700,turnin:701');
@@ -1863,4 +1863,14 @@ test('skipping an objective of a quest in the log skips its turn-in and the foll
   const g2 = groups();
   assert.match(g2, /do:700/, 'the rats stay: ' + g2);
   assert.doesNotMatch(g2, /pickup:707/, 'the follow-up goes: ' + g2);
+});
+
+test('the counter says what\'s left, skipped apart (the player, 2026-11-20: "Step 3 of 25" started again at each rebuild)', () => {
+  const vm = session();
+  vm.slash('route');
+  assert.equal(vm.evaluate('SpellmindRoute.step:GetText()'), '3 steps left');
+  vm.run('NS.Route.Skip()');
+  assert.equal(vm.evaluate('SpellmindRoute.step:GetText()'), '2 steps left · 1 skipped');
+  vm.run('NS.Route.Back()');
+  assert.equal(vm.evaluate('SpellmindRoute.step:GetText()'), '3 steps left');
 });

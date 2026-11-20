@@ -696,7 +696,15 @@ SlashCmdList.SPELLMIND = function(msg)
 	local why = lower:match("^route%s+why%s*(%d*)$")
 	if why and ns.Route and ns.db then
 		local cur = select(2, ns.Route.Current())
-		for _, line in ipairs(ns.Route.Why(tonumber(why) or cur)) do ChatFrame("|cff9d7dffSpellmind:|r " .. line) end
+		local step = tonumber(why) or cur
+		local lines = ns.Route.Why(step)
+		for _, line in ipairs(lines) do ChatFrame("|cff9d7dffSpellmind:|r " .. line) end
+		-- Kept for working out the order away from the game (written at /reload).
+		local ok, snap = pcall(ns.Route.Snapshot, lines, step)
+		if ok and snap then
+			ns.db.routeDebug = snap
+			ChatFrame("|cff9d7dffSpellmind:|r |cff888888The route is saved for a closer look (written to disk at /reload).|r")
+		end
 		return
 	end
 	-- /sm route: the route tracker (Route.lua), opened or closed.

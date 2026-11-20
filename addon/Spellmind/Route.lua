@@ -3744,3 +3744,41 @@ function RT.Why(n)
 	end
 	return out
 end
+
+-- The route as it stands, for working out an order away from the game (the player, 2026-11-19: "what
+-- would you need?"): kept in SpellmindDB.routeDebug by /sm route why, written to disk at /reload or
+-- logout. Its steps (spot, map, goals), its rules, where the order began, the quests worth skipping,
+-- and each objective's spawn spots here. Quests and places only: nothing about the character.
+RT.DEBUG_SPAWNS = 300
+function RT.Snapshot(whyLines, n)
+	local route = R.route
+	if not route or route.nowhere then return nil end
+	local here = route.here
+	local snap = {
+		at = date and date("%Y-%m-%d %H:%M") or nil, zone = route.zone, map = route.map, area = route.area,
+		level = Level(), size = here and { here.w, here.h } or nil,
+		start = route.start and { route.start.x, route.start.y } or nil,
+		why = whyLines, step = n, stops = {}, rules = {}, low = {}, spawns = {},
+	}
+	local Q = L()
+	for i, st in ipairs(route.stops or {}) do
+		local goals = {}
+		for _, g in ipairs(st.goals) do
+			goals[#goals + 1] = { kind = g.kind, q = g.q, title = g.title, to = g.to, done = RT.GoalDone(g) or nil }
+			if g.kind == "do" and Q and route.area and not st.map and not snap.spawns[g.q] then
+				local pts, list = RT.ObjectiveSpots(Q, g.q, route.area), {}
+				for k, p in ipairs(pts) do
+					if k > RT.DEBUG_SPAWNS then break end
+					list[#list + 1] = { math.floor(p[1] * 10 + 0.5) / 10, math.floor(p[2] * 10 + 0.5) / 10 }
+				end
+				snap.spawns[g.q] = list
+			end
+		end
+		snap.stops[i] = { n = i, key = st.key, x = st.x, y = st.y, map = st.map, zone = st.zoneName,
+			done = RT.StopDone(st) or nil, skipped = (R.routeSkip and R.routeSkip[st.key]) or nil, goals = goals }
+	end
+	for _, r in ipairs(route.rules or {}) do snap.rules[#snap.rules + 1] = r[1] .. ">" .. r[2] end
+	for q in pairs(route.low or {}) do snap.low[#snap.low + 1] = q end
+	return snap
+end
+

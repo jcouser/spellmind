@@ -1534,3 +1534,22 @@ test('Up next says what else a stop holds (the player, 2026-11-19: "(+2)" wasn\'
   assert.ok(top(`nextSub[${row}]`) < top(`next[${row}]`), 'under its row');
   if (vm.evaluate(`tostring(SpellmindRoute.next[${row + 1}].shown)`) === 'true') assert.ok(top(`next[${row + 1}]`) < top(`nextSub[${row}]`), 'the next row under it');
 });
+
+test('/sm route why keeps the route for a closer look: its steps, rules and spawns, nothing about the character', () => {
+  const vm = session();
+  vm.slash('route');
+  vm.slash('route why 2');
+  const d = vm.json('SpellmindDB.routeDebug');
+  assert.equal(d.zone, 'Loch Modan');
+  assert.equal(d.step, 2);
+  const stops = Array.isArray(d.stops) ? d.stops : Object.values(d.stops);
+  assert.equal(stops.length, vm.num('#NS.R.route.stops'));
+  assert.ok(stops.every(s => typeof s.x === 'number' && s.goals), 'each step its spot and goals');
+  const rules = Array.isArray(d.rules) ? d.rules : Object.values(d.rules);
+  assert.ok(rules.includes('do:700>turnin:700'));
+  assert.ok(Object.keys(d.spawns).length > 0, 'the objectives\' spawns');
+  const why = Array.isArray(d.why) ? d.why : Object.values(d.why);
+  assert.match(why[0], /^Step 2 of/);
+  assert.ok(!JSON.stringify(d).includes(vm.evaluate('UnitName("player")')), 'not the character\'s name');
+  assert.ok(vm.chatLines().some(l => /saved for a closer look/.test(l)));
+});

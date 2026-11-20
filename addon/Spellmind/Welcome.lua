@@ -87,6 +87,7 @@ WL.NEWS = {
 		note = "Works best with Questie installed. Find it on the Quests tab and the Route tab.",
 		changes = {
 			"Class quests, and quests whose reward is an upgrade for you, are never marked \"worth skipping?\".",
+			"The route keeps its order as you quest: new steps slot in where they fit, and Rebuild plans it afresh.",
 			"Fixed: a spell you had trained could stay \"to train\" after a trainer visit.",
 			"Season of Discovery quests no longer slip into the route on WoW Forever.",
 			"Spellmind's lines in the game's chat have their own colours, and nudges grow to fit their words.",

@@ -152,7 +152,7 @@ test('What\'s new (the player, 2026-11-20): the showcase of the newest release w
   assert.equal(vm.evaluate('SpellmindNews.alsoLabel:GetText()'), 'Version history');
   const h = heads(vm);
   assert.deepEqual(h, ['0.6.1  new', '0.6.0  Your class quests, planned  new', '0.5.0  Meet your quest route']);
-  assert.match(vm.evaluate('SpellmindNews.changes[1]:GetText()'), /Skipping a quest's pickup/);
+  assert.match(vm.evaluate('SpellmindNews.changes[1]:GetText()'), /Skipping a step skips what needs it/);
   // In a scroll of its own: the window keeps its size.
   assert.ok(vm.num('SpellmindNews.hist:GetHeight()') <= 190);
   assert.equal(vm.evaluate('tostring(SpellmindNews.go.shown)'), 'true', 'its Try it now');

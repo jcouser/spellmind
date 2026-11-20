@@ -2075,3 +2075,29 @@ test('the gold line runs only to the current step: not to another step on this m
   vm.run('local s = NS.Route.Current(); NS.Route.SetSkip(s.key, true); local c = NS.Route.Current(); c.map = 1436; NS.Route.DrawMap()');
   assert.equal(gold(), 0, 'the current step elsewhere: no gold line to another step');
 });
+
+test('/sm route why on a buy step lists every seller known, where, whose and how far; the snapshot keeps them (the player, 2026-11-20)', () => {
+  const vm = newVM({ before: ZONE + CLASS + `
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    Q[950].zone = -162
+    STUB.qdb.items = STUB.qdb.items or {}
+    STUB.qdb.items[5000] = { name = "Leaded Vial", vendors = { 961, 962 } }
+    N[961] = { name = "Horde Goblin", zone = 40, spawns = { [40] = { { 10, 10 } } }, friendly = "H" }
+    N[962] = { name = "Friendly Seller", zone = 40, spawns = { [40] = { { 50, 50 } } }, friendly = "AH" }
+    Q[950].obj = { {}, {}, { { 5000 } } }` }).login().advance(9);
+  vm.run(`LibQuestieDB.Item = LibQuestieDB.Item or {}
+    LibQuestieDB.Item.name = function(id) local it = STUB.qdb.items[id]; return it and it.name end
+    LibQuestieDB.Item.vendors = function(id) local it = STUB.qdb.items[id]; return it and it.vendors end
+    LibQuestieDB.Item.npcDrops = LibQuestieDB.Item.npcDrops or function() return nil end
+    LibQuestieDB.Item.objectDrops = LibQuestieDB.Item.objectDrops or function() return nil end`);
+  vm.slash('route');
+  vm.run('NS.Route.SetMode("class", 952, "Mastery of Shadows")');
+  const k = vm.num('(function() for i, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.buy then return i end end end end)()');
+  vm.slash(`route why ${k}`);
+  const lines = vm.chatLines().join('\n');
+  assert.match(lines, /bought from Friendly Seller; 2 seller\(s\) known/);
+  assert.match(lines, /Leaded Vial: Horde Goblin, Westfall · H \(not for you\)/);
+  assert.match(lines, /Leaded Vial: Friendly Seller, Westfall · AH/);
+  const v = vm.json('SpellmindDB.routeDebug.vendors[950]');
+  assert.equal((Array.isArray(v) ? v : Object.values(v)).length, 2);
+});

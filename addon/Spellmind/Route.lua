@@ -283,6 +283,47 @@ function RT.Vendor(Q, id, area)
 	return away
 end
 
+-- Every seller of a quest's goods Questie knows: { item, name, friendly, zone, zoneName, x, y, placed
+-- (on a map), yards (from the spot given; nil on another continent), ok (friendly and in stock) }.
+function RT.VendorCandidates(Q, id, from)
+	local out = {}
+	local o = Try(Q.Quest.objectives, id)
+	local I, N = Q.Item, Q.Npc
+	if type(o) ~= "table" or type(o[3]) ~= "table" or not I or not N or type(I.vendors) ~= "function" then return out end
+	local faction = Try(UnitFactionGroup, "player")
+	local mine = faction == "Alliance" and "A" or (faction == "Horde" and "H") or nil
+	local M = rawget(_G, "C_Map")
+	for _, c in ipairs(o[3]) do
+		local itemID = type(c) == "table" and tonumber(c[1]) or nil
+		local item = itemID and Try(I.name, itemID) or nil
+		local sellers = itemID and Try(I.vendors, itemID) or nil
+		if type(sellers) ~= "table" or #sellers == 0 then
+			out[#out + 1] = { item = item or ("item " .. tostring(itemID)), none = true }
+		end
+		for _, npc in ipairs(type(sellers) == "table" and sellers or {}) do
+			local friendly = Try(N.friendlyToFaction, npc)
+			local ok = not (friendly and mine and not tostring(friendly):find(mine, 1, true)) and not RT.NoStock(npc, itemID)
+			local sp = Try(N.spawns, npc)
+			local any = false
+			for zone, list in pairs(type(sp) == "table" and sp or {}) do
+				zone = tonumber(zone)
+				local at = zone and zone > 0 and type(list) == "table" and list[1]
+				if at and tonumber(at[1]) and tonumber(at[2]) then
+					any = true
+					local map = DG().MapForArea(zone)
+					local w = map and RT.World(map, at[1], at[2])
+					out[#out + 1] = { item = item, name = Try(N.name, npc), friendly = friendly, zone = zone,
+						zoneName = M and type(M.GetAreaInfo) == "function" and Try(M.GetAreaInfo, zone) or nil,
+						x = tonumber(at[1]), y = tonumber(at[2]), placed = w ~= nil,
+						yards = (w and from and w.c == from.c) and math.floor(math.sqrt((w.x - from.x) ^ 2 + (w.y - from.y) ^ 2)) or nil, ok = ok }
+				end
+			end
+			if not any then out[#out + 1] = { item = item, name = Try(N.name, npc), friendly = friendly, nowhere = true, ok = ok } end
+		end
+	end
+	return out
+end
+
 -- The nearest vendor of a quest's goods friendly to the player's faction (or to both), from a world
 -- spot (another continent last): { zone, x, y, item, name }, or nil.
 function RT.NearestVendor(Q, id, from)
@@ -4285,6 +4326,25 @@ function RT.Why(n)
 			end
 		end
 	end
+	-- Something to buy: every seller known, and what Spellmind makes of each (the player, 2026-11-20:
+	-- The Touch of Zanzil's goods went to The Barrens).
+	for _, g in ipairs(st.goals) do
+		if g.buy and Q then
+			local p = DG().Giver(Q, g.q) and select(3, DG().Giver(Q, g.q))
+			local fromW = p and DG().MapForArea(tonumber(p.zone)) and World(DG().MapForArea(tonumber(p.zone)), p.x, p.y) or RT.PlayerWorld()
+			local cands = RT.VendorCandidates(Q, g.q, fromW)
+			Add("  " .. Bare(g.title) .. ": bought from " .. tostring(g.from or "?") .. "; " .. #cands .. " seller(s) known:")
+			for k, v in ipairs(cands) do
+				if k > 8 then Add("    …and " .. (#cands - 8) .. " more (in the saved snapshot)"); break end
+				if v.none then Add("    " .. tostring(v.item) .. ": no seller known")
+				else
+					Add("    " .. tostring(v.item) .. ": " .. tostring(v.name) .. ", " .. tostring(v.zoneName or v.zone or "nowhere known")
+						.. " · " .. tostring(v.friendly or "both") .. (v.ok and "" or " (not for you)")
+						.. (v.nowhere and " · no spot" or (not v.placed and " · not on a map") or (v.yards and (" · " .. v.yards .. " yd") or " · another continent")))
+				end
+			end
+		end
+	end
 	-- Every earlier place: the route's length with this step moved there.
 	if here and start then
 		local base = RT.Length(route.stops, start, here, cost)
@@ -4334,7 +4394,13 @@ function RT.Snapshot(whyLines, n)
 	for i, st in ipairs(route.stops or {}) do
 		local goals = {}
 		for _, g in ipairs(st.goals) do
-			goals[#goals + 1] = { kind = g.kind, q = g.q, title = g.title, to = g.to, done = RT.GoalDone(g) or nil }
+			goals[#goals + 1] = { kind = g.kind, q = g.q, title = g.title, to = g.to, done = RT.GoalDone(g) or nil, buy = g.buy, from = g.from }
+			if g.buy and Q then
+				snap.vendors = snap.vendors or {}
+				local p = select(3, DG().Giver(Q, g.q))
+				local fromW = p and DG().MapForArea(tonumber(p.zone)) and RT.World(DG().MapForArea(tonumber(p.zone)), p.x, p.y) or nil
+				snap.vendors[g.q] = RT.VendorCandidates(Q, g.q, fromW)
+			end
 			if g.kind == "do" and Q and route.area and not st.map and not snap.spawns[g.q] then
 				local pts, list = RT.ObjectiveSpots(Q, g.q, route.area), {}
 				for k, p in ipairs(pts) do

@@ -649,7 +649,7 @@ function Tabs.route()
 	local cur = not going and RT.Current() or nil
 	local skips = R.routeSkip or {}
 	for i, s in ipairs(route.stops or {}) do
-		local done, skipped = RT.StopDone(s), skips[s.key]
+		local done, skipped = RT.StopDone(s), RT.Skipped(s)
 		local groups = RT.Groups(s, true)
 		local more = {}
 		for k = 2, #groups do more[#more + 1] = RT.GroupText(groups[k]) end

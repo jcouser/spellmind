@@ -1802,3 +1802,38 @@ test('the class quest nudge says where a line starts, short: a zone, or the item
   assert.equal(vm.evaluate('NS.Nudges.ClassWhere("an item: Torn Page")'), ', from a Torn Page (a drop)');
   assert.equal(vm.evaluate('NS.Nudges.ClassWhere(nil)'), '');
 });
+
+test('skipping a pick up takes the quest off the route: its objective, its turn-in, its follow-ups; Back brings them back (the player, 2026-11-20)', () => {
+  const vm = session();
+  vm.run(`
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    NS.Dungeons.index, NS.Dungeons.classIds, NS.Dungeons.classCache = nil, nil, nil
+    Q[706] = { name = "Worgen in the Woods", zone = 38, level = 15, npc = 805, obj = { { { 806 } }, {}, {} }, ender = 805 }
+    Q[707] = { name = "Worgen in the Woods Again", zone = 38, level = 15, npc = 805, single = { 706 }, ender = 805 }
+    N[805] = { name = "Calor", zone = 38, spawns = { [38] = { { 42, 41 } } }, friendly = "A" }
+    N[806] = { name = "Nightbane Shadow Weaver", zone = 38, spawns = { [38] = { { 10, 70 }, { 11, 71 } } } }`);
+  vm.slash('route');
+  const live = () => vm.evaluate('(function() local o = {} local c = NS.Route.Current() if c then o[#o + 1] = c.key end for _, s in ipairs(NS.Route.UpNext(20)) do o[#o + 1] = s.key end return table.concat(o, " | ") end)()');
+  assert.match(live(), /do:706/);
+  // Skip the stop with the pick up.
+  const k = vm.evaluate('(function() for _, s in ipairs(NS.R.route.stops) do if s.key:find("pickup:706") then return s.key end end end)()');
+  vm.run(`NS.Route.SetSkip("${k}", true)`);
+  const after = live();
+  assert.doesNotMatch(after, /:706\b/, 'its objective and turn-in gone: ' + after);
+  assert.doesNotMatch(after, /:707\b/, 'and the follow-up: ' + after);
+  assert.match(after, /:70[0-3]/, 'the rest stay');
+  // Unskip on a stop it took off (the Route tab): the quest back, its pick up too.
+  const doKey = vm.evaluate('(function() for _, s in ipairs(NS.R.route.stops) do if s.key:find("do:706") then return s.key end end end)()');
+  vm.run(`NS.Route.SetSkip("${doKey}", false)`);
+  assert.match(live(), /pickup:706/);
+  assert.match(live(), /do:706/);
+  vm.run(`NS.Route.SetSkip("${k}", true)`);
+  // Back: all of it again.
+  vm.run('NS.Route.Back()');
+  assert.match(live(), /do:706/);
+  assert.equal(vm.evaluate('tostring(NS.R.routeSkipQ[706])'), 'nil');
+  // A turn-in of a quest in the log: only that step.
+  const t700 = vm.evaluate('(function() for _, s in ipairs(NS.R.route.stops) do if s.key:find("turnin:700") then return s.key end end end)()');
+  vm.run(`NS.Route.SetSkip("${t700}", true)`);
+  assert.equal(vm.evaluate('tostring(NS.R.routeSkipQ[700])'), 'nil', 'in the log: not taken off');
+});

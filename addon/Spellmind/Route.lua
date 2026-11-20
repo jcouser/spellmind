@@ -125,7 +125,7 @@ function RT.InArea(st, here)
 	if type(here) ~= "table" then here = RT.Here() end
 	if not st or not here or RT.StopMap(st) ~= here.map then return false end
 	for _, g in ipairs(st.goals or {}) do
-		if g.kind == "do" and g.ax and g.rx and g.ry and g.rx > 0 and g.ry > 0 and not RT.GoalDone(g) then
+		if g.kind == "do" and g.ax and g.rx and g.ry and g.rx > 0 and g.ry > 0 and not RT.GoalDone(g) and not RT.GoalOff(g) then
 			local dx, dy = (here.x - g.ax) / g.rx, (here.y - g.ay) / g.ry
 			if dx * dx + dy * dy <= 1 then return true end
 		end
@@ -557,7 +557,7 @@ function RT.SetMode(mode, name, label)
 	ui.mode, ui.dungeon, ui.classLine, ui.className = nil, nil, nil, nil
 	if mode == "dungeon" and name then ui.mode, ui.dungeon = "dungeon", name
 	elseif mode == "class" and name then ui.mode, ui.classLine, ui.className = "class", tonumber(name), label end
-	R.routeSkip, R.routeSkipped = {}, {}
+	R.routeSkip, R.routeSkipped, R.routeSkipQ = {}, {}, {}
 	RT.SetAim(nil)
 	RT.Build()
 	RT.Refresh()
@@ -1429,7 +1429,7 @@ function RT.Current()
 	if not route then return nil end
 	R.routeSkip = R.routeSkip or {}
 	for i, s in ipairs(route.stops) do
-		if not RT.StopDone(s) and not R.routeSkip[s.key] then return s, i end
+		if not RT.StopDone(s) and not RT.Skipped(s) then return s, i end
 	end
 	return nil
 end
@@ -1446,7 +1446,7 @@ function RT.UpNext(n)
 	local cur = RT.Current()
 	for _, s in ipairs(R.route and R.route.stops or {}) do
 		if s == cur then seen = true
-		elseif seen and not RT.StopDone(s) and not R.routeSkip[s.key] then
+		elseif seen and not RT.StopDone(s) and not RT.Skipped(s) then
 			out[#out + 1] = s
 			if #out >= (n or RT.NEXT_SHOWN) then break end
 		end
@@ -1459,7 +1459,7 @@ function RT.Progress()
 	local done, total = 0, 0
 	for _, s in ipairs(R.route and R.route.stops or {}) do
 		total = total + 1
-		if RT.StopDone(s) or (R.routeSkip and R.routeSkip[s.key]) then done = done + 1 end
+		if RT.StopDone(s) or RT.Skipped(s) then done = done + 1 end
 	end
 	return done, total
 end
@@ -1497,7 +1497,7 @@ end
 function RT.Groups(st, all)
 	local out, last, lastKey = {}, nil, nil
 	for _, g in ipairs(st.goals) do
-		if all or not RT.GoalDone(g) then
+		if (all or not RT.GoalDone(g)) and not RT.GoalOff(g) then
 			local key = g.kind .. "|" .. (g.kind == "do" and "" or (g.to or ""))
 			if key ~= lastKey then
 				last = { kind = g.kind, to = g.kind ~= "do" and g.to or nil, goals = {} }
@@ -1579,12 +1579,56 @@ function RT.StopTags(st)
 end
 
 -- Skip the current step (the player's Next); Back brings the last one skipped back.
+-- A quest off the route (its pick up skipped): R.routeSkipQ[q]. Its goals leave every stop; a stop
+-- with nothing else to do counts as skipped.
+function RT.GoalOff(g) return (R.routeSkipQ and g and g.q and R.routeSkipQ[g.q]) and true or false end
+function RT.StopOff(s)
+	local any = false
+	for _, g in ipairs(s.goals or {}) do
+		if RT.GoalOff(g) then any = true elseif not RT.GoalDone(g) then return false end
+	end
+	return any
+end
+function RT.Skipped(s) return (R.routeSkip and R.routeSkip[s.key]) or RT.StopOff(s) end
+
+-- Skipping a pick up of a quest not in the log (the player, 2026-11-20: its objective and turn-in
+-- stayed on the route, for a quest they didn't have) takes the quest off: its objectives, its
+-- turn-in, and the follow-ups it would open, down the chain. Returns what it took ({ quests }), for
+-- Back and Unskip.
+local function Cascade(s)
+	local route = R.route
+	if not route then return nil end
+	local Q, log = {}, R.routeLog or {}
+	for _, g in ipairs(s.goals or {}) do
+		if g.kind == "pickup" and not log[g.q] and not RT.GoalOff(g) then Q[g.q] = true end
+	end
+	if not next(Q) then return nil end
+	local grew = true
+	while grew do
+		grew = false
+		for _, r in ipairs(route.rules or {}) do
+			local ka, qa = tostring(r[1]):match("^(%a+):(%d+)$")
+			local kb, qb = tostring(r[2]):match("^(%a+):(%d+)$")
+			qa, qb = tonumber(qa), tonumber(qb)
+			if ka == "turnin" and kb == "pickup" and Q[qa] and not Q[qb] and not log[qb] then Q[qb] = true; grew = true end
+		end
+	end
+	R.routeSkipQ = R.routeSkipQ or {}
+	local took = { quests = {} }
+	for q in pairs(Q) do R.routeSkipQ[q] = true; took.quests[#took.quests + 1] = q end
+	return took
+end
+local function Uncascade(took)
+	for _, q in ipairs(took and took.quests or {}) do if R.routeSkipQ then R.routeSkipQ[q] = nil end end
+end
+
 function RT.Skip()
 	local s = RT.Current()
 	if not s then return end
 	R.routeSkip = R.routeSkip or {}
 	R.routeSkip[s.key] = true
 	R.routeSkipped = R.routeSkipped or {}
+	s.took = Cascade(s)
 	table.insert(R.routeSkipped, s)
 	RT.Refresh()
 end
@@ -1593,10 +1637,25 @@ function RT.SetSkip(key, on)
 	R.routeSkipped = R.routeSkipped or {}
 	if on and not R.routeSkip[key] then
 		R.routeSkip[key] = true
-		for _, s in ipairs(R.route and R.route.stops or {}) do if s.key == key then table.insert(R.routeSkipped, s) end end
-	elseif not on and R.routeSkip[key] then
+		for _, s in ipairs(R.route and R.route.stops or {}) do
+			if s.key == key then s.took = Cascade(s); table.insert(R.routeSkipped, s) end
+		end
+	elseif not on then
 		R.routeSkip[key] = nil
-		for k = #R.routeSkipped, 1, -1 do if R.routeSkipped[k].key == key then table.remove(R.routeSkipped, k) end end
+		for k = #R.routeSkipped, 1, -1 do
+			if R.routeSkipped[k].key == key then Uncascade(R.routeSkipped[k].took); table.remove(R.routeSkipped, k) end
+		end
+		-- A stop off with its quest: Unskip undoes the skip that took the quest off.
+		local off = {}
+		for _, st in ipairs(R.route and R.route.stops or {}) do
+			if st.key == key then for _, g in ipairs(st.goals) do if RT.GoalOff(g) then off[g.q] = true end end end
+		end
+		for k = #R.routeSkipped, 1, -1 do
+			local e = R.routeSkipped[k]
+			local hit = false
+			for _, q in ipairs(e.took and e.took.quests or {}) do if off[q] then hit = true end end
+			if hit then R.routeSkip[e.key] = nil; Uncascade(e.took); table.remove(R.routeSkipped, k) end
+		end
 	end
 	RT.Refresh()
 end
@@ -1605,6 +1664,7 @@ function RT.Back()
 	if not list or #list == 0 then return end
 	local s = table.remove(list)
 	R.routeSkip[s.key] = nil
+	Uncascade(s.took)
 	RT.Refresh()
 end
 
@@ -2856,11 +2916,11 @@ function RT.DrawMap()
 	local going = RT.Traveling(route)
 	for i, s in ipairs(going and {} or route.stops or {}) do
 		if nd >= RT.MAP_STEPS then break end
-		if RT.StopMap(s) == shownMap and not RT.StopDone(s) and not (R.routeSkip and R.routeSkip[s.key]) then
+		if RT.StopMap(s) == shownMap and not RT.StopDone(s) and not RT.Skipped(s) then
 			local now = s == cur
 			local r, g, b = now and 1 or 0.62, now and 0.82 or 0.49, now and 0 or 1
 			for _, goal in ipairs(s.goals) do
-				if goal.kind == "do" and goal.rx and not RT.GoalDone(goal) then
+				if goal.kind == "do" and goal.rx and not RT.GoalDone(goal) and not RT.GoalOff(goal) then
 					na = na + 1
 					local t = AreaTex(layer, na)
 					t:ClearAllPoints()
@@ -3025,7 +3085,7 @@ function RT.Part()
 	local _, i = RT.Current()
 	local _, total = RT.Progress()
 	for k, s in ipairs(route.stops or {}) do
-		local skip = R.routeSkip and R.routeSkip[s.key]
+		local skip = RT.Skipped(s)
 		if skip then skipped = skipped + 1 end
 		if #steps < RT.AI_STEPS and not RT.StopDone(s) and not skip then
 			steps[#steps + 1] = ns.State.Text(k .. ". " .. RT.StopZone(s) .. Plain(s) .. (RT.StopLow(s) and " (little XP for the walk: worth skipping?)" or ""), 400)

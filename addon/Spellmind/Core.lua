@@ -166,6 +166,24 @@ function ns.Try(fn, ...)
 	return nil
 end
 
+-- A game value an addon may work with, or nil when the client keeps it secret (a player's report,
+-- 2026-11-20: in combat, Forever's client gives the player's speed as a "secret" value; comparing it
+-- was an error, 331 times a fight, from the arrow). The client's own check when it has one, else a
+-- comparison tried safely.
+function ns.Plain(v)
+	if v == nil then return nil end
+	local is = rawget(_G, "issecretvalue")
+	if type(is) == "function" then
+		local ok, secret = pcall(is, v)
+		if ok then return (not secret) and v or nil end
+	end
+	if type(v) ~= "string" and type(v) ~= "boolean" then
+		local ok = pcall(function() return v <= v end)
+		return ok and v or nil
+	end
+	return v
+end
+
 ---------------------------------------------------------------------------
 -- Ids
 ---------------------------------------------------------------------------

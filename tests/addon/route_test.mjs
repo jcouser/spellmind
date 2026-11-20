@@ -1975,3 +1975,27 @@ test('re-plan when it saves a lot: off, the stale order stays and only the hint 
   assert.match(ks[1], /995/, 'kept as it was: ' + ks.join(' | '));
   assert.match(vm.evaluate('SpellmindRoute.rebuild.text:GetText()'), /^Rebuild: .*yd shorter/);
 });
+
+test('in combat the client keeps some values secret (a player\'s report, 2026-11-20: 331 errors a fight from the speed): never compared, the last known used', () => {
+  const vm = session();
+  vm.slash('route');
+  // Out of combat: the speeds as they are.
+  vm.run('STUB.speed = { 7, 7, 7, 4.72 }; GetUnitSpeed = function() return unpack(STUB.speed) end');
+  vm.run('unpack = unpack or table.unpack');
+  const cost = vm.num('NS.Route.SwimCost()');
+  assert.ok(Math.abs(cost - 7 / 4.72) < 1e-6);
+  // In combat: a secret value, which errors if compared (as the client's does).
+  vm.run(`local S = setmetatable({}, { __lt = function() error("attempt to compare a secret number value") end,
+      __le = function() error("attempt to compare a secret number value") end })
+    issecretvalue = function(v) return v == S end
+    GetUnitSpeed = function() return S, S, S, S end
+    GetPlayerFacing = function() return S end`);
+  assert.ok(Math.abs(vm.num('NS.Route.SwimCost()') - cost) < 1e-6, 'the last known');
+  assert.equal(vm.num('NS.Route.Speed()'), 7);
+  vm.run('NS.Route.ArrowUpdate(); NS.RoutePins.Update(true)');
+  assert.equal(vm.evaluate('tostring(NS.Plain(GetPlayerFacing()))'), 'nil');
+  // Without the client's check: a comparison tried safely.
+  vm.run('issecretvalue = nil');
+  assert.equal(vm.evaluate('tostring(NS.Plain(GetPlayerFacing()))'), 'nil');
+  assert.equal(vm.num('NS.Plain(3)'), 3);
+});

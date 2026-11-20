@@ -361,7 +361,7 @@ function RP.Update(force)
 	local radius = C_Minimap and Try(C_Minimap.GetViewRadius)
 	local me = pts.cur and Minimap and Minimap:IsVisible() and type(radius) == "number" and radius > 0 and ns.Route.PlayerWorld() or nil
 	local turn = me and Try(GetCVar, "rotateMinimap") == "1" and not (C_Minimap and Try(C_Minimap.IsRotateMinimapIgnored))
-	local facing = turn and Try(GetPlayerFacing) or nil
+	local facing = turn and ns.Plain(Try(GetPlayerFacing)) or nil
 	-- No position, another continent, or a turning minimap without the facing (an instance): none.
 	if not me or pts.cur.world.c ~= me.c or (turn and not facing) then
 		HideAll()
@@ -440,7 +440,7 @@ local acc, lastFacing = 0, nil
 driver:SetScript("OnUpdate", function(_, elapsed)
 	if not RP.points.cur then return end
 	acc = acc + (tonumber(elapsed) or 0)
-	local f = Try(GetCVar, "rotateMinimap") == "1" and Try(GetPlayerFacing) or nil
+	local f = Try(GetCVar, "rotateMinimap") == "1" and ns.Plain(Try(GetPlayerFacing)) or nil
 	if acc >= RP.TICK or f ~= lastFacing then
 		acc, lastFacing = 0, f
 		pcall(RP.Update, false)

@@ -1141,11 +1141,12 @@ RT.QUEST_MINUTES = 5 -- a quest's time, on average: to the giver, the objectives
 RT.RUN_SPEED, RT.MOUNT_LEVEL, RT.MOUNT_SPEED = 7, 40, 11 -- yards a second
 RT.PATH_FACTOR = 1.35 -- roads and hills: the way is longer than the straight line (AzerothGPS's measure)
 -- The player's own speed on foot or mounted (the game's: buffs, talents, the mount), else by level.
+-- In combat the client keeps the speed secret (ns.Plain): the last one known then.
 function RT.Speed()
 	local _, run = Try(rawget(_G, "GetUnitSpeed"), "player")
-	run = tonumber(run)
-	if run and run > 0 then return run end
-	return Level() >= RT.MOUNT_LEVEL and RT.MOUNT_SPEED or RT.RUN_SPEED
+	run = tonumber(ns.Plain(run))
+	if run and run > 0 then R.lastRunSpeed = run; return run end
+	return R.lastRunSpeed or (Level() >= RT.MOUNT_LEVEL and RT.MOUNT_SPEED or RT.RUN_SPEED)
 end
 RT.SEA_MINUTES = 12 -- another continent: a boat or a tram, about
 RT.WHERE_KEEP = 30 -- seconds a count is kept (quest events clear it sooner)
@@ -2792,7 +2793,7 @@ function RT.ArrowUpdate()
 	if not t then return Still("", "|cff19ff19Nothing left on the route here.|r") end
 	if t.hearth then return Still("", t.text, t.sub) end
 	local me = RT.PlayerWorld()
-	local facing = Try(rawget(_G, "GetPlayerFacing"))
+	local facing = ns.Plain(Try(rawget(_G, "GetPlayerFacing")))
 	if not me or type(facing) ~= "number" then return Still("|cff888888No position in here|r", t.text, t.sub) end
 	if not t.world then return Still("", t.text, t.sub) end
 	if t.world.c ~= me.c then return Still("|cff888888On another continent|r", t.text, t.sub) end
@@ -3780,9 +3781,9 @@ RT.LOOK_NEAR, RT.LOOK_FAR = 36, 84 -- the arrow aims at the trail's points this 
 RT.SWIM_SPEED = 4.72
 function RT.SwimCost()
 	local _, run, _, swim = Try(rawget(_G, "GetUnitSpeed"), "player")
-	run, swim = tonumber(run), tonumber(swim)
-	if run and swim and run > 0 and swim > 0 then return math.max(1, run / swim) end
-	return RT.RUN_SPEED / RT.SWIM_SPEED
+	run, swim = tonumber(ns.Plain(run)), tonumber(ns.Plain(swim))
+	if run and swim and run > 0 and swim > 0 then R.lastSwimCost = math.max(1, run / swim); return R.lastSwimCost end
+	return R.lastSwimCost or (RT.RUN_SPEED / RT.SWIM_SPEED)
 end
 
 -- SpellmindDB.routeTrails[continent] = { x = {}, y = {}, e = { a1, b1, a2, b2, … } } (world yards); the

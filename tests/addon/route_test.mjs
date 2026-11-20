@@ -182,6 +182,7 @@ test('a giver who also takes the quest back, its mobs elsewhere (the player, 202
   const vm = session();
   vm.run(`
     local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    NS.Dungeons.index, NS.Dungeons.classIds, NS.Dungeons.classCache = nil, nil, nil -- quests added after login: the index again
     Q[706] = { name = "Worgen in the Woods", zone = 38, level = 15, npc = 805, obj = { { { 806 } }, {}, {} }, ender = 805 }
     N[805] = { name = "Calor", zone = 38, spawns = { [38] = { { 42, 41 } } }, friendly = "A" }
     N[806] = { name = "Nightbane Shadow Weaver", zone = 38, spawns = { [38] = { { 10, 70 }, { 11, 71 } } } }`);
@@ -195,6 +196,7 @@ test('one NPC\'s many quests (the player, 2026-11-19: Field Captain Palandar\'s 
   const vm = session();
   vm.run(`
     local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    NS.Dungeons.index, NS.Dungeons.classIds, NS.Dungeons.classCache = nil, nil, nil -- quests added after login: the index again
     N[807] = { name = "Field Captain Palandar", zone = 38, spawns = { [38] = { { 40.5, 40.5 } } }, friendly = "A" }
     N[808] = { name = "Deranged Ogre", zone = 38, spawns = { [38] = { { 70, 20 } } } }
     for i = 1, 6 do Q[710 + i] = { name = "Duskwood Mission " .. i, zone = 38, level = 15, npc = 807, obj = { { { 808 } }, {}, {} }, ender = 807 } end
@@ -217,6 +219,7 @@ test('a giver who doesn\'t offer a pick up (the player, 2026-11-19: Season of Di
   const vm = session();
   vm.run(`
     local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    NS.Dungeons.index, NS.Dungeons.classIds, NS.Dungeons.classCache = nil, nil, nil -- quests added after login: the index again
     N[807] = { name = "Field Captain Palandar", zone = 38, spawns = { [38] = { { 30, 60 } } }, friendly = "A" }
     N[808] = { name = "Deranged Ogre", zone = 38, spawns = { [38] = { { 31, 62 } } } }
     for i = 1, 3 do Q[740 + i] = { name = "Duskwood Mission " .. i, zone = 38, level = 15, npc = 807, obj = { { { 808 } }, {}, {} }, ender = 807 } end`);
@@ -239,6 +242,7 @@ test('a quest the game server doesn\'t have (the player, 2026-11-19: Season of D
   const vm = session();
   vm.run(`
     local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    NS.Dungeons.index, NS.Dungeons.classIds, NS.Dungeons.classCache = nil, nil, nil -- quests added after login: the index again
     N[807] = { name = "Field Captain Palandar", zone = 38, spawns = { [38] = { { 30, 60 } } }, friendly = "A" }
     N[808] = { name = "Deranged Ogre", zone = 38, spawns = { [38] = { { 31, 62 } } } }
     Q[7777] = { name = "Duskwood Mission I", zone = 38, level = 15, npc = 807, obj = { { { 808 } }, {}, {} }, ender = 807 }
@@ -256,6 +260,7 @@ test('quests not in this version of the game (the player, 2026-11-19): Questie\'
   const vm = session();
   vm.run(`
     local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    NS.Dungeons.index, NS.Dungeons.classIds, NS.Dungeons.classCache = nil, nil, nil -- quests added after login: the index again
     N[807] = { name = "Field Captain Palandar", zone = 38, spawns = { [38] = { { 30, 60 } } }, friendly = "A" }
     N[808] = { name = "Deranged Ogre", zone = 38, spawns = { [38] = { { 31, 62 } } } }
     Q[81730] = { name = "Duskwood Mission I", zone = 38, level = 15, npc = 807, obj = { { { 808 } }, {}, {} }, ender = 807 }`);
@@ -274,6 +279,7 @@ test('the tracker sized by its corner shows more of Up next; the fold shows the 
   // Eight more quests to pick up, each at its own spot along the zone.
   vm.run(`
     local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    NS.Dungeons.index, NS.Dungeons.classIds, NS.Dungeons.classCache = nil, nil, nil -- quests added after login: the index again
     for i = 1, 8 do
       N[820 + i] = { name = "Giver " .. i, zone = 38, spawns = { [38] = { { 5 + i * 9, 95 } } }, friendly = "A" }
       Q[750 + i] = { name = "Errand " .. i, zone = 38, level = 15, npc = 820 + i, ender = 820 + i }
@@ -1580,4 +1586,83 @@ test('Up next numbers each step as the map does (the player, 2026-11-19)', () =>
   const up = vm.json('(function() local o = {} for _, s in ipairs(NS.Route.UpNext(3)) do o[#o + 1] = NS.Route.StopIndex(s) end return o end)()');
   const ks = Array.isArray(up) ? up : Object.values(up);
   ks.forEach((k, i) => assert.match(vm.evaluate(`SpellmindRoute.next[${i + 1}]:GetText()`), new RegExp(`^\\|cffb48cff${k}\\.\\|r `)));
+});
+
+// Class questlines (the player, 2026-11-20): a rogue's line from a trainer in Ironforge to a mentor in
+// Loch Modan, its last step above the level; a one-step class quest here; a warrior's, not this rogue's.
+const CLASS = `
+  local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+  Q[950] = { name = "Rogue Training", zone = 1537, level = 10, req = 10, classes = 8, npc = 950, ender = 950 }
+  Q[951] = { name = "The Sly Trade", zone = 38, level = 12, req = 10, classes = 8, single = { 950 }, npc = 950, ender = 951 }
+  Q[952] = { name = "Mastery of Shadows", zone = 38, level = 20, req = 18, classes = 8, single = { 951 }, npc = 951, ender = 951 }
+  Q[953] = { name = "Lockpicking Practice", zone = 38, level = 14, req = 10, classes = 8, npc = 951, ender = 951 }
+  Q[960] = { name = "Warrior's Way", zone = 38, level = 10, req = 10, classes = 1, npc = 951, ender = 951 }
+  N[950] = { name = "Fenthwick", zone = 1537, spawns = { [1537] = { { 51, 15 } } }, friendly = "A" }
+  N[951] = { name = "Shadow Mentor", zone = 38, spawns = { [38] = { { 60, 60 } } }, friendly = "A" }`;
+const lines = vm => { const v = vm.json('NS.Dungeons.ClassLines()'); return Array.isArray(v) ? v : Object.values(v || {}); };
+
+test('class questlines: this class\'s, joined by their prerequisites, each with the step to do now and where', () => {
+  const vm = newVM({ before: ZONE + CLASS }).login().advance(9);
+  const ls = lines(vm);
+  assert.deepEqual(ls.map(l => l.name), ['Lockpicking Practice', 'Mastery of Shadows'], 'by level; not the warrior\'s');
+  const m = ls[1];
+  assert.equal(m.total, 3);
+  assert.equal(m.current.id, 950);
+  assert.match(m.current.from, /^Fenthwick, Ironforge \(51, 15\)/);
+  assert.equal(vm.evaluate('NS.Dungeons.ClassLineText(NS.Dungeons.ClassLine(952))'), 'Step 1 of 3: Rogue Training · from Fenthwick, Ironforge (51, 15)');
+  // A step done: the next one is the step to do now.
+  vm.run('STUB.completed[950] = true; NS.Dungeons.classCache = nil');
+  assert.equal(vm.num('NS.Dungeons.ClassLine(952).current.id'), 951);
+});
+
+test('a class questline as the route, one at a time (the player, 2026-11-20: like a dungeon\'s prep): across zones, its step above the level later; done, back to questing', () => {
+  const vm = newVM({ before: ZONE + CLASS }).login().advance(9);
+  vm.slash('route');
+  // While questing: the one here is a step, tagged; the line elsewhere is pointed to under Where next.
+  assert.ok(keys(vm).some(k => k.includes('pickup:953')));
+  const all = [1, 2, 3, 4].map(k => vm.evaluate(`SpellmindRoute.next[${k}]:GetText()`) || '').join(' | ') + ' | ' + vm.evaluate('SpellmindRoute.now:GetText()');
+  assert.match(all, /Lockpicking Practice.*\(class quest\)/);
+  const ptr = [1, 2, 3].map(k => vm.evaluate(`SpellmindRoute.where[${k}].text:GetText()`) || '');
+  const at = ptr.findIndex(t => /Class quest:.*Lockpicking Practice|Class quest:.*Mastery of Shadows/.test(t));
+  assert.ok(at >= 0, JSON.stringify(ptr));
+  // A click: the route through that line.
+  vm.run('NS.Route.SetMode("class", 952, "Mastery of Shadows")');
+  assert.equal(vm.evaluate('NS.R.route.classLine'), 'Mastery of Shadows');
+  assert.match(vm.evaluate('SpellmindRoute.title:GetText()'), /Mastery of Shadows \(class quest\)/);
+  const ks = keys(vm);
+  for (const k of ['pickup:950', 'turnin:950', 'pickup:951', 'turnin:951']) assert.ok(ks.some(x => x.includes(k)), `${k} in ${ks.join(' | ')}`);
+  assert.ok(!ks.some(x => x.includes(':953')) && !ks.some(x => x.includes(':952')), 'only this line, up to the level');
+  assert.ok(vm.evaluate('NS.R.route.later[1]').includes('Mastery of Shadows (level 18)'));
+  assert.equal(vm.evaluate('tostring(NS.Route.Keeps(NS.R.route.stops, NS.R.route.rules))'), 'true');
+  const ironforge = vm.json('(function() for _, s in ipairs(NS.R.route.stops) do if s.key:find("pickup:950") then return { map = s.map } end end end)()');
+  assert.equal(ironforge.map, 1455, 'its first step in Ironforge');
+  // Kept through a reload (the mode is saved).
+  assert.deepEqual(vm.json('{ NS.Route.Mode() }'), ['class', 952, 'Mastery of Shadows']);
+  // The line done: back to questing.
+  vm.run('for id = 950, 952 do STUB.completed[id] = true end; NS.Dungeons.classCache = nil; NS.Route.Build()');
+  assert.equal(vm.evaluate('NS.Route.Mode()'), 'questing');
+  assert.equal(vm.evaluate('tostring(NS.R.route.classLine)'), 'nil');
+});
+
+test('class quests on the Quests tab and the Route tab, with the AI told; a nudge when one is open', () => {
+  const vm = newVM({ before: ZONE + CLASS }).login().advance(9);
+  vm.run('NS.Panel.Show("quests")');
+  const q = vm.json('SpellmindPanel.drawn'); const qd = Array.isArray(q) ? q : Object.values(q || {});
+  const head = qd.findIndex(r => r.kind === 'head' && r.text === 'Class quests');
+  assert.ok(head >= 0, 'its section');
+  assert.match(qd[head + 2].text, /Mastery of Shadows/);
+  assert.match(qd[head + 2].sub, /Step 1 of 3: Rogue Training · from Fenthwick/);
+  vm.slash('route');
+  vm.run('NS.Panel.Show("route")');
+  const r = vm.json('SpellmindPanel.drawn'); const rd = Array.isArray(r) ? r : Object.values(r || {});
+  assert.ok(rd.some(x => /Class quest:.*Mastery of Shadows/.test(x.text || '')), 'under Plan for');
+  vm.run('NS.Route.SetMode("class", 952, "Mastery of Shadows")');
+  const part = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Route.Part())'));
+  assert.equal(part.classQuest, 'Mastery of Shadows');
+  // The nudge: both lines open now, one toast.
+  const n = vm.json('NS.Nudges.Detect.classq()');
+  const one = Array.isArray(n) ? n[0] : n[1];
+  assert.equal(one.title, '2 class quests ready');
+  assert.match(one.text, /^Lockpicking Practice: Shadow Mentor.*and 1 more/);
+  assert.equal(vm.evaluate('NS.Nudges.TabFor("classq")'), 'quests');
 });

@@ -24,6 +24,7 @@ ST.NUDGES = {
 	{ "dungeon", "Entering a dungeon" },
 	{ "talents", "Talent points to spend" },
 	{ "spells", "Spells to train" },
+	{ "classq", "Class quests ready" },
 	{ "durability", "Gear about to break" },
 	{ "bags", "Bags nearly full" },
 	{ "turnin", "Quests ready to turn in" },

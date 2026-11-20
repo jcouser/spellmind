@@ -72,6 +72,8 @@ Turn it on in the **Route tab** (or `/sm route`). Spellmind plans your leveling 
 
 **Ready for a dungeon:** pick a dungeon on the Route tab (or **Route** on the Dungeons tab). Spellmind routes you through its quests and the questlines that open them, across zones, to its door, and the turn-ins after the run.
 
+**Your class quests:** the questlines for your class (a new form, a pet, a totem, a weapon), wherever they start. The Quests tab lists them with the step you're on and where to go; **Route** plans the way through one, across zones, and the route window points out one that's ready while you quest. A nudge says when a new one opens at your level. Class quests, and quests whose reward is an upgrade for you, are never marked "worth skipping?".
+
 **It learns your roads:** as you walk, swim and ride, Spellmind remembers the way you went, so the arrow and the lines follow real paths. They stay on your PC; **Forget my trails** on the Route tab clears them.
 
 **Ask about it:** with the app, your AI sees the same route. "Review my route" says what to skip and why, with a **Skip** button for each, and "Why this order?" explains it. Without the app, `/sm route why <step>` says why a step is where it is.
@@ -177,7 +179,7 @@ Also in the panel:
 
 #### Nudges
 
-A small toast by the minimap, never in combat and never a stream of them: spells to train, talent points to spend, gear about to break, bags nearly full, a dungeon you just entered, quests ready to turn in, professions near their cap. Each kind has its own switch, and **Dismiss** means not again for the same thing.
+A small toast by the minimap, never in combat and never a stream of them: spells to train, a class quest ready, talent points to spend, gear about to break, bags nearly full, a dungeon you just entered, quests ready to turn in, professions near their cap. Each kind has its own switch, and **Dismiss** means not again for the same thing.
 
 ### The app
 

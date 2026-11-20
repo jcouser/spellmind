@@ -522,10 +522,17 @@ function RT.LoadAim()
 	if type(a) == "table" and tonumber(a.area) then R.routeAim, R.routeAimFrom = tonumber(a.area), tonumber(a.from) end
 end
 
-function RT.Mode() local ui = ModeUI(); return ui.mode == "dungeon" and ui.dungeon and "dungeon" or "questing", ui.dungeon end
-function RT.SetMode(mode, name)
+-- Or one class questline ("class": UI().classLine, its key; UI().className, its name).
+function RT.Mode()
 	local ui = ModeUI()
-	if mode == "dungeon" and name then ui.mode, ui.dungeon = "dungeon", name else ui.mode, ui.dungeon = nil, nil end
+	if ui.mode == "class" and ui.classLine then return "class", ui.classLine, ui.className end
+	return ui.mode == "dungeon" and ui.dungeon and "dungeon" or "questing", ui.dungeon
+end
+function RT.SetMode(mode, name, label)
+	local ui = ModeUI()
+	ui.mode, ui.dungeon, ui.classLine, ui.className = nil, nil, nil, nil
+	if mode == "dungeon" and name then ui.mode, ui.dungeon = "dungeon", name
+	elseif mode == "class" and name then ui.mode, ui.classLine, ui.className = "class", tonumber(name), label end
 	R.routeSkip, R.routeSkipped = {}, {}
 	RT.SetAim(nil)
 	RT.Build()
@@ -534,6 +541,7 @@ end
 
 function RT.Build()
 	if RT.Mode() == "dungeon" then return RT.BuildPrep(select(2, RT.Mode())) end
+	if RT.Mode() == "class" then return RT.BuildClass(select(2, RT.Mode())) end
 	local here = RT.Here()
 	local route = { stops = {}, elsewhere = {}, later = {}, built = GetTime() }
 	R.route = route
@@ -554,6 +562,8 @@ function RT.Build()
 	local function Goal(kind, id, title, to, extra)
 		local g = { kind = kind, q = id, title = title, to = to }
 		for k, v in pairs(extra or {}) do g[k] = v end
+		-- A class quest (the player, 2026-11-20): what it opens is worth more than its XP.
+		if Q and id and id > 0 and (tonumber((Try(Q.Quest.requiredClasses, id))) or 0) > 0 then g.class = true end
 		return g
 	end
 	-- The quests turned in on this route (a follow-up of one can be planned: picked up after it).
@@ -807,7 +817,7 @@ function RT.Build()
 	-- XP for the walk (the player, 2026-11-19): a quest far below the route's XP a minute that costs a
 	-- real detour is marked "worth skipping?", and its stops come later (the order again, those stops'
 	-- way dearer), so the ones worth more come first. Nothing is dropped: Skip is the player's.
-	route.xp, route.low = RT.Worth(route.stops, start, here, level)
+	route.xp, route.low, route.ups = RT.Worth(route.stops, start, here, level)
 	if next(route.low) then
 		local function Cost(a, b, h)
 			local d = RT.Yards(a, b, h)
@@ -923,12 +933,20 @@ function RT.Worth(stops, start, here, level)
 		totalXP, totalMin = totalXP + x, totalMin + mins[q]
 	end
 	local avg = totalMin > 0 and totalXP / totalMin or 0
+	-- Worth more than XP (the player, 2026-11-20): a class quest, and one whose reward is an upgrade.
+	local class, ups = {}, {}
+	for _, st in ipairs(stops) do for _, g in ipairs(st.goals) do if g.class then class[g.q] = true end end end
+	local Gear = ns.Gear
+	for q in pairs(xp) do
+		local up = Gear and Gear.RewardUpgrade and Gear.RewardUpgrade(q)
+		if up then ups[q] = up end
+	end
 	local low = {}
 	for q, x in pairs(xp) do
 		local walk = mins[q] - RT.QUEST_MINUTES
-		if avg > 0 and x / mins[q] < avg * RT.LOW_SHARE and walk >= RT.LOW_MINUTES then low[q] = true end
+		if avg > 0 and x / mins[q] < avg * RT.LOW_SHARE and walk >= RT.LOW_MINUTES and not class[q] and not ups[q] then low[q] = true end
 	end
-	return xp, low
+	return xp, low, ups
 end
 -- "1,150 XP": what a stop's turn-ins give (the Route tab).
 function RT.StopXP(st)
@@ -1292,8 +1310,19 @@ end
 -- set aside meanwhile: the arrow, the band, the map and the minimap show the way there.
 function RT.Traveling(route)
 	route = route or R.route
-	if not R.routeAim or not route or route.nowhere or route.prep or route.area == R.routeAim then return nil end
+	if not R.routeAim or not route or route.nowhere or route.prep or route.classLine or route.area == R.routeAim then return nil end
 	return RT.NextZone(route)
+end
+
+-- A class questline to point to while questing (the player, 2026-11-20): the first open now whose
+-- step isn't in the log yet (one in the log is on the route already, or under Elsewhere). nil in
+-- another mode.
+function RT.ClassReady(route)
+	if not route or route.prep or route.classLine or route.nowhere or not DG().ClassLines then return nil end
+	for _, l in ipairs(DG().ClassLines() or {}) do
+		if not l.current.at and not l.current.inLog then return l end
+	end
+	return nil
 end
 
 -- The other zones for the tracker: the best few, always (the player, 2026-11-19: in Loch Modan with
@@ -1453,7 +1482,17 @@ RT.LOW_TAG = " |cff888888(worth skipping? little XP for the walk)|r"
 function RT.StopText(st, short)
 	local groups = RT.Groups(st)
 	if #groups == 0 then return "" end
-	return RT.StopZone(st) .. RT.GroupText(groups[1]) .. (short and "" or RT.AlsoText(groups, 2)) .. (RT.StopLow(st) and RT.LOW_TAG or "")
+	return RT.StopZone(st) .. RT.GroupText(groups[1]) .. RT.StopTags(st) .. (short and "" or RT.AlsoText(groups, 2)) .. (RT.StopLow(st) and RT.LOW_TAG or "")
+end
+-- " (class quest)", " (upgrade: Hands)": what makes a stop worth more than its XP.
+function RT.StopTags(st)
+	local class, up
+	local ups = R.route and R.route.ups or {}
+	for _, g in ipairs(st.goals or {}) do
+		if g.class then class = true end
+		if ups[g.q] then up = ups[g.q] end
+	end
+	return (class and " |cffff9933(class quest)|r" or "") .. (up and (" |cff19ff19(upgrade: " .. ns.Escape(up) .. ")|r") or "")
 end
 
 -- Skip the current step (the player's Next); Back brings the last one skipped back.
@@ -1884,7 +1923,14 @@ local function Build()
 		if b.text.SetMaxLines then b.text:SetMaxLines(3) end
 		b.text:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
 		b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-		b:SetScript("OnClick", function(self) if self.zone then RT.Aim(self.zone) end end)
+		b:SetScript("OnClick", function(self)
+			local z = self.zone
+			if z and z.classLine then
+				RT.SetMode("class", z.classLine.id, z.classLine.name)
+			elseif z then
+				RT.Aim(z)
+			end
+		end)
 		f.where[i] = b
 	end
 	-- Elsewhere: its own heading and lines (the player, 2026-11-19: one crammed line was hard to read),
@@ -2028,7 +2074,9 @@ function RT.Draw()
 	for _, l in ipairs(f.nextSub) do l:SetWidth(W - 50) end
 	f.fold:SetNormalTexture(ui.compact and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
 	f.fold.tip = ui.compact and "Show Up next" or "Only the current step"
-	f.title:SetText("Route" .. (route.prep and (" · " .. ns.Escape(route.prep) .. " prep") or (route.zone and (" · " .. ns.Escape(route.zone)) or "")))
+	f.title:SetText("Route" .. (route.prep and (" · " .. ns.Escape(route.prep) .. " prep")
+		or (route.classLine and (" · " .. ns.Escape(route.classLine) .. " (class quest)"))
+		or (route.zone and (" · " .. ns.Escape(route.zone)) or "")))
 	local cur, i = RT.Current()
 	local done, total = RT.Progress()
 	-- On the way to a chosen zone: the steps here wait. Done in the zone it was chosen in, the band says
@@ -2054,7 +2102,7 @@ function RT.Draw()
 		f.now:SetText("|cff19ff19Nothing left here that Spellmind knows of.|r" .. (route.db and "" or
 			"\n|cff888888With QuestieDB installed, the route also lists quests to pick up here, and where mobs are.|r"))
 	else
-		f.now:SetText(groups[1] and (RT.StopZone(cur) .. RT.GroupText(groups[1])) or "")
+		f.now:SetText(groups[1] and (RT.StopZone(cur) .. RT.GroupText(groups[1]) .. RT.StopTags(cur)) or "")
 		sub = groups[1] and RT.GroupNames(groups[1])
 	end
 	f.nowSub:SetText(sub or "")
@@ -2140,14 +2188,19 @@ function RT.Draw()
 		end
 	else
 		local named = not cur and (RT.NextZone(route) or wl[1]) or nil
-		for _, z in ipairs(wl) do if z ~= named then shownWhere[#shownWhere + 1] = z end end
+		local ready = RT.ClassReady(route)
+		if ready then shownWhere[1] = { classLine = ready } end
+		for _, z in ipairs(wl) do if z ~= named and #shownWhere < RT.WHERE_SHOWN then shownWhere[#shownWhere + 1] = z end end
 	end
 	local whereH, awayH = 0, 0
 	for k, b in ipairs(f.where) do
 		local z = shownWhere[k]
 		b.zone = z
 		local aimed = z and R.routeAim == z.area
-		if z and z.instead then
+		if z and z.classLine then
+			local l = z.classLine
+			b.text:SetText("|cffff9933Class quest:|r |cffffd100" .. ns.Escape(l.name) .. "|r · " .. ns.Escape(l.current.from or l.current.name))
+		elseif z and z.instead then
 			b.text:SetText("|cff19ff19Quest here instead:|r |cffffd100" .. ns.Escape(z.zone or "here") .. "|r, " .. z.left .. (z.left == 1 and " step" or " steps"))
 		else
 			b.text:SetText(z and ((aimed and "|cff19ff19\194\187|r " or "") .. "|cffffd100" .. ns.Escape(z.zone) .. ":|r " .. RT.WhereText(z)) or "")
@@ -2888,7 +2941,7 @@ function RT.Part()
 	local going = RT.Traveling(route)
 	return O("zone", route.zone, "step", i, "of", total, "steps", #steps > 0 and steps or nil,
 		"later", #later > 0 and later or nil, "skipped", skipped > 0 and skipped or nil,
-		"headingTo", going and going.zone or nil)
+		"headingTo", going and going.zone or nil, "classQuest", route.classLine)
 end
 
 ---------------------------------------------------------------------------
@@ -3043,91 +3096,40 @@ local function Path(from, to)
 	return nil
 end
 
--- The prep route: R.route as RT.Build makes it (stops, rules), with prep = the dungeon's name.
-function RT.BuildPrep(name)
-	local here = RT.Here()
-	local route = { stops = {}, elsewhere = {}, later = {}, built = GetTime(), prep = name }
-	R.route = route
-	if not here then route.nowhere = true; return route end
-	route.zone, route.map, route.area = here.zone, here.map, here.area
-	local Q = L()
-	route.db = Q ~= nil
-	local qs = Q and DG().Quests(name)
-	if not qs then route.noData = true; return route end
-	local log = ReadLog()
-	local raw, chains, extra = {}, {}, {}
-	local placed = {}
-	local function Place(kind, id, title, spot, to, x)
+-- Shared by the dungeon prep and the class questlines (the player, 2026-11-20): quests placed step by
+-- step (picked up unless in the log, their objectives, their turn-in), then grouped and ordered across
+-- zones by the time to get there.
+local function QuestPlacer(route, Q, here, log)
+	local P = { raw = {}, placed = {} }
+	function P.Place(kind, id, title, spot, to, x)
 		if not spot then return false end
 		local g = { kind = kind, q = id, title = title, to = to }
 		for k, v in pairs(x or {}) do g[k] = v end
-		raw[#raw + 1] = { x = spot.x, y = spot.y, map = spot.map, zoneName = spot.zoneName, goals = { g } }
-		placed[kind .. ":" .. id] = true
+		P.raw[#P.raw + 1] = { x = spot.x, y = spot.y, map = spot.map, zoneName = spot.zoneName, goals = { g } }
+		P.placed[kind .. ":" .. id] = true
 		return true
 	end
 	-- One quest, as far as it goes: picked up (unless in the log), its objectives (when outside), its
 	-- turn-in (unless it's this dungeon's and not done yet: that's after the run).
-	local function Quest(id, title, dungeonQuest)
+	function P.Quest(id, title, dungeonQuest)
 		local p = RT.QuestPlaces(Q, id, here)
 		if not log[id] and not Done(id) then
 			local lv = tonumber((Try(Q.Quest.questLevel, id)))
-			if not Place("pickup", id, title, p.giver, p.giver and p.giver.name, { fromID = p.giver and p.giver.npc, level = lv }) then
+			if not P.Place("pickup", id, title, p.giver, p.giver and p.giver.name, { fromID = p.giver and p.giver.npc, level = lv }) then
 				route.elsewhere[""] = route.elsewhere[""] or {}
 				table.insert(route.elsewhere[""], { kind = "pickup", q = id, title = title })
 				return false
 			end
 		end
 		if p.area and not (log[id] and Complete(id)) then
-			Place("do", id, title, p.area, nil, { ax = p.area.cx, ay = p.area.cy, rx = p.area.rx, ry = p.area.ry })
+			P.Place("do", id, title, p.area, nil, { ax = p.area.cx, ay = p.area.cy, rx = p.area.rx, ry = p.area.ry })
 		end
-		if not dungeonQuest or (log[id] and Complete(id)) then Place("turnin", id, title, p.fin, p.fin and p.fin.name) end
+		if not dungeonQuest or (log[id] and Complete(id)) then P.Place("turnin", id, title, p.fin, p.fin and p.fin.name) end
 		return true
 	end
-	local dungeonIds = {}
-	-- This dungeon's quests open now, and the questlines to the locked ones.
-	for _, q in ipairs(qs.pickup) do
-		if not q.at then
-			if q.after or q.first then
-				-- The chain's step to do now, then each quest after it up to this one.
-				local start = q.first and q.id or nil
-				if not start then
-					for _, c in ipairs(qs.chains) do for _, o in ipairs(c.opens) do if o.id == q.id then start = c.id end end end
-				end
-				local path = start and Path(start, q.id) or (q.first and { q.id }) or nil
-				for k, step in ipairs(path or {}) do
-					if not placed["pickup:" .. step] and not placed["turnin:" .. step] then
-						local last = k == #path and not q.first
-						Quest(step, DG().Name(Q, step) or ("quest " .. step), last)
-						if last then dungeonIds[#dungeonIds + 1] = step end
-					end
-					if k > 1 then chains[#chains + 1] = { path[k - 1], step } end
-				end
-			else
-				Quest(q.id, q.name, true)
-				dungeonIds[#dungeonIds + 1] = q.id
-			end
-		else
-			route.later[#route.later + 1] = q.name
-		end
-	end
-	-- Its quests already in the log: their turn-ins once done (after the run).
-	for id, q in pairs(log) do
-		if tonumber((Try(Q.Quest.zoneOrSort, id))) == qs.area then
-			dungeonIds[#dungeonIds + 1] = id
-			Quest(id, q.title or ("quest " .. id), true)
-		end
-	end
-	-- The way in.
-	local door = RT.Entrance(name)
-	if door then
-		local spot = door.map == here.map and { x = door.x, y = door.y } or door
-		raw[#raw + 1] = { x = spot.x, y = spot.y, map = spot.map, zoneName = spot.zoneName,
-			goals = { { kind = "enter", q = 0, title = name, to = door.learned and nil or ("around " .. math.floor(door.x + 0.5) .. ", " .. math.floor(door.y + 0.5) .. " in " .. (door.zoneName or "?")) } } }
-		for _, id in ipairs(dungeonIds) do
-			if not log[id] then extra[#extra + 1] = { "pickup:" .. id, "enter:0" } end
-			extra[#extra + 1] = { "enter:0", "turnin:" .. id }
-		end
-	end
+	return P
+end
+local function OrderAcross(route, raw, chains, extra, here)
 	-- As the questing route does: what's done never shows; close ones are one stop when they can be.
 	local keep = {}
 	for _, s in ipairs(raw) do if not RT.StopDone(s) then keep[#keep + 1] = s end end
@@ -3181,6 +3183,113 @@ function RT.BuildPrep(name)
 	route.stops = RT.Order(stops, { x = here.x, y = here.y }, here, rules, Cost)
 	route.rules = rules
 	return route
+end
+
+-- The prep route: R.route as RT.Build makes it (stops, rules), with prep = the dungeon's name.
+function RT.BuildPrep(name)
+	local here = RT.Here()
+	local route = { stops = {}, elsewhere = {}, later = {}, built = GetTime(), prep = name }
+	R.route = route
+	if not here then route.nowhere = true; return route end
+	route.zone, route.map, route.area = here.zone, here.map, here.area
+	local Q = L()
+	route.db = Q ~= nil
+	local qs = Q and DG().Quests(name)
+	if not qs then route.noData = true; return route end
+	local log = ReadLog()
+	local P = QuestPlacer(route, Q, here, log)
+	local raw, placed, Place, Quest = P.raw, P.placed, P.Place, P.Quest
+	local chains, extra = {}, {}
+	local dungeonIds = {}
+	-- This dungeon's quests open now, and the questlines to the locked ones.
+	for _, q in ipairs(qs.pickup) do
+		if not q.at then
+			if q.after or q.first then
+				-- The chain's step to do now, then each quest after it up to this one.
+				local start = q.first and q.id or nil
+				if not start then
+					for _, c in ipairs(qs.chains) do for _, o in ipairs(c.opens) do if o.id == q.id then start = c.id end end end
+				end
+				local path = start and Path(start, q.id) or (q.first and { q.id }) or nil
+				for k, step in ipairs(path or {}) do
+					if not placed["pickup:" .. step] and not placed["turnin:" .. step] then
+						local last = k == #path and not q.first
+						Quest(step, DG().Name(Q, step) or ("quest " .. step), last)
+						if last then dungeonIds[#dungeonIds + 1] = step end
+					end
+					if k > 1 then chains[#chains + 1] = { path[k - 1], step } end
+				end
+			else
+				Quest(q.id, q.name, true)
+				dungeonIds[#dungeonIds + 1] = q.id
+			end
+		else
+			route.later[#route.later + 1] = q.name
+		end
+	end
+	-- Its quests already in the log: their turn-ins once done (after the run).
+	for id, q in pairs(log) do
+		if tonumber((Try(Q.Quest.zoneOrSort, id))) == qs.area then
+			dungeonIds[#dungeonIds + 1] = id
+			Quest(id, q.title or ("quest " .. id), true)
+		end
+	end
+	-- The way in.
+	local door = RT.Entrance(name)
+	if door then
+		local spot = door.map == here.map and { x = door.x, y = door.y } or door
+		raw[#raw + 1] = { x = spot.x, y = spot.y, map = spot.map, zoneName = spot.zoneName,
+			goals = { { kind = "enter", q = 0, title = name, to = door.learned and nil or ("around " .. math.floor(door.x + 0.5) .. ", " .. math.floor(door.y + 0.5) .. " in " .. (door.zoneName or "?")) } } }
+		for _, id in ipairs(dungeonIds) do
+			if not log[id] then extra[#extra + 1] = { "pickup:" .. id, "enter:0" } end
+			extra[#extra + 1] = { "enter:0", "turnin:" .. id }
+		end
+	end
+	return OrderAcross(route, raw, chains, extra, here)
+end
+
+-- A class questline (the player, 2026-11-20: one at a time, as a dungeon's prep): from the step to do
+-- now to its last, across zones; a step above the level waits (later).
+function RT.BuildClass(id)
+	local here = RT.Here()
+	local route = { stops = {}, elsewhere = {}, later = {}, built = GetTime() }
+	R.route = route
+	local _, _, label = RT.Mode()
+	route.classLine = label or ("quest " .. tostring(id))
+	if not here then route.nowhere = true; return route end
+	route.zone, route.map, route.area = here.zone, here.map, here.area
+	local Q = L()
+	route.db = Q ~= nil
+	local lines = Q and DG().ClassLines()
+	if not lines then route.noData = true; return route end
+	local line = DG().ClassLine(id)
+	if not line then
+		-- Done (or no longer this character's): back to questing.
+		if ns.Chat and ns.Chat.System then ns.Chat.System("Class quest done: " .. ns.Escape(route.classLine) .. ". The route is back to questing.") end
+		local ui = ModeUI()
+		ui.mode, ui.classLine, ui.className = nil, nil, nil
+		return RT.Build()
+	end
+	route.classLine = line.name
+	local level = Level()
+	local log = ReadLog()
+	local P = QuestPlacer(route, Q, here, log)
+	local chains = {}
+	local prev
+	for k = line.current.step, #line.steps do
+		local step = line.steps[k]
+		if not Done(step) then
+			local req = tonumber((Try(Q.Quest.requiredLevel, step))) or 1
+			if req > level and not log[step] then
+				route.later[#route.later + 1] = (DG().Name(Q, step) or ("quest " .. step)) .. " (level " .. req .. ")"
+				break
+			end
+			P.Quest(step, DG().Name(Q, step) or ("quest " .. step), false)
+			if prev then chains[#chains + 1] = { prev, step } end
+			prev = step
+		end
+	end
+	return OrderAcross(route, P.raw, chains, {}, here)
 end
 
 ---------------------------------------------------------------------------

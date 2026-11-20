@@ -161,6 +161,7 @@ function DG.Index(done)
 	if not ok or type(ids) ~= "table" then return nil end
 	DG.scanning = true
 	local index, i = {}, 1
+	local classIds = {} -- every quest for a class (any), for DG.ClassLines
 	local function step()
 		local stop = math.min(#ids, i + DG.SCAN_PER_TICK - 1)
 		for k = i, stop do
@@ -172,10 +173,12 @@ function DG.Index(done)
 				if not list then list = {}; index[zone] = list end
 				list[#list + 1] = id
 			end
+			local okC, cls = pcall(L.Quest.requiredClasses, id)
+			if okC and (tonumber(cls) or 0) > 0 then classIds[#classIds + 1] = id end
 		end
 		i = stop + 1
 		if i > #ids then
-			DG.index, DG.scanning = index, nil
+			DG.index, DG.scanning, DG.classIds = index, nil, classIds
 			if done then pcall(done) end
 		else
 			C_Timer.After(0, step)
@@ -420,6 +423,123 @@ function DG.Fits(L, id, ctx, Have)
 		if Done(other) or (Have and Have(other)) then return false end
 	end
 	return true
+end
+
+---------------------------------------------------------------------------
+-- Class questlines (the player, 2026-11-20: "class quests may not be anywhere near you but worth doing
+-- your specific class's quest lines ... similar to how we handle dungeons"): this character's class
+-- quests, joined into lines by their prerequisites and follow-ups, each with the step to do now
+---------------------------------------------------------------------------
+
+DG.CLASS_SOON = 4 -- levels: a line whose next step opens within this many is listed ("at 20")
+DG.CLASS_KEEP = 5 -- seconds the lines are kept (the tracker draws often)
+
+-- { { id (its last quest: the line's key), name (that quest's), steps = { ids, in order }, done, total,
+-- level, current = { id, name, step, inLog, from, to, spot, at } } }, the open ones first, then by level;
+-- nil while the pass over the quests runs (or without QuestieDB). Lines all done are left out.
+function DG.ClassLines()
+	local L = DB()
+	if not L then return nil end
+	local level = Level()
+	local c = DG.classCache
+	if c and c.level == level and GetTime() - c.at < DG.CLASS_KEEP then return c.lines end
+	if not DG.Index() or not DG.classIds then return nil end
+	local ctx = DG.Context(L)
+	if not ctx.class then return {} end
+	local faction = ctx.faction
+	local QL = C_QuestLog
+	local function Have(id)
+		if QL and type(QL.IsOnQuest) == "function" and ns.Try(QL.IsOnQuest, id) then return true end
+		local i = QL and type(QL.GetLogIndexForQuestID) == "function" and ns.Try(QL.GetLogIndexForQuestID, id)
+		return (tonumber(i) or 0) > 0
+	end
+	local mine = {}
+	for _, id in ipairs(DG.classIds) do
+		local cls = tonumber((ns.Try(L.Quest.requiredClasses, id))) or 0
+		if Band(cls, ctx.class) > 0 and DG.Fits(L, id, ctx, Have) and Name(L, id)
+			and not (ns.Route and ns.Route.Hidden and ns.Route.Hidden(id)) then
+			local _, friendly = Giver(L, id)
+			if not (friendly and faction and not tostring(friendly):find(faction == "Alliance" and "A" or "H", 1, true)) then mine[id] = true end
+		end
+	end
+	-- Lines: the quests joined by prerequisite and follow-up.
+	local parent = {}
+	local function Root(x) while parent[x] ~= x do parent[x] = parent[parent[x]]; x = parent[x] end return x end
+	local function Join(a, b) local ra, rb = Root(a), Root(b); if ra ~= rb then parent[ra] = rb end end
+	for id in pairs(mine) do parent[id] = id end
+	for id in pairs(mine) do
+		local single = ns.Try(L.Quest.preQuestSingle, id)
+		local group = ns.Try(L.Quest.preQuestGroup, id)
+		for _, list in ipairs({ type(single) == "table" and single or {}, type(group) == "table" and group or {} }) do
+			for _, p in ipairs(list) do if mine[p] then Join(id, p) end end
+		end
+		local nxt = type(L.Quest.nextQuestInChain) == "function" and tonumber((ns.Try(L.Quest.nextQuestInChain, id))) or nil
+		if nxt and mine[nxt] then Join(id, nxt) end
+	end
+	local groups = {}
+	for id in pairs(mine) do
+		local r = Root(id)
+		groups[r] = groups[r] or {}
+		table.insert(groups[r], id)
+	end
+	local out = {}
+	for _, ids in pairs(groups) do
+		local steps = {}
+		for _, id in ipairs(ids) do steps[#steps + 1] = { id = id, step = StepOf(L, id) } end
+		table.sort(steps, function(a, b) if a.step ~= b.step then return a.step < b.step end return a.id < b.id end)
+		local order, done = {}, 0
+		for _, st in ipairs(steps) do
+			order[#order + 1] = st.id
+			if Done(st.id) then done = done + 1 end
+		end
+		if done < #order then
+			-- The step to do now: one in the log, else the first not done whose prerequisites are.
+			local cur, k
+			for n, id in ipairs(order) do if not Done(id) and Have(id) then cur, k = id, n; break end end
+			if not cur then
+				for n, id in ipairs(order) do if not Done(id) and #Missing(L, id) == 0 then cur, k = id, n; break end end
+			end
+			if cur then
+				local req = tonumber((ns.Try(L.Quest.requiredLevel, cur))) or 1
+				local at = req > level and req or nil
+				if not at or at <= level + DG.CLASS_SOON then
+					local inLog = Have(cur)
+					local from, _, spot = Giver(L, cur)
+					local last = order[#order]
+					out[#out + 1] = { id = last, name = Name(L, last) or ("quest " .. last), steps = order, done = done, total = #order,
+						level = tonumber((ns.Try(L.Quest.questLevel, last))),
+						current = { id = cur, name = Name(L, cur) or ("quest " .. cur), step = k, inLog = inLog or nil,
+							from = (not inLog) and from or nil, to = inLog and Finisher(L, cur) or nil, spot = (not inLog) and spot or nil, at = at } }
+				end
+			end
+		end
+	end
+	table.sort(out, function(a, b)
+		local oa, ob = a.current.at and 1 or 0, b.current.at and 1 or 0
+		if oa ~= ob then return oa < ob end
+		if (a.current.at or 0) ~= (b.current.at or 0) then return (a.current.at or 0) < (b.current.at or 0) end
+		if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) < (b.level or 0) end
+		return a.name < b.name
+	end)
+	DG.classCache = { at = GetTime(), level = level, lines = out }
+	return out
+end
+-- A line by its key, or nil.
+function DG.ClassLine(id)
+	for _, l in ipairs(DG.ClassLines() or {}) do if l.id == tonumber(id) then return l end end
+	return nil
+end
+-- "Step 2 of 4 · in your log, to Mountaineer Kadrell", "Step 1 of 3 · from Tannok Frosthammer,
+-- Ironforge (50, 50)", "Opens at level 20".
+function DG.ClassLineText(l)
+	local c = l.current
+	if c.at then return "Opens at level " .. c.at .. (c.from and (": " .. c.from) or "") end
+	local where = c.inLog and ("in your log" .. (c.to and (", to " .. c.to) or "")) or (c.from and ("from " .. c.from) or "where to start it isn't known")
+	return (l.total > 1 and ("Step " .. c.step .. " of " .. l.total .. ": ") or "") .. c.name .. " · " .. where
+end
+-- Dropped when the log or the level changes (a step taken or done).
+for _, ev in ipairs({ "QUEST_ACCEPTED", "QUEST_TURNED_IN", "PLAYER_LEVEL_UP" }) do
+	ns.On(ev, function() DG.classCache = nil end)
 end
 
 -- A dungeon's quests for this character: { area, done = {names}, log = {names}, pickup = { { id,

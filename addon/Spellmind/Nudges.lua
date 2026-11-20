@@ -27,6 +27,7 @@ N.ICONS = {
 	near = "Interface\\Icons\\INV_Misc_Map_01",
 	prof = "Interface\\Icons\\INV_Misc_Note_01",
 	dungeon = "Interface\\Icons\\INV_Misc_Key_03",
+	classq = "Interface\\Icons\\INV_Misc_Book_11",
 }
 N.SLOT_NAMES = { "head", "neck", "shoulders", "shirt", "chest", "waist", "legs", "feet", "wrists", "hands", "ring", "ring",
 	"trinket", "trinket", "back", "main hand", "off hand", "ranged", "tabard" }
@@ -247,7 +248,28 @@ function Detect.prof()
 	return out
 end
 
-N.ORDER = { "dungeon", "talents", "spells", "durability", "bags", "turnin", "near", "prof" }
+-- A class questline open at your level (the player, 2026-11-20): one nudge for all of them, again only
+-- when one more opens (a new level). The Quests tab lists them, with Route.
+function Detect.classq()
+	local DG = ns.Dungeons
+	local lines = DG and DG.ClassLines and DG.ClassLines()
+	if not lines then return {} end
+	local open, keys = {}, {}
+	for _, l in ipairs(lines) do
+		if not l.current.at and not l.current.inLog then open[#open + 1] = l; keys[#keys + 1] = l.current.id end
+	end
+	if #open == 0 then return {} end
+	table.sort(keys)
+	local first = open[1]
+	return { { kind = "classq", key = table.concat(keys, ","),
+		title = #open == 1 and "Class quest ready" or (#open .. " class quests ready"),
+		text = ns.Escape(first.name) .. (first.current.from and (": " .. ns.Escape(first.current.from)) or "")
+			.. (#open > 1 and (", and " .. (#open - 1) .. " more") or "") .. ". The Quests tab plans the way.",
+		ask = "My class quest " .. first.name .. " is open (" .. first.current.name .. (first.current.from and (", from " .. first.current.from) or "")
+			.. "). What does it give my class, where do I start it, and is it worth doing now?" } }
+end
+
+N.ORDER = { "dungeon", "talents", "spells", "classq", "durability", "bags", "turnin", "near", "prof" }
 
 ---------------------------------------------------------------------------
 -- The queue
@@ -501,7 +523,7 @@ end
 
 -- The panel tab each kind of nudge is about (seen in game: "5 spells to train" should lead to
 -- the Spells tab). The demo has none.
-N.TABS = { talents = "talents", spells = "spells", durability = "gear", bags = "gear", turnin = "quests",
+N.TABS = { talents = "talents", spells = "spells", classq = "quests", durability = "gear", bags = "gear", turnin = "quests",
 	near = "quests", prof = "professions", dungeon = "dungeons" }
 function N.TabFor(kind)
 	return N.TABS[tostring(kind):match("^([^:]+)") or ""]

@@ -493,6 +493,26 @@ function Tabs.quests()
 	local line = #groups.ready > 0 and ns.Quests.XpLine(total) or nil
 	if line then table.insert(out, RT and 3 or 2, { kind = "text", text = line }) end
 	for _, g in ipairs(now) do Section("Do now: " .. ns.Escape(g.title), g.rows) end
+	-- Your class questlines (the player, 2026-11-20: "may not be anywhere near you but worth doing"):
+	-- each with the step to do now and where, and Route for the route through it.
+	local lines = ns.Dungeons.ClassLines and ns.Dungeons.ClassLines() or nil
+	if lines == nil and ns.Dungeons.HasDB() then
+		ns.Dungeons.Index(function() if panel and panel:IsShown() and P.tab == "quests" then P.Show("quests", true) end end)
+	end
+	if lines and #lines > 0 then
+		out[#out + 1] = { kind = "head", text = "Class quests" }
+		local mode, key = RT and RT.Mode()
+		for _, l in ipairs(lines) do
+			local onLine = mode == "class" and tonumber(key) == l.id
+			out[#out + 1] = { kind = "item", left = "|cffff9933" .. (l.level and ("[" .. l.level .. "] ") or "") .. "|r" .. ns.Escape(l.name),
+				sub = "|cff888888" .. ns.Escape(ns.Dungeons.ClassLineText(l)) .. "|r",
+				right = l.current.at and ("|cff888888at " .. l.current.at .. "|r") or nil,
+				actions = RT and { { onLine and "Planned" or "Route", function()
+					if onLine then RT.SetMode("questing") else RT.SetMode("class", l.id, l.name); if not RT.On() then RT.SetOn(true) end end
+					P.Show("route")
+				end, tip = onLine and "Back to questing where you are." or "Plan the route through this questline, across zones." } } or nil }
+		end
+	end
 	-- Dungeons, the lowest first: one row each, its quests named, Open for the Dungeons tab, which has
 	-- their givers, chains and hand-ins (the review, and the player's call: a dungeon's quests in
 	-- full here repeated that tab). Ready ones are still under Ready to turn in.
@@ -569,11 +589,23 @@ function Tabs.route()
 			actions = { { "Forget", function() RT.ForgetTrails(); P.Show("route", true) end, tip = "They're gone for good." } } }
 	end
 	-- What the route plans for: questing here, or a dungeon's prep (the player, 2026-11-19).
-	local mode, prep = RT.Mode()
-	out[#out + 1] = { kind = "item", left = "Plan for", sub = "|cff888888" .. (mode == "dungeon" and ("Getting ready for " .. ns.Escape(prep) .. ": its quests and the questlines that open them, then the way in.")
-		or "Questing where you are. Or pick a dungeon below: its quests, their questlines, the way in.") .. "|r",
-		right = mode == "dungeon" and ("|cffffd100" .. ns.Escape(prep) .. " prep|r") or "|cffffd100Questing here|r",
-		actions = mode == "dungeon" and { { "Questing", function() RT.SetMode("questing"); P.Show("route", true) end, tip = "Back to questing where you are." } } or nil }
+	local mode, prep, classLabel = RT.Mode()
+	local planSub = (mode == "dungeon" and ("Getting ready for " .. ns.Escape(prep) .. ": its quests and the questlines that open them, then the way in."))
+		or (mode == "class" and ("Your class questline, " .. ns.Escape(classLabel or "?") .. ": each step, across zones."))
+		or "Questing where you are. Or pick a class questline or a dungeon below."
+	out[#out + 1] = { kind = "item", left = "Plan for", sub = "|cff888888" .. planSub .. "|r",
+		right = (mode == "dungeon" and ("|cffffd100" .. ns.Escape(prep) .. " prep|r")) or (mode == "class" and ("|cffff9933" .. ns.Escape(classLabel or "Class quest") .. "|r")) or "|cffffd100Questing here|r",
+		actions = mode ~= "questing" and { { "Questing", function() RT.SetMode("questing"); P.Show("route", true) end, tip = "Back to questing where you are." } } or nil }
+	-- Your class questlines (the player, 2026-11-20): one at a time, as a dungeon's prep.
+	for _, l in ipairs(ns.Dungeons.ClassLines and ns.Dungeons.ClassLines() or {}) do
+		local onLine = mode == "class" and tonumber(prep) == l.id
+		out[#out + 1] = { kind = "item", indent = true, left = "|cffff9933Class quest:|r " .. ns.Escape(l.name),
+			right = l.level and ("[" .. l.level .. "]") or nil, sub = "|cff888888" .. ns.Escape(ns.Dungeons.ClassLineText(l)) .. "|r",
+			actions = { { onLine and "Planned" or "Route", function()
+				if onLine then RT.SetMode("questing") else RT.SetMode("class", l.id, l.name); if not RT.On() then RT.SetOn(true) end end
+				P.Show("route", true)
+			end, tip = onLine and "Back to questing where you are." or "Plan the route through this questline, across zones." } } }
+	end
 	local seenD = {}
 	local function Prep(dname, range)
 		local key = ns.Dungeons.Norm(dname)

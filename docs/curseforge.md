@@ -74,6 +74,7 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 > ### And more
 >
 > - **Ready for a dungeon:** pick a dungeon on the Route tab, and Spellmind routes you through its quests and the questlines that open them, across zones, to its door.
+> - **Your class quests:** the questlines for your class, wherever they start. The Quests tab lists them with the step you're on; **Route** plans the way through one, across zones. A nudge says when a new one opens at your level.
 > - **It learns your roads:** as you go, Spellmind remembers the way you went, so the arrow and the lines follow real paths. They stay on your PC.
 > - **Ask about it:** with the free app, your AI sees the same route. "Review my route" says what to skip and why, with a **Skip** button for each. Without the app, `/sm route why <step>` says why a step is where it is.
 > - **A switch for every part** on the Route tab: the window, the arrow, the world map's steps, the minimap, and the lines.
@@ -117,7 +118,7 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 >
 > ## Nudges
 >
-> A small toast by the minimap when something's waiting, never in combat and never a stream of them: spells to train, talent points to spend, gear about to break, bags nearly full, a dungeon you just entered, professions near their cap. Each kind has its own switch, and **Dismiss** means not again for the same thing.
+> A small toast by the minimap when something's waiting, never in combat and never a stream of them: spells to train, a class quest ready, talent points to spend, gear about to break, bags nearly full, a dungeon you just entered, professions near their cap. Each kind has its own switch, and **Dismiss** means not again for the same thing.
 >
 > ![A nudge: 5 spells to train](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/nudge-toast.png)
 >

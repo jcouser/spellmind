@@ -231,6 +231,17 @@ local function Cache()
 	return db.rewards
 end
 
+-- A quest's reward that's an upgrade for this character (the route, the player, 2026-11-20): the
+-- slot's name ("Hands"), or nil. From the rewards kept as the player looks at the quest.
+function G.RewardUpgrade(id)
+	local links = Cache()[id]
+	for _, l in ipairs(type(links) == "table" and links or {}) do
+		local slot = G.Upgrade(l)
+		if slot then return G.SLOT_NAMES[slot] end
+	end
+	return nil
+end
+
 -- The links of the selected quest's choices and given items, into the cache.
 function G.CacheSelected(id)
 	if type(id) ~= "number" or id <= 0 then return end

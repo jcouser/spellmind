@@ -1767,3 +1767,30 @@ test('a nudge as tall as its words: a long one grows the toast, the buttons unde
   vm.run('SpellmindNudge.text.GetStringHeight = function() return 42 end; SpellmindNudge:Hide(); NS.Nudges.Next()');
   assert.equal(vm.num('SpellmindNudge:GetHeight()'), 10 + 14 + 3 + 42 + 26, 'room for three lines and the buttons');
 });
+
+test('the route keeps its order as you quest (the player, 2026-11-20: six steps done quickly, the whole order changed); new steps where they add least; Rebuild makes it again', () => {
+  const vm = session();
+  vm.slash('route');
+  const first = keys(vm);
+  // Walked off to Ironband's corner: made again from here, his stop would come first; kept, it doesn't.
+  vm.run('STUB.player.x, STUB.player.y = 0.84, 0.84; NS.Route.Build()');
+  assert.equal(vm.evaluate('tostring(NS.R.route.kept)'), 'true');
+  assert.deepEqual(keys(vm), first, 'the same order');
+  // A new pick up by Kadrell: in beside his stop, the rest as they were.
+  vm.run(`local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    N[990] = { name = "Kadrell's Friend", zone = 38, spawns = { [38] = { { 51, 53 } } }, friendly = "A" }
+    Q[990] = { name = "A Friend's Favour", zone = 38, level = 15, npc = 990, ender = 990 }
+    NS.Dungeons.index, NS.Dungeons.classIds, NS.Dungeons.classCache = nil, nil, nil
+    NS.Route.Build()`);
+  vm.advance(1); vm.run('NS.Route.Build()');
+  const after = keys(vm);
+  const at = after.findIndex(k => k.includes(':990'));
+  assert.ok(at >= 0, 'the new step: ' + after.join(' | '));
+  assert.deepEqual(after.filter(k => !k.includes(':990')), first.filter(k => after.includes(k)), 'the others in their order');
+  const kad = after.findIndex(k => k.includes('turnin:700'));
+  assert.ok(Math.abs(at - kad) <= 1, 'with Kadrell, or next to him: ' + after.join(' | '));
+  // Rebuild: made again from here.
+  vm.run('SpellmindRoute.rebuild.scripts.OnClick(SpellmindRoute.rebuild)');
+  assert.equal(vm.evaluate('tostring(NS.R.route.kept)'), 'nil');
+  assert.match(keys(vm)[0], /702/, 'Ironband first, from his corner: ' + keys(vm).join(' | '));
+});

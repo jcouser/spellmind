@@ -567,6 +567,9 @@ function RT.Build()
 	if RT.Mode() == "dungeon" then return RT.BuildPrep(select(2, RT.Mode())) end
 	if RT.Mode() == "class" then return RT.BuildClass(select(2, RT.Mode())) end
 	local here = RT.Here()
+	local prev = R.route
+	local replan = R.routeReplan
+	R.routeReplan = nil
 	local route = { stops = {}, elsewhere = {}, later = {}, built = GetTime() }
 	R.route = route
 	if not here then route.nowhere = true; return route end
@@ -837,6 +840,17 @@ function RT.Build()
 	while #stops > RT.STOPS_MAX do table.remove(stops) end
 	rules = RT.Rules(stops, chains)
 	local start = { x = here.x, y = here.y }
+	-- The plan kept as you quest (the player, 2026-11-20: six steps done quickly in the Wetlands, and the
+	-- whole order had changed, made again from wherever they stood each time): the steps still to do in
+	-- the order they had, each new one where it adds least. Made again on Rebuild, in another zone or
+	-- mode, or when more is new than kept.
+	local keptOrder = not replan and prev and not prev.nowhere and not prev.prep and not prev.classLine
+		and prev.area == here.area and RT.KeptOrder(prev, stops, start, here, rules) or nil
+	if keptOrder then
+		route.stops, route.kept = keptOrder, true
+		route.xp, route.low, route.ups = RT.Worth(route.stops, start, here, level)
+		RT.PlaceObjectives(route.stops, start, here)
+	else
 	route.stops = RT.Order(stops, start, here, rules)
 	-- XP for the walk (the player, 2026-11-19): a quest far below the route's XP a minute that costs a
 	-- real detour is marked "worth skipping?", and its stops come later (the order again, those stops'
@@ -859,6 +873,7 @@ function RT.Build()
 	for _ = 1, RT.PLACE_PASSES do
 		if not RT.PlaceObjectives(route.stops, start, here, lowCost) then break end
 		route.stops = RT.Order(stops, start, here, rules, lowCost)
+	end
 	end
 	route.rules = rules
 	-- What the order was made from, for /sm route why.
@@ -911,6 +926,50 @@ function RT.PlaceObjectives(order, start, here, cost)
 		end
 	end
 	return moved
+end
+
+-- The last route's order for this build's stops: each stop at the place of its goal that came first
+-- there; a new stop (a goal the last route didn't have: a pick up, a follow-up, a quest taken on the
+-- way) where it adds the least way and keeps the rules. nil when the order should be made again: more
+-- new stops than kept ones, none kept, or the kept order breaking a rule.
+function RT.KeptOrder(prev, stops, start, here, rules, cost)
+	cost = cost or RT.Yards
+	local rank = {}
+	for i, s in ipairs(prev.stops or {}) do
+		for _, g in ipairs(s.goals or {}) do
+			local k = g.kind .. ":" .. g.q
+			if not rank[k] then rank[k] = i end
+		end
+	end
+	local kept, new = {}, {}
+	for _, s in ipairs(stops) do
+		local r
+		for _, g in ipairs(s.goals) do
+			local k = rank[g.kind .. ":" .. g.q]
+			if k and (not r or k < r) then r = k end
+		end
+		if r then kept[#kept + 1] = { s = s, r = r } else new[#new + 1] = s end
+	end
+	if #kept == 0 or #new > #kept then return nil end
+	table.sort(kept, function(a, b) if a.r ~= b.r then return a.r < b.r end return (a.s.key or "") < (b.s.key or "") end)
+	local order = {}
+	for _, k in ipairs(kept) do order[#order + 1] = k.s end
+	if not RT.Keeps(order, rules) then return nil end
+	for _, s in ipairs(new) do
+		local best, bestAdd
+		for p = 1, #order + 1 do
+			local before, after = order[p - 1] or start, order[p]
+			local add = cost(before, s, here) + (after and (cost(s, after, here) - cost(before, after, here)) or 0)
+			if not bestAdd or add < bestAdd then
+				table.insert(order, p, s)
+				if RT.Keeps(order, rules) then best, bestAdd = p, add end
+				table.remove(order, p)
+			end
+		end
+		table.insert(order, best or (#order + 1), s)
+	end
+	if not RT.Keeps(order, rules) then return nil end
+	return order
 end
 
 -- A quest's XP: the quest log's reward when it's there, else an estimate by its level, reduced as the
@@ -1982,7 +2041,7 @@ local function Build()
 	f.skip:SetScript("OnClick", function() RT.Skip() end)
 	f.rebuild = ns.GearUI.Button(f, "Rebuild", 76)
 	f.rebuild:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 10)
-	f.rebuild:SetScript("OnClick", function() RT.Build(); RT.Draw() end)
+	f.rebuild:SetScript("OnClick", function() R.routeReplan = true; RT.Build(); RT.Draw() end)
 	-- Sized by its corner (the player, 2026-11-19): taller shows more of Up next; the size is kept.
 	f:SetResizable(true)
 	if f.SetResizeBounds then f:SetResizeBounds(RT.MIN_W, RT.MIN_H, RT.MAX_W, RT.MAX_H)

@@ -2205,3 +2205,54 @@ test('an item no one sells, taken from the ground: a step of its own, "take … 
   assert.match(tx, /buy Bronze Tube .*from Jasper Fel/, tx);
   assert.match(tx, /take Spool of Silk Thread .*on the ground/, tx);
 });
+
+test('questing: a quest of several goods, a step for each where it\'s got here (a seller, a drop area, the ground), the rest under Elsewhere; the turn-in waits for them (the player, 2026-11-20)', () => {
+  const vm = session();
+  vm.run(`
+    table.insert(STUB.quests, { title = "Mixed Goods", questID = 706, level = 15 })
+    STUB.objectives[706] = { { text = "Bronze Tube: 0/1", numFulfilled = 0, numRequired = 1 }, { text = "Murloc Fin: 0/4", numFulfilled = 0, numRequired = 4 },
+      { text = "Spool of Thread: 0/1", numFulfilled = 0, numRequired = 1 }, { text = "Blue Gem: 0/1", numFulfilled = 0, numRequired = 1 } }
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    Q[706] = { name = "Mixed Goods", zone = 38, level = 15, obj = { {}, {}, { { 900 }, { 901 }, { 902 }, { 903 } } }, ender = 801 }
+    N[804] = { name = "Tinkerwiz", zone = 38, spawns = { [38] = { { 45, 45 } } }, friendly = "A" }
+    N[805] = { name = "Murloc", zone = 38, spawns = { [38] = { { 70, 20 }, { 71, 21 }, { 69, 19 } } } }
+    N[806] = { name = "Gemcutter", zone = 1537, spawns = { [1537] = { { 50, 50 } } }, friendly = "A" }
+    local items = { [900] = { name = "Bronze Tube", vendors = { 804 } }, [901] = { name = "Murloc Fin", drops = { 805 } },
+      [902] = { name = "Spool of Thread", objs = { 970 } }, [903] = { name = "Blue Gem", vendors = { 806 } } }
+    local objs = { [970] = { [38] = { { 30, 70 } } } }
+    LibQuestieDB.Item = { name = function(id) return items[id] and items[id].name end, vendors = function(id) return items[id] and items[id].vendors end,
+      npcDrops = function(id) return items[id] and items[id].drops end, objectDrops = function(id) return items[id] and items[id].objs end }
+    LibQuestieDB.Object = LibQuestieDB.Object or {}
+    LibQuestieDB.Object.spawns = function(id) return objs[id] end
+    LibQuestieDB.Object.name = function() return "Spool" end`);
+  const ks = keys(vm).join(' ');
+  for (const k of ['do:706.1', 'do:706.2', 'do:706.3']) assert.ok(ks.includes(k), `${k} in ${ks}`);
+  assert.ok(!ks.includes('turnin:706'), `no turn-in while the gem is elsewhere: ${ks}`);
+  const texts = vm.json('(function() local o = {} for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.q == 706 then o[#o + 1] = NS.Route.GoalText(g) .. (g.rx and " [area]" or "") end end end return o end)()');
+  const tx = (Array.isArray(texts) ? texts : Object.values(texts)).join(' | ');
+  assert.match(tx, /buy Bronze Tube .*from Tinkerwiz/, tx);
+  assert.match(tx, /get Murloc Fin .*0\/4.*\[area\]/, tx);
+  assert.match(tx, /take Spool of Thread .*on the ground/, tx);
+  assert.match(vm.evaluate('NS.Route.GoalText(NS.R.route.elsewhere.Ironforge[1])'), /buy Blue Gem .*from Gemcutter/);
+  // The gem got: the turn-in comes on the route, after the rest.
+  vm.run('STUB.objectives[706][4] = { text = "Blue Gem: 1/1", numFulfilled = 1, numRequired = 1, finished = true }');
+  const after = keys(vm);
+  const at = re => after.findIndex(k => re.test(k));
+  assert.ok(at(/turnin:706/) > at(/do:706\.1/) && at(/turnin:706/) > at(/do:706\.2/) && at(/turnin:706/) > at(/do:706\.3/), after.join(' '));
+});
+
+test('an item two quests in the log need: the buy step says how many (the player, 2026-11-20)', () => {
+  const vm = session();
+  vm.run(TUBE + `
+    STUB.qdb.npcs[804].spawns = { [38] = { { 45, 45 } } }
+    table.insert(STUB.quests, { title = "Gnome Parts", questID = 707, level = 15 })
+    STUB.objectives[707] = { { text = "Bronze Tube: 0/1", numFulfilled = 0, numRequired = 1 } }
+    STUB.qdb.quests[707] = { name = "Gnome Parts", zone = 38, level = 15, obj = { {}, {}, { { 900 } } }, ender = 801 }`);
+  keys(vm);
+  const text = vm.evaluate('(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 705 then return NS.Route.GoalText(g) end end end end)()');
+  assert.match(text, /\(buy 2: Gnome Parts needs one too\)/, text);
+  // The other one's tube got: no note.
+  vm.run('STUB.objectives[707][1] = { text = "Bronze Tube: 1/1", numFulfilled = 1, numRequired = 1, finished = true }');
+  const later = vm.evaluate('(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 705 then return NS.Route.GoalText(g) end end end end)()');
+  assert.doesNotMatch(later, /buy 2/, later);
+});

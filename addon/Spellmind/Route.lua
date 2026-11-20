@@ -350,15 +350,22 @@ function RT.ItemSellers(Q, id, from, zones)
 	return out
 end
 
--- An item a quest asks for, had already (its objective counted full in the log).
-function RT.ItemHad(q, item)
+-- How many of an item a quest's log line counts: have, need (nil when no line names it).
+function RT.ItemCount(q, item)
 	local obj = ns.State and ns.State.Objectives and ns.State.Objectives(q)
 	for _, o in ipairs(type(obj) == "table" and obj or {}) do
 		local f = {}
 		for _, kv in ipairs(type(o) == "table" and o._o or {}) do f[kv[1]] = kv[2] end
-		if type(f.text) == "string" and item and f.text:find(item, 1, true) and (tonumber(f.have) or 0) >= (tonumber(f.need) or 1) then return true end
+		if type(f.text) == "string" and type(item) == "string" and f.text:find(item, 1, true) then
+			return tonumber(f.have) or 0, tonumber(f.need) or 1
+		end
 	end
-	return false
+end
+
+-- An item a quest asks for, had already (its objective counted full in the log).
+function RT.ItemHad(q, item)
+	local have, need = RT.ItemCount(q, item)
+	return have ~= nil and have >= need
 end
 
 -- A quest whose objectives are items alone (what a vendor could sell), no mobs, objects or spots.
@@ -505,6 +512,68 @@ function RT.Area(pts, radius)
 	return c
 end
 local function AreaOf(c) return c and c.rx and { ax = c.x, ay = c.y, rx = c.rx, ry = c.ry } or nil end
+
+-- A quest's goods one by one for the questing route, as for a class line (the player, 2026-11-20): each
+-- item where it's got in this area (a seller first, then the mobs or things that drop it, a spot on the
+-- ground), else the zone it's got in. nil for one item, or a quest with something else to do.
+-- { { item, spot (here) or zone (elsewhere), extra = the goal's { sub, buy, from, take, drop, none, area } } }.
+function RT.ItemSteps(Q, id, area, from)
+	if not (Q and Q.Item and area and RT.OnlyItems(Q, id)) then return nil end
+	local o = Try(Q.Quest.objectives, id)
+	if #o[3] < 2 then return nil end
+	local I, N, O = Q.Item, Q.Npc, Q.Object
+	local sellers = type(I.vendors) == "function" and RT.ItemSellers(Q, id, from, { area }) or {}
+	local out = {}
+	for k, c in ipairs(o[3]) do
+		local itemID = type(c) == "table" and tonumber(c[1]) or nil
+		local name = itemID and Try(I.name, itemID) or nil
+		if type(name) ~= "string" then return nil end
+		local drops, things, zones = {}, {}, {}
+		local function Count(t)
+			for z, list in pairs(type(t) == "table" and t or {}) do
+				z = tonumber(z)
+				if z and z > 0 and type(list) == "table" then zones[z] = (zones[z] or 0) + #list end
+			end
+		end
+		for _, npc in ipairs(type(I.npcDrops) == "function" and Try(I.npcDrops, itemID) or {}) do
+			local sp = N and Try(N.spawns, npc)
+			AddSpawns(drops, sp, area); Count(sp)
+		end
+		for _, obj in ipairs(type(I.objectDrops) == "function" and Try(I.objectDrops, itemID) or {}) do
+			local sp = O and Try(O.spawns, obj)
+			AddSpawns(things, sp, area); Count(sp)
+		end
+		local b = sellers[k]
+		local extra = { sub = k, buy = name }
+		local step = { item = name, extra = extra }
+		local function Spread(pts)
+			local a = RT.Area(pts)
+			if a then
+				extra.drop = true
+				for key, v in pairs(AreaOf(a) or {}) do extra[key] = v end
+				step.spot = { x = a.x, y = a.y }
+			end
+		end
+		if b and not b.none and not b.take and b.zone == area then
+			extra.from, step.spot = b.name, { x = b.x, y = b.y }
+		elseif #drops > 0 then
+			for _, p in ipairs(things) do if #drops < RT.SPOTS_MAX then drops[#drops + 1] = p end end
+			Spread(drops)
+		elseif #things > 2 then
+			Spread(things)
+		elseif #things > 0 then
+			extra.take, step.spot = true, { x = things[1][1], y = things[1][2] }
+		elseif b and not b.none then
+			extra.from, extra.take, step.zone = b.name, b.take, b.zone
+		else
+			local best, most
+			for z, n in pairs(zones) do if not most or n > most or (n == most and z < best) then best, most = z, n end end
+			if best then extra.drop, step.zone = true, best else extra.none = true end
+		end
+		out[#out + 1] = step
+	end
+	return out
+end
 
 -- Who takes a quest back: { name, spot = { x, y } in this area } or { name, zone = areaID } elsewhere.
 function RT.TurnIn(Q, id, area)
@@ -711,6 +780,36 @@ local function ReadLog()
 	return out
 end
 
+-- The other quests in the log still short of an item (the player, 2026-11-20: buy two when two quests
+-- need one each): { { title, n } }, by title.
+function RT.OthersNeeding(item, q)
+	local out = {}
+	if type(item) ~= "string" then return out end
+	for id, e in pairs(ReadLog()) do
+		if id ~= q then
+			local have, need = RT.ItemCount(id, item)
+			if have and have < need then out[#out + 1] = { title = e.title, n = need - have } end
+		end
+	end
+	table.sort(out, function(a, b) return tostring(a.title) < tostring(b.title) end)
+	return out
+end
+
+-- " (buy 2: Look to the Stars needs one too)", or "" when no other quest needs it.
+function RT.MoreNote(g, verb)
+	local others = RT.OthersNeeding(g.buy, g.q)
+	if #others == 0 then return "" end
+	local have, need = RT.ItemCount(g.q, g.buy)
+	local n = (have and need) and math.max(need - have, 0) or nil
+	local names = {}
+	for _, o in ipairs(others) do
+		if n then n = n + o.n end
+		names[#names + 1] = ns.Escape(o.title or "?") .. (#others > 1 and (" " .. o.n) or "")
+	end
+	local each = #others == 1 and (others[1].n == 1 and " needs one too" or (" needs " .. others[1].n .. " too")) or " need them too"
+	return " |cff19ff19(" .. (n and (verb .. " " .. n .. ": ") or "") .. table.concat(names, ", ") .. each .. ")|r"
+end
+
 ---------------------------------------------------------------------------
 -- Building the route
 ---------------------------------------------------------------------------
@@ -886,7 +985,19 @@ function RT.Build()
 			local complete = Complete(id)
 			local fin = Q and here.area and RT.TurnIn(Q, id, here.area) or nil
 			local doHere = false
-			if not complete then
+			local steps = (not complete) and Q and here.area and RT.ItemSteps(Q, id, here.area, RT.PlayerWorld()) or nil
+			if steps then
+				-- Each item its own step (the player, 2026-11-20); the turn-in waits for any got elsewhere.
+				local away = false
+				for _, st in ipairs(steps) do
+					if st.spot then Place("do", id, title, st.spot, nil, st.extra)
+					else
+						Elsewhere(st.zone and AreaName(st.zone), "do", id, title, nil, st.extra)
+						if not RT.ItemHad(id, st.item) then away = true end
+					end
+				end
+				doHere = not away
+			elseif not complete then
 				local center = Q and here.area and RT.Area(RT.ObjectiveSpots(Q, id, here.area)) or nil
 				center = center or GameSpot(id)
 				if center then
@@ -1760,9 +1871,13 @@ function RT.GoalText(g)
 	if g.kind == "turnin" then return "Turn in " .. ns.Escape(g.title) .. (g.to and (" to " .. ns.Escape(g.to)) or "") end
 	local left = ns.Quests and ns.Quests.Left and ns.Quests.Left({ obj = ns.State and ns.State.Objectives and ns.State.Objectives(g.q) }) or nil
 	if g.buy and g.sub then
-		if g.take then return ns.Escape(g.title) .. ": take " .. ns.Escape(g.buy) .. " |cff888888(on the ground)|r" end
-		if g.none then return ns.Escape(g.title) .. ": get " .. ns.Escape(g.buy) .. " |cff888888(no seller known)|r" end
-		return ns.Escape(g.title) .. ": buy " .. ns.Escape(g.buy) .. (g.from and (" |cff888888from " .. ns.Escape(g.from) .. "|r") or "")
+		if g.drop then
+			local have, need = RT.ItemCount(g.q, g.buy)
+			return ns.Escape(g.title) .. ": get " .. ns.Escape(g.buy) .. (have and (" |cff888888" .. have .. "/" .. need .. "|r") or "") .. RT.MoreNote(g, "get")
+		end
+		if g.take then return ns.Escape(g.title) .. ": take " .. ns.Escape(g.buy) .. " |cff888888(on the ground)|r" .. RT.MoreNote(g, "take") end
+		if g.none then return ns.Escape(g.title) .. ": get " .. ns.Escape(g.buy) .. " |cff888888(no seller known)|r" .. RT.MoreNote(g, "get") end
+		return ns.Escape(g.title) .. ": buy " .. ns.Escape(g.buy) .. (g.from and (" |cff888888from " .. ns.Escape(g.from) .. "|r") or "") .. RT.MoreNote(g, "buy")
 	end
 	if g.buy then
 		if g.empty then
@@ -1786,7 +1901,7 @@ function RT.GoalText(g)
 			end
 		end
 		return ns.Escape(g.title) .. ": " .. (left or ("get " .. ns.Escape(g.buy)))
-			.. (g.from and (" |cff888888(sold by " .. ns.Escape(g.from) .. ")|r") or "")
+			.. (g.from and (" |cff888888(sold by " .. ns.Escape(g.from) .. ")|r") or "") .. RT.MoreNote(g, "buy")
 	end
 	return ns.Escape(g.title) .. (left and (": " .. left) or "")
 end

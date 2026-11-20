@@ -2256,3 +2256,31 @@ test('an item two quests in the log need: the buy step says how many (the player
   const later = vm.evaluate('(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 705 then return NS.Route.GoalText(g) end end end end)()');
   assert.doesNotMatch(later, /buy 2/, later);
 });
+
+test('a sold-out seller of one of a class quest\'s goods: seen at the window, that item\'s step says so; the other item\'s step stays (the player, 2026-11-20: Billibub had no Bronze Tube)', () => {
+  const vm = newVM({ before: ZONE + CLASS + `
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    Q[950].zone = -162
+    STUB.qdb.items = STUB.qdb.items or {}
+    STUB.qdb.items[5000] = { name = "Simple Wildflowers", vendors = { 964 } }
+    STUB.qdb.items[5001] = { name = "Bronze Tube", vendors = { 965 } }
+    N[964] = { name = "Florist", zone = 1537, spawns = { [1537] = { { 20, 30 } } }, friendly = "A" }
+    N[965] = { name = "Jasper Fel", zone = 1537, spawns = { [1537] = { { 80, 70 } } }, friendly = "A" }
+    Q[950].obj = { {}, {}, { { 5000 }, { 5001 } } }` }).login().advance(9);
+  vm.run(`LibQuestieDB.Item = LibQuestieDB.Item or {}
+    LibQuestieDB.Item.name = function(id) local it = STUB.qdb.items[id]; return it and it.name end
+    LibQuestieDB.Item.vendors = function(id) local it = STUB.qdb.items[id]; return it and it.vendors end
+    LibQuestieDB.Item.npcDrops = function() return nil end
+    LibQuestieDB.Item.objectDrops = function() return nil end`);
+  vm.slash('route');
+  vm.run('NS.Route.SetMode("class", 952, "Mastery of Shadows")');
+  vm.run(`UnitGUID = (function(old) return function(u) if u == "npc" then return "Creature-0-5250-0-38-965-0000ABCD" end return old(u) end end)(UnitGUID)
+    GetMerchantNumItems = function() return 1 end
+    GetMerchantItemLink = function() return "item:2901" end
+    STUB.FireEvent("MERCHANT_SHOW")`);
+  assert.ok(vm.num('SpellmindDB.routeNoStock["965:5001"]') > 0, 'remembered');
+  const texts = vm.json('(function() local o = {} for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 950 then o[#o + 1] = NS.Route.GoalText(g) end end end return o end)()');
+  const tx = (Array.isArray(texts) ? texts : Object.values(texts)).join(' | ');
+  assert.match(tx, /Bronze Tube .*Jasper Fel has none right now/, tx);
+  assert.match(tx, /buy Simple Wildflowers .*from Florist/, tx);
+});

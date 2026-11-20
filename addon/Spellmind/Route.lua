@@ -301,10 +301,13 @@ function RT.ItemSellers(Q, id, from, zones)
 	for _, c in ipairs(o[3]) do
 		local itemID = type(c) == "table" and tonumber(c[1]) or nil
 		local item = itemID and Try(I.name, itemID) or nil
-		local best, bestD, bestZ
+		local best, bestD, bestZ, empty
 		for _, npc in ipairs(itemID and Try(I.vendors, itemID) or {}) do
 			local friendly = Try(N.friendlyToFaction, npc)
-			if not (friendly and mine and not tostring(friendly):find(mine, 1, true)) and not RT.NoStock(npc, itemID) then
+			local ours = not (friendly and mine and not tostring(friendly):find(mine, 1, true))
+			-- Seen without it lately (the player, 2026-11-20: Billibub Cogspinner's Bronze Tube sold out).
+			if ours and RT.NoStock(npc, itemID) then empty = empty or Try(N.name, npc) end
+			if ours and not RT.NoStock(npc, itemID) then
 				local sp = Try(N.spawns, npc)
 				for zone, list in pairs(type(sp) == "table" and sp or {}) do
 					zone = tonumber(zone)
@@ -317,7 +320,7 @@ function RT.ItemSellers(Q, id, from, zones)
 						local w = map and RT.World(map, at[1], at[2])
 						local d = (w and from and w.c == from.c) and ((w.x - from.x) ^ 2 + (w.y - from.y) ^ 2) or 1e12
 						if not best or rank < bestZ or (rank == bestZ and d < bestD) then
-							best, bestD, bestZ = { item = item, name = Try(N.name, npc), zone = zone, x = tonumber(at[1]), y = tonumber(at[2]) }, d, rank
+							best, bestD, bestZ = { item = item, itemID = itemID, npc = npc, name = Try(N.name, npc), zone = zone, x = tonumber(at[1]), y = tonumber(at[2]) }, d, rank
 						end
 					end
 				end
@@ -339,13 +342,13 @@ function RT.ItemSellers(Q, id, from, zones)
 						local w = map and RT.World(map, at[1], at[2])
 						local d = (w and from and w.c == from.c) and ((w.x - from.x) ^ 2 + (w.y - from.y) ^ 2) or 1e12
 						if not best or rank < bestZ or (rank == bestZ and d < bestD) then
-							best, bestD, bestZ = { item = item, take = true, zone = zone, x = tonumber(at[1]), y = tonumber(at[2]) }, d, rank
+							best, bestD, bestZ = { item = item, itemID = itemID, take = true, zone = zone, x = tonumber(at[1]), y = tonumber(at[2]) }, d, rank
 						end
 					end
 				end
 			end
 		end
-		out[#out + 1] = best or { item = item, none = true }
+		out[#out + 1] = best or { item = item, itemID = itemID, none = true, empty = empty }
 	end
 	return out
 end
@@ -442,7 +445,7 @@ function RT.NearestVendor(Q, id, from)
 						local w = map and RT.World(map, at[1], at[2])
 						local d = (w and from and w.c == from.c) and ((w.x - from.x) ^ 2 + (w.y - from.y) ^ 2) or 1e12
 						if not bestD or d < bestD then
-							best, bestD = { zone = zone, x = tonumber(at[1]), y = tonumber(at[2]), item = item, name = Try(N.name, npc) }, d
+							best, bestD = { zone = zone, x = tonumber(at[1]), y = tonumber(at[2]), item = item, itemID = itemID, npc = npc, name = Try(N.name, npc) }, d
 						end
 					end
 				end
@@ -544,7 +547,7 @@ function RT.ItemSteps(Q, id, area, from)
 			AddSpawns(things, sp, area); Count(sp)
 		end
 		local b = sellers[k]
-		local extra = { sub = k, buy = name }
+		local extra = { sub = k, buy = name, buyID = itemID, empty = b and b.empty }
 		local step = { item = name, extra = extra }
 		local function Spread(pts)
 			local a = RT.Area(pts)
@@ -555,7 +558,7 @@ function RT.ItemSteps(Q, id, area, from)
 			end
 		end
 		if b and not b.none and not b.take and b.zone == area then
-			extra.from, step.spot = b.name, { x = b.x, y = b.y }
+			extra.from, extra.fromID, step.spot = b.name, b.npc, { x = b.x, y = b.y }
 		elseif #drops > 0 then
 			for _, p in ipairs(things) do if #drops < RT.SPOTS_MAX then drops[#drops + 1] = p end end
 			Spread(drops)
@@ -564,7 +567,7 @@ function RT.ItemSteps(Q, id, area, from)
 		elseif #things > 0 then
 			extra.take, step.spot = true, { x = things[1][1], y = things[1][2] }
 		elseif b and not b.none then
-			extra.from, extra.take, step.zone = b.name, b.take, b.zone
+			extra.from, extra.fromID, extra.take, step.zone = b.name, b.npc, b.take, b.zone
 		else
 			local best, most
 			for z, n in pairs(zones) do if not most or n > most or (n == most and z < best) then best, most = z, n end end
@@ -1876,6 +1879,9 @@ function RT.GoalText(g)
 			return ns.Escape(g.title) .. ": get " .. ns.Escape(g.buy) .. (have and (" |cff888888" .. have .. "/" .. need .. "|r") or "") .. RT.MoreNote(g, "get")
 		end
 		if g.take then return ns.Escape(g.title) .. ": take " .. ns.Escape(g.buy) .. " |cff888888(on the ground)|r" .. RT.MoreNote(g, "take") end
+		if g.none and g.empty then
+			return ns.Escape(g.title) .. ": get " .. ns.Escape(g.buy) .. " |cff888888(" .. ns.Escape(g.empty) .. " has none right now: try the Auction House or an engineer)|r" .. RT.MoreNote(g, "get")
+		end
 		if g.none then return ns.Escape(g.title) .. ": get " .. ns.Escape(g.buy) .. " |cff888888(no seller known)|r" .. RT.MoreNote(g, "get") end
 		return ns.Escape(g.title) .. ": buy " .. ns.Escape(g.buy) .. (g.from and (" |cff888888from " .. ns.Escape(g.from) .. "|r") or "") .. RT.MoreNote(g, "buy")
 	end
@@ -3690,7 +3696,7 @@ function RT.QuestPlaces(Q, id, here)
 		if v and Far(vw) < Far(aw) then
 			out.area = nil
 			out.buy = SpotOn(v.zone, v.x, v.y, here)
-			if out.buy then out.buy.item, out.buy.vendor = v.item, v.name end
+			if out.buy then out.buy.item, out.buy.vendor, out.buy.itemID, out.buy.npc = v.item, v.name, v.itemID, v.npc end
 		end
 	end
 	-- Nowhere to do it, and something to buy (the player, 2026-11-20: The Touch of Zanzil's goods): a
@@ -3705,7 +3711,7 @@ function RT.QuestPlaces(Q, id, here)
 				local v = RT.Vendor(Q, id, z)
 				if v and v.spot then
 					out.buy = SpotOn(z, v.spot.x, v.spot.y, here)
-					if out.buy then out.buy.item, out.buy.vendor = v.item, v.name end
+					if out.buy then out.buy.item, out.buy.vendor, out.buy.itemID, out.buy.npc = v.item, v.name, v.itemID, v.npc end
 				end
 			end
 		end
@@ -3713,7 +3719,7 @@ function RT.QuestPlaces(Q, id, here)
 			local v = RT.NearestVendor(Q, id, fromW)
 			if v then
 				out.buy = SpotOn(v.zone, v.x, v.y, here)
-				if out.buy then out.buy.item, out.buy.vendor = v.item, v.name end
+				if out.buy then out.buy.item, out.buy.vendor, out.buy.itemID, out.buy.npc = v.item, v.name, v.itemID, v.npc end
 			end
 		end
 		if out.buy then out.buy.buys = RT.ItemSellers(Q, id, fromW, { g and tonumber(g.zone), fin and tonumber(fin.zone), here and here.area }) end
@@ -3772,10 +3778,10 @@ local function QuestPlacer(route, Q, here, log)
 			if type(p.buy.buys) == "table" and #p.buy.buys > 1 then
 				for k, b in ipairs(p.buy.buys) do
 					local at = (not b.none) and b.zone and SpotOn(b.zone, b.x, b.y, here) or p.buy
-					if P.Place("do", id, title, at, nil, { sub = k, buy = b.item, from = b.name, take = b.take, none = b.none }) then placedOne = true end
+					if P.Place("do", id, title, at, nil, { sub = k, buy = b.item, from = b.name, take = b.take, none = b.none, buyID = b.itemID, fromID = b.npc, empty = b.empty }) then placedOne = true end
 				end
 			end
-			if not placedOne then P.Place("do", id, title, p.buy, nil, { buy = p.buy.item, from = p.buy.vendor, buys = p.buy.buys }) end
+			if not placedOne then P.Place("do", id, title, p.buy, nil, { buy = p.buy.item, from = p.buy.vendor, buys = p.buy.buys, buyID = p.buy.itemID, fromID = p.buy.npc }) end
 		end
 		if not dungeonQuest or (log[id] and Complete(id)) then P.Place("turnin", id, title, p.fin, p.fin and p.fin.name) end
 		return true

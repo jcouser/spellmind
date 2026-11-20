@@ -2137,3 +2137,13 @@ test('a trail around a wall: the minimap and the arrow follow it, though the tar
   end)()`);
   assert.ok(r.y > 50, 'aimed along the trail (west), not at the target: ' + JSON.stringify(r));
 });
+
+test('in a class line\'s stop, the quests\' own order: turn in the one done before picking up the next (the player, 2026-11-20: at Doc Mixilpixil)', () => {
+  const vm = newVM({ before: ZONE + CLASS }).login().advance(9);
+  vm.slash('route');
+  vm.run('NS.Route.SetMode("class", 952, "Mastery of Shadows")');
+  // Fenthwick gives Rogue Training (950), takes it back, and gives The Sly Trade (951): one stop.
+  const order = vm.evaluate('(function() for _, s in ipairs(NS.R.route.stops) do if s.key:find("950") then local o = {} for _, g in ipairs(s.goals) do o[#o + 1] = g.kind .. ":" .. g.q end return table.concat(o, " ") end end end)()');
+  const at = k => order.split(' ').indexOf(k);
+  assert.ok(at('pickup:950') < at('turnin:950') && at('turnin:950') < at('pickup:951'), order);
+});

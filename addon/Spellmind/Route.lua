@@ -3545,6 +3545,28 @@ local function QuestPlacer(route, Q, here, log)
 	end
 	return P
 end
+-- A stop's goals in the quests' own order (the player, 2026-11-20: at Doc Mixilpixil, the next Touch of
+-- Zanzil's pick up came before handing in the one done): each goal after the ones the rules put
+-- before it in the same stop (pick up, objectives, turn-in, then the follow-up's pick up); else
+-- turn-ins first (one may open the next quest), then pick ups, then objectives.
+RT.STOP_BASE = { turnin = 0, pickup = 1, ["do"] = 2, enter = 5 }
+function RT.SortStop(s, rules)
+	local here, level = {}, {}
+	for _, g in ipairs(s.goals) do here[g.kind .. ":" .. g.q] = g; level[g] = 0 end
+	for _ = 1, #s.goals do
+		local changed = false
+		for _, r in ipairs(rules or {}) do
+			local a, b = here[r[1]], here[r[2]]
+			if a and b and a ~= b and level[b] < level[a] + 1 then level[b] = level[a] + 1; changed = true end
+		end
+		if not changed then break end
+	end
+	table.sort(s.goals, function(a, b)
+		if level[a] ~= level[b] then return level[a] < level[b] end
+		return (RT.STOP_BASE[a.kind] or 9) < (RT.STOP_BASE[b.kind] or 9)
+	end)
+end
+
 local function OrderAcross(route, raw, chains, extra, here)
 	-- As the questing route does: what's done never shows; close ones are one stop when they can be.
 	local keep = {}
@@ -3574,7 +3596,7 @@ local function OrderAcross(route, raw, chains, extra, here)
 		end
 	end
 	for _, s in ipairs(stops) do
-		table.sort(s.goals, function(a, b) return (RANK[a.kind] or 9) < (RANK[b.kind] or 9) end)
+		RT.SortStop(s, rules)
 		local keys = {}
 		for _, g in ipairs(s.goals) do keys[#keys + 1] = g.kind .. ":" .. g.q end
 		s.key = table.concat(keys, ",")

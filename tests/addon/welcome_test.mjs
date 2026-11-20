@@ -96,11 +96,11 @@ test('updated from an earlier version: What\'s new once, 6 s after login, an ann
 test('a new account: the welcome (which names the route), not What\'s new; an old account from before seenVersion gets it', () => {
   const fresh = newVM({ welcome: true, before: 'NS.VERSION = "0.5.0"' }).login().advance(7);
   assert.ok(open(fresh) && !news(fresh));
-  // The welcome: what's new since the last version players had (the route), then what's always there.
-  assert.equal(fresh.evaluate('SpellmindWelcome.labels[1]:GetText()'), 'New in 0.5.0');
-  assert.equal(fresh.evaluate('SpellmindWelcome.features[1].title:GetText()'), 'A plan that knows your character');
-  assert.equal(fresh.evaluate('SpellmindWelcome.labels[2]:GetText()'), 'Always in Spellmind');
-  assert.equal(fresh.evaluate('SpellmindWelcome.features[7].title:GetText()'), 'A panel that knows your character');
+  // The welcome, 0.5.0 published (FRESH_SINCE 0.5.0): nothing newer, so what's always there, the
+  // route first.
+  assert.notEqual(fresh.evaluate('tostring(SpellmindWelcome.labels[1] and SpellmindWelcome.labels[1].shown)'), 'true', 'no "New in" heading');
+  assert.equal(fresh.evaluate('SpellmindWelcome.features[1].title:GetText()'), 'Your quest route');
+  assert.equal(fresh.evaluate('SpellmindWelcome.features[2].title:GetText()'), 'A panel that knows your character');
   assert.equal(fresh.evaluate('SpellmindWelcome.appTitle:GetText()'), 'Ask your own AI');
   // Try the route, from the welcome.
   assert.equal(fresh.evaluate('tostring(SpellmindWelcome.go.shown)'), 'true');
@@ -137,12 +137,13 @@ test('What\'s new: the changes under the highlights; a version with only changes
   assert.equal(v3.evaluate('tostring(SpellmindNews.go.shown)'), 'false', 'nothing to try');
 });
 
-test('the welcome grows with every version before the public one: a later version\'s highlights first', () => {
+test('the welcome: highlights of the versions after the last public one first, then what\'s always there', () => {
   const vm = newVM({ welcome: true, before: `NS.VERSION = "0.5.1"
     table.insert(NS.Welcome.NEWS, { version = "0.5.1", features = { { icon = "x", title = "The way there", text = "Leg by leg." } } })` }).login().advance(7);
   assert.equal(vm.evaluate('SpellmindWelcome.labels[1]:GetText()'), 'New in 0.5.1');
   assert.equal(vm.evaluate('SpellmindWelcome.features[1].title:GetText()'), 'The way there');
-  assert.equal(vm.evaluate('SpellmindWelcome.features[2].title:GetText()'), 'A plan that knows your character');
+  assert.equal(vm.evaluate('SpellmindWelcome.labels[2]:GetText()'), 'Always in Spellmind');
+  assert.equal(vm.evaluate('SpellmindWelcome.features[2].title:GetText()'), 'Your quest route', '0.5.0 is public: no longer new');
 });
 
 test('a What\'s new taller than the screen is scaled down to fit', () => {

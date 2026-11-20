@@ -27,10 +27,13 @@ WL.TITLE = "Welcome to Spellmind"
 WL.INTRO = "Your companion for WoW Forever. It knows your character as you play, and says what to do next. Everything here works with no setup at all."
 -- The welcome shows the highlights of every version after this one (the last that players had): set it
 -- to the version before the one being published (docs/releasing.md).
-WL.FRESH_SINCE = "0.4.7"
--- What's always there, after what's new.
+WL.FRESH_SINCE = "0.5.0"
+WL.TRY_ALWAYS = "route" -- the welcome's Try it now when nothing is new
+-- What's always there, after what's new. The quest route since 0.5.0 (published 2026-11-20): once it's no
+-- longer new, a new player still meets it here.
 WL.BASICS = {
-	{ icon = "Interface\\Icons\\INV_Misc_Book_09", title = "A panel that knows your character", text = "Quests, Dungeons, Gear, Talents, Spells, Professions and Gold, each saying what to do next. The minimap button or /sm opens it; right-click the button for your last tab." },
+	{ icon = "Interface\\Icons\\INV_Misc_Map_01", title = "Your quest route", text = "Every pickup, objective and turn-in around you in the shortest order, an arrow, and the way on the world map and minimap. It says where to go next when a zone runs dry, and plans for any dungeon. /sm route turns it on." },
+	{ icon = "Interface\\Icons\\INV_Misc_Book_09", title = "A panel that knows your character", text = "Quests, Route, Dungeons, Gear, Talents, Spells, Professions and Gold, each saying what to do next. The minimap button or /sm opens it; right-click the button for your last tab." },
 	{ icon = "Interface\\AddOns\\Spellmind\\Media\\Mark", title = "Nudges and tooltips", text = "A quiet nudge by the minimap when spells wait at your trainer, talent points are unspent or gear is about to break, and Spellmind's lines on quest and item tooltips." },
 }
 WL.APP = "Get the free Spellmind app for Windows, and ask your own AI anything about your character. It works with a ChatGPT plan, or an API key for Claude, ChatGPT, Grok or Gemini, and sends nothing to the Spellmind authors."
@@ -361,7 +364,8 @@ function WL.Show()
 		f.link:Show()
 		y = y - 30
 	end
-	f.try = newest and newest.try or nil
+	-- Try it now: the newest feature's, else the route's (always there since 0.5.0).
+	f.try = newest and newest.try or WL.TRY_ALWAYS
 	if f.try and WL.TRY[f.try] then f.go:Show() else f.go:Hide() end
 	Center(f, math.max(360, -y + 66))
 	return f

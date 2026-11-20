@@ -614,7 +614,7 @@ function Tabs.route()
 		local qs = ns.Dungeons.Quests(dname)
 		if not qs or qs.total == 0 then return end
 		local on = mode == "dungeon" and ns.Dungeons.Norm(prep) == key
-		out[#out + 1] = { kind = "item", indent = true, left = ns.Escape(dname), right = range,
+		out[#out + 1] = { kind = "item", indent = true, left = "|cff66bbffDungeon:|r " .. ns.Escape(dname), right = range,
 			sub = "|cff888888" .. (ns.Dungeons.Summary(qs) or "") .. "|r",
 			actions = { { on and "Planned" or "Prep", function()
 				if on then RT.SetMode("questing") else RT.SetMode("dungeon", dname); if not RT.On() then RT.SetOn(true) end end

@@ -257,10 +257,18 @@ local function AddMsg(who, text, chips, chatId, pins, skips)
 	if id == ns.db.chat and ns.Window.Get() then ns.Window.Layout(who == "you") end
 end
 
+-- Spellmind's lines in the game's chat, in its own colours (the player, 2026-11-20: they read like
+-- the game's own system lines among General and NPC speech): "Spellmind:" in its purple, the words in
+-- a light lavender. What carries its own colour (a grey aside, a link) keeps it.
+C.CHAT_NAME = "|cffb48cffSpellmind:|r"
+C.CHAT_RGB = { 0.86, 0.82, 1 }
 local function ChatFrame(text)
 	local frame = DEFAULT_CHAT_FRAME
-	if frame and frame.AddMessage then frame:AddMessage(text) end
+	if not (frame and frame.AddMessage) then return end
+	text = tostring(text):gsub("^Spellmind:", C.CHAT_NAME, 1):gsub("^|cff9d7dffSpellmind:|r", C.CHAT_NAME, 1)
+	frame:AddMessage(text, C.CHAT_RGB[1], C.CHAT_RGB[2], C.CHAT_RGB[3])
 end
+C.ChatFrame = ChatFrame
 
 -- The first line of an answer, at most SHORT_MAX bytes (the app's escapes kept safe).
 local function Short(text)
@@ -698,12 +706,12 @@ SlashCmdList.SPELLMIND = function(msg)
 		local cur = select(2, ns.Route.Current())
 		local step = tonumber(why) or cur
 		local lines = ns.Route.Why(step)
-		for _, line in ipairs(lines) do ChatFrame("|cff9d7dffSpellmind:|r " .. line) end
+		for _, line in ipairs(lines) do ChatFrame("Spellmind: " .. line) end
 		-- Kept for working out the order away from the game (written at /reload).
 		local ok, snap = pcall(ns.Route.Snapshot, lines, step)
 		if ok and snap then
 			ns.db.routeDebug = snap
-			ChatFrame("|cff9d7dffSpellmind:|r |cff888888The route is saved for a closer look (written to disk at /reload).|r")
+			ChatFrame("Spellmind: |cff888888The route is saved for a closer look (written to disk at /reload).|r")
 		end
 		return
 	end

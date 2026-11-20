@@ -345,7 +345,7 @@ test('the chat frame: a short reply (4 lines at most) whole, so a list after "â€
   ] }));
   ring(vm);
   const after = vm.chatLines();
-  assert.ok(after.includes('Spellmind: Line 1 of a long answer. |cff888888(more: /sm)|r'), JSON.stringify(after));
+  assert.ok(after.includes('Spellmind: Line 1 of a long answer. (more: /sm)'), JSON.stringify(after));
   assert.ok(!after.some(l => l.includes('Line 2 of')), 'the rest only in the window');
   void key;
 });
@@ -508,4 +508,13 @@ test('/sm app: the Get the app box, its link the project page to copy; nothing s
   assert.equal(vm.evaluate('tostring(NS.Marks.appBox:IsShown())'), 'true');
   assert.equal(vm.evaluate('NS.Marks.appBox.input:GetText()'), 'https://github.com/jcouser/spellmind');
   assert.match(vm.evaluate('NS.Marks.GET_APP_TEXT'), /Every tab works without it/);
+});
+
+test('Spellmind\'s lines in the game\'s chat in its own colours (the player, 2026-11-20): its name purple, its words lavender', () => {
+  const vm = newVM().login().advance(9);
+  vm.run('NS.Chat.ChatFrame("Spellmind: Here, with |cff888888an aside|r.")');
+  const raw = vm.json('STUB.chatRaw[#STUB.chatRaw]');
+  assert.match(raw.text, /^\|cffb48cffSpellmind:\|r Here, with \|cff888888an aside\|r\.$/);
+  assert.deepEqual([raw.r, raw.g, raw.b], [0.86, 0.82, 1]);
+  assert.equal(vm.chatLines().at(-1), 'Spellmind: Here, with an aside.');
 });

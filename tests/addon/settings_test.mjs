@@ -93,7 +93,7 @@ test('answers in the game\'s chat: Whole, First line, Off; off, a reply shows on
   flip(vm, 'chatLines');
   assert.equal(label(vm, 'chatLines'), '|cff19ff19First line|r');
   vm.run('NS.Chat.OnRecord({ t = "reply", text = "Train Sprint.\\nThen Kick." })');
-  assert.ok(vm.chatLines().includes('Spellmind: Train Sprint. ... |cff888888(more: /sm)|r'), JSON.stringify(vm.chatLines()));
+  assert.ok(vm.chatLines().includes('Spellmind: Train Sprint. ... (more: /sm)'), JSON.stringify(vm.chatLines()));
   flip(vm, 'chatLines');
   assert.equal(label(vm, 'chatLines'), '|cff888888Off|r');
   const before = vm.chatLines().length;

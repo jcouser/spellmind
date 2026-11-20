@@ -73,7 +73,13 @@ STUB.cvars = { Sound_EnableAllSound = "1" }
 STUB.physW, STUB.physH = 1920, 1080
 function GetPhysicalScreenSize() return STUB.physW, STUB.physH end
 DEFAULT_CHAT_FRAME = CreateFrame("Frame", "ChatFrame1")
-function DEFAULT_CHAT_FRAME:AddMessage(text) table.insert(STUB.chat, tostring(text)) end
+STUB.chatRaw = {}
+function DEFAULT_CHAT_FRAME:AddMessage(text, r, g, b)
+  text = tostring(text)
+  table.insert(STUB.chatRaw, { text = text, r = r, g = g, b = b })
+  local plain = text:gsub("||", "\0"):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("%z", "||")
+  table.insert(STUB.chat, plain)
+end
 function GetCVar(name) return STUB.cvars[name] end
 function GetBuildInfo() return "1.60.1", "70009", "Sep 1 2026", 16001 end
 

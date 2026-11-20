@@ -96,7 +96,7 @@ WL.NEWS = {
 		changes = {
 			"Skipping a step skips what needs it: skip a pickup or an objective and the quest's turn-in and follow-ups go with it; skip a turn-in and its follow-ups go. Back brings them back.",
 			"The route counts the steps left (\"22 steps left · 2 skipped\"), not \"Step 3 of 25\".",
-			"When a fresh plan from where you stand would be clearly shorter, Rebuild says so (\"Rebuild: 1,300 yd shorter\"); the order never changes by itself.",
+			"When a fresh plan from where you stand would be clearly shorter, Rebuild says so (\"Rebuild: 1,300 yd shorter\"). After you finish a step, a much shorter order is taken by itself, your next step kept (a switch on the Route tab).",
 			"Fixed: in a step with goals at several NPCs close together, the arrow and the map pointed at the first one placed, not the one to do now.",
 		} },
 }

@@ -413,11 +413,12 @@ end
 
 -- The stops in an efficient order that keeps the rules: nearest next (of the stops whose earlier
 -- goals are done or behind), then 2-opt passes, each kept only when it's shorter and keeps the rules.
-function RT.Order(stops, start, here, rules, cost)
+function RT.Order(stops, start, here, rules, cost, placedBefore)
 	cost = cost or RT.Yards
 	local left, order = {}, {}
 	for _, s in ipairs(stops) do left[#left + 1] = s end
 	local placed = {}
+	for k in pairs(placedBefore or {}) do placed[k] = true end
 	local function Ready(s)
 		for _, r in ipairs(rules) do
 			for _, g in ipairs(s.goals) do
@@ -858,6 +859,30 @@ function RT.Build()
 	-- mode, or when more is new than kept.
 	local keptOrder = not replan and prev and not prev.nowhere and not prev.prep and not prev.classLine
 		and prev.area == here.area and RT.KeptOrder(prev, stops, start, here, rules) or nil
+	-- Just finished the step that was next (the player, 2026-11-20: "should that be automatic?"): the
+	-- steps after the new next one made again when that saves a lot (the next one stays: the arrow
+	-- doesn't switch under the player), and said on the button. A switch on the Route tab.
+	if keptOrder and RT.AutoReplanOn() and R.routeCurKey then
+		local was
+		for _, s in ipairs(prev.stops or {}) do if s.key == R.routeCurKey then was = s end end
+		if was and RT.StopDone(was) then
+			local cur
+			for _, s in ipairs(keptOrder) do if not RT.Skipped(s) then cur = s; break end end
+			if cur then
+				local rest, placedBefore = {}, {}
+				for _, s in ipairs(keptOrder) do if s ~= cur then rest[#rest + 1] = s end end
+				for _, g in ipairs(cur.goals) do placedBefore[g.kind .. ":" .. g.q] = true end
+				local anchored = { cur }
+				for _, s in ipairs(RT.Order(rest, { x = cur.x, y = cur.y, map = cur.map }, here, rules, nil, placedBefore)) do anchored[#anchored + 1] = s end
+				local gain = RT.Length(keptOrder, start, here) - RT.Length(anchored, start, here)
+				if gain >= RT.AUTO_YARDS and RT.Keeps(anchored, rules) then
+					keptOrder = anchored
+					R.rebuildNote = "Re-planned: " .. RT.Thousands(math.floor(gain / 100 + 0.5) * 100) .. " yd shorter"
+					R.rebuildNoteUntil = GetTime() + RT.AUTO_NOTE
+				end
+			end
+		end
+	end
 	if keptOrder then
 		route.stops, route.kept = keptOrder, true
 		-- A shorter plan from here (the player, 2026-11-20: the kept order was 1,300 yards longer than
@@ -893,6 +918,8 @@ function RT.Build()
 	end
 	end
 	route.rules = rules
+	R.routeCurKey = nil
+	for _, s in ipairs(route.stops) do if not RT.Skipped(s) then R.routeCurKey = s.key; break end end
 	-- What the order was made from, for /sm route why.
 	route.start, route.here, route.cost = start, here, route.low and next(route.low) and function(a, b, h)
 		local d = RT.Yards(a, b, h)
@@ -951,6 +978,8 @@ end
 -- new stops than kept ones, none kept, or the kept order breaking a rule.
 RT.SHORTER_YARDS = 800 -- a fresh plan at least this much shorter is offered on Rebuild
 RT.REBUILD_NOTE = 3 -- seconds Rebuild says what it did
+RT.AUTO_YARDS = 1500 -- a step finished: the steps after the next one made again when that saves this much
+RT.AUTO_NOTE = 6 -- seconds the button says it did
 
 -- Rebuild: made again from here, and it says what came of it (the player, 2026-11-20: when the order
 -- was already the best one, the click seemed to do nothing).
@@ -2524,6 +2553,8 @@ function RT.ArrowOn() return not UI().arrowOff end
 function RT.SetArrow(v) UI().arrowOff = (not v) or nil; RT.ArrowSync() end
 function RT.MapOn() return not UI().mapOff end
 function RT.LinesOn() return not UI().linesOff end
+function RT.AutoReplanOn() return not UI().autoReplanOff end
+function RT.SetAutoReplan(v) UI().autoReplanOff = (not v) or nil end
 -- The lines on the minimap (the player, 2026-11-19), on by default: thin, under the pins.
 function RT.MinimapLinesOn() return not UI().miniLinesOff end
 function RT.SetMinimapLines(v) UI().miniLinesOff = (not v) or nil; if ns.RoutePins then ns.RoutePins.Refresh(); pcall(ns.RoutePins.Update, true) end end

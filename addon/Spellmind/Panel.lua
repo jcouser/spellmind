@@ -584,6 +584,8 @@ function Tabs.route()
 	Switch("Lines on the world map", "From you to the current step, and on through the next ones, along the trails you've walked.", RT.LinesOn(), RT.SetLines, true, not on or not RT.MapOn())
 	-- Trails learned from walking: on this PC only.
 	local trailN = RT.TrailCount and RT.TrailCount() or 0
+	Switch("Re-plan when it saves a lot", "When you finish a step, the steps after your next one are re-planned if that saves 1,500 yards or more. Off: only when you click Rebuild.",
+		RT.AutoReplanOn(), RT.SetAutoReplan, true, not on)
 	Switch("Learn trails as I walk", "The roads you walk become the arrow's and the lines' way, on this PC only. " .. trailN .. " point" .. (trailN == 1 and "" or "s") .. " so far.",
 		not ns.db.routeTrailsOff, function(v) ns.db.routeTrailsOff = (not v) or nil end, true, not on)
 	if trailN > 0 then

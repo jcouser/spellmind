@@ -1936,3 +1936,42 @@ test('Rebuild says what it did: the same order ("Already the best order") or a n
   vm.run('SpellmindRoute.rebuild.scripts.OnClick(SpellmindRoute.rebuild)');
   assert.match(vm.evaluate('SpellmindRoute.rebuild.text:GetText()'), /Re-planned from here/);
 });
+
+
+
+// Four errands, two by the rats (one joins their stop), two by Ironband (one stop); a stale order sends
+// you from Ironband's corner to the rats' and back.
+const ERRANDS = `
+  local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+  for i, at in ipairs({ { 15, 15 }, { 80, 80 }, { 18, 18 }, { 82, 82 } }) do
+    N[994 + i] = { name = "Errand Giver " .. i, zone = 38, spawns = { [38] = { at } }, friendly = "A" }
+    Q[994 + i] = { name = "Errand " .. i, zone = 38, level = 15, npc = 994 + i, ender = 994 + i }
+  end`;
+const STALE = `
+  local function S(p) for _, s in ipairs(NS.R.route.stops) do if s.key:find(p) then return s end end end
+  local first = S("do:700")
+  NS.R.route.stops = { first, S(":996"), S(":995"), S("turnin:701"), S(":702") }
+  NS.R.routeCurKey = first.key`;
+const DONE = 'STUB.player.x, STUB.player.y = 0.2, 0.2; STUB.objectives[700][1].numFulfilled = 8; STUB.quests[2].complete = true; STUB.completed[997] = true; NS.Route.Build(); NS.Route.Draw()';
+
+test('a step finished: the steps after the next one re-planned when that saves a lot, the next one kept, the button says so (the player, 2026-11-20)', () => {
+  const vm = newVM({ before: ZONE + ERRANDS }).login().advance(9);
+  vm.slash('route');
+  vm.run(STALE);
+  vm.run(DONE);
+  const ks = keys(vm);
+  assert.match(ks[0], /996/, 'the next one kept: ' + ks.join(' | '));
+  assert.match(ks[1], /702/, 'then Ironband, beside it: ' + ks.join(' | '));
+  assert.match(vm.evaluate('SpellmindRoute.rebuild.text:GetText()'), /Re-planned: [\d,]+ yd shorter/);
+});
+
+test('re-plan when it saves a lot: off, the stale order stays and only the hint shows', () => {
+  const vm = newVM({ before: ZONE + ERRANDS }).login().advance(9);
+  vm.slash('route');
+  vm.run('NS.Route.SetAutoReplan(false)');
+  vm.run(STALE);
+  vm.run(DONE);
+  const ks = keys(vm);
+  assert.match(ks[1], /995/, 'kept as it was: ' + ks.join(' | '));
+  assert.match(vm.evaluate('SpellmindRoute.rebuild.text:GetText()'), /^Rebuild: .*yd shorter/);
+});

@@ -2026,3 +2026,19 @@ test('a class line\'s objectives placed though the quest has a category, not a z
   const buy = gs.find(g => g.k === 'do:950');
   assert.ok(buy && buy.buy === 'Leaded Vial' && buy.from === 'Vial Seller', 'the vial, bought: ' + JSON.stringify(gs));
 });
+
+test('on a flight path the way there starts at the landing, "In flight to …"; the map line toward it (the player, 2026-11-20: it still began at the flight master left behind)', () => {
+  const vm = newVM({ before: ZONE + MORE }).login().advance(9);
+  vm.run(TAXI + '; STUB.FireEvent("TAXIMAP_OPENED")');
+  vm.slash('route');
+  vm.run('NS.Route.Aim((function() for _, z in ipairs(NS.R.route.where) do if z.zone == "Westfall" then return z end end end)())');
+  const before = vm.json('(function() local o = {} for _, l in ipairs(NS.Route.ArrowTarget().legs) do o[#o + 1] = l.tip[1] end return o end)()');
+  const b = Array.isArray(before) ? before : Object.values(before);
+  assert.match(b[0], /Flight master at Thelsamar/, JSON.stringify(b));
+  // Taken off.
+  vm.run('STUB.onTaxi = true; UnitOnTaxi = function() return STUB.onTaxi end; NS.Route.NoteFlight()');
+  const during = vm.json('(function() local o = {} for _, l in ipairs(NS.Route.ArrowTarget().legs) do o[#o + 1] = l.tip[1] end return o end)()');
+  const d = Array.isArray(during) ? during : Object.values(during);
+  assert.match(d[0], /^In flight to /, JSON.stringify(d));
+  assert.ok(!d.some(x => /Flight master at Thelsamar/.test(x)), 'the takeoff left behind');
+});

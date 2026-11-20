@@ -1795,6 +1795,10 @@ function RT.Landed()
 	RT.Dirty()
 end
 ns.On("PLAYER_CONTROL_GAINED", function() if R.routeAfterTaxi and not RT.OnTaxi() then RT.Landed() end end)
+-- Taken off: the way there and the map say so (the plan itself holds still).
+ns.On("PLAYER_CONTROL_LOST", function()
+	C_Timer.After(0.5, function() if RT.OnTaxi() and RT.Shown() then pcall(RT.Refresh) end end)
+end)
 
 function RT.Dirty()
 	if RT.OnTaxi() then R.routeAfterTaxi = true; return end
@@ -3757,9 +3761,9 @@ function RT.PlanLegs(path, destTip, destZone)
 		elseif p.how == "hearth" then
 			legs[#legs + 1] = { path = walked, world = n.w, map = n.map, hearth = true, tip = { "Use your hearthstone", "To " .. tostring(n.name) }, zone = ZoneOf(n.map) }
 		elseif n.kind == "fp" and p.how == "fly" then
-			legs[#legs + 1] = { path = walked, world = n.w, map = n.map, tip = { "Fly to " .. Short(n.name), "Land at the flight master there" }, zone = ZoneOf(n.map) }
+			legs[#legs + 1] = { path = walked, world = n.w, map = n.map, tip = { "Fly to " .. Short(n.name), "Land at the flight master there" }, zone = ZoneOf(n.map), landing = true }
 		elseif n.kind == "fp" and nxt and nxt.how == "fly" then
-			legs[#legs + 1] = { path = walked, world = n.w, map = n.map, tip = { (n.npc and (n.npc .. ", the flight master at ") or "Flight master at ") .. Short(n.name), "Fly to " .. Short(nxt.node.name) }, zone = ZoneOf(n.map) }
+			legs[#legs + 1] = { path = walked, world = n.w, map = n.map, tip = { (n.npc and (n.npc .. ", the flight master at ") or "Flight master at ") .. Short(n.name), "Fly to " .. Short(nxt.node.name) }, zone = ZoneOf(n.map), takeoff = true }
 		elseif n.kind == "link" and nxt and nxt.node == n.other then
 			-- The near side of a crossing (the far side is the same place): cross, or take the tram or boat.
 			local l, into = n.link, ZoneOf(n.other.map) or "the next zone"
@@ -3786,7 +3790,28 @@ function RT.PlanTo(key, to, destTip, destZone)
 end
 
 -- The arrow's target for planned legs: the first, with the second as "then …".
+-- On a flight path (the player, 2026-11-20: mid-flight, the way there still began at the flight master
+-- left behind, and the map's line pointed back at her): the legs from the landing on, the landing
+-- "In flight to Stormwind".
+function RT.AirborneLegs(legs)
+	if not RT.OnTaxi() then return legs end
+	local from
+	for k, l in ipairs(legs) do if l.landing then from = k; break end end
+	if not from then return legs end
+	local out = {}
+	for k = from, #legs do
+		local l = legs[k]
+		if k == from then
+			l = { world = l.world, map = l.map, zone = l.zone, landing = true, inFlight = true,
+				tip = { (tostring(l.tip and l.tip[1] or ""):gsub("^Fly to", "In flight to")), l.tip and l.tip[2] } }
+		end
+		out[#out + 1] = l
+	end
+	return out
+end
+
 function RT.PlanTarget(legs)
+	legs = RT.AirborneLegs(legs)
 	local first, second = legs[1], legs[2]
 	if not first then return nil end
 	local thenLine = second and ("then " .. second.tip[1]:gsub("^%u", string.lower)) or first.tip[2]

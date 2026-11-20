@@ -12,6 +12,7 @@ ns.Nudges = N
 local R = ns.R
 
 N.THROTTLE = 2 -- seconds: events coalesce into one check
+N.TOAST_H, N.BUTTONS_H = 74, 26 -- the toast's least height; the room under its words for the buttons
 N.GAP = 3 -- seconds between one nudge and the next
 N.FADE_AFTER = 20 -- seconds a toast shows before it fades (it keeps waiting: the dot brings it back)
 N.FADE_TIME = 1
@@ -263,8 +264,8 @@ function Detect.classq()
 	local first = open[1]
 	return { { kind = "classq", key = table.concat(keys, ","),
 		title = #open == 1 and "Class quest ready" or (#open .. " class quests ready"),
-		text = ns.Escape(first.name) .. (first.current.from and (": " .. ns.Escape(first.current.from)) or "")
-			.. (#open > 1 and (", and " .. (#open - 1) .. " more") or "") .. ". The Quests tab plans the way.",
+		text = ns.Escape(first.name) .. ((first.current.from and first.current.from:match(",%s*([^,(]-)%s*%(")) and (", in " .. ns.Escape(first.current.from:match(",%s*([^,(]-)%s*%("))) or "")
+			.. (#open > 1 and (", and " .. (#open - 1) .. " more") or "") .. ".",
 		ask = "My class quest " .. first.name .. " is open (" .. first.current.name .. (first.current.from and (", from " .. first.current.from) or "")
 			.. "). What does it give my class, where do I start it, and is it worth doing now?" } }
 end
@@ -429,6 +430,9 @@ function N.Next()
 	f.title:SetText(n.title)
 	f.text:SetText(n.text or "")
 	f.count:SetText(#pending > 1 and ("+" .. (#pending - 1) .. " more") or "")
+	-- As tall as its words, the buttons under them (the player, 2026-11-20: a third line ran under them).
+	local textH = tonumber((f.text:GetStringHeight())) or 12
+	f:SetHeight(math.max(N.TOAST_H, 10 + (tonumber((f.title:GetStringHeight())) or 14) + 3 + textH + N.BUTTONS_H))
 	f:SetAlpha(1)
 	f:Show()
 	f.shownAt = GetTime()
@@ -584,7 +588,7 @@ end
 function N.Build()
 	if toast then return toast end
 	local f = CreateFrame("Frame", "SpellmindNudge", UIParent, "BackdropTemplate")
-	f:SetSize(290, 74)
+	f:SetSize(290, N.TOAST_H)
 	local saved = Saved()
 	local map = rawget(_G, "Minimap")
 	if saved.point then f:SetPoint(saved.point, UIParent, saved.relPoint or saved.point, tonumber(saved.x) or 0, tonumber(saved.y) or 0)

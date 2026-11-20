@@ -1664,7 +1664,8 @@ test('class quests on the Quests tab and the Route tab, with the AI told; a nudg
   const n = vm.json('NS.Nudges.Detect.classq()');
   const one = Array.isArray(n) ? n[0] : n[1];
   assert.equal(one.title, '2 class quests ready');
-  assert.match(one.text, /^Lockpicking Practice: Shadow Mentor.*and 1 more/);
+  assert.match(one.text, /^Lockpicking Practice.*, and 1 more\.$/);
+  assert.doesNotMatch(one.text, /Quests tab/, 'short: the hover says where a click goes');
   assert.equal(vm.evaluate('NS.Nudges.TabFor("classq")'), 'quests');
 });
 
@@ -1755,4 +1756,14 @@ test('versions of one class step (the player, 2026-11-20): from each race\'s sta
   assert.ok(s.includes("Erion's Behest"), 'the one started: ' + s);
   // The line's level is its current step's: the Mastery of Shadows line shows 10 (Rogue Training), not 20.
   assert.equal(vm.num('NS.Dungeons.ClassLine(952).stepLevel'), 10);
+});
+
+test('a nudge as tall as its words: a long one grows the toast, the buttons under the text (the player, 2026-11-20)', () => {
+  const vm = newVM().login().advance(9);
+  vm.run('NS.Nudges.Demo()');
+  vm.advance(3);
+  const short = vm.num('SpellmindNudge:GetHeight()');
+  assert.equal(short, 74);
+  vm.run('SpellmindNudge.text.GetStringHeight = function() return 42 end; SpellmindNudge:Hide(); NS.Nudges.Next()');
+  assert.equal(vm.num('SpellmindNudge:GetHeight()'), 10 + 14 + 3 + 42 + 26, 'room for three lines and the buttons');
 });

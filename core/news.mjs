@@ -48,6 +48,12 @@ export const NEWS = Object.freeze([
       'Spellmind\'s lines in the game\'s chat have their own colours, and nudges grow to fit their words.',
     ]),
   }),
+  Object.freeze({
+    version: '0.6.1',
+    changes: Object.freeze([
+      "Skipping a quest's pickup takes the quest off the route: its objective, its turn-in, and the follow-ups it opens. Back brings them back.",
+    ]),
+  }),
 ]);
 
 const parts = (v) => String(v ?? '').split('.').map((n) => parseInt(n, 10) || 0);
@@ -81,6 +87,22 @@ export function digest(list) {
   }
   return { version: n.version, headline: lead?.headline || "What's changed", tagline: lead?.tagline || null,
     features, note: lead?.note || null, changes, versions: list.length };
+}
+
+/** The app's What's new card after it updated (the player, 2026-11-20: keep the release's showcase,
+ * with a version history under it): the newest release with a headline up to this version (its line,
+ * highlights, footnote), even when a fix came after it; and history, every version up to this one,
+ * newest first, each with its changes, "isNew" on the ones since the version last seen. null when
+ * nothing since has a headline: a fix alone shows nothing (it's in the history). */
+export function card(list, all = NEWS) {
+  if (!list?.length || !list.some((e) => e.headline)) return null;
+  const current = list[list.length - 1].version;
+  const upTo = all.filter((e) => !newer(e.version, current));
+  const lead = upTo.slice().reverse().find((e) => e.headline);
+  const fresh = new Set(list.map((e) => e.version));
+  return { version: current, headline: lead.headline, tagline: lead.tagline || null, features: [...(lead.features || [])],
+    note: lead.note || null,
+    history: upTo.slice().reverse().map((e) => ({ version: e.version, headline: e.headline || null, changes: [...(e.changes || [])], isNew: fresh.has(e.version) })) };
 }
 
 /** The entries after the version last seen, up to the one running now, oldest first. */

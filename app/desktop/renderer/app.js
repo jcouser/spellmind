@@ -80,13 +80,23 @@ function draw(s) {
       row.append(el('strong', null, ft.title), el('span', null, ft.text));
       body.append(row);
     }
-    if (n.changes?.length) {
-      if (n.features?.length) body.append(el('h3', null, 'Also in this update'));
-      const ul = el('ul', 'changes');
-      for (const c of n.changes) ul.append(el('li', null, (n.versions > 1 ? c.version + '  ' : '') + c.text));
-      body.append(ul);
-    }
     if (n.note) body.append(el('p', 'note', n.note));
+    // The version history, newest first, in a scroll of its own.
+    if (n.history?.length) {
+      body.append(el('h3', null, 'Version history'));
+      const box = el('div', 'history');
+      for (const v of n.history) {
+        const head = el('p', 'version');
+        head.append(el('strong', null, v.version));
+        if (v.headline) head.append(el('span', null, '  ' + v.headline));
+        if (v.isNew) head.append(el('em', null, '  new'));
+        box.append(head);
+        const ul = el('ul', 'changes');
+        for (const c of v.changes) ul.append(el('li', null, c));
+        box.append(ul);
+      }
+      body.append(box);
+    }
   }
 
   // Setup: what's still to do, in order.

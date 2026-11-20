@@ -107,3 +107,7 @@ input[type="text"]::placeholder, input[type="password"]::placeholder { color: #8
 .news h3 { margin: 6px 0 4px; font-size: 13px; color: var(--gold); font-weight: 600; }
 .news ul.changes { margin: 0 0 10px; padding-left: 18px; }
 .news ul.changes li { margin: 3px 0; line-height: 1.45; }
+.news .history { max-height: 220px; overflow-y: auto; padding-right: 6px; }
+.news .history p.version { margin: 8px 0 2px; }
+.news .history p.version strong { color: var(--gold); }
+.news .history p.version em { color: #19ff19; font-style: normal; font-size: 12px; }

@@ -2,7 +2,7 @@
 // addon's copy of the words (Welcome.lua's WL.NEWS) the same as the app's.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { NEWS, newer, newsSince, digest } from '../../core/news.mjs';
+import { NEWS, newer, newsSince, digest, card } from '../../core/news.mjs';
 import { newVM } from '../helpers/addon-vm.mjs';
 
 test('versions: newer by each number, not by text', () => {
@@ -50,4 +50,12 @@ test('the digest: the newest headline; every version\'s changes newest first, ea
   assert.deepEqual(d.changes.map(c => c.version + ' ' + c.text), ['0.5.1 a fix', '0.5.1 another', '0.5.0 first']);
   assert.equal(d.versions, 2);
   assert.equal(digest([]), null);
+});
+
+test('the app\'s card (the player, 2026-11-20): the newest headline\'s showcase and the version history; nothing for a fix alone', () => {
+  const c = card(newsSince('0.5.0', '0.6.1'));
+  assert.equal(c.headline, 'Your class quests, planned');
+  assert.equal(c.features.length, 4);
+  assert.deepEqual(c.history.map(h => h.version + (h.isNew ? '*' : '')), ['0.6.1*', '0.6.0*', '0.5.0']);
+  assert.equal(card(newsSince('0.6.0', '0.6.1')), null);
 });

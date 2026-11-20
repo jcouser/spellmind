@@ -118,24 +118,6 @@ test('no news for this version: nothing shows, and the version is noted', () => 
   assert.equal(vm.evaluate('SpellmindDB.seenVersion'), '0.5.1');
 });
 
-test('What\'s new: the changes under the highlights; a version with only changes says "What\'s changed"; skipped versions\' changes too', () => {
-  const vm = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true, seenVersion = "0.4.7" }', before: 'NS.VERSION = "0.5.0"' }).login().advance(7);
-  assert.equal(vm.evaluate('SpellmindNews.alsoLabel:GetText()'), 'Also in this update');
-  assert.match(vm.evaluate('SpellmindNews.changes[1]:GetText()'), /Review my route/);
-  // Two versions later, the second with only changes.
-  const v2 = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true, seenVersion = "0.4.7" }', before: `NS.VERSION = "0.5.1"
-    table.insert(NS.Welcome.NEWS, { version = "0.5.1", changes = { "The arrow turns smoother." } })` }).login().advance(7);
-  assert.equal(v2.evaluate('SpellmindNews.headline:GetText()'), 'Meet your quest route', 'skipped 0.5.0: its headline leads');
-  assert.equal(v2.evaluate('SpellmindNews.features[1].title:GetText()'), 'A plan that knows your character', 'and its highlights');
-  assert.match(v2.evaluate('SpellmindNews.changes[1]:GetText()'), /0\.5\.1.*The arrow turns smoother/);
-  assert.match(v2.evaluate('SpellmindNews.changes[2]:GetText()'), /0\.5\.0.*Review my route/);
-  assert.equal(v2.evaluate('tostring(SpellmindNews.go.shown)'), 'true', 'the route to try');
-  // Seen 0.5.0, then 0.5.1 alone: only its changes.
-  const v3 = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true, seenVersion = "0.5.0" }', before: `NS.VERSION = "0.5.1"
-    table.insert(NS.Welcome.NEWS, { version = "0.5.1", changes = { "The arrow turns smoother." } })` }).login().advance(7);
-  assert.equal(v3.evaluate('SpellmindNews.headline:GetText()'), 'What\'s changed');
-  assert.equal(v3.evaluate('tostring(SpellmindNews.go.shown)'), 'false', 'nothing to try');
-});
 
 test('the welcome: highlights of the versions after the last public one first, then what\'s always there', () => {
   const vm = newVM({ welcome: true, before: `NS.VERSION = "0.6.1"
@@ -157,18 +139,31 @@ test('a What\'s new taller than the screen is scaled down to fit', () => {
   assert.ok(Math.abs(s.h * s.s - 340) < 0.5, 'scaled to fit: ' + JSON.stringify(s));
 });
 
-test('What\'s new across versions: the newest headline\'s highlights alone, an older headline in one line; /sm news, this version\'s (the player, 2026-11-20)', () => {
-  const vm = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true, seenVersion = "0.4.7" }', before: 'NS.VERSION = "0.6.0"' }).login().advance(7);
-  const feats = [1, 2, 3, 4, 5].map(k => vm.evaluate(`tostring(SpellmindNews.features[${k}] and SpellmindNews.features[${k}].shown and SpellmindNews.features[${k}].title:GetText())`));
-  assert.equal(vm.evaluate('SpellmindNews.headline:GetText()'), 'Your class quests, planned');
-  assert.ok(!feats.includes('A plan that knows your character'), '0.5.0\'s highlights not again: ' + feats);
-  const lines = []; for (let k = 1; k <= 12; k++) { const t = vm.evaluate(`tostring(SpellmindNews.changes[${k}] and SpellmindNews.changes[${k}].shown and SpellmindNews.changes[${k}]:GetText())`); if (t !== 'false' && t !== 'nil') lines.push(t); }
-  assert.ok(lines.some(l => /0\.5\.0.*Meet your quest route/.test(l)), '0.5.0 in one line: ' + lines.join(' / '));
-  assert.ok(!lines.some(l => /Plan my next hour/.test(l)), 'not its changes');
-  // /sm news: this version's alone.
-  vm.run('SpellmindNews:Hide()');
+
+// The history's lines as the player reads them.
+const heads = vm => { const o = []; for (let k = 1; k <= 12; k++) { const x = vm.evaluate(`tostring(SpellmindNews.heads[${k}] and SpellmindNews.heads[${k}].shown and SpellmindNews.heads[${k}]:GetText())`); if (x !== 'false' && x !== 'nil') o.push(x.replace(/\|c\x66{2}[0-9a-f]{6}|\|cff[0-9a-f]{6}|\|r/g, '')); } return o; };
+
+test('What\'s new (the player, 2026-11-20): the showcase of the newest release with a headline, then the version history newest first, the ones since your last look marked new', () => {
+  const vm = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true, seenVersion = "0.5.0" }', before: 'NS.VERSION = "0.6.1"' }).login().advance(7);
+  assert.ok(news(vm), 'a release with a headline since: it opens');
+  assert.equal(vm.evaluate('SpellmindNews.title:GetText()'), "What's new in Spellmind 0.6.1");
+  assert.equal(vm.evaluate('SpellmindNews.headline:GetText()'), 'Your class quests, planned', 'the showcase: 0.6.0, though 0.6.1 came after');
+  assert.equal(vm.evaluate('SpellmindNews.features[1].title:GetText()'), 'Every class questline for you');
+  assert.equal(vm.evaluate('SpellmindNews.alsoLabel:GetText()'), 'Version history');
+  const h = heads(vm);
+  assert.deepEqual(h, ['0.6.1  new', '0.6.0  Your class quests, planned  new', '0.5.0  Meet your quest route']);
+  assert.match(vm.evaluate('SpellmindNews.changes[1]:GetText()'), /Skipping a quest's pickup/);
+  // In a scroll of its own: the window keeps its size.
+  assert.ok(vm.num('SpellmindNews.hist:GetHeight()') <= 190);
+  assert.equal(vm.evaluate('tostring(SpellmindNews.go.shown)'), 'true', 'its Try it now');
+});
+
+test('a fix alone (no headline since your last look) doesn\'t open What\'s new; /sm news has it in the history', () => {
+  const vm = newVM({ welcome: true, db: 'SpellmindDB = { welcomed = true, seenVersion = "0.6.0" }', before: 'NS.VERSION = "0.6.1"' }).login().advance(7);
+  assert.ok(!news(vm), 'quiet');
+  assert.equal(vm.evaluate('SpellmindDB.seenVersion'), '0.6.1');
   vm.slash('news');
-  const after = []; for (let k = 1; k <= 12; k++) { const t = vm.evaluate(`tostring(SpellmindNews.changes[${k}] and SpellmindNews.changes[${k}].shown and SpellmindNews.changes[${k}]:GetText())`); if (t !== 'false' && t !== 'nil') after.push(t); }
-  assert.ok(!after.some(l => /0\.5\.0|Meet your quest route/.test(l)), after.join(' / '));
-  assert.ok(after.some(l => /keeps its order/.test(l)));
+  assert.ok(news(vm));
+  assert.equal(vm.evaluate('SpellmindNews.headline:GetText()'), 'Your class quests, planned');
+  assert.equal(heads(vm)[0], '0.6.1', 'no "new" from /sm news');
 });

@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dataDir, readConfig, writeConfig } from '../../core/app/runner.mjs';
-import { newsSince, digest } from '../../core/news.mjs';
+import { newsSince, card } from '../../core/news.mjs';
 import { createSupervisor } from '../../core/app/supervisor.mjs';
 import { aiChoices, applyAI } from '../../core/app/settings.mjs';
 import { createAISetup } from '../../core/app/ai.mjs';
@@ -289,7 +289,7 @@ async function fullStatus() {
     app: appSettings(),
     update: updates ? updates.state() : { phase: 'off' },
     activity: activity.slice().reverse(),
-    news: digest(newsState()),
+    news: card(newsState()),
   };
 }
 

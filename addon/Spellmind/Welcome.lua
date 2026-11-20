@@ -92,6 +92,10 @@ WL.NEWS = {
 			"Season of Discovery quests no longer slip into the route on WoW Forever.",
 			"Spellmind's lines in the game's chat have their own colours, and nudges grow to fit their words.",
 		} },
+	{ version = "0.6.1",
+		changes = {
+			"Skipping a quest's pickup takes the quest off the route: its objective, its turn-in, and the follow-ups it opens. Back brings them back.",
+		} },
 }
 
 -- What each news's "Try it now" does: the route on, and its tab.
@@ -209,9 +213,9 @@ end
 local function Change(f, k)
 	local l = f.changes[k]
 	if l then return l end
-	l = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	l = (f.histContent or f):CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	l:SetJustifyH("LEFT")
-	l:SetWidth(INNER - 14)
+	l:SetWidth(INNER - 30)
 	if l.SetWordWrap then l:SetWordWrap(true) end
 	f.changes[k] = l
 	return l
@@ -405,6 +409,21 @@ local function BuildNews()
 	f.note:SetJustifyH("LEFT")
 	if f.note.SetWordWrap then f.note:SetWordWrap(true) end
 	f.alsoLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	-- The version history (the player, 2026-11-20: "a scrolling list of change log version history,
+	-- while keeping the main product release section intact"): every version's changes, newest first.
+	f.hist = CreateFrame("ScrollFrame", nil, f)
+	f.histContent = CreateFrame("Frame", nil, f.hist)
+	f.histContent:SetSize(INNER - 10, 10)
+	f.hist:SetScrollChild(f.histContent)
+	f.hist:EnableMouseWheel(true)
+	f.hist:SetScript("OnMouseWheel", function(self, delta)
+		local range = tonumber((self:GetVerticalScrollRange())) or 0
+		local y = (tonumber((self:GetVerticalScroll())) or 0) - delta * 30
+		self:SetVerticalScroll(math.max(0, math.min(range, y)))
+		if f.histBar and f.histBar.Update then f.histBar.Update() end
+	end)
+	f.histBar = ns.Window and ns.Window.ScrollBar and ns.Window.ScrollBar(f.hist, 4) or nil
+	f.heads = {}
 	f.again = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	f.again:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", WL.PAD, 22)
 	f.again:SetText("/sm news shows this again.")
@@ -424,60 +443,78 @@ local function BuildNews()
 	return f
 end
 
--- Several versions since the one last seen: the newest headline, every version's highlights (newest
--- first) and every version's changes.
--- The highlights are the newest headline's alone (the player, 2026-11-20: /sm news showed every
--- version's, ten highlights and eleven changes, the window shrunk to fit and its text cut short): the
--- changes of it and the versions after it; an older version with a headline, that headline in one
--- line ("0.5.0  Meet your quest route"). /sm news: this version's.
+-- What's new (the player, 2026-11-20): the showcase, the newest release with a headline (its line, its
+-- highlights, its footnote, Try it now), even when a fix came after it; then the version history,
+-- every version up to this one, newest first, each its changes ("new" on the ones since the version
+-- last seen), in a scroll of its own so the window keeps its size. list: the versions since the one
+-- last seen (to mark them new); nil for /sm news.
+WL.HISTORY_H = 190
+local function Head(f, k)
+	local l = f.heads[k]
+	if l then return l end
+	l = f.histContent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	l:SetJustifyH("LEFT")
+	l:SetWidth(INNER - 16)
+	f.heads[k] = l
+	return l
+end
 function WL.ShowNews(list)
-	list = list or { WL.NEWS[#WL.NEWS] }
-	if #list == 0 then list = { WL.NEWS[#WL.NEWS] } end
-	local n = list[#list]
-	local lead, leadAt = nil, nil
-	for k = #list, 1, -1 do
-		if not lead and list[k].headline then lead, leadAt = list[k], k end
-	end
-	lead, leadAt = lead or n, leadAt or #list
-	local features = {}
-	for _, ft in ipairs(lead.features or {}) do features[#features + 1] = ft end
+	local current = ns.VERSION
+	local all = {}
+	for _, e in ipairs(WL.NEWS) do if not WL.Newer(e.version, current or "0") then all[#all + 1] = e end end
+	if #all == 0 then all = { WL.NEWS[#WL.NEWS] } end
+	local fresh = {}
+	for _, e in ipairs(list or {}) do fresh[e.version] = true end
+	local lead
+	for k = #all, 1, -1 do if all[k].headline then lead = all[k]; break end end
+	lead = lead or all[#all]
 	local f = BuildNews()
 	local P = WL.PAD
-	f.title:SetText("What's new in Spellmind " .. n.version)
-	local y = Fill(f, lead.headline or "What's changed", lead.tagline, { { features = features } })
-	-- The changes: every version's since the one last seen, newest first ("Also in this update" under
-	-- highlights; on their own, the headline says it).
-	local lines = {}
-	for k = #list, 1, -1 do
-		local tag = #list > 1 and ("|cff888888" .. list[k].version .. "|r  ") or ""
-		if k < leadAt and list[k].headline then
-			lines[#lines + 1] = tag .. list[k].headline
-		else
-			for _, c in ipairs(list[k].changes or {}) do lines[#lines + 1] = tag .. c end
-		end
-	end
-	for _, l in ipairs(f.changes) do l:Hide() end
-	f.alsoLabel:Hide()
-	if #lines > 0 and #features > 0 then
-		f.alsoLabel:SetText("Also in this update")
-		f.alsoLabel:ClearAllPoints()
-		f.alsoLabel:SetPoint("TOPLEFT", f, "TOPLEFT", P, y)
-		f.alsoLabel:Show()
-		y = y - 22
-	end
-	for k, text in ipairs(lines) do
-		local l = Change(f, k)
-		l:SetText("|cffffd100•|r  " .. text)
-		l:ClearAllPoints()
-		l:SetPoint("TOPLEFT", f, "TOPLEFT", P + 4, y)
-		l:Show()
-		y = y - (tonumber(l:GetStringHeight()) or 14) - 8
-	end
-	if #lines > 0 then y = y - 10 end
+	f.title:SetText("What's new in Spellmind " .. tostring(current or all[#all].version))
+	local y = Fill(f, lead.headline or "What's changed", lead.tagline, { { features = lead.features or {} } })
 	f.note:SetText(lead.note or "")
 	f.note:ClearAllPoints()
 	f.note:SetPoint("TOPLEFT", f, "TOPLEFT", P, y - 2)
-	if lead.note then y = y - 2 - (tonumber(f.note:GetStringHeight()) or 14) end
+	if lead.note then y = y - 2 - (tonumber(f.note:GetStringHeight()) or 14) - 14 end
+	-- The history.
+	for _, l in ipairs(f.changes) do l:Hide() end
+	for _, l in ipairs(f.heads) do l:Hide() end
+	f.alsoLabel:SetText("Version history")
+	f.alsoLabel:ClearAllPoints()
+	f.alsoLabel:SetPoint("TOPLEFT", f, "TOPLEFT", P, y)
+	f.alsoLabel:Show()
+	y = y - 22
+	local cy, nh, nl = 0, 0, 0
+	for k = #all, 1, -1 do
+		local e = all[k]
+		nh = nh + 1
+		local h = Head(f, nh)
+		h:SetText("|cffffd100" .. e.version .. "|r" .. (e.headline and ("  |cffffffff" .. e.headline .. "|r") or "")
+			.. (fresh[e.version] and "  |cff19ff19new|r" or ""))
+		h:ClearAllPoints()
+		h:SetPoint("TOPLEFT", f.histContent, "TOPLEFT", 0, cy)
+		h:Show()
+		cy = cy - (tonumber(h:GetStringHeight()) or 14) - 6
+		for _, c in ipairs(e.changes or {}) do
+			nl = nl + 1
+			local l = Change(f, nl)
+			l:SetText("|cffffd100•|r  " .. c)
+			l:ClearAllPoints()
+			l:SetPoint("TOPLEFT", f.histContent, "TOPLEFT", 8, cy)
+			l:Show()
+			cy = cy - (tonumber(l:GetStringHeight()) or 14) - 6
+		end
+		cy = cy - 10
+	end
+	f.histContent:SetSize(INNER - 10, math.max(1, -cy))
+	local hh = math.min(WL.HISTORY_H, math.max(30, -cy))
+	f.hist:ClearAllPoints()
+	f.hist:SetPoint("TOPLEFT", f, "TOPLEFT", P, y)
+	f.hist:SetSize(INNER, hh)
+	f.hist:SetVerticalScroll(0)
+	f.hist:Show()
+	if f.histBar and f.histBar.Update then f.histBar.Update() end
+	y = y - hh - 12
 	f.try = lead.try
 	if lead.try and WL.TRY[lead.try] then f.go:Show() else f.go:Hide() end
 	Center(f, math.max(300, -y + 70))
@@ -497,7 +534,10 @@ function WL.MaybeShow()
 	end
 	if ns.db.seenVersion == ns.VERSION then return end
 	local news = WL.Since(ns.db.seenVersion or "0", ns.VERSION)
-	if #news == 0 then ns.db.seenVersion = ns.VERSION; return end
+	-- A fix alone (no headline) doesn't open it: it's in the history, for /sm news.
+	local feature = false
+	for _, e in ipairs(news) do if e.headline then feature = true end end
+	if not feature then ns.db.seenVersion = ns.VERSION; return end
 	if InCombat() then C_Timer.After(WL.RETRY, WL.MaybeShow); return end
 	ns.db.seenVersion = ns.VERSION
 	WL.ShowNews(news)

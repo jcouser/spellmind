@@ -2751,7 +2751,7 @@ end
 -- objective the area its mobs or objects are in (the current step gold, the rest Spellmind's purple).
 -- Drawn on the map's canvas, under the map's own pins (Questie's spawn marks stay on top).
 RT.MAP_STEPS = 12
-RT.DOT = 18
+RT.DOT = 15 -- on screen at any zoom (the player, 2026-11-20: zoomed in, the dots were big and overlapped)
 local AREA_TEX = "Interface\\AddOns\\Spellmind\\Media\\Area"
 local DOT_TEX = "Interface\\AddOns\\Spellmind\\Media\\Dot"
 local marks = { areas = {}, dots = {}, shown = 0 }
@@ -2926,6 +2926,9 @@ function RT.DrawMap()
 	if cw <= 0 or ch <= 0 then return end
 	local cur = RT.Current()
 	local base = tonumber((layer:GetFrameLevel())) or 1
+	-- The dots the same size on screen at any zoom, as the lines are (the canvas scales its children).
+	local zoom = Scale()
+	local D = RT.DOT / zoom
 	local na, nd = 0, 0
 	local path = {} -- the steps' own spots (canvas units), in order, for the lines
 	-- Dots already placed (canvas units): one that would cover another sits beside it (the player,
@@ -2936,7 +2939,7 @@ function RT.DrawMap()
 		while moved do
 			moved = false
 			for _, q in ipairs(placed) do
-				if math.abs(q[1] - px) < RT.DOT and math.abs(q[2] - py) < RT.DOT then px, moved = q[1] + RT.DOT + 2, true; break end
+				if math.abs(q[1] - px) < D and math.abs(q[2] - py) < D then px, moved = q[1] + D + 2 / zoom, true; break end
 			end
 		end
 		placed[#placed + 1] = { px, py }
@@ -2965,7 +2968,8 @@ function RT.DrawMap()
 			local sx, sy = RT.StopPoint(s)
 			path[#path + 1] = { sx / 100 * cw, sy / 100 * ch, now = now }
 			local px, py = Free(sx / 100 * cw, sy / 100 * ch)
-			d:SetPoint("CENTER", layer, "TOPLEFT", px, -py)
+			d:SetScale(1 / zoom)
+			d:SetPoint("CENTER", layer, "TOPLEFT", px * zoom, -py * zoom)
 			d.tex:SetVertexColor(r, g, b)
 			d.num:SetText(tostring(i))
 			if now then d.num:SetTextColor(0.1, 0.05, 0) else d.num:SetTextColor(1, 1, 1) end
@@ -3031,7 +3035,7 @@ function RT.DrawMap()
 		-- landing at Darkshire and the step there were one on the other, and the step was pushed aside
 		-- over Deadwind Pass): it joins that mark, its words added to the tooltip.
 		local last = marks.legsShown > 0 and marks.legs[marks.legsShown] or nil
-		if x and last and last.at and math.abs(last.at[1] - x / 100 * cw) < RT.DOT and math.abs(last.at[2] - y / 100 * ch) < RT.DOT then
+		if x and last and last.at and math.abs(last.at[1] - x / 100 * cw) < D and math.abs(last.at[2] - y / 100 * ch) < D then
 			local tip = { last.tip and last.tip[1] or "" }
 			for k = 2, #(last.tip or {}) do tip[#tip + 1] = last.tip[k] end
 			for _, line in ipairs(edge and { "Toward " .. (leg.zone or "the next zone") } or leg.tip or {}) do tip[#tip + 1] = line end
@@ -3047,7 +3051,8 @@ function RT.DrawMap()
 			d.at, d.count = { x / 100 * cw, y / 100 * ch }, 1
 			d:ClearAllPoints()
 			local px, py = Free(x / 100 * cw, y / 100 * ch)
-			d:SetPoint("CENTER", layer, "TOPLEFT", px, -py)
+			d:SetScale(1 / zoom)
+			d:SetPoint("CENTER", layer, "TOPLEFT", px * zoom, -py * zoom)
 			d.tex:SetVertexColor(0.3, 0.95, 0.4)
 			d.num:SetText("\194\187")
 			d.num:SetTextColor(0.05, 0.15, 0.05)

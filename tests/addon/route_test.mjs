@@ -1892,3 +1892,15 @@ test('a stop joined from nearby goals points at the goal to do first there, then
   vm.run('for id = 700, 701 do STUB.completed[id] = true end; STUB.quests = { { title = "Loch Modan", isHeader = true } }');
   assert.deepEqual(point(), [50, 55], 'then Caitlin');
 });
+
+test('the map\'s dots keep their size on screen when the map is zoomed, in the same place (the player, 2026-11-20)', () => {
+  const vm = session();
+  vm.run(MAP);
+  vm.slash('route');
+  vm.run('NS.Route.DrawMap()');
+  const at1 = vm.json('(function() local d = NS.Route.marks.dots[1]; local _, _, _, x, y = d:GetPoint(); return { x = x, y = y, s = d:GetScale() } end)()');
+  vm.run('WorldMapFrame.GetCanvasScale = function() return 2 end; NS.Route.DrawMap()');
+  const at2 = vm.json('(function() local d = NS.Route.marks.dots[1]; local _, _, _, x, y = d:GetPoint(); return { x = x, y = y, s = d:GetScale() } end)()');
+  assert.equal(at2.s, 0.5, 'half scale at twice the zoom: the same on screen');
+  assert.ok(Math.abs(at2.x * at2.s - at1.x * at1.s) < 0.01 && Math.abs(at2.y * at2.s - at1.y * at1.s) < 0.01, 'the same spot: ' + JSON.stringify([at1, at2]));
+});

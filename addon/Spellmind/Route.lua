@@ -283,6 +283,15 @@ function RT.Vendor(Q, id, area)
 	return away
 end
 
+-- A quest whose objectives are items alone (what a vendor could sell), no mobs, objects or spots.
+function RT.OnlyItems(Q, id)
+	local o = Try(Q.Quest.objectives, id)
+	if type(o) ~= "table" or type(o[3]) ~= "table" or #o[3] == 0 then return false end
+	for _, k in ipairs({ 1, 2, 5 }) do if type(o[k]) == "table" and #o[k] > 0 then return false end end
+	local trig = type(Q.Quest.triggerEnd) == "function" and Try(Q.Quest.triggerEnd, id) or nil
+	return type(trig) ~= "table"
+end
+
 -- Every seller of a quest's goods Questie knows: { item, name, friendly, zone, zoneName, x, y, placed
 -- (on a map), yards (from the spot given; nil on another continent), ok (friendly and in stock) }.
 function RT.VendorCandidates(Q, id, from)
@@ -3442,10 +3451,25 @@ function RT.QuestPlaces(Q, id, here)
 		local at = RT.TurnIn(Q, id, fin.zone)
 		if at and at.spot then out.fin = SpotOn(tonumber(fin.zone), at.spot.x, at.spot.y, here); if out.fin then out.fin.name = at.name end end
 	end
+	-- Items a vendor sells, also dropped somewhere (the player, 2026-11-20: The Touch of Zanzil's
+	-- Simple Wildflowers and Leaded Vial, placed as a drop area in The Barrens for a Stormwind quest):
+	-- bought, when the nearest friendly seller is nearer the giver than that area.
+	local fromW = g and DG().MapForArea(tonumber(g.zone)) and World(DG().MapForArea(tonumber(g.zone)), g.x, g.y) or RT.PlayerWorld()
+	if out.area and RT.OnlyItems(Q, id) then
+		local v = RT.NearestVendor(Q, id, fromW)
+		local aw = area and DG().MapForArea(area) and World(DG().MapForArea(area), out.area.cx or out.area.x, out.area.cy or out.area.y)
+		local vw = v and DG().MapForArea(v.zone) and World(DG().MapForArea(v.zone), v.x, v.y)
+		local function Far(w) if not w or not fromW or w.c ~= fromW.c then return 1e12 end return (w.x - fromW.x) ^ 2 + (w.y - fromW.y) ^ 2 end
+		if v and Far(vw) < Far(aw) then
+			out.area = nil
+			out.buy = SpotOn(v.zone, v.x, v.y, here)
+			if out.buy then out.buy.item, out.buy.vendor = v.item, v.name end
+		end
+	end
 	-- Nowhere to do it, and something to buy (the player, 2026-11-20: The Touch of Zanzil's goods): a
 	-- vendor in the giver's zone, the turn-in's or here; else the nearest one friendly to the player,
 	-- from the giver (the first one found was in The Barrens, for a Stormwind quest).
-	if not out.area then
+	if not out.area and not out.buy then
 		local tried = {}
 		for _, z in ipairs({ g and tonumber(g.zone), fin and tonumber(fin.zone), here and here.area }) do
 			if z and not tried[z] and not out.buy then
@@ -3458,7 +3482,6 @@ function RT.QuestPlaces(Q, id, here)
 			end
 		end
 		if not out.buy then
-			local fromW = g and DG().MapForArea(tonumber(g.zone)) and World(DG().MapForArea(tonumber(g.zone)), g.x, g.y) or RT.PlayerWorld()
 			local v = RT.NearestVendor(Q, id, fromW)
 			if v then
 				out.buy = SpotOn(v.zone, v.x, v.y, here)
@@ -4329,11 +4352,11 @@ function RT.Why(n)
 	-- Something to buy: every seller known, and what Spellmind makes of each (the player, 2026-11-20:
 	-- The Touch of Zanzil's goods went to The Barrens).
 	for _, g in ipairs(st.goals) do
-		if g.buy and Q then
+		if g.kind == "do" and Q and (g.buy or RT.OnlyItems(Q, g.q)) then
 			local p = DG().Giver(Q, g.q) and select(3, DG().Giver(Q, g.q))
 			local fromW = p and DG().MapForArea(tonumber(p.zone)) and World(DG().MapForArea(tonumber(p.zone)), p.x, p.y) or RT.PlayerWorld()
 			local cands = RT.VendorCandidates(Q, g.q, fromW)
-			Add("  " .. Bare(g.title) .. ": bought from " .. tostring(g.from or "?") .. "; " .. #cands .. " seller(s) known:")
+			Add("  " .. Bare(g.title) .. ": " .. (g.buy and ("bought from " .. tostring(g.from or "?")) or "gathered where it drops") .. "; " .. #cands .. " seller(s) known:")
 			for k, v in ipairs(cands) do
 				if k > 8 then Add("    …and " .. (#cands - 8) .. " more (in the saved snapshot)"); break end
 				if v.none then Add("    " .. tostring(v.item) .. ": no seller known")
@@ -4395,7 +4418,7 @@ function RT.Snapshot(whyLines, n)
 		local goals = {}
 		for _, g in ipairs(st.goals) do
 			goals[#goals + 1] = { kind = g.kind, q = g.q, title = g.title, to = g.to, done = RT.GoalDone(g) or nil, buy = g.buy, from = g.from }
-			if g.buy and Q then
+			if g.kind == "do" and Q and (g.buy or RT.OnlyItems(Q, g.q)) then
 				snap.vendors = snap.vendors or {}
 				local p = select(3, DG().Giver(Q, g.q))
 				local fromW = p and DG().MapForArea(tonumber(p.zone)) and RT.World(DG().MapForArea(tonumber(p.zone)), p.x, p.y) or nil

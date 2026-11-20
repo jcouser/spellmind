@@ -2101,3 +2101,25 @@ test('/sm route why on a buy step lists every seller known, where, whose and how
   const v = vm.json('SpellmindDB.routeDebug.vendors[950]');
   assert.equal((Array.isArray(v) ? v : Object.values(v)).length, 2);
 });
+
+test('items sold nearby and dropped far away: bought (the player, 2026-11-20: The Touch of Zanzil\'s goods went to a drop area in The Barrens)', () => {
+  const vm = newVM({ before: ZONE + CLASS + `
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    Q[950].zone = -162
+    STUB.qdb.items = STUB.qdb.items or {}
+    -- Dropped by mobs in Westfall (many), sold in Ironforge (by the giver).
+    STUB.qdb.items[5000] = { name = "Leaded Vial", vendors = { 962 }, drops = { 963 } }
+    N[962] = { name = "Ironforge Seller", zone = 1537, spawns = { [1537] = { { 52, 16 } } }, friendly = "A" }
+    N[963] = { name = "Vial Thief", zone = 40, spawns = { [40] = { { 40, 40 }, { 41, 41 }, { 42, 40 }, { 40, 42 } } } }
+    Q[950].obj = { {}, {}, { { 5000 } } }` }).login().advance(9);
+  vm.run(`LibQuestieDB.Item = LibQuestieDB.Item or {}
+    LibQuestieDB.Item.name = function(id) local it = STUB.qdb.items[id]; return it and it.name end
+    LibQuestieDB.Item.vendors = function(id) local it = STUB.qdb.items[id]; return it and it.vendors end
+    LibQuestieDB.Item.npcDrops = function(id) local it = STUB.qdb.items[id]; return it and it.drops end
+    LibQuestieDB.Item.objectDrops = function() return nil end`);
+  vm.slash('route');
+  vm.run('NS.Route.SetMode("class", 952, "Mastery of Shadows")');
+  const g = vm.json('(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 950 then return { buy = g.buy, from = g.from, zone = s.zoneName } end end end end)()');
+  assert.equal(g.buy, 'Leaded Vial', JSON.stringify(g));
+  assert.equal(g.from, 'Ironforge Seller');
+});

@@ -2174,3 +2174,29 @@ test('goods from two shops: each item with its own seller, the arrow to the next
   assert.doesNotMatch(after, /Simple Wildflowers/, after);
   assert.match(after, /Bronze Tube .*from Jasper Fel/);
 });
+
+test('an item no one sells, taken from the ground: listed with the bought ones, the arrow to it in turn (the player, 2026-11-20: the silk thread spool)', () => {
+  const vm = newVM({ before: ZONE + CLASS + `
+    local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+    Q[950].zone = -162
+    STUB.qdb.items = STUB.qdb.items or {}
+    STUB.qdb.items[5001] = { name = "Bronze Tube", vendors = { 965 } }
+    STUB.qdb.items[5002] = { name = "Spool of Silk Thread", objs = { 970 } }
+    STUB.qdb.objects = STUB.qdb.objects or {}
+    STUB.qdb.objects[970] = { spawns = { [1537] = { { 45, 35 } } } }
+    N[965] = { name = "Jasper Fel", zone = 1537, spawns = { [1537] = { { 60, 30 } } }, friendly = "A" }
+    Q[950].obj = { {}, {}, { { 5001 }, { 5002 } } }` }).login().advance(9);
+  vm.run(`LibQuestieDB.Item = LibQuestieDB.Item or {}
+    LibQuestieDB.Item.name = function(id) local it = STUB.qdb.items[id]; return it and it.name end
+    LibQuestieDB.Item.vendors = function(id) local it = STUB.qdb.items[id]; return it and it.vendors end
+    LibQuestieDB.Item.npcDrops = function() return nil end
+    LibQuestieDB.Item.objectDrops = function(id) local it = STUB.qdb.items[id]; return it and it.objs end
+    LibQuestieDB.Object = LibQuestieDB.Object or {}
+    LibQuestieDB.Object.spawns = function(id) local o = STUB.qdb.objects[id]; return o and o.spawns end
+    LibQuestieDB.Object.name = function() return "Spool" end`);
+  vm.slash('route');
+  vm.run('NS.Route.SetMode("class", 952, "Mastery of Shadows")');
+  const find = '(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 950 then return s, g end end end end)()';
+  const text = vm.evaluate(`NS.Route.GoalText(select(2, ${find}))`);
+  assert.match(text, /buy Bronze Tube .*from Jasper Fel.*; take Spool of Silk Thread .*on the ground/, text);
+});

@@ -126,7 +126,7 @@ function RT.StopPoint(st)
 	local g = gr and gr.goals[1]
 	if g and type(g.buys) == "table" and #g.buys > 1 then
 		for _, b in ipairs(g.buys) do
-			if not RT.ItemHad(g.q, b.item) and DG().MapForArea(b.zone) == RT.StopMap(st) then return b.x, b.y end
+			if not b.none and not RT.ItemHad(g.q, b.item) and DG().MapForArea(b.zone) == RT.StopMap(st) then return b.x, b.y end
 		end
 	end
 	if g and g.sx and g.sy then return g.sx, g.sy end
@@ -323,7 +323,29 @@ function RT.ItemSellers(Q, id, from, zones)
 				end
 			end
 		end
-		if best then out[#out + 1] = best end
+		-- No seller: an object it's taken from (the player, 2026-11-20: the Spool of Light Chartreuse Silk
+		-- Thread lies on a counter in The Finest Thread), else its name alone, so no item goes unsaid.
+		if not best then
+			local O = Q.Object
+			for _, obj in ipairs(itemID and type(I.objectDrops) == "function" and Try(I.objectDrops, itemID) or {}) do
+				local sp = O and Try(O.spawns, obj)
+				for zone, list in pairs(type(sp) == "table" and sp or {}) do
+					zone = tonumber(zone)
+					local at = zone and zone > 0 and type(list) == "table" and list[1]
+					if at and tonumber(at[1]) and tonumber(at[2]) then
+						local rank = 99
+						for k, z in ipairs(zones or {}) do if z == zone then rank = k; break end end
+						local map = DG().MapForArea(zone)
+						local w = map and RT.World(map, at[1], at[2])
+						local d = (w and from and w.c == from.c) and ((w.x - from.x) ^ 2 + (w.y - from.y) ^ 2) or 1e12
+						if not best or rank < bestZ or (rank == bestZ and d < bestD) then
+							best, bestD, bestZ = { item = item, take = true, zone = zone, x = tonumber(at[1]), y = tonumber(at[2]) }, d, rank
+						end
+					end
+				end
+			end
+		end
+		out[#out + 1] = best or { item = item, none = true }
 	end
 	return out
 end
@@ -1738,10 +1760,18 @@ function RT.GoalText(g)
 		-- Two sellers or more: each item still needed, from its own.
 		if type(g.buys) == "table" and #g.buys > 1 then
 			local bits = {}
+			local takes = {}
 			for _, b in ipairs(g.buys) do
-				if not RT.ItemHad(g.q, b.item) then bits[#bits + 1] = ns.Escape(b.item or "?") .. " |cff888888from " .. ns.Escape(b.name or "?") .. "|r" end
+				if not RT.ItemHad(g.q, b.item) then
+					if b.take then takes[#takes + 1] = "take " .. ns.Escape(b.item or "?") .. " |cff888888(on the ground)|r"
+					elseif b.none then takes[#takes + 1] = "get " .. ns.Escape(b.item or "?") .. " |cff888888(no seller known)|r"
+					else bits[#bits + 1] = ns.Escape(b.item or "?") .. " |cff888888from " .. ns.Escape(b.name or "?") .. "|r" end
+				end
 			end
-			if #bits > 0 then return ns.Escape(g.title) .. ": buy " .. table.concat(bits, ", ") end
+			if #bits > 0 or #takes > 0 then
+				return ns.Escape(g.title) .. ": " .. (#bits > 0 and ("buy " .. table.concat(bits, ", ")) or "")
+					.. ((#bits > 0 and #takes > 0) and "; " or "") .. table.concat(takes, "; ")
+			end
 		end
 		return ns.Escape(g.title) .. ": " .. (left or ("get " .. ns.Escape(g.buy)))
 			.. (g.from and (" |cff888888(sold by " .. ns.Escape(g.from) .. ")|r") or "")

@@ -32,7 +32,7 @@ Upload `Spellmind-<version>.zip` from the GitHub release, the same file, unchang
 
 ## Description
 
-As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19, to publish with that release). Keep it to what the addon does; anything that needs the app says so. The images come from this repository (raw.githubusercontent.com); renaming or moving one in docs/images breaks it here.
+As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19) and described in full after its release (2026-11-20; paste it into the project's description by hand). Keep it to what the addon does; anything that needs the app says so. The images come from this repository (raw.githubusercontent.com); renaming or moving one in docs/images breaks it here.
 
 > **Spellmind** is a companion for **WoW Forever** that knows your character as you play: your quests, gear, bags, talents, spells and professions. It plans your quest route, tells you what to do next, and with the free Spellmind app, it becomes an **AI chatbot** you can ask anything about your character, right in the game.
 >
@@ -42,19 +42,45 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 >
 > ## Your quest route
 >
-> Turn it on in the **Route tab**. Spellmind plans your leveling from your own quest log and where you stand: every pickup, objective and turn-in around you, in the shortest order, ticked off the moment you finish it. Follow-up quests are planned after the turn-in that opens them, and quests above your level wait until you're ready (or in a group).
+> Turn it on in the **Route tab** (or `/sm route`). Spellmind plans your leveling from your own quest log and where you stand, keeps the plan up to date as you play, and shows you the way: in a small window that stays on screen, with an arrow, and on the world map and minimap.
 >
-> - **Never lose your way:** an arrow on screen points to your next step with the yards to it. The world map numbers the steps, shades where each objective is and draws a line from you through them. The minimap shows the current step.
-> - **Always know where to go next:** when a zone runs dry, Spellmind ranks the best zones for your level by the quests actually left for you, counting the flight paths you know and your hearthstone.
-> - **Ask about it:** with the free app, your AI sees the same route. "Review my route" says what to skip and why.
+> ![The world map in the Wetlands: a gold line to your current step, then the numbered steps around Menethil Harbor, each objective's area shaded](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-wetlands-map.png)
+>
+> ### How it plans
+>
+> - **The shortest order that works:** every pickup, objective and turn-in around you, in an order that keeps the quests' own rules: picked up before the objectives, objectives before the turn-in, a chain in order. Follow-up quests are planned after the turn-in that opens them.
+> - **Quests that fit you:** quests above your level wait until you're ready (or in a group).
+> - **The mobs nearest your way:** a kill or collect step goes to the group of mobs that's least out of your way, not just the biggest.
+> - **Worth the walk?** A far quest that gives little XP for the walk is marked "worth skipping?" and comes later. Skip any step; Back brings it back.
+> - **Up to date by itself:** steps tick off the moment you finish them, and the plan is made again when your quest log changes. It holds still while you're on a flight path.
+>
+> ### On your screen
+>
+> - **The route window:** your current step, then the next ones, numbered as on the map, each with what else is done at the same spot. It stays on screen through reloads, where you put it.
+> - **The arrow:** points to your next step with the yards to it, along the roads you've walked rather than straight through a mountain.
+> - **The world map:** numbered steps, each objective's area shaded, and a line from you through them.
+> - **The minimap:** the current step and the next one, with thin lines to them.
+>
+> ![The route window in the Wetlands: the current step, the next ones numbered, where to go next and quests elsewhere](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-wetlands-tracker.png)
+>
+> ### Where next, and the way there
+>
+> - **When a zone runs dry,** Spellmind ranks the best zones for your level by the quests actually left for you there, and the time to get there.
+> - **Pick one, and the route takes you there,** holding to it through the zones on the way until you arrive. "Quest here instead" changes your mind.
+> - **The way there, leg by leg:** the flight paths you know, the roads between zones, the tram, the boats and your hearthstone. The arrow and the map follow them.
+>
+> ![Done in a zone: the best next zone for your level, by flight](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-where-next.png)
+>
+> ### And more
+>
+> - **Ready for a dungeon:** pick a dungeon on the Route tab, and Spellmind routes you through its quests and the questlines that open them, across zones, to its door.
+> - **It learns your roads:** as you go, Spellmind remembers the way you went, so the arrow and the lines follow real paths. They stay on your PC.
+> - **Ask about it:** with the free app, your AI sees the same route. "Review my route" says what to skip and why, with a **Skip** button for each. Without the app, `/sm route why <step>` says why a step is where it is.
+> - **A switch for every part** on the Route tab: the window, the arrow, the world map's steps, the minimap, and the lines.
 >
 > **Works best with Questie installed:** it adds the quests to pick up and where the mobs are. Without it, the route covers the quests in your log.
 >
-> ![The world map in Redridge: a gold line from you to your next step, then on through the route](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-map-line.png)
->
-> ![The route tracker: the current step, up next, and where to go next with travel times](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-tracker.png)
->
-> ![Done in a zone: the best next zone for your level, by flight](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-where-next.png)
+> ![The world map at Lakeshire: the line to the flight master follows the road you walked](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-trail.png)
 >
 > ## The panel
 >
@@ -100,7 +126,7 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 > With the free **Spellmind app** for Windows, ask **your own AI** anything about your character in Spellmind's chat window:
 >
 > - "Should I take [Dusty Mining Gloves] from this quest?" (shift-click items and quests into the box)
-> - "What should I do next here?" / "Plan my next hour"
+> - "What should I do next here?" / "Review my route"
 > - "What in my bags is worth selling on the Auction House?"
 > - "Plan my next 5 talent points"
 >

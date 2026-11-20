@@ -43,22 +43,49 @@ Spellmind is two parts:
 
 ### Your quest route
 
-Turn it on in the **Route tab**. Spellmind plans your leveling from your own quest log and where you stand: every pickup, objective and turn-in around you, in the shortest order, ticked off the moment you finish it. Follow-up quests are planned after the turn-in that opens them, and quests above your level wait until you're ready (or in a group).
+Turn it on in the **Route tab** (or `/sm route`). Spellmind plans your leveling from your own quest log and where you stand, keeps the plan up to date as you play, and shows you the way: in a small window that stays on screen, with an arrow, and on the world map and minimap.
 
-- **Never lose your way:** an arrow on screen points to your next step with the yards to it. The world map numbers the steps, shades where each objective is and draws a line from you through them. The minimap shows the current step, with a thin line to it along the roads you've walked (a switch on the Route tab turns the lines off).
-- **Always know where to go next:** when a zone runs dry, Spellmind ranks the best zones for your level by the quests actually left for you, counting the flight paths you know and your hearthstone.
-- **Ask about it:** with the app, your AI sees the same route. "Review my route" says what to skip and why.
+<p align="center">
+  <img src="docs/images/route-wetlands-map.png" alt="The world map in the Wetlands: from Dun Algaz, a gold line to step 1, then numbered purple steps around Menethil Harbor, each objective's area shaded, joined by the route's line" width="900">
+</p>
 
-Works best with [Questie](https://www.curseforge.com/wow/addons/questie) installed: it adds the quests to pick up and where the mobs are. Without it, the route covers the quests in your log.
+**How it plans**
+
+- **The shortest order that works:** every pickup, objective and turn-in around you, in an order that keeps the quests' own rules. A quest is picked up before its objectives, the objectives come before the turn-in, and a chain goes in order. Follow-up quests are planned after the turn-in that opens them.
+- **Quests that fit you:** quests above your level wait until you're ready (or in a group), and ones you can't take aren't listed.
+- **The mobs nearest your way:** a kill or collect step goes to the group of mobs that's least out of your way, not just the biggest. In the Wetlands above, that turned 20,900 yards of walking into 16,100.
+- **Worth the walk?** A far quest that gives little XP for the walk is marked "worth skipping?" and comes later. Skip any step; Back brings it back.
+- **Up to date by itself:** steps tick off the moment you finish them, and the plan is made again when your quest log changes. It holds still while you're on a flight path, and picks up where you land.
+
+**On your screen**
+
+- **The route window:** your current step, then the next ones, numbered as on the map, each with what else is done at the same spot ("Also here: 2 to pick up"). It stays on screen through reloads, where you put it and at the size you left it, and folds down to the current step alone.
+- **The arrow:** points to your next step with the yards to it, along the roads you've walked rather than straight through a mountain.
+- **The world map:** numbered steps, the current one gold; each objective's area shaded; a line from you to the current step and on through the rest.
+- **The minimap:** the current step and the next one, with thin lines to them. On the rim with an arrow when it's farther.
+
+**Where next, and the way there**
+
+- **When a zone runs dry,** Spellmind ranks the best zones for your level by the quests actually left for you there, and the time to get there.
+- **Pick one, and the route takes you there,** holding to it through the zones on the way, and a reload, until you arrive. "Quest here instead" changes your mind.
+- **The way there, leg by leg:** the flight paths you know, the roads between zones, the tram, the boats and your hearthstone. The route window lists the legs, and the arrow and the map follow them.
+
+**Ready for a dungeon:** pick a dungeon on the Route tab (or **Route** on the Dungeons tab). Spellmind routes you through its quests and the questlines that open them, across zones, to its door, and the turn-ins after the run.
+
+**It learns your roads:** as you walk, swim and ride, Spellmind remembers the way you went, so the arrow and the lines follow real paths. They stay on your PC; **Forget my trails** on the Route tab clears them.
+
+**Ask about it:** with the app, your AI sees the same route. "Review my route" says what to skip and why, with a **Skip** button for each, and "Why this order?" explains it. Without the app, `/sm route why <step>` says why a step is where it is.
+
+Every part has its own switch on the Route tab: the window, the arrow, the steps on the world map, the minimap, and the lines on each. Works best with [Questie](https://www.curseforge.com/wow/addons/questie) installed: it adds the quests to pick up and where the mobs are. Without it, the route covers the quests in your log.
 
 <table>
   <tr>
-    <td width="58%"><img src="docs/images/route-map-line.png" alt="The world map in Redridge: a gold line from you to step 1, turning in Tharil'zun to Marshal Marris, then on to step 2 in Lakeshire"></td>
-    <td width="42%"><img src="docs/images/route-tracker.png" alt="The route tracker in Redridge Mountains: the current step, up next, where next ranked with travel times, and quests elsewhere"></td>
+    <td width="45%"><img src="docs/images/route-wetlands-tracker.png" alt="The route window in the Wetlands: pick up Daily Delivery now, then numbered steps 2 to 7, some with what else is done there, where to go next with travel times, and quests elsewhere"></td>
+    <td width="55%"><img src="docs/images/route-where-next.png" alt="Done in Redridge: next, Wetlands, with 13 quests to pick up about 8 minutes away by flight; or Stormwind City or Ashenvale by boat"><br><br><img src="docs/images/route-trail.png" alt="The world map at Lakeshire: the green line to the flight master follows the road you walked, across the bridge, not a straight line" width="300"></td>
   </tr>
   <tr>
+    <td><img src="docs/images/route-minimap-line.png" alt="The minimap near Algaz Station: the line from you to your next step"></td>
     <td><img src="docs/images/route-map-steps.png" alt="The world map in Duskwood: numbered steps, the current one gold, and the area where step 2's skeletons are, shaded"></td>
-    <td><img src="docs/images/route-where-next.png" alt="Done in Redridge: next, Wetlands, with 13 quests to pick up about 8 minutes away by flight; or Stormwind City or Ashenvale by boat"></td>
   </tr>
 </table>
 

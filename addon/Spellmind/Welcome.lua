@@ -103,6 +103,14 @@ WL.NEWS = {
 		changes = {
 			"Fixed: Lua errors in combat from the route's arrow (the game's \"large number of errors\" warning).",
 		} },
+	{ version = "0.6.3",
+		changes = {
+			"Class questlines include every step: objectives placed (class quests have no zone of their own), and items to buy at a vendor.",
+			"Items a vendor sells are bought from the nearest friendly seller, not farmed in a zone far away.",
+			"On a flight path, the way there starts where you land (\"In flight to Stormwind\").",
+			"Fixed: the map's gold line could run to another step when your current one was on a different map.",
+			"/sm route why lists every seller of a step's items: where, whose, and how far.",
+		} },
 }
 
 -- What each news's "Try it now" does: the route on, and its tab.

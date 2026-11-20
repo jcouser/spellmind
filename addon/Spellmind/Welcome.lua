@@ -111,6 +111,15 @@ WL.NEWS = {
 			"Fixed: the map's gold line could run to another step when your current one was on a different map.",
 			"/sm route why lists every seller of a step's items: where, whose, and how far.",
 		} },
+	{ version = "0.6.4",
+		changes = {
+			"A quest's items each get their own step, with their own seller and navigation: in class questlines and in your zone's quests.",
+			"Items picked up off the ground are listed as \"take ... (on the ground)\", so no item goes unsaid.",
+			"When another quest in your log needs the same item, the step says how many to buy (\"buy 2: ... needs one too\").",
+			"A vendor seen sold out of an item is noticed on these steps too: the next seller, or the Auction House.",
+			"At one NPC, the finished quest is turned in before its follow-up is picked up.",
+			"Fixed: the minimap line and the arrow cut through walls when the target was nearer in a straight line.",
+		} },
 }
 
 -- What each news's "Try it now" does: the route on, and its tab.

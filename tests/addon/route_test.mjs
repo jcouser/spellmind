@@ -1513,3 +1513,16 @@ test('/sm route why <step> (the player, 2026-11-19: "so we can ensure we\'re opt
   const swapped = vm.json('NS.Route.Why(2)'); const sw = (Array.isArray(swapped) ? swapped : Object.values(swapped)).join('\n');
   assert.match(sw, /As step 1: /);
 });
+
+test('Up next says what else a stop holds (the player, 2026-11-19: "(+2)" wasn\'t descriptive)', () => {
+  const vm = session();
+  vm.slash('route');
+  assert.equal(vm.evaluate(`NS.Route.AlsoText({ { kind = "turnin", goals = { {} } }, { kind = "pickup", goals = { {}, {} } }, { kind = "turnin", goals = { {} } }, { kind = "do", goals = { {} } } }, 2)`),
+    ' |cff888888(also here: 1 to turn in, 2 to pick up, 1 objective)|r');
+  assert.equal(vm.evaluate('NS.Route.AlsoText({ { kind = "pickup", goals = { {} } } }, 2)'), '');
+  // Ironband's stop: pick up, do, turn in, and the next quest; its line names the first and the rest.
+  const k = vm.num(`(function() for i, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.q == 702 then return i end end end end)()`);
+  const text = vm.evaluate(`NS.Route.StopText(NS.R.route.stops[${k}])`);
+  assert.match(text, /\(also here: .*to (turn in|pick up)/, text);
+  assert.doesNotMatch(text, /\(\+\d+\)/);
+});

@@ -1335,13 +1335,29 @@ function RT.GroupNames(gr, max)
 	return table.concat(names, ", ") .. (more > 0 and (", +" .. more .. " more") or "")
 end
 
--- A stop in one short line (Up next): its first group, and how many more groups.
+-- What else a stop holds, after the groups a line shows (the player, 2026-11-19: "(+2)" at the end of
+-- Up next's rows wasn't descriptive): " (also here: 2 to pick up, 1 to turn in)", or "".
+function RT.AlsoText(groups, from)
+	local n = { turnin = 0, pickup = 0, ["do"] = 0, enter = 0 }
+	for k = from or 2, #groups do
+		local gr = groups[k]
+		n[gr.kind] = (n[gr.kind] or 0) + #gr.goals
+	end
+	local bits = {}
+	if n.turnin > 0 then bits[#bits + 1] = n.turnin .. " to turn in" end
+	if n.pickup > 0 then bits[#bits + 1] = n.pickup .. " to pick up" end
+	if n["do"] > 0 then bits[#bits + 1] = n["do"] .. (n["do"] == 1 and " objective" or " objectives") end
+	if n.enter > 0 then bits[#bits + 1] = "the way in" end
+	if #bits == 0 then return "" end
+	return " |cff888888(also here: " .. table.concat(bits, ", ") .. ")|r"
+end
+
+-- A stop in one short line (Up next): its first group, and what else is done there.
 RT.LOW_TAG = " |cff888888(worth skipping? little XP for the walk)|r"
 function RT.StopText(st)
 	local groups = RT.Groups(st)
 	if #groups == 0 then return "" end
-	local more = #groups - 1
-	return RT.StopZone(st) .. RT.GroupText(groups[1]) .. (more > 0 and (" |cff888888(+" .. more .. ")|r") or "") .. (RT.StopLow(st) and RT.LOW_TAG or "")
+	return RT.StopZone(st) .. RT.GroupText(groups[1]) .. RT.AlsoText(groups, 2) .. (RT.StopLow(st) and RT.LOW_TAG or "")
 end
 
 -- Skip the current step (the player's Next); Back brings the last one skipped back.
@@ -1846,7 +1862,7 @@ function RT.AwayLines(route)
 	for i, z in ipairs(zones) do
 		if i > 3 then break end
 		local more = #z.goals - 1
-		lines[#lines + 1] = "|cffffd100" .. ns.Escape(z.zone) .. ":|r " .. RT.GoalText(z.goals[1]) .. (more > 0 and (" |cff888888(+" .. more .. ")|r") or "")
+		lines[#lines + 1] = "|cffffd100" .. ns.Escape(z.zone) .. ":|r " .. RT.GoalText(z.goals[1]) .. (more > 0 and (" |cff888888(and " .. more .. " more there)|r") or "")
 	end
 	if #zones > 3 then lines[#lines + 1] = "|cff888888and " .. (#zones - 3) .. " more zones|r" end
 	if #unplaced > 0 then lines[#lines + 1] = "|cff888888No known spot:|r " .. Names(unplaced, 2) end
@@ -1971,7 +1987,7 @@ function RT.Draw()
 		l:SetPoint("TOPLEFT", f.content, "TOPLEFT", 16 - 8, y - top)
 		if gr then
 			local last = k == RT.THEN_LINES and #groups > RT.THEN_LINES + 1
-			l:SetText("|cff888888Then:|r " .. RT.GroupText(gr) .. (last and (" |cff888888(+" .. (#groups - RT.THEN_LINES - 1) .. ")|r") or ""))
+			l:SetText("|cff888888Then:|r " .. RT.GroupText(gr) .. (last and RT.AlsoText(groups, RT.THEN_LINES + 2) or ""))
 			l:Show()
 			y = y - Row(l)
 		else
@@ -1998,7 +2014,7 @@ function RT.Draw()
 		l:SetPoint("TOPLEFT", f.content, "TOPLEFT", 12, y - top)
 		if leg then
 			local more = k == RT.WAY_LINES and #wayLegs > RT.WAY_LINES
-			l:SetText((k == 1 and "|cffffd100" or "|cffffffff") .. k .. ".|r " .. (leg.tip and leg.tip[1] or "?") .. (more and (" |cff888888(+" .. (#wayLegs - RT.WAY_LINES) .. ")|r") or ""))
+			l:SetText((k == 1 and "|cffffd100" or "|cffffffff") .. k .. ".|r " .. (leg.tip and leg.tip[1] or "?") .. (more and (" |cff888888(then " .. (#wayLegs - RT.WAY_LINES) .. " more " .. ((#wayLegs - RT.WAY_LINES) == 1 and "leg" or "legs") .. ")|r") or ""))
 			l:Show()
 			y = y - Row(l)
 		else

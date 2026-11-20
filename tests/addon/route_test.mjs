@@ -1904,3 +1904,20 @@ test('the map\'s dots keep their size on screen when the map is zoomed, in the s
   assert.equal(at2.s, 0.5, 'half scale at twice the zoom: the same on screen');
   assert.ok(Math.abs(at2.x * at2.s - at1.x * at1.s) < 0.01 && Math.abs(at2.y * at2.s - at1.y * at1.s) < 0.01, 'the same spot: ' + JSON.stringify([at1, at2]));
 });
+
+test('a kept order much longer than a fresh plan from here: Rebuild says how much shorter, the order stays (the player, 2026-11-20)', () => {
+  const vm = session();
+  vm.slash('route');
+  const first = keys(vm);
+  assert.equal(vm.evaluate('SpellmindRoute.rebuild.text:GetText()'), 'Rebuild');
+  // Off to Ironband's corner: kept, the fresh plan from there shorter.
+  vm.run('STUB.player.x, STUB.player.y = 0.84, 0.84; NS.Route.Build(); NS.Route.Draw()');
+  assert.deepEqual(keys(vm), first, 'the order stays');
+  const label = vm.evaluate('SpellmindRoute.rebuild.text:GetText()');
+  assert.match(label, /^Rebuild: \|cff19ff19[\d,]+ yd shorter\|r$/, label);
+  assert.ok(vm.num('SpellmindRoute.rebuild:GetWidth()') > 76, 'wide enough for it');
+  // Taken: the fresh plan, and the button plain again.
+  vm.run('SpellmindRoute.rebuild.scripts.OnClick(SpellmindRoute.rebuild)');
+  assert.equal(vm.evaluate('SpellmindRoute.rebuild.text:GetText()'), 'Rebuild');
+  assert.notDeepEqual(keys(vm), first);
+});

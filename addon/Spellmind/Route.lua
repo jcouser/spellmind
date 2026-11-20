@@ -860,6 +860,11 @@ function RT.Build()
 		and prev.area == here.area and RT.KeptOrder(prev, stops, start, here, rules) or nil
 	if keptOrder then
 		route.stops, route.kept = keptOrder, true
+		-- A shorter plan from here (the player, 2026-11-20: the kept order was 1,300 yards longer than
+		-- a fresh one): said on Rebuild, never taken by itself.
+		local fresh = RT.Order(stops, start, here, rules)
+		local saves = RT.Length(keptOrder, start, here) - RT.Length(fresh, start, here)
+		route.shorter = saves >= RT.SHORTER_YARDS and math.floor(saves / 100 + 0.5) * 100 or nil
 		route.xp, route.low, route.ups = RT.Worth(route.stops, start, here, level)
 		RT.PlaceObjectives(route.stops, start, here)
 	else
@@ -944,6 +949,7 @@ end
 -- there; a new stop (a goal the last route didn't have: a pick up, a follow-up, a quest taken on the
 -- way) where it adds the least way and keeps the rules. nil when the order should be made again: more
 -- new stops than kept ones, none kept, or the kept order breaking a rule.
+RT.SHORTER_YARDS = 800 -- a fresh plan at least this much shorter is offered on Rebuild
 function RT.KeptOrder(prev, stops, start, here, rules, cost)
 	cost = cost or RT.Yards
 	local rank = {}
@@ -1043,6 +1049,12 @@ function RT.Worth(stops, start, here, level)
 	end
 	return xp, low, ups
 end
+-- "1,300": a whole number with thousands marked.
+function RT.Thousands(n)
+	local txt = tostring(math.floor(tonumber(n) or 0)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+	return txt
+end
+
 -- "1,150 XP": what a stop's turn-ins give (the Route tab).
 function RT.StopXP(st)
 	local xp = R.route and R.route.xp or {}
@@ -2466,6 +2478,13 @@ function RT.Draw()
 	if f.bar and f.bar.Update then f.bar.Update() end
 	if R.routeSkipped and #R.routeSkipped > 0 then f.back:Enable() else f.back:Disable() end
 	if cur and not going then f.skip:Enable() else f.skip:Disable() end
+	-- Rebuild, with what a fresh plan from here saves when it's worth it.
+	local shorter = route.kept and route.shorter
+	local label = shorter and ("Rebuild: |cff19ff19" .. RT.Thousands(shorter) .. " yd shorter|r") or "Rebuild"
+	if f.rebuild.text then
+		f.rebuild.text:SetText(label)
+		f.rebuild:SetWidth(math.max(76, (tonumber((f.rebuild.text:GetStringWidth())) or 60) + 20))
+	end
 end
 
 -- The route on or off, kept (SpellmindDB.routeUI.on): on, the tracker is open through /reload and

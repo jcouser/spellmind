@@ -92,7 +92,7 @@ function RP.Refresh()
 					local way = {}
 					for _, p in ipairs(t.path or {}) do way[#way + 1] = p end
 					way[#way + 1] = t.world
-					lines[1] = { color = { 1, 0.82, 0 }, pts = way, fromMe = true }
+					lines[1] = { color = { 1, 0.82, 0 }, pts = way, fromMe = true, step = t.step }
 					if pts.next and pts.next.world then lines[2] = { color = { 0.62, 0.49, 1 }, pts = { t.world, pts.next.world } } end
 				end
 				pts.lines = lines
@@ -274,6 +274,8 @@ local function DrawLines(pts, me, scale, facing, sn, cs, w, h, shape)
 	local n = 0
 	local width = RP.LineWidth()
 	for _, ln in ipairs(pts.lines or {}) do
+		-- Not while you're inside the current step's area (the player, 2026-11-20).
+		if ln.step and ns.Route.InArea(ln.step) then ln = { pts = {} } end
 		local list = ln.fromMe and Ahead(me, ln.pts) or ln.pts
 		local prev = ln.fromMe and { x = me.x, y = me.y, c = me.c } or nil
 		for _, p in ipairs(list) do

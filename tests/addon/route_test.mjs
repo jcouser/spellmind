@@ -1472,7 +1472,8 @@ test('lines on the minimap (the player, 2026-11-19: thin versions of the map lin
   const vm = session();
   vm.slash('route');
   // Near the rats, a minimap 2000 yards to its rim: the gold line, you to them, and the purple on to Kadrell.
-  vm.run('STUB.player.x, STUB.player.y = 0.22, 0.22; STUB.minimapRadius = 2000; NS.Route.Draw(); NS.RoutePins.Update(true)');
+  // Just outside the rats' area (inside it, there's no line to them).
+  vm.run('STUB.player.x, STUB.player.y = 0.26, 0.26; STUB.minimapRadius = 2000; NS.Route.Draw(); NS.RoutePins.Update(true)');
   const L = 'NS.RoutePins.lines';
   assert.ok(vm.num('NS.RoutePins.linesShown') >= 2, 'two lines at least');
   const first = vm.json(`{ from = ${L}[1].from, to = ${L}[1].to, color = ${L}[1].color, thick = ${L}[1].thickness }`);
@@ -1665,4 +1666,25 @@ test('class quests on the Quests tab and the Route tab, with the AI told; a nudg
   assert.equal(one.title, '2 class quests ready');
   assert.match(one.text, /^Lockpicking Practice: Shadow Mentor.*and 1 more/);
   assert.equal(vm.evaluate('NS.Nudges.TabFor("classq")'), 'quests');
+});
+
+test('inside the current step\'s area, no line from you to it, on the map or the minimap (the player, 2026-11-20)', () => {
+  const vm = session();
+  vm.run(MAP);
+  vm.slash('route');
+  // Away from the rats: the gold line on both.
+  vm.run('NS.Route.DrawMap()');
+  const gold = (vm2) => { const n = vm2.num('NS.Route.marks.linesShown'); const c = []; for (let k = 1; k <= n; k++) c.push(vm2.json(`NS.Route.marks.lines[${k}].color`)); return c.filter(x => x && x[0] === 1 && x[1] === 0.82).length; };
+  assert.ok(gold(vm) > 0, 'the line to the rats');
+  vm.run('STUB.minimapRadius = 2000; NS.Route.Draw(); NS.RoutePins.Update(true)');
+  const miniGold = () => { const n = vm.num('NS.RoutePins.linesShown'); let g = 0; for (let k = 1; k <= n; k++) { const c = vm.json(`NS.RoutePins.lines[${k}].color`); if (c[0] === 1 && c[1] === 0.82) g++; } return g; };
+  assert.ok(miniGold() > 0);
+  // Among them (their area around 20, 20): none; the step after's line stays.
+  vm.run('STUB.player.x, STUB.player.y = 0.205, 0.205; NS.Route.MapLive(); NS.Route.Draw(); NS.RoutePins.Update(true)');
+  assert.equal(vm.evaluate('tostring(NS.Route.InArea(NS.Route.Current()))'), 'true');
+  assert.equal(gold(vm), 0, 'none on the map');
+  assert.equal(miniGold(), 0, 'none on the minimap');
+  // Out again: back.
+  vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40; NS.Route.MapLive()');
+  assert.ok(gold(vm) > 0, 'back on the map');
 });

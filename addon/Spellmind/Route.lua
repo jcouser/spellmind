@@ -109,6 +109,21 @@ function RT.Here()
 		w = (type(w) == "number" and w > 0) and w or 1000, h = (type(h) == "number" and h > 0) and h or 1000 }
 end
 
+-- Inside a step's objective area (the player, 2026-11-20: standing among the murlocs, the line to the
+-- area's middle said nothing): the shaded ellipse of one of its objectives not done, on the map the
+-- player is on.
+function RT.InArea(st, here)
+	if type(here) ~= "table" then here = RT.Here() end
+	if not st or not here or RT.StopMap(st) ~= here.map then return false end
+	for _, g in ipairs(st.goals or {}) do
+		if g.kind == "do" and g.ax and g.rx and g.ry and g.rx > 0 and g.ry > 0 and not RT.GoalDone(g) then
+			local dx, dy = (here.x - g.ax) / g.rx, (here.y - g.ay) / g.ry
+			if dx * dx + dy * dy <= 1 then return true end
+		end
+	end
+	return false
+end
+
 -- Yards between two points (x, y 0-100 on their map). On the same map, by the map's size; a point on
 -- another map (a route across zones: map = its uiMapID; none is the player's) by the world's yards,
 -- and another continent is as good as out of reach.
@@ -2819,7 +2834,9 @@ function RT.DrawMap()
 	-- The route's line (the player, 2026-11-19, as NeverQuestAlone draws its): from the player to the
 	-- current step in gold, kept live as they move, then on through the next steps in purple.
 	if lines then
-		if me and path[1] and not away then Along(me, path[1], path[1].now and t and t.path or nil, 1, 0.82, 0, true) end
+		-- Not while you're inside the current step's area: you're there.
+		marks.inArea = path[1] and path[1].now and RT.InArea(cur) or false
+		if me and path[1] and not away and not marks.inArea then Along(me, path[1], path[1].now and t and t.path or nil, 1, 0.82, 0, true) end
 		for k = 1, #path - 1 do MapLine(layer, path[k][1], path[k][2], path[k + 1][1], path[k + 1][2], 0.62, 0.49, 1, 0.7, 2) end
 	end
 	-- The way somewhere else (the player, 2026-11-19: with the pins gone a chosen zone showed nothing, and
@@ -2888,7 +2905,10 @@ end
 function RT.MapLive()
 	local live = marks.live
 	local W = rawget(_G, "WorldMapFrame")
-	if not live or type(W) ~= "table" or not W:IsShown() then return end
+	if type(W) ~= "table" or not W:IsShown() then return end
+	-- Into or out of the current step's area: the line goes or comes back.
+	if marks.inArea ~= nil and (RT.InArea((RT.Current())) or false) ~= marks.inArea then pcall(RT.DrawMap); return end
+	if not live then return end
 	local canvas = W:GetCanvas()
 	local cw, ch = tonumber((canvas:GetWidth())) or 0, tonumber((canvas:GetHeight())) or 0
 	local me = PlayerOnMap(W:GetMapID(), R.route, cw, ch)

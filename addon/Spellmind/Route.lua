@@ -246,6 +246,32 @@ function RT.Center(pts, radius)
 	return { x = sx / c, y = sy / c }
 end
 
+-- Every group of an objective's spawns, the busiest first: { { x, y, rx, ry, n } }. Each the densest
+-- group of what's left, as RT.Center finds it.
+function RT.SpawnGroups(pts, radius)
+	radius = radius or RT.CLUSTER
+	local r2, left, out = radius * radius, {}, {}
+	for _, p in ipairs(pts or {}) do left[#left + 1] = p end
+	while #left > 0 and #out < RT.GROUPS_MAX do
+		local c = RT.Center(left, radius)
+		if not c then break end
+		local keep, n, rx, ry = {}, 0, 0, 0
+		for _, q in ipairs(left) do
+			if (q[1] - c.x) ^ 2 + (q[2] - c.y) ^ 2 <= r2 then
+				n = n + 1
+				rx, ry = math.max(rx, math.abs(q[1] - c.x)), math.max(ry, math.abs(q[2] - c.y))
+			else
+				keep[#keep + 1] = q
+			end
+		end
+		if n == 0 then break end
+		out[#out + 1] = { x = c.x, y = c.y, n = n, rx = math.max(RT.AREA_MIN, rx + RT.AREA_PAD), ry = math.max(RT.AREA_MIN, ry + RT.AREA_PAD) }
+		left = keep
+	end
+	return out
+end
+RT.GROUPS_MAX = 8
+
 -- An objective's area for the world map: the densest group's middle and its reach each way (map
 -- percent), at least RT.AREA_MIN, with RT.AREA_PAD around the outer spawns.
 RT.AREA_MIN, RT.AREA_PAD = 2.5, 1.5
@@ -790,6 +816,16 @@ function RT.Build()
 		end
 		route.stops = RT.Order(stops, start, here, rules, Cost)
 	end
+	-- Each objective where it's least out of the way, then the order again (twice at most).
+	local lowCost = next(route.low) and function(a, b, h)
+		local d = RT.Yards(a, b, h)
+		if b.goals and RT.StopLow(b, route.low) then d = d * RT.LOW_LATER end
+		return d
+	end or nil
+	for _ = 1, RT.PLACE_PASSES do
+		if not RT.PlaceObjectives(route.stops, start, here, lowCost) then break end
+		route.stops = RT.Order(stops, start, here, rules, lowCost)
+	end
 	route.rules = rules
 	-- What the order was made from, for /sm route why.
 	route.start, route.here, route.cost = start, here, route.low and next(route.low) and function(a, b, h)
@@ -799,6 +835,48 @@ function RT.Build()
 	end or nil
 	if Q then route.where = RT.Zones(true) end
 	return route
+end
+
+-- Where to do an objective (the player, 2026-11-19, Wetlands: Young Crocolisk Skins went to the busiest
+-- group of crocolisks across the zone, 1533 yards out of the way, with a group of 13 by the murlocs
+-- the step before): once the order is made, each step that's one quest's objectives alone takes the
+-- group of its spawns that's the least out of the way between the steps around it, of the groups at
+-- least RT.ALT_SHARE the size of the busiest (and RT.ALT_MIN spawns). True when one moved.
+RT.ALT_SHARE, RT.ALT_MIN = 0.4, 4
+RT.PLACE_PASSES = 2
+function RT.PlaceObjectives(order, start, here, cost)
+	local Q = L()
+	if not Q or not here or not here.area then return false end
+	cost = cost or RT.Yards
+	local moved = false
+	for i, st in ipairs(order) do
+		local q
+		for _, g in ipairs(st.goals) do
+			if g.kind ~= "do" or (q and g.q ~= q) or g.buy then q = false; break end
+			q = g.q
+		end
+		if q and not st.map then
+			local groups = RT.SpawnGroups(RT.ObjectiveSpots(Q, q, here.area))
+			if #groups > 1 then
+				local prev, nxt = order[i - 1] or start, order[i + 1]
+				local function Way(p) return cost(prev, p, here) + (nxt and cost(p, nxt, here) or 0) end
+				local least = math.max(RT.ALT_MIN, groups[1].n * RT.ALT_SHARE)
+				local best, bestWay = nil, Way(st)
+				for _, gr in ipairs(groups) do
+					if gr.n >= least then
+						local w = Way({ x = gr.x, y = gr.y, goals = st.goals })
+						if w < bestWay - 1 then best, bestWay = gr, w end
+					end
+				end
+				if best then
+					st.x, st.y = best.x, best.y
+					for _, g in ipairs(st.goals) do g.ax, g.ay, g.rx, g.ry = best.x, best.y, best.rx, best.ry end
+					moved = true
+				end
+			end
+		end
+	end
+	return moved
 end
 
 -- A quest's XP: the quest log's reward when it's there, else an estimate by its level, reduced as the
@@ -1241,6 +1319,12 @@ function RT.Current()
 	for i, s in ipairs(route.stops) do
 		if not RT.StopDone(s) and not R.routeSkip[s.key] then return s, i end
 	end
+	return nil
+end
+
+-- A stop's number on the route (as on the map), or nil.
+function RT.StopIndex(st)
+	for i, s2 in ipairs(R.route and R.route.stops or {}) do if s2 == st then return i end end
 	return nil
 end
 
@@ -2091,7 +2175,8 @@ function RT.Draw()
 		local sub = f.nextSub[k]
 		l:ClearAllPoints()
 		l:SetPoint("TOPLEFT", f.content, "TOPLEFT", 20 - 8, y - top)
-		if s then l:SetText(RT.StopText(s, true)) else l:SetText("") end
+		-- Its number, as on the map (the player, 2026-11-19).
+		if s then l:SetText("|cffb48cff" .. (RT.StopIndex(s) or "?") .. ".|r " .. RT.StopText(s, true)) else l:SetText("") end
 		-- What else is done there: a grey line underneath, indented.
 		local also = s and RT.AlsoLine(s)
 		sub:SetText(also or "")
@@ -3695,10 +3780,13 @@ function RT.Why(n)
 		if g.kind == "do" and Q and here and here.area and not st.map then
 			local pts = RT.ObjectiveSpots(Q, g.q, here.area)
 			if #pts > 1 then
-				local c = RT.Center(pts)
-				local r2, inGroup = RT.CLUSTER * RT.CLUSTER, 0
-				for _, p in ipairs(pts) do if c and (p[1] - c.x) ^ 2 + (p[2] - c.y) ^ 2 <= r2 then inGroup = inGroup + 1 end end
-				if inGroup < #pts then Add("  " .. Bare(g.title) .. ": the spot is the busiest group, " .. inGroup .. " of " .. #pts .. " spawns here.") end
+				local groups = RT.SpawnGroups(pts)
+				local mineG
+				for _, gr in ipairs(groups) do if math.abs(gr.x - st.x) < 0.05 and math.abs(gr.y - st.y) < 0.05 then mineG = gr end end
+				if mineG and #groups > 1 then
+					Add("  " .. Bare(g.title) .. ": the spot is " .. (mineG == groups[1] and "the busiest group" or "the group least out of the way")
+						.. ", " .. mineG.n .. " of " .. #pts .. " spawns here (" .. #groups .. " groups; the busiest has " .. groups[1].n .. ").")
+				end
 				local function Nearest(from)
 					local best
 					for _, p in ipairs(pts) do

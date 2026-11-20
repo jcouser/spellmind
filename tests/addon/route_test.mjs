@@ -97,8 +97,8 @@ test('/sm route: the tracker with the zone, the step, its goals, Go, Up next; Go
   assert.equal(vm.evaluate('SpellmindRoute.title:GetText()'), 'Route · Loch Modan');
   assert.equal(vm.evaluate('SpellmindRoute.step:GetText()'), 'Step 1 of 3');
   assert.match(vm.evaluate('SpellmindRoute.now:GetText()'), /^Kobold Candles: 0\/8 Tunnel Rat$/);
-  assert.equal(vm.evaluate('SpellmindRoute.next[1]:GetText()'), 'Turn in 2 quests to Mountaineer Kadrell', 'two turn-ins to one NPC: one line');
-  assert.match(vm.evaluate('SpellmindRoute.next[2]:GetText()'), /^Pick up \|cffffff00\[15\]\|r Ironband's Excavation/, 'its level, in the game\'s colour');
+  assert.equal(vm.evaluate('SpellmindRoute.next[1]:GetText()').replace(/^\|cffb48cff\d+\.\|r /, ''), 'Turn in 2 quests to Mountaineer Kadrell', 'two turn-ins to one NPC: one line');
+  assert.match(vm.evaluate('SpellmindRoute.next[2]:GetText()'), /^\|cffb48cff\d+\.\|r Pick up \|cffffff00\[15\]\|r Ironband's Excavation/, 'its level, in the game\'s colour');
   assert.equal(vm.evaluate('tostring(SpellmindRoute.go)'), 'nil', 'no Go: the arrow and the map show the way');
   assert.equal(vm.evaluate('string.format("%.2f", NS.Route.Current().x / 100)'), '0.20', 'the rats\' densest spot, not the stray one');
   assert.match(vm.evaluate('SpellmindRoute.credit:GetText()'), /Quest data from Questie/, 'the credit, its own line');
@@ -978,7 +978,7 @@ test('routes across zones: a detour to hand in a quest elsewhere when what it op
   assert.equal(vm.evaluate('tostring(NS.R.route.elsewhere.Ironforge)'), 'nil', 'not under Elsewhere any more');
   vm.slash('route');
   const lines = [1, 2, 3, 4].map(k => vm.evaluate(`SpellmindRoute.next[${k}]:GetText()`));
-  assert.ok(lines.some(l => /^\|cffffd100In Ironforge:\|r Turn in Thane's Errand to Thane Ironbelly/.test(l)), JSON.stringify(lines));
+  assert.ok(lines.some(l => /^\|cffb48cff\d+\.\|r \|cffffd100In Ironforge:\|r Turn in Thane's Errand to Thane Ironbelly/.test(l)), JSON.stringify(lines));
   // The AI's steps name the zone too.
   const part = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Advisor.Part())'));
   assert.ok(part.route.steps.some(s => /In Ironforge: .*turn in Thane's Errand/.test(s)), JSON.stringify(part.route.steps));
@@ -1552,4 +1552,32 @@ test('/sm route why keeps the route for a closer look: its steps, rules and spaw
   assert.match(why[0], /^Step 2 of/);
   assert.ok(!JSON.stringify(d).includes(vm.evaluate('UnitName("player")')), 'not the character\'s name');
   assert.ok(vm.chatLines().some(l => /saved for a closer look/.test(l)));
+});
+
+test('an objective where it\'s least out of the way (the player, 2026-11-19, Wetlands: the busiest crocolisks were 1533 yards off, a group of 13 by the step before)', () => {
+  // The rats: a busy group far off in the north-east (6), a smaller one (4) on the way to Kadrell.
+  const vm = newVM({ before: ZONE + `
+    STUB.qdb.npcs[800].spawns = { [38] = { { 90, 8 }, { 91, 9 }, { 90.5, 8.5 }, { 89.5, 9 }, { 90, 9.5 }, { 91, 8 },
+      { 45, 46 }, { 46, 47 }, { 45.5, 46.5 }, { 44.5, 47 } } }` }).login().advance(9);
+  vm.slash('route');
+  const rats = vm.json(`(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 700 then return { x = s.x, y = s.y, ax = g.ax } end end end end)()`);
+  assert.ok(Math.abs(rats.x - 45.25) < 1 && Math.abs(rats.y - 46.6) < 1, 'the group on the way: ' + JSON.stringify(rats));
+  assert.ok(Math.abs(rats.ax - rats.x) < 0.01, 'its area moved with it');
+  // A group too small to count stays out of it.
+  vm.run('NS.Route.ALT_SHARE = 0.9; NS.Route.Build()');
+  const far = vm.json(`(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 700 then return { x = s.x, y = s.y } end end end end)()`);
+  assert.ok(far.x > 85, 'only the busiest then: ' + JSON.stringify(far));
+  // Why says which group.
+  vm.run('NS.Route.ALT_SHARE = 0.4; NS.Route.Build()');
+  const k = vm.num(`(function() for i, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 700 then return i end end end end)()`);
+  const why = vm.json(`NS.Route.Why(${k})`); const w = (Array.isArray(why) ? why : Object.values(why)).join('\n');
+  assert.match(w, /the group least out of the way, 4 of 10 spawns here \(2 groups; the busiest has 6\)/);
+});
+
+test('Up next numbers each step as the map does (the player, 2026-11-19)', () => {
+  const vm = session();
+  vm.slash('route');
+  const up = vm.json('(function() local o = {} for _, s in ipairs(NS.Route.UpNext(3)) do o[#o + 1] = NS.Route.StopIndex(s) end return o end)()');
+  const ks = Array.isArray(up) ? up : Object.values(up);
+  ks.forEach((k, i) => assert.match(vm.evaluate(`SpellmindRoute.next[${i + 1}]:GetText()`), new RegExp(`^\\|cffb48cff${k}\\.\\|r `)));
 });

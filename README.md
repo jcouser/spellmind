@@ -86,6 +86,8 @@ Turn it on in the **Route tab** (or `/sm route`). Spellmind plans your leveling 
   </tr>
 </table>
 
+<p align="center"><img src="docs/images/route-class-nudge.png" alt="A nudge by the minimap: Class quest ready, The Syndicate Sting, with Dismiss and Ask" width="380"></p>
+
 **It learns your roads:** as you walk, swim and ride, Spellmind remembers the way you went, so the arrow and the lines follow real paths. They stay on your PC; **Forget my trails** on the Route tab clears them.
 
 **Ask about it:** with the app, your AI sees the same route. "Review my route" says what to skip and why, with a **Skip** button for each, and "Why this order?" explains it. Without the app, `/sm route why <step>` says why a step is where it is.

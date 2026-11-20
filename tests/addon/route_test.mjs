@@ -1794,3 +1794,11 @@ test('the route keeps its order as you quest (the player, 2026-11-20: six steps 
   assert.equal(vm.evaluate('tostring(NS.R.route.kept)'), 'nil');
   assert.match(keys(vm)[0], /702/, 'Ironband first, from his corner: ' + keys(vm).join(' | '));
 });
+
+test('the class quest nudge says where a line starts, short: a zone, or the item it starts from', () => {
+  const vm = newVM().login().advance(9);
+  assert.equal(vm.evaluate('NS.Nudges.ClassWhere("Master Mathias Shaw, Stormwind City (78, 71)")'), ', in Stormwind City');
+  assert.equal(vm.evaluate('NS.Nudges.ClassWhere("an item: Elegant Letter")'), ', from an Elegant Letter (a drop)');
+  assert.equal(vm.evaluate('NS.Nudges.ClassWhere("an item: Torn Page")'), ', from a Torn Page (a drop)');
+  assert.equal(vm.evaluate('NS.Nudges.ClassWhere(nil)'), '');
+});

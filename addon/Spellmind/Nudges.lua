@@ -251,6 +251,16 @@ end
 
 -- A class questline open at your level (the player, 2026-11-20): one nudge for all of them, again only
 -- when one more opens (a new level). The Quests tab lists them, with Route.
+-- Where a class line starts, short: ", in Stormwind City" (an NPC's zone), ", from an Elegant Letter
+-- (a drop)" (an item), or "".
+function N.ClassWhere(from)
+	if type(from) ~= "string" then return "" end
+	local item = from:match("^an item: (.+)$")
+	if item then return ", from " .. (item:match("^[AEIOUaeiou]") and "an " or "a ") .. ns.Escape(item) .. " (a drop)" end
+	local zone = from:match(",%s*([^,(]-)%s*%(")
+	return zone and (", in " .. ns.Escape(zone)) or ""
+end
+
 function Detect.classq()
 	local DG = ns.Dungeons
 	local lines = DG and DG.ClassLines and DG.ClassLines()
@@ -264,7 +274,7 @@ function Detect.classq()
 	local first = open[1]
 	return { { kind = "classq", key = table.concat(keys, ","),
 		title = #open == 1 and "Class quest ready" or (#open .. " class quests ready"),
-		text = ns.Escape(first.name) .. ((first.current.from and first.current.from:match(",%s*([^,(]-)%s*%(")) and (", in " .. ns.Escape(first.current.from:match(",%s*([^,(]-)%s*%("))) or "")
+		text = ns.Escape(first.name) .. N.ClassWhere(first.current.from)
 			.. (#open > 1 and (", and " .. (#open - 1) .. " more") or "") .. ".",
 		ask = "My class quest " .. first.name .. " is open (" .. first.current.name .. (first.current.from and (", from " .. first.current.from) or "")
 			.. "). What does it give my class, where do I start it, and is it worth doing now?" } }

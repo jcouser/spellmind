@@ -57,20 +57,20 @@ WL.NEWS = {
 		tagline = "Spellmind now plans your leveling for you: built from your own quest log, and kept up to date as you play.",
 		features = {
 			{ icon = "Interface\\Icons\\INV_Misc_Map_01", title = "A plan that knows your character", text = "Every pickup, objective and turn-in around you, in the shortest order, ticked off the moment you finish it." },
-			{ icon = "Interface\\Icons\\Ability_Hunter_Pathfinding", title = "Never lose your way", text = "An arrow on screen points to your next step, and the world map numbers each step and shades where to go." },
+			{ icon = "Interface\\Icons\\Ability_Hunter_Pathfinding", title = "Never lose your way", text = "An arrow on screen points to your next step. The world map numbers each step and shades where to go, and the minimap draws the line to it." },
 			{ icon = "Interface\\Icons\\Ability_Mount_Gryphon_01", title = "The way there, leg by leg", text = "Flight paths you know, the roads between zones, the tram and the boats: the arrow and the map take you there by the fastest way you have." },
-			{ icon = "Interface\\Icons\\Spell_Arcane_PortalStormWind", title = "Always know where to go next", text = "When a zone runs dry, Spellmind ranks the best zones for your level, counting your flight paths and hearthstone." },
+			{ icon = "Interface\\Icons\\Spell_Arcane_PortalStormWind", title = "Always know where to go next", text = "When a zone runs dry, Spellmind ranks the best zones for your level. Pick one and the route takes you there, and holds to it until you arrive." },
 			{ icon = "Interface\\Icons\\INV_Misc_Key_03", title = "Ready for any dungeon", text = "Pick a dungeon on the Route tab: Spellmind routes you through its quests and the questlines that open them, across zones, to its door." },
 			{ icon = "Interface\\AddOns\\Spellmind\\Media\\Portrait", title = "Ask your AI about it", text = "Your AI sees the same route. Ask \"Review my route\" for what to skip, and why." },
 		},
 		note = "Works best with Questie installed. Find it all in the new Route tab.",
 		changes = {
-			"The Quests tab's \"Plan my next hour\" is now \"Review my route\".",
+			"The Quests tab's \"Plan my next hour\" is now \"Review my route\", and each quest your AI says to skip gets a Skip button.",
 			"After each update, this window says what's new. /sm news shows it again.",
-			"A quest handed in in another zone is planned as a trip there and back when what it opens here makes it worth it.",
-			"The arrow and the map's lines follow the roads you've walked: Spellmind learns them as you go, on your PC only.",
-			"A far quest that gives little XP for the walk is marked \"worth skipping?\", and the ones worth more come first.",
-			"In a route review, each quest your AI says to skip gets a Skip button.",
+			"A quest handed in in another zone is planned as a trip there and back when what it opens makes it worth it.",
+			"The arrow and the lines follow the roads you've walked (learned on your PC only), and hold still on a flight path.",
+			"Far quests that give little XP for the walk are marked \"worth skipping?\", and each kill step goes to the mobs least out of your way.",
+			"Up next numbers each step as the map does. /sm route why <step> says why a step is where it is.",
 		} },
 }
 
@@ -236,7 +236,11 @@ local function Fill(f, headline, tagline, sections)
 	return y
 end
 
+-- Taller than the screen (a long What's new): scaled down to fit, never cut off.
+WL.SCREEN_MARGIN = 60
 local function Center(f, h)
+	local room = (tonumber((UIParent and UIParent:GetHeight())) or 768) - WL.SCREEN_MARGIN
+	if f.SetScale then f:SetScale(h > room and room / h or 1) end
 	f:SetHeight(h)
 	f:ClearAllPoints()
 	f:SetPoint("CENTER", UIParent, "CENTER", 0, 40)

@@ -57,6 +57,8 @@ function Methods.GetHeight(self) return self.height or 300 end
 function Methods.SetSize(self, w, h) self.width, self.height = w, h end
 function Methods.SetWidth(self, w) self.width = w end
 function Methods.SetHeight(self, h) self.height = h end
+function Methods.SetScale(self, s) self.scale = s end
+function Methods.GetScale(self) return self.scale or 1 end
 function Methods.GetSize(self) return self:GetWidth(), self:GetHeight() end
 function Methods.GetStringHeight(self) return 14 end
 function Methods.GetStringWidth(self) return 100 end

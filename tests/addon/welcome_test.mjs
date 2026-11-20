@@ -144,3 +144,14 @@ test('the welcome grows with every version before the public one: a later versio
   assert.equal(vm.evaluate('SpellmindWelcome.features[1].title:GetText()'), 'The way there');
   assert.equal(vm.evaluate('SpellmindWelcome.features[2].title:GetText()'), 'A plan that knows your character');
 });
+
+test('a What\'s new taller than the screen is scaled down to fit', () => {
+  const vm = newVM().login().advance(9);
+  vm.run('UIParent.GetHeight = function() return 1200 end; NS.Welcome.ShowNews()');
+  const full = vm.json('{ h = SpellmindNews:GetHeight(), s = SpellmindNews:GetScale() }');
+  assert.equal(full.s, 1, 'room enough: full size');
+  vm.run('UIParent.GetHeight = function() return 400 end; NS.Welcome.ShowNews()');
+  const s = vm.json('{ h = SpellmindNews:GetHeight(), s = SpellmindNews:GetScale() }');
+  assert.ok(s.h > 340, 'taller than the room: ' + s.h);
+  assert.ok(Math.abs(s.h * s.s - 340) < 0.5, 'scaled to fit: ' + JSON.stringify(s));
+});

@@ -99,6 +99,10 @@ WL.NEWS = {
 			"When a fresh plan from where you stand would be clearly shorter, Rebuild says so (\"Rebuild: 1,300 yd shorter\"). After you finish a step, a much shorter order is taken by itself, your next step kept (a switch on the Route tab).",
 			"Fixed: in a step with goals at several NPCs close together, the arrow and the map pointed at the first one placed, not the one to do now.",
 		} },
+	{ version = "0.6.2",
+		changes = {
+			"Fixed: Lua errors in combat from the route's arrow (the game's \"large number of errors\" warning).",
+		} },
 }
 
 -- What each news's "Try it now" does: the route on, and its tab.

@@ -57,6 +57,12 @@ export const NEWS = Object.freeze([
       'Fixed: in a step with goals at several NPCs close together, the arrow and the map pointed at the first one placed, not the one to do now.',
     ]),
   }),
+  Object.freeze({
+    version: '0.6.2',
+    changes: Object.freeze([
+      "Fixed: Lua errors in combat from the route's arrow (the game's \"large number of errors\" warning).",
+    ]),
+  }),
 ]);
 
 const parts = (v) => String(v ?? '').split('.').map((n) => parseInt(n, 10) || 0);

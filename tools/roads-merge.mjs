@@ -49,7 +49,10 @@ async function main(argv) {
     }
     cursor = page.cursor;
   } while (cursor);
-  const roads = { v: 1, date: new Date(now).toISOString().slice(0, 10), ...merge(uploads) };
+  // --min <n>: installs a crossing needs, for a test by hand only (one tester's own ground back as roads); the
+  // weekly run and anything before a release use the default.
+  const min = argv.includes('--min') ? Math.max(1, Number(argv[argv.indexOf('--min') + 1]) || 2) : undefined;
+  const roads = { v: 1, date: new Date(now).toISOString().slice(0, 10), ...merge(uploads, min ? { k: min } : {}) };
   const put = await fetch(base + '/v1/admin/roads', { method: 'PUT', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify(roads) });
   if (!put.ok) throw new Error('put roads: ' + put.status);
   if (lua) fs.writeFileSync(lua, roadsLua(roads));

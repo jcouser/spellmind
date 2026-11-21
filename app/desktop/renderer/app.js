@@ -147,7 +147,7 @@ function draw(s) {
   const rd = s.roads || {};
   const day = (t) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
   const got = rd.roads && rd.roads.squares > 0
-    ? `roads from ${rd.roads.players.toLocaleString()} players, ${day(rd.roads.date + 'T12:00:00')}`
+    ? `roads from ${rd.roads.players.toLocaleString()} player${rd.roads.players === 1 ? '' : 's'}, ${day(rd.roads.date + 'T12:00:00')}`
     : 'no roads received yet';
   if (!rd.on) fact($('factRoads'), 'Not in this version', 'muted');
   else if (rd.off) fact($('factRoads'), `Off (the game's Route tab) · ${got}`, 'muted');

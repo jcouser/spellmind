@@ -601,7 +601,7 @@ function Tabs.route()
 	local roads = ns.Ground and ns.Ground.RoadsInfo and ns.Ground.RoadsInfo()
 	if roads and roads.squares > 0 then
 		out[#out + 1] = { kind = "item", indent = true, left = "Shared roads",
-			sub = "|cff888888From " .. (roads.players and (roads.players .. " players") or "players") .. (roads.date and (", " .. ns.Escape(tostring(roads.date))) or "") .. ". Your route follows them with your own trails.|r" }
+			sub = "|cff888888From " .. (roads.players and (roads.players .. (roads.players == 1 and " player" or " players")) or "players") .. (roads.date and (", " .. ns.Escape(tostring(roads.date))) or "") .. ". Your route follows them with your own trails.|r" }
 	end
 	-- What the route plans for: questing here, or a dungeon's prep (the player, 2026-11-19).
 	local mode, prep, classLabel = RT.Mode()

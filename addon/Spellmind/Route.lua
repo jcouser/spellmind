@@ -501,6 +501,7 @@ RT.GROUPS_MAX = 8
 -- An objective's area for the world map: the densest group's middle and its reach each way (map
 -- percent), at least RT.AREA_MIN, with RT.AREA_PAD around the outer spawns.
 RT.AREA_MIN, RT.AREA_PAD = 2.5, 1.5
+RT.GAME_AREA = 4 -- an objective placed at the game's marker: this far around it (map percent)
 function RT.Area(pts, radius)
 	local c = RT.Center(pts, radius)
 	if not c then return nil end
@@ -1003,6 +1004,9 @@ function RT.Build()
 			elseif not complete then
 				local center = Q and here.area and RT.Area(RT.ObjectiveSpots(Q, id, here.area)) or nil
 				center = center or GameSpot(id)
+				-- The game's own marker, Questie knowing no spot (the player, 2026-11-20: Trying Times had a dot and no
+				-- circle): the objective is about there, so a circle around it, as wide as RT.GAME_AREA.
+				if center and not center.rx then center.rx, center.ry = RT.GAME_AREA, RT.GAME_AREA end
 				if center then
 					Place("do", id, title, center, nil, AreaOf(center)); doHere = true
 				else

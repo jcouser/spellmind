@@ -2346,3 +2346,11 @@ test('out in the open, a trail is taken only when it\'s about as direct as the s
   vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40; NS.R.routeTrailWay = nil; NS.R.routeTrailAt = nil');
   assert.notEqual(vm.evaluate(`tostring(${way})`), 'nil', 'the road');
 });
+
+test('an objective Questie has no spot for, placed at the game marker: a circle around it, as the others have (the player, 2026-11-20: Trying Times)', () => {
+  const vm = session();
+  vm.run('STUB.qdb.npcs[800].spawns = {}; STUB.questsOnMap = { [1432] = { { questID = 700, x = 0.2, y = 0.2 } } }');
+  const g = vm.json('(function() for _, s in ipairs(NS.Route.Build().stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 700 then return { ax = g.ax, ay = g.ay, rx = g.rx, ry = g.ry } end end end end)()');
+  assert.equal(g.ax, 20); assert.equal(g.ay, 20);
+  assert.ok(g.rx > 0 && g.ry > 0, JSON.stringify(g));
+});

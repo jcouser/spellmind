@@ -4596,6 +4596,14 @@ function RT.Snapshot(whyLines, n)
 	local DGm = DG()
 	local ctx = Q and DGm.Context(Q)
 	snap.you = ctx and { race = ctx.race, class = ctx.class, faction = ctx.faction } or nil
+	-- The line's way (the player, 2026-11-21: still straight past a road walked): from where to where, and why.
+	local t = RT.ArrowTarget and RT.ArrowTarget()
+	local me = RT.PlayerWorld()
+	if t and t.world and me then
+		local path = RT.TrailBetween(me, t.world)
+		local function W(p) return { c = p.c, x = math.floor(p.x + 0.5), y = math.floor(p.y + 0.5) } end
+		snap.way = { from = W(me), to = W(t.world), points = path and #path or 0, why = ns.Ground and ns.Ground.last }
+	end
 	snap.classLines = {}
 	for _, l in ipairs(Q and DGm.ClassLines and DGm.ClassLines() or {}) do
 		local qs = {}

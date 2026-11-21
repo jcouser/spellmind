@@ -339,17 +339,21 @@ end
 
 -- The way from one world spot to another over the ground walked: its points (world spots), when the
 -- ground makes it cheaper than the straight line by the route's rules, else nil.
+-- Why the last way came out as it did (/sm route why's snapshot): { result, and the numbers }.
+G.last = nil
+local function Why(t) G.last = t; return nil end
 function G.Way(a, b)
 	local R = RT()
-	if not a or not b or a.c ~= b.c or not ns.db then return nil end
+	if not a or not b or a.c ~= b.c or not ns.db then return Why({ result = "no spots" }) end
 	local L = G.Layer(a.c)
-	if L.n == 0 then return nil end
+	if L.n == 0 then return Why({ result = "nothing walked here" }) end
 	-- In a city its walls are why the ground walked is taken at all; out in the open only when it's about
 	-- as direct (the player, 2026-11-20: "just the path I had walked from a different point a to b").
 	local city = Try(rawget(_G, "IsResting")) and true or false
 	local starts = Near(L, a.x, a.y, R.TRAIL_JOIN, G.ENDS)
 	local ends = Near(L, b.x, b.y, R.TRAIL_JOIN, G.ENDS)
-	if #starts == 0 or (#ends == 0 and city) then return nil end
+	local info = { city = city, starts = #starts, ends = #ends, squares = L.n }
+	if #starts == 0 or (#ends == 0 and city) then info.result = #starts == 0 and "nothing walked near you" or "nothing walked near the target (city)"; return Why(info) end
 	local goal = {}
 	for _, e in ipairs(ends) do goal[e[1]] = e[2] * R.OFF_TRAIL end
 	-- Out in the open, the road is followed as far as it helps, then straight on (the player, 2026-11-21: a
@@ -396,19 +400,23 @@ function G.Way(a, b)
 			end
 		end
 	end
-	if not best then return nil end
+	info.searched = steps
+	if not best then info.result = "no way found"; return Why(info) end
 	local straight = math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2)
 	-- Out in the open, walked ground must also save something over going straight across ground not walked.
-	if bestCost >= straight * (city and R.STRAIGHT or math.min(R.STRAIGHT_OPEN, R.OFF_TRAIL * G.SAVE)) then return nil end
+	local limit = city and R.STRAIGHT or math.min(R.STRAIGHT_OPEN, R.OFF_TRAIL * G.SAVE)
+	info.cost, info.straight, info.limit = math.floor(bestCost + 0.5), math.floor(straight + 0.5), limit
+	if bestCost >= straight * limit then info.result = "dearer than straight"; return Why(info) end
 	local cells, n = {}, best
 	while n do table.insert(cells, 1, n); n = prev[n] end
 	-- Left almost as soon as joined: no road worth drawing, the straight way.
-	if not city and #cells < G.ROAD_MIN then return nil end
+	info.road = #cells
+	if not city and #cells < G.ROAD_MIN then info.result = "too little road"; return Why(info) end
 	-- Not back the way you came, out in the open.
 	if not city then
 		for _, k in ipairs(cells) do
 			local x, y = Center(k)
-			if math.sqrt((x - b.x) ^ 2 + (y - b.y) ^ 2) > straight + R.TRAIL_BACK then return nil end
+			if math.sqrt((x - b.x) ^ 2 + (y - b.y) ^ 2) > straight + R.TRAIL_BACK then info.result = "goes back"; return Why(info) end
 		end
 	end
 	-- Straightened through the ground walked, then only the bends kept.
@@ -421,5 +429,7 @@ function G.Way(a, b)
 	end
 	local pts = {}
 	for _, k in ipairs(pulled) do local x, y = Center(k); pts[#pts + 1] = { c = a.c, x = x, y = y } end
+	info.result = "along the ground walked"
+	G.last = info
 	return Simplify(pts, 3)
 end

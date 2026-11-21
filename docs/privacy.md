@@ -35,7 +35,7 @@ The route follows the roads players walk, so every player's route gets better as
 
 - **Sent:** those squares and crossings, whether you swam them, the game's and the addon's version, and a random id the app made for itself (`%APPDATA%\Spellmind\roads.json`), tied to nothing else.
 - **Never sent:** when you walked (beyond the day it arrived), the order you walked it in, your character's name, realm or guild, your account, or anything else in your saved data. The app reads only the ground from it.
-- **Shared back:** a crossing becomes part of the roads only once at least 3 different installs walked it, so no one player's path ever shows.
+- **Shared back:** a crossing becomes part of the roads only once at least 2 different installs walked it, so no one player's path ever shows.
 - **Kept:** 90 days, then dropped.
 - **Off:** "Share the ground I walk" on the Route tab. With it off on every account on your PC, the app sends nothing more and deletes what it sent before.
 - **The server** is a Cloudflare Worker that stores uploads and serves the roads; it keeps no IP addresses. Cloudflare's own privacy policy covers the connection. Its code is in [server/roads](../server/roads).

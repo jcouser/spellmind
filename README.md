@@ -244,7 +244,7 @@ Spellmind works alongside Questie and Auctionator, and uses their data when they
 
 - **Never sent:** your character's name, realm or guild, your account, other players' names or chat.
 - **Sent to your AI only, when you ask:** your question and the game data you allow (class, level, gear, quests, talents and so on; each part has a switch in Settings).
-- **To the Spellmind authors, only the ground you walk:** with the app, the squares you walk help build the shared roads every player's route follows. No times, no character, no account; a crossing is shared only once 3 players walked it. "Share the ground I walk" on the Route tab turns it off.
+- **To the Spellmind authors, only the ground you walk:** with the app, the squares you walk help build the shared roads every player's route follows. No times, no character, no account; a crossing is shared only once 2 players walked it. "Share the ground I walk" on the Route tab turns it off.
 - **No telemetry, no analytics.**
 
 The details are in [docs/privacy.md](docs/privacy.md).

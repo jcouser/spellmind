@@ -9,7 +9,7 @@ and gets back the roads merged from everyone's. The addon's route follows them a
   was swum, under a random id the app made for itself (not tied to the account or the character), the game and
   addon versions. The Worker keeps the day it came in.
 - **Never sent:** times beyond the day, the order of travel, the character's name, realm or guild, the account, chat.
-- **Shared back:** only a crossing at least 3 installs walked, so no one player's path ever shows.
+- **Shared back:** only a crossing at least 2 installs walked, so no one player's path ever shows.
 - **Off:** "Share the ground I walk" on the Route tab, and the app sends nothing of that player's.
 - **Deleted:** uploads are dropped after 90 days; the app can delete its install's at any time
   (`DELETE /v1/ground/<id>`).

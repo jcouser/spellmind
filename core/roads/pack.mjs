@@ -1,7 +1,7 @@
 // The roads players walk (server/roads/README.md): the packed squares Ground.lua keeps, merged from many installs,
 // and Roads.lua made from them. Shared by the weekly merge (tools/roads-merge.mjs) and the app (core/roads/share.mjs).
 
-export const K = 3; // installs a crossing needs before it's a road (one player's odd path never shows)
+export const K = 2; // installs a crossing needs before it's a road (one player's odd path never shows; the player, 2026-11-21: 2)
 export const WINDOW_DAYS = 90; // uploads kept this long, then dropped
 export const CHUNK = 4096; // squares a string, as Ground.lua packs them
 
@@ -86,7 +86,7 @@ export function merge(uploads, { k = K } = {}) {
 
 export const ROADS_HEAD = [
   '-- Spellmind: the roads players walk, merged (server/roads/README.md): squares crossed, each crossing kept only when',
-  "-- at least 3 players' installs walked it. Written by the release build and kept up to date by the Spellmind app.",
+  "-- at least 2 players' installs walked it. Written by the release build and kept up to date by the Spellmind app.",
 ].join('\n');
 // The roads' day in a Roads.lua ("2026-11-28"), or null.
 export const roadsDate = (text) => (/date = "(\d{4}-\d{2}-\d{2})"/.exec(String(text || '')) || [])[1] || null;

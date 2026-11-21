@@ -59,7 +59,7 @@ test('the Worker keeps uploads, hands out the roads with an ETag, deletes an ins
   assert.ok(![...env.ROADS.m.keys()].some(k => k.startsWith('up/')));
 });
 
-test('the merge: a crossing is a road once 3 installs walked it; one player\'s path never shows; swum by most, swum', () => {
+test('the merge: a crossing is a road once 2 installs walked it; one player\'s path never shows; swum by most, swum', () => {
   const ups = [
     { install: ID(1), c: { 0: road(32768, 32768, 6) } },
     { install: ID(2), c: { 0: road(32768, 32768, 6) } },
@@ -73,9 +73,11 @@ test('the merge: a crossing is a road once 3 installs walked it; one player\'s p
   const at = (X, Y) => sq.find(s => s.X === X && s.Y === Y);
   assert.ok(at(32768, 32768) && (at(32768, 32768).v & 1), 'walked east by 3');
   assert.ok(at(32768 + 4, 32768), 'the square crossed into is kept too');
-  assert.ok(!at(32768 + 5, 32768) || !(at(32768 + 5, 32768).v & 1), 'only 2 crossed on from the 5th');
+  assert.ok(at(32768 + 5, 32768) && (at(32768 + 5, 32768).v & 1), '2 crossed on from the 5th: enough');
   assert.ok(!sq.some(s => s.X >= 40000), 'one player\'s road: not shown');
   assert.equal(at(32768, 32768).v & 256, 0, 'swum by 1 of 3: not swum');
+  // One install alone, never; with a second, shown.
+  assert.ok(!merge([{ install: ID(9), c: { 0: road(50000, 50000, 3) } }]).c[0], 'one install: nothing');
   assert.ok(at(32768, 32768).v >= 512, 'counted: 3 players');
   assert.equal(keyDay(`up/${ID(1)}/2026-11-21-101112.json`), '2026-11-21');
 });

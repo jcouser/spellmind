@@ -26,6 +26,8 @@ G.ROAD = 0.02 -- each time walked (up to 5) makes a square this much cheaper: ro
 G.CHUNK = 4096 -- squares a saved string
 G.ENDS = 6 -- the walked squares tried at each end of a way
 G.PULL = 40 -- squares looked ahead when straightening a way
+G.SAVE = 0.95 -- out in the open, walked ground is followed only when it saves this much (5%) over going straight
+G.ROAD_MIN = 5 -- out in the open, squares of road (about 40 yards) worth following before going straight
 
 local OFF = 32768
 local function Key(ix, iy) return (ix + OFF) * 65536 + (iy + OFF) end
@@ -342,11 +344,23 @@ function G.Way(a, b)
 	if not a or not b or a.c ~= b.c or not ns.db then return nil end
 	local L = G.Layer(a.c)
 	if L.n == 0 then return nil end
+	-- In a city its walls are why the ground walked is taken at all; out in the open only when it's about
+	-- as direct (the player, 2026-11-20: "just the path I had walked from a different point a to b").
+	local city = Try(rawget(_G, "IsResting")) and true or false
 	local starts = Near(L, a.x, a.y, R.TRAIL_JOIN, G.ENDS)
 	local ends = Near(L, b.x, b.y, R.TRAIL_JOIN, G.ENDS)
-	if #starts == 0 or #ends == 0 then return nil end
+	if #starts == 0 or (#ends == 0 and city) then return nil end
 	local goal = {}
 	for _, e in ipairs(ends) do goal[e[1]] = e[2] * R.OFF_TRAIL end
+	-- Out in the open, the road is followed as far as it helps, then straight on (the player, 2026-11-21: a
+	-- road walked east from Menethil ended short of the step, and the line went straight from the harbor):
+	-- any square walked can be left for the target, at the cost of ground not walked. In a city, only near it.
+	local function Leave(k)
+		if goal[k] then return goal[k] end
+		if city then return nil end
+		local x, y = Center(k)
+		return math.sqrt((x - b.x) ^ 2 + (y - b.y) ^ 2) * R.OFF_TRAIL
+	end
 	local least = 1 - 5 * G.ROAD
 	local function H(k) local x, y = Center(k); return math.sqrt((x - b.x) ^ 2 + (y - b.y) ^ 2) * least end
 	local g, prev, done, heap = {}, {}, {}, {}
@@ -361,8 +375,9 @@ function G.Way(a, b)
 			done[u] = true
 			steps = steps + 1
 			if steps > R.TRAIL_EXPAND then break end
-			if goal[u] then
-				local t = g[u] + goal[u]
+			local off = Leave(u)
+			if off then
+				local t = g[u] + off
 				if not bestCost or t < bestCost then best, bestCost = u, t end
 			end
 			if bestCost and g[u] + H(u) >= bestCost then break end
@@ -383,12 +398,12 @@ function G.Way(a, b)
 	end
 	if not best then return nil end
 	local straight = math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2)
-	-- In a city its walls are why the ground walked is taken at all; out in the open only when it's about
-	-- as direct (the player, 2026-11-20: "just the path I had walked from a different point a to b").
-	local city = Try(rawget(_G, "IsResting")) and true or false
-	if bestCost >= straight * (city and R.STRAIGHT or R.STRAIGHT_OPEN) then return nil end
+	-- Out in the open, walked ground must also save something over going straight across ground not walked.
+	if bestCost >= straight * (city and R.STRAIGHT or math.min(R.STRAIGHT_OPEN, R.OFF_TRAIL * G.SAVE)) then return nil end
 	local cells, n = {}, best
 	while n do table.insert(cells, 1, n); n = prev[n] end
+	-- Left almost as soon as joined: no road worth drawing, the straight way.
+	if not city and #cells < G.ROAD_MIN then return nil end
 	-- Not back the way you came, out in the open.
 	if not city then
 		for _, k in ipairs(cells) do

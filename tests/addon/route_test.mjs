@@ -2430,3 +2430,23 @@ test('a field walked over every which way is crossed straight, not along the lin
   const pts = Array.isArray(way) ? way : Object.values(way || {});
   assert.ok(pts.length >= 1 && pts.length <= 3, 'straight: ' + JSON.stringify(pts));
 });
+
+test('out in the open, a road walked part of the way is followed, then straight on (the player, 2026-11-21: Menethil to a step past the road)', () => {
+  const vm = session();
+  vm.slash('route');
+  vm.run('STUB.player.resting = false');
+  // A road from the player (40, 40) east to (70, 40): 900 yards. The target, at (90, 45), is 600 yards past its end.
+  const road = []; for (let x = 40; x <= 70; x += 0.5) road.push([x / 100, 0.40]);
+  WALK(vm, road);
+  vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40; NS.R.routeTrailWay = nil; NS.R.routeTrailAt = nil');
+  const b = vm.json('NS.Route.World(1432, 90, 45)'), end = vm.json('NS.Route.World(1432, 70, 40)');
+  const to = `{ c = ${b.c}, x = ${b.x}, y = ${b.y} }`;
+  const way = vm.json(`NS.Route.TrailBetween(NS.Route.PlayerWorld(), ${to})`);
+  const pts = Array.isArray(way) ? way : Object.values(way || {});
+  assert.ok(pts.length >= 2, 'along the road');
+  const last = pts[pts.length - 1];
+  assert.ok(Math.hypot(last.x - end.x, last.y - end.y) < 60, 'left near its end: ' + JSON.stringify(last) + ' ' + JSON.stringify(end));
+  // In a city, a road that doesn't reach the target isn't followed (leaving it early is how lines go through walls).
+  vm.run('STUB.player.resting = true; NS.R.routeTrailWay = nil');
+  assert.equal(vm.evaluate(`tostring(NS.Route.TrailBetween(NS.Route.PlayerWorld(), ${to}))`), 'nil');
+});

@@ -1,0 +1,11 @@
+# Spellmind roads (server/roads/README.md): deploy with `npx wrangler deploy` from this folder.
+name = "spellmind-roads"
+main = "worker.mjs"
+compatibility_date = "2026-11-01"
+
+[[r2_buckets]]
+binding = "ROADS"
+bucket_name = "spellmind-roads"
+
+# ADMIN_TOKEN is a secret: `npx wrangler secret put ADMIN_TOKEN` (the same value as the GitHub secret
+# ROADS_ADMIN_TOKEN the weekly merge uses).

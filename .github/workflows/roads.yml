@@ -1,0 +1,31 @@
+# The roads players walk, merged once a week (server/roads/README.md): the uploads the Worker keeps, each
+# crossing kept once 3 installs walked it, put back to the Worker for the app (and the release build).
+# Uploads past 90 days are dropped. Needs the repository variable ROADS_URL and the secret ROADS_ADMIN_TOKEN.
+name: roads
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  merge:
+    if: vars.ROADS_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Merge
+        env:
+          ROADS_URL: ${{ vars.ROADS_URL }}
+          ROADS_ADMIN_TOKEN: ${{ secrets.ROADS_ADMIN_TOKEN }}
+        run: node tools/roads-merge.mjs

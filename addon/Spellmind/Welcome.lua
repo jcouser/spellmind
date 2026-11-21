@@ -39,12 +39,12 @@ WL.BASICS = {
 -- The app, in a box of its own (the player, 2026-11-21: "really emphasize the desktop app and its value"):
 -- its heading, a line, then what it adds, two by two, and the link to copy (or that it's connected).
 WL.APP_TITLE = "Even better with the free app"
-WL.APP = "The free Spellmind app for Windows sits by the clock while you play. No account, no subscription, and nothing sent to the Spellmind authors."
+WL.APP = "The free Spellmind app for Windows sits by the clock while you play, and keeps the addon up to date. No account, no subscription."
 WL.APP_FEATURES = {
+	{ icon = "Interface\\Icons\\Ability_Hunter_Pathfinding", title = "Roads every player walks", text = "Your route follows the paths players really take, kept up to date. It shares the ground you walk (squares only; the Route tab turns it off)." },
 	{ icon = "Interface\\AddOns\\Spellmind\\Media\\Portrait", title = "Ask your own AI", text = "Anything about your character: gear, quests, talents, gold, your route. A ChatGPT plan, or a key for Claude, ChatGPT, Grok or Gemini." },
 	{ icon = "Interface\\AddOns\\Spellmind\\Media\\Mark", title = "Break it down", text = "Click the Spellmind mark on a quest, an item, a trainer or a merchant: your AI explains that exact thing." },
 	{ icon = "Interface\\Icons\\INV_Scroll_03", title = "Review my route", text = "Your AI sees your route and says what to skip, and why. Or bring your own leveling guide with /sm guide." },
-	{ icon = "Interface\\Icons\\INV_Misc_Gear_01", title = "Always up to date", text = "It keeps the addon updated for you, and updates itself." },
 }
 WL.BASICS_LABEL = "Works right away, no setup"
 WL.CONNECTED = "|cff19ff19The Spellmind app is connected.|r Ask anything in the Chat tab, or click the Spellmind mark on a quest to have it broken down."

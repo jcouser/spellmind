@@ -52,7 +52,8 @@ const stamp = (now) => new Date(now).toISOString().slice(11, 19).replace(/:/g, '
 
 function admin(request, env) {
   const auth = request.headers.get('authorization') || '';
-  return Boolean(env.ADMIN_TOKEN) && auth === `Bearer ${env.ADMIN_TOKEN}`;
+  const token = String(env.ADMIN_TOKEN || "").replace(/^﻿/, "").trim(); // a secret piped in may carry a newline or a BOM
+  return Boolean(token) && auth.trim() === `Bearer ${token}`;
 }
 
 export async function handle(request, env, now = Date.now()) {
@@ -78,7 +79,9 @@ export async function handle(request, env, now = Date.now()) {
     const obj = await R2.get('roads/latest.json');
     if (!obj) return json(404, { error: 'no roads yet' });
     const etag = obj.httpEtag || obj.etag;
-    if (etag && request.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers: { etag } });
+    // Cloudflare makes the ETag weak (W/"…") when it compresses the answer: compared without that.
+    const bare = (s) => String(s || '').replace(/^W\//, '');
+    if (etag && bare(request.headers.get('if-none-match')) === bare(etag)) return new Response(null, { status: 304, headers: { etag } });
     return new Response(obj.body, { headers: { 'content-type': 'application/json; charset=utf-8', etag: etag || '', 'cache-control': 'public, max-age=3600' } });
   }
 

@@ -111,3 +111,20 @@ test('the roads come back into the addon\'s Roads.lua, newer only; an addon inst
   installAddon({ flavorDir: wow, source: src, running: () => ({ running: false }), count: 0 });
   assert.match(fs.readFileSync(file, 'utf8'), /2026-12-05/);
 });
+
+test('turned off on every account: what this PC shared before is deleted, and nothing more goes', async () => {
+  const data = dataDir();
+  const calls = [];
+  const fetchFn = async (url, init) => { calls.push({ url, method: init?.method }); return { ok: true, status: 200 }; };
+  const on = flavor({ A: saved({ packed: road(32768, 32768, 4) }) });
+  await uploadGround({ flavorDir: on, dataDir: data, url: URL0, now: 1e12, fetchFn });
+  assert.ok(readState(data).sent, 'shared');
+  const off = flavor({ A: saved({ packed: road(32768, 32768, 6), off: true }) });
+  const r = await uploadGround({ flavorDir: off, dataDir: data, url: URL0, now: 1e12 + 21 * 3600e3, fetchFn });
+  assert.equal(r.deleted, true);
+  assert.deepEqual(calls[1], { url: URL0 + '/v1/ground/' + installId(data), method: 'DELETE' });
+  assert.equal(readState(data).sent, undefined);
+  const again = await uploadGround({ flavorDir: off, dataDir: data, url: URL0, now: 1e12 + 50 * 3600e3, fetchFn });
+  assert.equal(again.skipped, 'off');
+  assert.equal(calls.length, 2, 'nothing more');
+});

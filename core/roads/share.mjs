@@ -9,14 +9,14 @@
 //     when they're newer than the game's.
 //   applyRoads(): the roads kept here written again (after an addon update put the app's own copy in place).
 //
-// Off until ROADS_URL is set (the release that turns sharing on).
+// ROADS_URL: the Worker (server/roads); an empty one turns sharing off.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { savedStatements } from '../link/slots.mjs';
 import { decode, record, roadsLua, roadsDate } from './pack.mjs';
 
-export const ROADS_URL = '';
+export const ROADS_URL = 'https://spellmind-roads.spellmind.workers.dev'; // server/roads (deployed 2026-11-21)
 export const UPLOAD_EVERY_MS = 20 * 3600e3; // about once a day
 export const ROADS_EVERY_MS = 24 * 3600e3;
 export const MAX_SQUARES = 60000; // an upload's squares, at most (the Worker takes 512 KB)
@@ -93,11 +93,28 @@ export async function uploadGround({ flavorDir, dataDir, version = null, game = 
   const st = readState(dataDir);
   if (st.lastUpload && now - st.lastUpload < UPLOAD_EVERY_MS) return { skipped: 'recent' };
   const all = {};
+  let on = 0, off = 0;
   for (const file of savedFiles(flavorDir)) {
     let g;
     try { g = readGround(fs.readFileSync(file, 'latin1')); } catch { continue; }
-    if (g.off) continue; // that account's "Share the ground I walk" is off
+    if (g.off) { off++; continue; } // that account's "Share the ground I walk" is off
+    on++;
     for (const [cont, packed] of Object.entries(g.c)) all[cont] = (all[cont] || '') + packed;
+  }
+  // Turned off on every account here: what this PC sent before is deleted too, and nothing more goes.
+  if (off > 0 && on === 0) {
+    if (st.sent && Object.keys(st.sent).length && typeof st.install === 'string') {
+      const r = await fetchFn(url.replace(/\/$/, '') + '/v1/ground/' + st.install, { method: 'DELETE' });
+      if (r.ok) {
+        const st3 = readState(dataDir);
+        delete st3.sent;
+        writeState(dataDir, st3);
+        log('Roads: sharing is off, and what this PC shared before was deleted.');
+        return { deleted: true };
+      }
+      return { error: r.status };
+    }
+    return { skipped: 'off' };
   }
   const install = installId(dataDir);
   const { c, squares, next } = newGround(all, readState(dataDir).sent || {});

@@ -13,7 +13,7 @@ Any of them works. If you have ChatGPT Plus or Pro, signing in costs nothing ext
 Spellmind is unofficial. It's built to stay inside what the game allows: the addon uses only the game's addon interface, and the app only reads Spellmind's own strip from the game's window and writes files into Spellmind's own addon folders. It never reads the game's memory, never sends input to the game and never plays for you; everything is advice you act on yourself. Only Blizzard can say what it allows, though, so read [how it reads the game](screen-reading.md) and decide for yourself.
 
 **What does it send, and to whom?**
-Your question and the game data you allow, to your AI, when you ask. Never your character's name, realm or guild, and nothing to the Spellmind authors. See [privacy](privacy.md).
+Your question and the game data you allow, to your AI, when you ask. Never your character's name, realm or guild. To the Spellmind authors, only the ground you walk, for the shared roads, unless you turn it off. See [privacy](privacy.md).
 
 **Why does the addon come with 200 "Spellmind Part" addons?**
 They carry answers into the game: an addon can only load files that existed when the game started, so the app writes each answer into the next free part. They're tiny, load only when needed, and sit under "Spellmind Parts" in the AddOns list. Leave them all checked.

@@ -160,7 +160,7 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 > - **Advice only.** Spellmind never plays for you: it never sends input to the game, never clicks, casts, buys or equips. Waypoints are set only when you click **Go**.
 > - **The app reads only Spellmind's own signal strip** from the game's window, and never the game's memory.
 > - **Never sent anywhere:** your character's name, realm and guild, your account, other players' names or chat.
-> - **Your questions go only to the AI you chose,** only when you ask, with the game data you allow (a switch for each part in Settings). Nothing goes to the Spellmind authors: no telemetry, no account, no server.
+> - **Your questions go only to the AI you chose,** only when you ask, with the game data you allow (a switch for each part in Settings). Nothing goes to the Spellmind authors but the ground you walk, for the shared roads (with the app; "Share the ground I walk" on the Route tab turns it off): no telemetry, no account.
 >
 > ## Commands
 >

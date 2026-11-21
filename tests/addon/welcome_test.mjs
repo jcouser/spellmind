@@ -103,8 +103,9 @@ test('a new account: the welcome (which names the route), not What\'s new; an ol
   assert.equal(fresh.evaluate('SpellmindWelcome.features[2].title:GetText()'), 'A panel that knows your character');
   assert.equal(fresh.evaluate('SpellmindWelcome.appTitle:GetText()'), 'Even better with the free app');
   // What the app adds, each its own line in the box (the player, 2026-11-21).
-  assert.equal(fresh.evaluate('SpellmindWelcome.appRows[1].title:GetText()'), 'Ask your own AI');
-  assert.equal(fresh.evaluate('SpellmindWelcome.appRows[2].title:GetText()'), 'Break it down');
+  assert.equal(fresh.evaluate('SpellmindWelcome.appRows[1].title:GetText()'), 'Roads every player walks');
+  assert.equal(fresh.evaluate('SpellmindWelcome.appRows[2].title:GetText()'), 'Ask your own AI');
+  assert.equal(fresh.evaluate('SpellmindWelcome.appRows[3].title:GetText()'), 'Break it down');
   assert.equal(fresh.evaluate('tostring(SpellmindWelcome.appBox.shown ~= false)'), 'true');
   // Try the route, from the welcome.
   assert.equal(fresh.evaluate('tostring(SpellmindWelcome.go.shown)'), 'true');

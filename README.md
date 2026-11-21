@@ -205,7 +205,7 @@ Pick your AI, its model and thinking level. It sits by the clock while you play,
 
 ## Your AI, your choice
 
-The app talks to the AI you pick. You pay that AI (or use a plan you already have); Spellmind itself is free and has no account, server or subscription.
+The app talks to the AI you pick. You pay that AI (or use a plan you already have); Spellmind itself is free and has no account or subscription.
 
 - **ChatGPT plan** (Plus or Pro): sign in in your browser, no API key.
 - **An API key** for Claude (Anthropic), ChatGPT (OpenAI), Grok (xAI) or Gemini (Google).
@@ -244,7 +244,8 @@ Spellmind works alongside Questie and Auctionator, and uses their data when they
 
 - **Never sent:** your character's name, realm or guild, your account, other players' names or chat.
 - **Sent to your AI only, when you ask:** your question and the game data you allow (class, level, gear, quests, talents and so on; each part has a switch in Settings).
-- **Nothing goes to the Spellmind authors.** No telemetry, no analytics, no server.
+- **To the Spellmind authors, only the ground you walk:** with the app, the squares you walk help build the shared roads every player's route follows. No times, no character, no account; a crossing is shared only once 3 players walked it. "Share the ground I walk" on the Route tab turns it off.
+- **No telemetry, no analytics.**
 
 The details are in [docs/privacy.md](docs/privacy.md).
 
@@ -281,7 +282,7 @@ When it's signed: *Free code signing provided by [SignPath.io](https://about.sig
 - **Only this project's own files are signed:** the installer built from this repository's source by [the release workflow](.github/workflows/release.yml) on GitHub's own runners, from a tagged commit.
 - **Committers and reviewers:** [jcouser](https://github.com/jcouser). Changes from anyone else come as pull requests and are reviewed before they're merged.
 - **Approvers:** [jcouser](https://github.com/jcouser) approves each signing request by hand.
-- **Privacy:** Spellmind sends nothing to the Spellmind authors. It sends your questions and the game data you allow to the AI you chose, only when you ask, and checks this repository's releases for new versions (a switch turns that off). See [docs/privacy.md](docs/privacy.md).
+- **Privacy:** Spellmind sends the Spellmind authors only the ground you walk, for shared roads (a switch on the Route tab turns it off). It sends your questions and the game data you allow to the AI you chose, only when you ask, and checks this repository's releases for new versions (a switch turns that off). See [docs/privacy.md](docs/privacy.md).
 
 ## Support and security
 

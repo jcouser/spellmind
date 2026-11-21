@@ -110,7 +110,7 @@ export const addonListFile = flavorDir => path.join(flavorDir, 'WTF', 'SavedVari
 // value is a table, a string, a number, true, false or nil. Returns each statement
 // with where its value sits, or throws on anything else (the fold then leaves the
 // file alone). Read as latin1, so every byte comes back as it was.
-function savedStatements(text) {
+export function savedStatements(text) {
   let i = 0;
   const fail = what => { throw new Error(`${what} at ${i}`); };
   const longOpen = () => /^\[(=*)\[/.exec(text.slice(i, i + 64));

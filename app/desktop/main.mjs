@@ -26,6 +26,7 @@ import { createEgress } from '../../core/ai/security/egress.mjs';
 import { createSignIns } from '../../core/ai/signin/index.mjs';
 import { IDENTITY } from '../../core/identity.mjs';
 import { createUpdater } from './updater.mjs';
+import { uploadGround, syncRoads, applyRoads, ROADS_URL } from '../../core/roads/share.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // SPELLMIND_DATA: another data folder (a first run seen from source, the tests); the player's is dataDir().
@@ -103,12 +104,33 @@ function updateAddonIfOld(why) {
   }
   if (wowRunning().running) { note('An addon update is ready: it goes in when WoW closes.'); return; }
   const r = installAddon({ flavorDir: cfg.wow, version: app.getVersion() });
+  if (r.ok) roadsAgain();
   if (r.ok) {
     note(`Addon updated (${why}).`);
     told.delete('addon-updated');
     notify('addon-updated', 'Spellmind\'s addon is up to date', 'The new version loads the next time you start WoW.');
   } else note(`The addon couldn't be updated: ${r.detail || r.error}`);
   pushStatus();
+}
+
+// ---------------------------------------------------------------------------
+// Shared roads (core/roads/share.mjs, server/roads/README.md): what's new in the ground walked goes up about once a
+// day (unless the game's "Share the ground I walk" is off), and the roads merged come back into the addon. Only
+// the roads' Worker can be reached this way (the same allowlisted fetch as the AI's). Off until ROADS_URL is set.
+const roadsFetch = ROADS_URL ? createEgress({ allowHosts: () => new Set([new URL(ROADS_URL).hostname]), loopbackOk: false }).fetch : null;
+async function roadsTick() {
+  const cfg = readConfig(DATA);
+  if (!roadsFetch || !cfg.wow) return;
+  try { await uploadGround({ flavorDir: cfg.wow, dataDir: DATA, version: app.getVersion(), fetchFn: roadsFetch, log: note }); } catch (e) { note(`Roads: ${e.message}`); }
+  try {
+    const r = await syncRoads({ flavorDir: cfg.wow, dataDir: DATA, fetchFn: roadsFetch, log: note });
+    if (r.applied) note(`Roads of ${r.date} in the addon: they load at the next /reload.`);
+  } catch (e) { note(`Roads: ${e.message}`); }
+}
+// After an addon install put the app's own Roads.lua in place: the newer roads kept here, again.
+function roadsAgain() {
+  const cfg = readConfig(DATA);
+  if (cfg.wow) { try { applyRoads({ flavorDir: cfg.wow, dataDir: DATA }); } catch { /* the addon works without them */ } }
 }
 
 // ---------------------------------------------------------------------------
@@ -504,6 +526,7 @@ const CALLS = {
     if (running && (before.state === 'missing' || before.added > 0)) return { ok: false, error: 'wow_running', detail: RUNNING_LINE };
     const r = installAddon({ flavorDir: cfg.wow, force: running, version: app.getVersion() });
     if (!r.ok) return r;
+    roadsAgain();
     note(running ? 'Addon updated: type /reload in game.' : 'Addon installed.');
     await sup.restart();
     return { ok: true, reload: running, note: running ? 'Type /reload in game to load the new files.' : r.note };
@@ -597,6 +620,8 @@ app.whenReady().then(() => {
   updateAddonIfOld('Spellmind started');
   sup.start();
   startUpdates();
+  setTimeout(roadsTick, 60e3);
+  setInterval(roadsTick, 3 * 3600e3);
   // A login start stays in the tray; a start by hand, or one with any setup step undone, opens the window.
   if (!HIDDEN) openWindow();
   else fullStatus().then((s) => { if (!s.wow.ok || s.wow.addon.state === 'missing' || !s.ai.ready) openWindow(); }).catch(() => openWindow());

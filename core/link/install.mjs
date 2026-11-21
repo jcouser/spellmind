@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { installSlots, SLOT_COUNT, countSlots } from './slots.mjs';
 import { signalPaths, BELLS } from './signals.mjs';
+import { roadsDate } from '../roads/pack.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ADDON_NAME = 'Spellmind';
@@ -113,12 +114,15 @@ function realDirAt(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
-// Copy the addon's own files; keep sig/ (live doorbells) and an Inbox.lua the service wrote.
+// Copy the addon's own files; keep sig/ (live doorbells), an Inbox.lua the service wrote, and a Roads.lua with roads
+// as new as this copy's or newer (the app keeps it up to date: core/roads/share.mjs).
+const roadsDay = (file) => { try { return roadsDate(fs.readFileSync(file, 'utf8')) || ''; } catch { return ''; } };
 function copyAddon(src, dst) {
   realDirAt(dst);
   let files = 0;
   for (const e of fs.readdirSync(src, { withFileTypes: true })) {
     if (e.name === 'sig' || (e.name === 'Inbox.lua' && lstat(path.join(dst, 'Inbox.lua'))?.isFile())) continue;
+    if (e.name === 'Roads.lua' && lstat(path.join(dst, 'Roads.lua'))?.isFile() && roadsDay(path.join(dst, 'Roads.lua')) >= roadsDay(path.join(src, 'Roads.lua'))) continue;
     const from = path.join(src, e.name);
     const to = path.join(dst, e.name);
     if (e.isDirectory()) { fs.rmSync(to, { recursive: true, force: true }); files += copyAddon(from, to); } else if (e.isFile()) {
@@ -162,7 +166,7 @@ export function addonState({ flavorDir, source = ADDON_SOURCE } = {}) {
   let changed = 0, added = 0;
   const walk = (src, to) => {
     for (const e of fs.readdirSync(src, { withFileTypes: true })) {
-      if (e.name === 'sig' || e.name === 'Inbox.lua') continue;
+      if (e.name === 'sig' || e.name === 'Inbox.lua' || e.name === 'Roads.lua') continue; // the app's to keep
       const from = path.join(src, e.name), there = path.join(to, e.name);
       if (e.isDirectory()) walk(from, there);
       else if (e.isFile()) {

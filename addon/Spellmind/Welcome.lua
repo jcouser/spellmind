@@ -24,7 +24,7 @@ ns.Welcome = WL
 WL.DELAY = 6 -- seconds after login: the app's first answer to the hello comes in by then
 WL.RETRY = 5 -- seconds, while in combat
 WL.TITLE = "Welcome to Spellmind"
-WL.INTRO = "Your companion for WoW Forever. It knows your character as you play, and says what to do next. Everything here works with no setup at all."
+WL.INTRO = "Your companion for WoW Forever. It knows your character as you play, and says what to do next."
 -- The welcome shows the highlights of every version after this one (the last that players had): set it
 -- to the version before the one being published (docs/releasing.md).
 WL.FRESH_SINCE = "0.6.0"
@@ -32,11 +32,21 @@ WL.TRY_ALWAYS = "route" -- the welcome's Try it now when nothing is new
 -- What's always there, after what's new. The quest route since 0.5.0 (published 2026-11-20): once it's no
 -- longer new, a new player still meets it here.
 WL.BASICS = {
-	{ icon = "Interface\\Icons\\INV_Misc_Map_01", title = "Your quest route", text = "Every pickup, objective and turn-in around you in the shortest order, an arrow, and the way on the world map and minimap. It says where to go next when a zone runs dry, and plans for any dungeon or your class's questlines. /sm route turns it on." },
-	{ icon = "Interface\\Icons\\INV_Misc_Book_09", title = "A panel that knows your character", text = "Quests, Route, Dungeons, Gear, Talents, Spells, Professions and Gold, each saying what to do next. The minimap button or /sm opens it; right-click the button for your last tab." },
-	{ icon = "Interface\\AddOns\\Spellmind\\Media\\Mark", title = "Nudges and tooltips", text = "A quiet nudge by the minimap when spells wait at your trainer, talent points are unspent or gear is about to break, and Spellmind's lines on quest and item tooltips." },
+	{ icon = "Interface\\Icons\\INV_Misc_Map_01", title = "Your quest route", text = "Every pickup, objective and turn-in near you in the shortest order, an arrow, and the way on your maps. It plans dungeons and class questlines too. /sm route turns it on." },
+	{ icon = "Interface\\Icons\\INV_Misc_Book_09", title = "A panel that knows your character", text = "Quests, Route, Dungeons, Gear, Talents, Spells, Professions and Gold, each saying what to do next. The minimap button or /sm opens it." },
+	{ icon = "Interface\\AddOns\\Spellmind\\Media\\Mark", title = "Nudges and tooltips", text = "A quiet nudge when spells wait at your trainer, talent points are unspent or gear is about to break, and Spellmind's lines on tooltips." },
 }
-WL.APP = "Get the free Spellmind app for Windows, and ask your own AI anything about your character. It works with a ChatGPT plan, or an API key for Claude, ChatGPT, Grok or Gemini, and sends nothing to the Spellmind authors."
+-- The app, in a box of its own (the player, 2026-11-21: "really emphasize the desktop app and its value"):
+-- its heading, a line, then what it adds, two by two, and the link to copy (or that it's connected).
+WL.APP_TITLE = "Even better with the free app"
+WL.APP = "The free Spellmind app for Windows sits by the clock while you play. No account, no subscription, and nothing sent to the Spellmind authors."
+WL.APP_FEATURES = {
+	{ icon = "Interface\\AddOns\\Spellmind\\Media\\Portrait", title = "Ask your own AI", text = "Anything about your character: gear, quests, talents, gold, your route. A ChatGPT plan, or a key for Claude, ChatGPT, Grok or Gemini." },
+	{ icon = "Interface\\AddOns\\Spellmind\\Media\\Mark", title = "Break it down", text = "Click the Spellmind mark on a quest, an item, a trainer or a merchant: your AI explains that exact thing." },
+	{ icon = "Interface\\Icons\\INV_Scroll_03", title = "Review my route", text = "Your AI sees your route and says what to skip, and why. Or bring your own leveling guide with /sm guide." },
+	{ icon = "Interface\\Icons\\INV_Misc_Gear_01", title = "Always up to date", text = "It keeps the addon updated for you, and updates itself." },
+}
+WL.BASICS_LABEL = "Works right away, no setup"
 WL.CONNECTED = "|cff19ff19The Spellmind app is connected.|r Ask anything in the Chat tab, or click the Spellmind mark on a quest to have it broken down."
 
 local function InCombat()
@@ -163,7 +173,7 @@ end
 -- The announcement: a window for the welcome and for What's new
 ---------------------------------------------------------------------------
 
-WL.W, WL.PAD = 560, 22
+WL.W, WL.PAD = 600, 22
 WL.NEWS_W, WL.NEWS_PAD = WL.W, WL.PAD
 local INNER = WL.W - 2 * WL.PAD
 local BACK = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -321,21 +331,51 @@ local function Build()
 	local f = Window("SpellmindWelcome")
 	f.title, f.intro = f.headline, f.tagline
 	f.title:SetText(WL.TITLE)
-	-- The app: its own highlight (the owl), then the link to copy when it isn't there yet.
-	f.appIcon = f:CreateTexture(nil, "ARTWORK")
+	-- The app: a box of its own, lighter, with the owl, its heading and line, what it adds two by two, then
+	-- the link to copy when it isn't there yet.
+	local box = CreateFrame("Frame", nil, f, "BackdropTemplate")
+	box:SetWidth(INNER)
+	if box.SetBackdrop then
+		box:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+			tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+		box:SetBackdropColor(0.13, 0.09, 0.26, 0.95)
+		box:SetBackdropBorderColor(1, 0.82, 0, 0.8)
+	end
+	f.appBox = box
+	f.appIcon = box:CreateTexture(nil, "ARTWORK")
 	f.appIcon:SetSize(34, 34)
 	f.appIcon:SetTexture(ns.Marks and ns.Marks.PORTRAIT or "Interface\\AddOns\\Spellmind\\Media\\Portrait")
-	f.appTitle = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	f.appTitle = box:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	f.appTitle:SetJustifyH("LEFT")
-	f.appTitle:SetText("Ask your own AI")
-	f.app = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	f.app:SetWidth(INNER - 48)
+	f.appTitle:SetText(WL.APP_TITLE)
+	f.app = box:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	f.app:SetWidth(INNER - 28 - 46)
 	f.app:SetJustifyH("LEFT")
 	if f.app.SetWordWrap then f.app:SetWordWrap(true) end
 	if f.app.SetSpacing then f.app:SetSpacing(2) end
+	f.appRows = {}
+	local colW = math.floor((INNER - 28 - 16) / 2)
+	for k, ft in ipairs(WL.APP_FEATURES) do
+		local row = {}
+		row.icon = box:CreateTexture(nil, "ARTWORK")
+		row.icon:SetSize(24, 24)
+		row.icon:SetTexture(ft.icon)
+		row.title = box:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		row.title:SetJustifyH("LEFT")
+		row.title:SetWidth(colW - 32)
+		row.title:SetText(ft.title)
+		row.text = box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		row.text:SetJustifyH("LEFT")
+		row.text:SetWidth(colW - 32)
+		if row.text.SetWordWrap then row.text:SetWordWrap(true) end
+		if row.text.SetSpacing then row.text:SetSpacing(2) end
+		row.text:SetText(ft.text)
+		f.appRows[k] = row
+	end
+	f.appColW = colW
 	-- The project's link, selected to copy; typing can't change it (as in /sm app's box).
-	f.link = CreateFrame("EditBox", nil, f, "BackdropTemplate")
-	f.link:SetSize(INNER - 48, 24)
+	f.link = CreateFrame("EditBox", nil, box, "BackdropTemplate")
+	f.link:SetSize(INNER - 28, 24)
 	if f.link.SetBackdrop then
 		f.link:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
 			tile = true, tileSize = 16, edgeSize = 10, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
@@ -353,8 +393,8 @@ local function Build()
 		end
 	end)
 	f.link:SetScript("OnEditFocusGained", function(self) if self.HighlightText then self:HighlightText() end end)
-	f.hint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	f.hint:SetText("Click the link, press Ctrl+C, then paste it in your browser.")
+	f.hint = box:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	f.hint:SetText("Get it here: click the link, press Ctrl+C, then paste it in your browser.")
 	f.again = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	f.again:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", WL.PAD, 22)
 	f.again:SetText("/sm welcome shows this again.")
@@ -390,31 +430,52 @@ function WL.Show()
 	f.top:SetText("Spellmind " .. tostring(ns.VERSION or ""))
 	local y = Fill(f, WL.TITLE, WL.INTRO, {
 		{ label = #fresh > 0 and ("New in " .. tostring(ns.VERSION or "")) or nil, features = fresh },
-		{ label = #fresh > 0 and "Always in Spellmind" or nil, features = WL.BASICS },
+		{ label = WL.BASICS_LABEL, features = WL.BASICS },
 	})
-	-- The app: connected, or where to get it.
+	-- The app's box: connected, or where to get it.
 	local heard = AppHeard()
+	local box = f.appBox
+	box:ClearAllPoints()
+	box:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD, y)
+	local by = -14
 	f.appIcon:ClearAllPoints()
-	f.appIcon:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD, y)
+	f.appIcon:SetPoint("TOPLEFT", box, "TOPLEFT", 14, by)
 	f.appTitle:ClearAllPoints()
-	f.appTitle:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD + 48, y)
+	f.appTitle:SetPoint("TOPLEFT", box, "TOPLEFT", 14 + 46, by)
 	f.app:SetText(heard and WL.CONNECTED or WL.APP)
 	f.app:ClearAllPoints()
 	f.app:SetPoint("TOPLEFT", f.appTitle, "BOTTOMLEFT", 0, -4)
-	y = y - (tonumber(f.appTitle:GetStringHeight()) or 16) - 4 - (tonumber(f.app:GetStringHeight()) or 42) - 10
+	by = by - math.max(34, (tonumber(f.appTitle:GetStringHeight()) or 16) + 4 + (tonumber(f.app:GetStringHeight()) or 30)) - 14
+	-- What it adds, two by two.
+	for k = 1, #f.appRows, 2 do
+		local h = 0
+		for c = 0, 1 do
+			local row = f.appRows[k + c]
+			if row then
+				local x = 14 + c * (f.appColW + 16)
+				row.icon:ClearAllPoints(); row.icon:SetPoint("TOPLEFT", box, "TOPLEFT", x, by)
+				row.title:ClearAllPoints(); row.title:SetPoint("TOPLEFT", box, "TOPLEFT", x + 32, by)
+				row.text:ClearAllPoints(); row.text:SetPoint("TOPLEFT", row.title, "BOTTOMLEFT", 0, -3)
+				h = math.max(h, 24, (tonumber(row.title:GetStringHeight()) or 14) + 3 + (tonumber(row.text:GetStringHeight()) or 26))
+			end
+		end
+		by = by - h - 12
+	end
 	f.link:SetText(ns.APP_URL)
 	f.link:ClearAllPoints()
 	f.hint:ClearAllPoints()
 	if heard then
 		f.link:Hide(); f.hint:Hide()
 	else
-		f.hint:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD + 50, y)
+		f.hint:SetPoint("TOPLEFT", box, "TOPLEFT", 16, by)
 		f.hint:Show()
-		y = y - 16
-		f.link:SetPoint("TOPLEFT", f, "TOPLEFT", WL.PAD + 46, y)
+		by = by - 16
+		f.link:SetPoint("TOPLEFT", box, "TOPLEFT", 14, by)
 		f.link:Show()
-		y = y - 30
+		by = by - 30
 	end
+	box:SetHeight(-by + 4)
+	y = y + by - 4 - 10
 	-- Try it now: the newest feature's, else the route's (always there since 0.5.0).
 	f.try = newest and newest.try or WL.TRY_ALWAYS
 	if f.try and WL.TRY[f.try] then f.go:Show() else f.go:Hide() end

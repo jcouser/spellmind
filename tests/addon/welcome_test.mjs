@@ -98,10 +98,14 @@ test('a new account: the welcome (which names the route), not What\'s new; an ol
   assert.ok(open(fresh) && !news(fresh));
   // The welcome, 0.5.0 published (FRESH_SINCE 0.5.0): nothing newer, so what's always there, the
   // route first.
-  assert.notEqual(fresh.evaluate('tostring(SpellmindWelcome.labels[1] and SpellmindWelcome.labels[1].shown)'), 'true', 'no "New in" heading');
+  assert.equal(fresh.evaluate('SpellmindWelcome.labels[1]:GetText()'), 'Works right away, no setup', 'no "New in" heading');
   assert.equal(fresh.evaluate('SpellmindWelcome.features[1].title:GetText()'), 'Your quest route');
   assert.equal(fresh.evaluate('SpellmindWelcome.features[2].title:GetText()'), 'A panel that knows your character');
-  assert.equal(fresh.evaluate('SpellmindWelcome.appTitle:GetText()'), 'Ask your own AI');
+  assert.equal(fresh.evaluate('SpellmindWelcome.appTitle:GetText()'), 'Even better with the free app');
+  // What the app adds, each its own line in the box (the player, 2026-11-21).
+  assert.equal(fresh.evaluate('SpellmindWelcome.appRows[1].title:GetText()'), 'Ask your own AI');
+  assert.equal(fresh.evaluate('SpellmindWelcome.appRows[2].title:GetText()'), 'Break it down');
+  assert.equal(fresh.evaluate('tostring(SpellmindWelcome.appBox.shown ~= false)'), 'true');
   // Try the route, from the welcome.
   assert.equal(fresh.evaluate('tostring(SpellmindWelcome.go.shown)'), 'true');
   fresh.run('SpellmindWelcome.go.scripts.OnClick(SpellmindWelcome.go)');
@@ -124,7 +128,7 @@ test('the welcome: highlights of the versions after the last public one first, t
     table.insert(NS.Welcome.NEWS, { version = "0.6.1", features = { { icon = "x", title = "The way there", text = "Leg by leg." } } })` }).login().advance(7);
   assert.equal(vm.evaluate('SpellmindWelcome.labels[1]:GetText()'), 'New in 0.6.1');
   assert.equal(vm.evaluate('SpellmindWelcome.features[1].title:GetText()'), 'The way there');
-  assert.equal(vm.evaluate('SpellmindWelcome.labels[2]:GetText()'), 'Always in Spellmind');
+  assert.equal(vm.evaluate('SpellmindWelcome.labels[2]:GetText()'), 'Works right away, no setup');
   assert.equal(vm.evaluate('SpellmindWelcome.features[2].title:GetText()'), 'Your quest route', '0.5.0 is public: no longer new');
 });
 

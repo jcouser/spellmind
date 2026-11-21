@@ -86,6 +86,25 @@ export const NEWS = Object.freeze([
       "Fixed: the world map's line ran back to a trail point you had already walked past.",
     ]),
   }),
+  Object.freeze({
+    version: '0.6.5',
+    headline: "Roads every player walks",
+    tagline: "Your route now follows the paths players really take, and gets better the more people play.",
+    features: Object.freeze([
+      Object.freeze({ title: "Roads every player walks", text: "With the Spellmind app, the ground players walk is shared and merged into roads. The arrow and the lines follow them, kept up to date by the app and in every release." }),
+      Object.freeze({ title: "Straight where it's open", text: "Out in the open the line goes straight, unless a road heads your way: then it follows the road as far as it helps and cuts across. In a city it follows the streets." }),
+      Object.freeze({ title: "Your own trails, smarter", text: "A field you've crossed every which way is crossed straight, a wall no one walked through stays a wall, and a road walked one way is a way back too." }),
+      Object.freeze({ title: "Yours to turn off", text: "Only squares crossed are shared: no times, no character, no account, and a crossing only once 2 players walked it. \"Share the ground I walk\" on the Route tab turns it off." }),
+    ]),
+    note: "Shared roads need the free Spellmind app. The switches are on the Route tab.",
+    changes: Object.freeze([
+      "The welcome shows what the free app adds, in a box of its own.",
+      "The app's Status card says how much ground you've shared and when, and the roads you've received.",
+      "An objective Questie has no spot for gets a circle around the game's marker, as the others have.",
+      "/sm route why also says why the line goes the way it does.",
+      "Your trails from before are turned into the new kind once, by themselves.",
+    ]),
+  }),
 ]);
 
 const parts = (v) => String(v ?? '').split('.').map((n) => parseInt(n, 10) || 0);

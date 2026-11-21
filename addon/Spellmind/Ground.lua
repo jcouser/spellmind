@@ -156,6 +156,50 @@ function G.Layer(c)
 	return L
 end
 
+-- The roads players walk, merged (Roads.lua's SpellmindRoads): a layer per continent, unpacked on first use.
+local shared, sharedFrom = {}, nil
+function G.Shared(c)
+	local R = rawget(_G, "SpellmindRoads")
+	if R ~= sharedFrom then shared, sharedFrom = {}, R end -- new roads: unpacked again
+	local S = shared[c]
+	if S then return S end
+	S = { cells = {}, n = 0 }
+	shared[c] = S
+	local packed = type(R) == "table" and type(R.c) == "table" and R.c[c]
+	if type(packed) == "table" then for _, chunk in ipairs(packed) do pcall(Unpack, S, chunk) end end
+	return S
+end
+-- About the roads (the Route tab): { date, players, squares } or nil.
+function G.RoadsInfo()
+	local R = rawget(_G, "SpellmindRoads")
+	if type(R) ~= "table" then return nil end
+	local n = 0
+	for _, chunks in pairs(type(R.c) == "table" and R.c or {}) do
+		for _, s in ipairs(type(chunks) == "table" and chunks or {}) do if type(s) == "string" then n = n + math.floor(#s / 8) end end
+	end
+	return { date = R.date, players = tonumber(R.players), squares = n }
+end
+
+-- Two values of one square, yours and the roads': the crossings of either, swum by either, the more walked.
+local function Merge(p, s)
+	local e = 0
+	for d = 0, 7 do if Bit(p, d) or Bit(s, d) then e = e + POW[d] end end
+	return e + ((Wet(p) or Wet(s)) and 256 or 0) + math.max(Passes(p), Passes(s)) * 512
+end
+-- Your ground and the roads as one, for one way's search: { cells (looked up in both), n }.
+function G.View(c)
+	local L, S = G.Layer(c), G.Shared(c)
+	if S.n == 0 then return L end
+	if L.n == 0 then return S end
+	local cells = setmetatable({}, { __index = function(t, k)
+		local p, s = L.cells[k], S.cells[k]
+		local v = (p and s) and Merge(p, s) or p or s
+		if v then rawset(t, k, v) end
+		return v
+	end })
+	return { cells = cells, n = L.n + S.n }
+end
+
 -- Every square walked, on every continent (those not yet unpacked counted from their strings).
 function G.Count()
 	if not ns.db then return 0 end
@@ -348,7 +392,7 @@ local function Why(t) G.last = t; return nil end
 function G.Way(a, b)
 	local R = RT()
 	if not a or not b or a.c ~= b.c or not ns.db then return Why({ result = "no spots" }) end
-	local L = G.Layer(a.c)
+	local L = G.View(a.c)
 	if L.n == 0 then return Why({ result = "nothing walked here" }) end
 	-- In a city its walls are why the ground walked is taken at all; out in the open only when it's about
 	-- as direct (the player, 2026-11-20: "just the path I had walked from a different point a to b").

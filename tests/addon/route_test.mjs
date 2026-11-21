@@ -2450,3 +2450,28 @@ test('out in the open, a road walked part of the way is followed, then straight 
   vm.run('STUB.player.resting = true; NS.R.routeTrailWay = nil');
   assert.equal(vm.evaluate(`tostring(NS.Route.TrailBetween(NS.Route.PlayerWorld(), ${to}))`), 'nil');
 });
+
+test('shared roads (Roads.lua) are a way too, with your own ground; the Route tab says where from and has the share switch (the player, 2026-11-21)', () => {
+  const vm = session();
+  vm.slash('route');
+  // A road from (40, 40) south to (40, 60), west and north to the rats, walked by someone else: packed as Roads.lua is.
+  const pts = [];
+  for (let y = 40; y <= 60; y += 0.5) pts.push([0.40, y / 100]);
+  for (let x = 40; x >= 20; x -= 0.5) pts.push([x / 100, 0.60]);
+  for (let y = 60; y >= 21; y -= 0.5) pts.push([0.20, y / 100]);
+  WALK(vm, pts);
+  vm.run('NS.Ground.Save(); SpellmindRoads = { v = 1, date = "2026-11-21", players = 12, c = SpellmindDB.routeGround.c }; NS.Route.ForgetTrails()');
+  assert.ok(vm.num('NS.Route.TrailCount()') <= 1, 'none of my own');
+  vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40; NS.R.routeTrailWay = nil; NS.R.routeTrailAt = nil');
+  const c = vm.json('NS.Route.Current()');
+  const way = vm.json(`NS.Route.TrailBetween(NS.Route.PlayerWorld(), NS.Route.World(1432, ${c.x}, ${c.y}))`);
+  const list = Array.isArray(way) ? way : Object.values(way || {});
+  assert.ok(list.length >= 3, 'round the bend, on the shared road: ' + list.length);
+  vm.run('NS.Panel.Show("route")');
+  const v = vm.json('SpellmindPanel.drawn'); const d = Array.isArray(v) ? v : Object.values(v || {});
+  const all = JSON.stringify(d);
+  assert.match(all, /Share the ground I walk/);
+  assert.match(all, /From 12 players, 2026-11-21/);
+  // Turned off: kept for the app to read.
+  assert.equal(vm.evaluate('tostring(SpellmindDB.routeShareOff)'), 'nil', 'on unless turned off');
+});

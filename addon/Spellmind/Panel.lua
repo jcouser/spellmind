@@ -594,6 +594,15 @@ function Tabs.route()
 		out[#out + 1] = { kind = "item", indent = true, left = "Forget my trails", sub = "|cff888888Every trail on this PC, for every character.|r",
 			actions = { { "Forget", function() RT.ForgetTrails(); P.Show("route", true) end, tip = "They're gone for good." } } }
 	end
+	-- Shared roads (the player, 2026-11-21: foot traffic shared, on unless turned off): what the app sends,
+	-- and the roads every player's route follows.
+	Switch("Share the ground I walk", "With the Spellmind app, the squares of ground you walk help build the roads every player's route follows. Nothing else is sent: no times, no character, no account. Off: nothing of yours is sent.",
+		not ns.db.routeShareOff, function(v) ns.db.routeShareOff = (not v) or nil end, true, not on)
+	local roads = ns.Ground and ns.Ground.RoadsInfo and ns.Ground.RoadsInfo()
+	if roads and roads.squares > 0 then
+		out[#out + 1] = { kind = "item", indent = true, left = "Shared roads",
+			sub = "|cff888888From " .. (roads.players and (roads.players .. " players") or "players") .. (roads.date and (", " .. ns.Escape(tostring(roads.date))) or "") .. ". Your route follows them with your own trails.|r" }
+	end
 	-- What the route plans for: questing here, or a dungeon's prep (the player, 2026-11-19).
 	local mode, prep, classLabel = RT.Mode()
 	local planSub = (mode == "dungeon" and ("Getting ready for " .. ns.Escape(prep) .. ": its quests and the questlines that open them, then the way in."))

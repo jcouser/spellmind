@@ -26,7 +26,7 @@ import { createEgress } from '../../core/ai/security/egress.mjs';
 import { createSignIns } from '../../core/ai/signin/index.mjs';
 import { IDENTITY } from '../../core/identity.mjs';
 import { createUpdater } from './updater.mjs';
-import { uploadGround, syncRoads, applyRoads, ROADS_URL } from '../../core/roads/share.mjs';
+import { uploadGround, syncRoads, applyRoads, roadsStatus, ROADS_URL } from '../../core/roads/share.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // SPELLMIND_DATA: another data folder (a first run seen from source, the tests); the player's is dataDir().
@@ -126,6 +126,7 @@ async function roadsTick() {
     const r = await syncRoads({ flavorDir: cfg.wow, dataDir: DATA, fetchFn: roadsFetch, log: note });
     if (r.applied) note(`Roads of ${r.date} in the addon: they load at the next /reload.`);
   } catch (e) { note(`Roads: ${e.message}`); }
+  pushStatus();
 }
 // After an addon install put the app's own Roads.lua in place: the newer roads kept here, again.
 function roadsAgain() {
@@ -311,6 +312,7 @@ async function fullStatus() {
     app: appSettings(),
     update: updates ? updates.state() : { phase: 'off' },
     activity: activity.slice().reverse(),
+    roads: roadsStatus(DATA),
     news: card(newsState()),
   };
 }

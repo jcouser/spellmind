@@ -103,6 +103,8 @@ export async function uploadGround({ flavorDir, dataDir, version = null, game = 
   }
   // Turned off on every account here: what this PC sent before is deleted too, and nothing more goes.
   if (off > 0 && on === 0) {
+    const stOff = readState(dataDir);
+    if (!stOff.off) { stOff.off = true; writeState(dataDir, stOff); }
     if (st.sent && Object.keys(st.sent).length && typeof st.install === 'string') {
       const r = await fetchFn(url.replace(/\/$/, '') + '/v1/ground/' + st.install, { method: 'DELETE' });
       if (r.ok) {
@@ -119,6 +121,7 @@ export async function uploadGround({ flavorDir, dataDir, version = null, game = 
   const install = installId(dataDir);
   const { c, squares, next } = newGround(all, readState(dataDir).sent || {});
   const st2 = readState(dataDir);
+  st2.off = false;
   if (!squares) { st2.lastUpload = now; writeState(dataDir, st2); return { sent: 0 }; }
   const r = await fetchFn(url.replace(/\/$/, '') + '/v1/ground', {
     method: 'POST', headers: { 'content-type': 'application/json' },
@@ -127,9 +130,24 @@ export async function uploadGround({ flavorDir, dataDir, version = null, game = 
   if (!r.ok) { log(`Roads: the upload was refused (${r.status}).`); return { error: r.status }; }
   st2.sent = next;
   st2.lastUpload = now;
+  st2.lastSent = now;
+  st2.sharedTotal = Object.values(next).reduce((n, m) => n + Object.keys(m).length, 0);
   writeState(dataDir, st2);
   log(`Roads: ${squares} squares of ground walked shared.`);
   return { sent: squares };
+}
+
+// For the app's Status card (the player, 2026-11-21: "shared as well as received"): { off, shared (squares sent
+// in all), lastSent (ms), roads: { date, players, squares } of the roads received, or null }.
+export function roadsStatus(dataDir) {
+  const st = readState(dataDir);
+  let roads = null;
+  try {
+    const r = JSON.parse(fs.readFileSync(path.join(dataDir, 'roads-latest.json'), 'utf8'));
+    const squares = Object.values(r.c || {}).reduce((n, chunks) => n + (Array.isArray(chunks) ? chunks.join('').length / 8 : 0), 0);
+    roads = { date: r.date || null, players: Number(r.players) || 0, squares };
+  } catch { /* none received yet */ }
+  return { on: Boolean(ROADS_URL), off: st.off === true, shared: st.sharedTotal || 0, lastSent: st.lastSent || null, roads };
 }
 
 const roadsFile = (flavorDir) => path.join(flavorDir, 'Interface', 'AddOns', 'Spellmind', 'Roads.lua');

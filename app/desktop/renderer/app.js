@@ -143,6 +143,16 @@ function draw(s) {
   // The line the game showed (userLine), not the kind (the audit: "An error: oauth_expired").
   if (r.error) fact($('factLast'), r.errorText || `It failed (${r.error}).`, 'bad');
   else fact($('factLast'), r.lastAt ? ago(r.lastAt) : 'None yet this session', r.lastAt ? '' : 'muted');
+  // Shared roads: what this PC shared, and the roads it received (core/roads/share.mjs roadsStatus).
+  const rd = s.roads || {};
+  const day = (t) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const got = rd.roads && rd.roads.squares > 0
+    ? `roads from ${rd.roads.players.toLocaleString()} players, ${day(rd.roads.date + 'T12:00:00')}`
+    : 'no roads received yet';
+  if (!rd.on) fact($('factRoads'), 'Not in this version', 'muted');
+  else if (rd.off) fact($('factRoads'), `Off (the game's Route tab) · ${got}`, 'muted');
+  else if (rd.shared > 0) fact($('factRoads'), `${rd.shared.toLocaleString()} squares shared, last ${day(rd.lastSent)} · ${got}`, 'good');
+  else fact($('factRoads'), `Nothing shared yet · ${got}`, 'muted');
 
   // The AI: the picker (the one in use first, marked), the picked one's setup, then the options of
   // the one in use. Picking one that's set up switches to it; one that isn't shows its setup.

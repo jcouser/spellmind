@@ -128,3 +128,21 @@ test('turned off on every account: what this PC shared before is deleted, and no
   assert.equal(again.skipped, 'off');
   assert.equal(calls.length, 2, 'nothing more');
 });
+
+test('the app\'s Status: squares shared and when, the roads received, or off', async () => {
+  const { roadsStatus } = await import('../../core/roads/share.mjs');
+  const data = dataDir();
+  assert.deepEqual(roadsStatus(data), { on: true, off: false, shared: 0, lastSent: null, roads: null });
+  const fetchFn = async (url, init) => init?.method === 'POST' ? { ok: true, status: 200 }
+    : { status: 200, ok: true, headers: { get: () => '"r"' }, json: async () => ({ v: 1, date: '2026-11-28', players: 14, c: { 0: [road(32768, 32768, 3)] } }) };
+  const wow = flavor({ A: saved({ packed: road(32768, 32768, 4) }) });
+  await uploadGround({ flavorDir: wow, dataDir: data, url: URL0, now: Date.parse('2026-11-22T12:00:00Z'), fetchFn });
+  await syncRoads({ flavorDir: wow, dataDir: data, url: URL0, now: Date.parse('2026-11-22T12:00:00Z'), fetchFn });
+  const s = roadsStatus(data);
+  assert.equal(s.shared, 4);
+  assert.equal(s.lastSent, Date.parse('2026-11-22T12:00:00Z'));
+  assert.deepEqual(s.roads, { date: '2026-11-28', players: 14, squares: 3 });
+  const off = flavor({ A: saved({ packed: road(32768, 32768, 4), off: true }) });
+  await uploadGround({ flavorDir: off, dataDir: data, url: URL0, now: Date.parse('2026-11-24T12:00:00Z'), fetchFn });
+  assert.equal(roadsStatus(data).off, true);
+});

@@ -119,6 +119,8 @@ WL.NEWS = {
 			"A vendor seen sold out of an item is noticed on these steps too: the next seller, or the Auction House.",
 			"At one NPC, the finished quest is turned in before its follow-up is picked up.",
 			"Fixed: the minimap line and the arrow cut through walls when the target was nearer in a straight line.",
+			"Out in the open, the line and the arrow go straight to the step unless a trail you walked heads there anyway: no more going back along another trip.",
+			"Fixed: the world map's line ran back to a trail point you had already walked past.",
 		} },
 }
 

@@ -18,6 +18,9 @@ import { decode, record, roadsLua, roadsDate } from './pack.mjs';
 
 export const ROADS_URL = 'https://spellmind-roads.spellmind.workers.dev'; // server/roads (deployed 2026-11-21)
 export const UPLOAD_EVERY_MS = 20 * 3600e3; // about once a day
+// Just after WoW closes, when the game has written the ground walked (the player, 2026-11-21): sooner, but never
+// more often than this, so a few restarts in a row don't send a string of small uploads.
+export const AFTER_GAME_MS = 30 * 60e3;
 export const ROADS_EVERY_MS = 24 * 3600e3;
 export const MAX_SQUARES = 60000; // an upload's squares, at most (the Worker takes 512 KB)
 
@@ -88,10 +91,10 @@ export function newGround(ground, sent = {}) {
   return { c, squares, next };
 }
 
-export async function uploadGround({ flavorDir, dataDir, version = null, game = null, url = ROADS_URL, now = Date.now(), fetchFn = fetch, log = () => {} } = {}) {
+export async function uploadGround({ flavorDir, dataDir, version = null, game = null, url = ROADS_URL, now = Date.now(), fetchFn = fetch, log = () => {}, every = UPLOAD_EVERY_MS } = {}) {
   if (!url || !flavorDir) return { skipped: 'off' };
   const st = readState(dataDir);
-  if (st.lastUpload && now - st.lastUpload < UPLOAD_EVERY_MS) return { skipped: 'recent' };
+  if (st.lastUpload && now - st.lastUpload < every) return { skipped: 'recent' };
   const all = {};
   let on = 0, off = 0;
   for (const file of savedFiles(flavorDir)) {

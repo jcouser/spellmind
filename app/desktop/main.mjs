@@ -26,7 +26,7 @@ import { createEgress } from '../../core/ai/security/egress.mjs';
 import { createSignIns } from '../../core/ai/signin/index.mjs';
 import { IDENTITY } from '../../core/identity.mjs';
 import { createUpdater } from './updater.mjs';
-import { uploadGround, syncRoads, applyRoads, roadsStatus, ROADS_URL } from '../../core/roads/share.mjs';
+import { uploadGround, syncRoads, applyRoads, roadsStatus, ROADS_URL, AFTER_GAME_MS } from '../../core/roads/share.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // SPELLMIND_DATA: another data folder (a first run seen from source, the tests); the player's is dataDir().
@@ -118,10 +118,11 @@ function updateAddonIfOld(why) {
 // day (unless the game's "Share the ground I walk" is off), and the roads merged come back into the addon. Only
 // the roads' Worker can be reached this way (the same allowlisted fetch as the AI's). Off until ROADS_URL is set.
 const roadsFetch = ROADS_URL ? createEgress({ allowHosts: () => new Set([new URL(ROADS_URL).hostname]), loopbackOk: false }).fetch : null;
-async function roadsTick() {
+// afterGame: WoW just closed and wrote the ground walked: uploaded now, unless one went in the last 30 minutes.
+async function roadsTick(afterGame = false) {
   const cfg = readConfig(DATA);
   if (!roadsFetch || !cfg.wow) return;
-  try { await uploadGround({ flavorDir: cfg.wow, dataDir: DATA, version: app.getVersion(), fetchFn: roadsFetch, log: note }); } catch (e) { note(`Roads: ${e.message}`); }
+  try { await uploadGround({ flavorDir: cfg.wow, dataDir: DATA, version: app.getVersion(), fetchFn: roadsFetch, log: note, ...(afterGame ? { every: AFTER_GAME_MS } : {}) }); } catch (e) { note(`Roads: ${e.message}`); }
   try {
     const r = await syncRoads({ flavorDir: cfg.wow, dataDir: DATA, fetchFn: roadsFetch, log: note });
     if (r.applied) note(`Roads of ${r.date} in the addon: they load at the next /reload.`);
@@ -211,7 +212,11 @@ const sup = createSupervisor({
       if (k === 'turn-error' && Object.hasOwn(ACT_ON, m.ev.what)) {
         notify(`error:${m.ev.what}`, `Spellmind: ${ACT_ON[m.ev.what][2]}`, m.ev.text || 'Open Spellmind to see what happened.');
       }
-      if (k === 'wow' && m.ev.state === 'exited') updateAddonIfOld('WoW closed');
+      if (k === 'wow' && m.ev.state === 'exited') {
+        updateAddonIfOld('WoW closed');
+        // The game wrote its saved data as it closed: the ground walked goes up now (a few seconds for the file).
+        setTimeout(() => roadsTick(true), 5000);
+      }
     }
     else if (m?.type === 'status') runStatus = m.status;
     else if (m?.type === 'setup') setupError = m.detail || m.error;

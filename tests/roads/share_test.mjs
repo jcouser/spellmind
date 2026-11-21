@@ -146,3 +146,17 @@ test('the app\'s Status: squares shared and when, the roads received, or off', a
   await uploadGround({ flavorDir: off, dataDir: data, url: URL0, now: Date.parse('2026-11-24T12:00:00Z'), fetchFn });
   assert.equal(roadsStatus(data).off, true);
 });
+
+test('just after WoW closes: uploaded sooner, but not twice in 30 minutes (the player, 2026-11-21)', async () => {
+  const { AFTER_GAME_MS } = await import('../../core/roads/share.mjs');
+  const data = dataDir();
+  let posts = 0;
+  const fetchFn = async () => { posts++; return { ok: true, status: 200 }; };
+  await uploadGround({ flavorDir: flavor({ A: saved({ packed: road(32768, 32768, 4) }) }), dataDir: data, url: URL0, now: 1e12, fetchFn });
+  const more = flavor({ A: saved({ packed: road(32768, 32768, 4) + road(33000, 33000, 3) }) });
+  // 10 minutes on, the game closed again: too soon.
+  assert.equal((await uploadGround({ flavorDir: more, dataDir: data, url: URL0, now: 1e12 + 10 * 60e3, fetchFn, every: AFTER_GAME_MS })).skipped, 'recent');
+  // 40 minutes on: the new ground goes, long before the daily check would have sent it.
+  assert.equal((await uploadGround({ flavorDir: more, dataDir: data, url: URL0, now: 1e12 + 40 * 60e3, fetchFn, every: AFTER_GAME_MS })).sent, 3);
+  assert.equal(posts, 2);
+});

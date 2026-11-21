@@ -22,7 +22,7 @@ What your character is and has, so the panel and your AI can give advice that fi
 | Your leveling guide's link | Your AI, which reads the page with its web search | Only when you import a guide |
 | Web searches your AI chooses to make | Your AI's own search | When web search is on and your AI decides to look something up |
 | A request for the newest version (no data about you or the game) | GitHub, this repository's releases page | 30 s after the app starts, then every 6 hours, while "Check for new versions of Spellmind" is on (it is by default) |
-| The ground you walked: squares of the world (8 yards each), which way you crossed each and whether you swam it, under a random id the app made (see [Shared roads](#shared-roads)) | The Spellmind roads server, run by the Spellmind authors on Cloudflare | About once a day while the app runs, while "Share the ground I walk" (the Route tab) is on (it is by default) |
+| The ground you walked: squares of the world (8 yards each), which way you crossed each and whether you swam it, under a random id the app made (see [Shared roads](#shared-roads)) | The Spellmind roads server, run by the Spellmind authors on Cloudflare | When you close WoW (at most every 30 minutes), and otherwise about once a day while the app runs, while "Share the ground I walk" (the Route tab) is on (it is by default). Only what's new; nothing when there's nothing new |
 | A request for the shared roads (no data about you or the game) | The same server | About once a day while the app runs |
 
 Your AI's own privacy policy covers what it does with your messages. If you sign in with a ChatGPT plan, OpenAI's terms for that plan apply.
@@ -31,7 +31,7 @@ Your AI's own privacy policy covers what it does with your messages. If you sign
 
 ## Shared roads
 
-The route follows the roads players walk, so every player's route gets better as people play. The addon records the ground you walk while the route is on (squares of the world, 8 yards each, and which way you crossed from one into the next); with the app, what's new of it goes to the Spellmind roads server about once a day.
+The route follows the roads players walk, so every player's route gets better as people play. The addon records the ground you walk while the route is on (squares of the world, 8 yards each, and which way you crossed from one into the next); with the app, what's new of it goes to the Spellmind roads server when you close WoW, or about once a day.
 
 - **Sent:** those squares and crossings, whether you swam them, the game's and the addon's version, and a random id the app made for itself (`%APPDATA%\Spellmind\roads.json`), tied to nothing else.
 - **Never sent:** when you walked (beyond the day it arrived), the order you walked it in, your character's name, realm or guild, your account, or anything else in your saved data. The app reads only the ground from it.

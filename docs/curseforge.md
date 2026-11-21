@@ -139,6 +139,8 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 >
 > Its answers use your real character: your gear, quest log, talents, gold and where you are. Buttons under an answer ask the obvious next question, and a **Pin** button sets the game's map pin when the answer sends you somewhere.
 >
+> ![Asking whether to keep questing, do a class quest or get ready for a dungeon: your AI weighs your route, your class quests and Gnomeregan's quests and upgrades](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/chat-plan-ahead.png)
+>
 > ![Asking what in your bags is worth selling on the Auction House](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/chat-auction-house.png)
 >
 > **Break it down:** click Spellmind's mark on a quest, and your AI explains it in steps beside the window: where to go, what you'll need, and whether it's worth doing now.

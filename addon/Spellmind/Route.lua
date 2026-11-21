@@ -4231,7 +4231,11 @@ RT.TRAIL_JUMP = 40 -- farther in one tick is a loading screen, a flight or a por
 RT.TRAIL_CELL = 25 -- the index's cells
 RT.TRAIL_JOIN = 150 -- how far to look for a trail from where a way starts or ends
 RT.TRAIL_ENDS = 4 -- the trail points tried at each end
-RT.TRAIL_BACK = 60 -- outside a city, a trail taking you farther than this from the target than you are is left
+-- Outside a city (the player, 2026-11-20: "it's just the path I had walked from a different point a to b ... on
+-- flat terrain"): a trail is taken only when it's about as direct as the straight way (a road going there
+-- anyway), and never one taking you farther than this from the target than you are.
+RT.TRAIL_BACK = 30
+RT.STRAIGHT_OPEN = 1.3
 RT.TRAIL_MAX = 15000 -- points kept, at most (a saved file holds about 262,000 values in all, AzerothGPS's notes say)
 -- yards cost: off a trail, and a straight line with no trail. A straight line costs 3 here, not the 2 AzerothGPS
 -- uses: it knows whether the straight line is blocked (its terrain), Spellmind doesn't, and a trail walked is a way
@@ -4413,14 +4417,15 @@ function RT.TrailBetween(a, b)
 		end
 	end
 	if not best then return nil end
-	if bestCost >= Dist(a, b) * RT.STRAIGHT then return nil end
+	local city = Try(rawget(_G, "IsResting")) and true or false
+	if bestCost >= Dist(a, b) * (city and RT.STRAIGHT or RT.STRAIGHT_OPEN) then return nil end
 	local pts, n = {}, best
 	while n do table.insert(pts, 1, { c = a.c, x = X[n], y = Y[n] }); n = prev[n] end
 	-- Not back the way you came (the player, 2026-11-20, in the Wetlands: the line went back along the
 	-- road walked, then round to the target). Out in the open the straight way is likelier open than a
 	-- city's (its walls are why a trail is taken at all), so there a trail that first goes well away from
 	-- the target is left. In a city (resting) it stands.
-	if not Try(rawget(_G, "IsResting")) then
+	if not city then
 		local now = Dist(a, b)
 		for _, p in ipairs(pts) do
 			if Dist(p, b) > now + RT.TRAIL_BACK then return nil end

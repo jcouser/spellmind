@@ -2321,3 +2321,28 @@ test('the world map\'s gold line leaves a trail point once you\'re past it, as t
   const after = vm.json('NS.Route.marks.live.first');
   assert.notDeepEqual(after, first, 'not back to the point walked past');
 });
+
+test('out in the open, a trail is taken only when it\'s about as direct as the straight way: a road there, not another trip walked (the player, 2026-11-20)', () => {
+  const vm = session();
+  vm.slash('route');
+  vm.run('STUB.player.resting = false');
+  const c = vm.json('NS.Route.Current()');
+  // Another trip: a dog-leg west then north to the rats, never farther from them than now, but ~1.4x the straight way.
+  const leg = [];
+  for (let x = 40; x >= c.x; x -= 0.5) leg.push([x / 100, 0.40]);
+  for (let y = 40; y >= c.y; y -= 0.5) leg.push([c.x / 100, y / 100]);
+  WALK(vm, leg);
+  vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40; NS.R.routeTrailWay = nil; NS.R.routeTrailAt = nil');
+  const way = `NS.Route.TrailBetween(NS.Route.PlayerWorld(), NS.Route.World(1432, ${c.x}, ${c.y}))`;
+  assert.equal(vm.evaluate(`tostring(${way})`), 'nil', 'the straight way');
+  // In a city, the same trail is a way round walls.
+  vm.run('STUB.player.resting = true');
+  assert.notEqual(vm.evaluate(`tostring(${way})`), 'nil');
+  // A road almost straight there: taken out in the open too.
+  vm.run('NS.Route.ForgetTrails(); STUB.player.resting = false');
+  const road = [];
+  for (let k = 0; k <= 40; k++) road.push([(40 + (c.x - 40) * k / 40) / 100, (40 + (c.y - 40) * k / 40 + (k > 0 && k < 40 ? 0.3 : 0)) / 100]);
+  WALK(vm, road);
+  vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40; NS.R.routeTrailWay = nil; NS.R.routeTrailAt = nil');
+  assert.notEqual(vm.evaluate(`tostring(${way})`), 'nil', 'the road');
+});

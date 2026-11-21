@@ -16,6 +16,9 @@ ns.Guide = GD
 -- The next points worked out: up to 10 go to the AI (the player, 2026-11-13: "Plan my next 5 talent
 -- points" got four, all it was sent); the Talents tab lists TAB_NEXT, or every unspent point's.
 GD.NEXT_MAX = 10
+-- The next points your AI gets: no more than every app takes (core/link/charstate.mjs's talents.guide.next; the
+-- player, 2026-11-21: 10 were sent to apps that take 8, and the whole talents part was refused, every time).
+GD.AI_NEXT = 8
 GD.TAB_NEXT = 4
 
 local function Me() return ns.State and ns.State.Me and ns.State.Me() or nil end
@@ -236,7 +239,7 @@ function GD.ForState(have)
 		for i, s in ipairs(list or {}) do if i <= n then out[#out + 1] = s end end
 		return #out > 0 and out or nil
 	end
-	return O("build", plan.build, "source", plan.source, "next", cap(nextList, GD.NEXT_MAX), "stats", cap(plan.stats, 8),
+	return O("build", plan.build, "source", plan.source, "next", cap(nextList, GD.AI_NEXT), "stats", cap(plan.stats, 8),
 		"rotation", cap(plan.rotation, 8), "weapons", plan.weapons)
 end
 

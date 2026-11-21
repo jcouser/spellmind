@@ -57,7 +57,7 @@ const SPELL = { name: str, rank: int, passive: bool };
 const NEXT_SPELL = { name: str, rank: int, level: int };
 const TRAIN_DUE = { name: str, rank: int, cost: num };
 // The player's guide (Guide.lua, milestone 15): its build, next points and priorities.
-const GUIDE = { build: str, source: str, next: strList(8), stats: strList(8), rotation: strList(8), weapons: str };
+const GUIDE = { build: str, source: str, next: strList(10), stats: strList(8), rotation: strList(8), weapons: str };
 // The class trainer's list from its last visit (Trainer.lua, milestone 10).
 const TRAINER = { at: int, due: list(TRAIN_DUE, LIST_MAX.trainer), soon: list(NEXT_SPELL, LIST_MAX.trainer) };
 const SPELL_TAB = { name: str, list: list(SPELL, LIST_MAX.spells) };

@@ -26,8 +26,11 @@ G.ROAD = 0.02 -- each time walked (up to 5) makes a square this much cheaper: ro
 G.CHUNK = 4096 -- squares a saved string
 G.ENDS = 6 -- the walked squares tried at each end of a way
 G.PULL = 40 -- squares looked ahead when straightening a way
-G.SAVE = 0.95 -- out in the open, walked ground is followed only when it saves this much (5%) over going straight
-G.ROAD_MIN = 5 -- out in the open, squares of road (about 40 yards) worth following before going straight
+-- Out in the open, a road is worth following when it's at least this share of the way (the player, 2026-11-21:
+-- a road 250 yards beside the way to Whelgar's was left for the straight line; one followed for a few yards
+-- and left is a wiggle, not a road), and at least ROAD_MIN squares.
+G.ROAD_SHARE = 0.25
+G.ROAD_MIN = 5
 
 local OFF = 32768
 local function Key(ix, iy) return (ix + OFF) * 65536 + (iy + OFF) end
@@ -403,15 +406,14 @@ function G.Way(a, b)
 	info.searched = steps
 	if not best then info.result = "no way found"; return Why(info) end
 	local straight = math.sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2)
-	-- Out in the open, walked ground must also save something over going straight across ground not walked.
-	local limit = city and R.STRAIGHT or math.min(R.STRAIGHT_OPEN, R.OFF_TRAIL * G.SAVE)
+	local limit = city and R.STRAIGHT or R.STRAIGHT_OPEN
 	info.cost, info.straight, info.limit = math.floor(bestCost + 0.5), math.floor(straight + 0.5), limit
 	if bestCost >= straight * limit then info.result = "dearer than straight"; return Why(info) end
 	local cells, n = {}, best
 	while n do table.insert(cells, 1, n); n = prev[n] end
 	-- Left almost as soon as joined: no road worth drawing, the straight way.
 	info.road = #cells
-	if not city and #cells < G.ROAD_MIN then info.result = "too little road"; return Why(info) end
+	if not city and (#cells < G.ROAD_MIN or #cells * G.CELL < straight * G.ROAD_SHARE) then info.result = "too little road"; return Why(info) end
 	-- Not back the way you came, out in the open.
 	if not city then
 		for _, k in ipairs(cells) do

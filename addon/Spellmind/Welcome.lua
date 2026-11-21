@@ -27,7 +27,7 @@ WL.TITLE = "Welcome to Spellmind"
 WL.INTRO = "Your companion for WoW Forever. It knows your character as you play, and says what to do next."
 -- The welcome shows the highlights of every version after this one (the last that players had): set it
 -- to the version before the one being published (docs/releasing.md).
-WL.FRESH_SINCE = "0.6.0"
+WL.FRESH_SINCE = "0.6.5"
 WL.TRY_ALWAYS = "route" -- the welcome's Try it now when nothing is new
 -- What's always there, after what's new. The quest route since 0.5.0 (published 2026-11-20): once it's no
 -- longer new, a new player still meets it here.

@@ -125,12 +125,12 @@ test('no news for this version: nothing shows, and the version is noted', () => 
 
 
 test('the welcome: highlights of the versions after the last public one first, then what\'s always there', () => {
-  const vm = newVM({ welcome: true, before: `NS.VERSION = "0.6.1"
-    table.insert(NS.Welcome.NEWS, { version = "0.6.1", features = { { icon = "x", title = "The way there", text = "Leg by leg." } } })` }).login().advance(7);
-  assert.equal(vm.evaluate('SpellmindWelcome.labels[1]:GetText()'), 'New in 0.6.1');
+  const vm = newVM({ welcome: true, before: `NS.VERSION = "0.6.6"
+    table.insert(NS.Welcome.NEWS, { version = "0.6.6", features = { { icon = "x", title = "The way there", text = "Leg by leg." } } })` }).login().advance(7);
+  assert.equal(vm.evaluate('SpellmindWelcome.labels[1]:GetText()'), 'New in 0.6.6');
   assert.equal(vm.evaluate('SpellmindWelcome.features[1].title:GetText()'), 'The way there');
   assert.equal(vm.evaluate('SpellmindWelcome.labels[2]:GetText()'), 'Works right away, no setup');
-  assert.equal(vm.evaluate('SpellmindWelcome.features[2].title:GetText()'), 'Your quest route', '0.5.0 is public: no longer new');
+  assert.equal(vm.evaluate('SpellmindWelcome.features[2].title:GetText()'), 'Your quest route', '0.6.5 is public: its features no longer new');
 });
 
 test('a What\'s new taller than the screen is scaled down to fit', () => {

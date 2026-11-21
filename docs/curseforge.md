@@ -8,7 +8,7 @@ What to fill in on CurseForge for the addon, and the rules it has to follow. The
 
 - **Game:** World of Warcraft. **Game version / flavor:** WoW Forever (interface 16001).
 - **Name:** Spellmind: AI Companion
-- **Summary** (what CurseForge's search reads most; the names people search for, in a sentence, never a keyword list): *AI chat companion for WoW Forever: ask ChatGPT, Claude, Gemini or Grok about your quests, dungeons, gear and talents. The quest, gear and spell advice works on its own.*
+- **Summary** (what CurseForge's search reads most; the names people search for, in a sentence, never a keyword list): *Quest route planner and AI companion for WoW Forever: the shortest way through your quests, on roads players really walk, and ask ChatGPT, Claude, Gemini or Grok about your quests, gear and talents.*
 - **Categories:** Quests & Leveling (main), Bags & Inventory, Professions, Map & Minimap. (Not "Companions": on CurseForge that means battle pets.)
 - **License:** MIT.
 - **Avatar:** `art/curseforge-avatar.png` (400×400, from `art/source/logo.png`).
@@ -32,9 +32,9 @@ Upload `Spellmind-<version>.zip` from the GitHub release, the same file, unchang
 
 ## Description
 
-As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19) and described in full after its release (2026-11-20); class quests for 0.6.0. Paste it into the project's description by hand. Keep it to what the addon does; anything that needs the app says so. The images come from this repository (raw.githubusercontent.com); renaming or moving one in docs/images breaks it here.
+As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19) and described in full after its release (2026-11-20); class quests for 0.6.0; shared roads and a step per item for 0.6.5 (2026-11-21). Paste it into the project's description by hand. Keep it to what the addon does; anything that needs the app says so. The images come from this repository (raw.githubusercontent.com); renaming or moving one in docs/images breaks it here.
 
-> **Spellmind** is a companion for **WoW Forever** that knows your character as you play: your quests, gear, bags, talents, spells and professions. It plans your quest route, tells you what to do next, and with the free Spellmind app, it becomes an **AI chatbot** you can ask anything about your character, right in the game.
+> **Spellmind** is a companion for **WoW Forever** that knows your character as you play: your quests, gear, bags, talents, spells and professions. It plans your quest route on the roads players really walk, tells you what to do next, and with the free Spellmind app, it becomes an **AI chatbot** you can ask anything about your character, right in the game.
 >
 > **Everything in the panel, the tooltips and the nudges works on its own.** No app, no AI, no account. The AI chat is an optional extra.
 >
@@ -51,13 +51,14 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 > - **The shortest order that works:** every pickup, objective and turn-in around you, in an order that keeps the quests' own rules: picked up before the objectives, objectives before the turn-in, a chain in order. Follow-up quests are planned after the turn-in that opens them.
 > - **Quests that fit you:** quests above your level wait until you're ready (or in a group).
 > - **The mobs nearest your way:** a kill or collect step goes to the group of mobs that's least out of your way, not just the biggest.
-> - **Worth the walk?** A far quest that gives little XP for the walk is marked "worth skipping?" and comes later. Skip any step; Back brings it back.
+> - **Worth the walk?** A far quest that gives little XP for the walk is marked "worth skipping?" and comes later. Skip any step, and what needs it goes too; Back brings it back.
+> - **Each item where it's got:** a quest's goods each get their own step: "buy Bronze Tube from Billibub Cogspinner", "take the spool (on the ground)", or the mobs that drop it. When another quest in your log needs the same item, it says how many to buy. A vendor seen sold out is noticed, and the next one found.
 > - **Up to date by itself:** steps tick off the moment you finish them, and the plan is made again when your quest log changes. It holds still while you're on a flight path.
 >
 > ### On your screen
 >
 > - **The route window:** your current step, then the next ones, numbered as on the map, each with what else is done at the same spot. It stays on screen through reloads, where you put it.
-> - **The arrow:** points to your next step with the yards to it, along the roads you've walked rather than straight through a mountain.
+> - **The arrow:** points to your next step with the yards to it, along the roads players walk rather than through a wall or a mountain.
 > - **The world map:** numbered steps, each objective's area shaded, and a line from you through them.
 > - **The minimap:** the current step and the next one, with thin lines to them.
 > - **When you're there:** inside an objective's area, the arrow says so and the minimap shades it faintly.
@@ -76,7 +77,7 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 >
 > - **Ready for a dungeon:** pick a dungeon on the Route tab, and Spellmind routes you through its quests and the questlines that open them, across zones, to its door.
 > - **Your class quests:** the questlines for your class, wherever they start, one per level milestone (the versions from other races' starting areas fold under yours). The Quests tab and the Route tab list them with the step you're on; **Route** plans the way through one, across zones. A nudge says when a new one opens at your level.
-> - **It learns your roads:** as you go, Spellmind remembers the way you went, so the arrow and the lines follow real paths. They stay on your PC.
+> - **Roads every player walks:** as you go, Spellmind remembers the ground you walk, so the arrow and the lines follow real paths: along a road as far as it helps, straight across where it's open, round the walls in a city. With the free app, everyone's walking is merged into shared roads that every player's route follows, and they're in every release too. Only squares crossed are shared (no times, no character, no account, and a crossing only once 2 players walked it); "Share the ground I walk" on the Route tab turns it off.
 > - **Ask about it:** with the free app, your AI sees the same route. "Review my route" says what to skip and why, with a **Skip** button for each. Without the app, `/sm route why <step>` says why a step is where it is.
 > - **A switch for every part** on the Route tab: the window, the arrow, the world map's steps, the minimap, and the lines.
 >
@@ -150,6 +151,8 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 > - **Other:** OpenRouter, Groq, or a model on your own PC with Ollama or LM Studio.
 >
 > Pick the model and thinking level; with web search on, your AI can check quest and NPC details online. Answers that name places, NPCs or routes get double-checked first (you can turn that off).
+>
+> **Shared roads:** the app sends the ground you walk (squares crossed, nothing else) and brings back the roads every player walks, so your route follows real paths in places you've never been. Its window shows how much you've shared and the roads you've received.
 >
 > Type `/sm app` in game to see where to get the app. It installs and updates the addon too, and updates itself.
 >

@@ -379,5 +379,6 @@ export function newVM(opts = {}) {
 
 /** A /reload: SavedVariables and the doorbells carry over, the Lua is read again, every slot is free again. */
 export function reloadVM(vm, opts = {}) {
+  vm.run('STUB.FireEvent("PLAYER_LOGOUT")'); // the game saves: what's packed at logout is in the file
   return newVM({ ...opts, reloaded: true, now: vm.num('STUB.now'), db: 'SpellmindDB = ' + vm.saved(), sounds: vm.sounds() });
 }

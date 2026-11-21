@@ -35,5 +35,6 @@ Panel.lua
 Nudges.lua
 Minimap.lua
 Route.lua
+Ground.lua
 RoutePins.lua
 Welcome.lua

@@ -1238,20 +1238,23 @@ test('travel times as measured (AzerothGPS\'s planner): 32 yards a second and 15
 // 1% is 30 yards east-west, 20 yards north-south.
 const WALK = (vm, pts) => { for (const [x, y] of pts) vm.run(`STUB.player.x, STUB.player.y = ${x}, ${y}; NS.Route.NoteOutside()`); };
 
-test('trails (the player, 2026-11-19): a point every 10 yards as you walk, the same road walked again merged into it; Forget', () => {
+test('ground walked (the player, 2026-11-21): the squares you walk through, the same road again adds none; Forget', () => {
   const vm = session();
   vm.slash('route');
   // East along y = 40%, from 40% to 50% (300 yards), a step of 0.5% (15 yards) at a time.
   const east = []; for (let x = 40; x <= 50; x += 0.5) east.push([x / 100, 0.40]);
   WALK(vm, east);
   const n1 = vm.num('NS.Route.TrailCount()');
-  assert.ok(n1 >= 19 && n1 <= 22, `a point a step: ${n1}`);
-  // Back the same way, 8 yards to the north: the same points.
-  WALK(vm, east.slice().reverse().map(([x, y]) => [x, y - 0.004]));
-  assert.ok(vm.num('NS.Route.TrailCount()') <= n1 + 2, 'merged, not a second road');
-  // A jump (a portal, a loading screen) breaks it: no line across.
+  assert.ok(n1 >= 36 && n1 <= 41, `a square every 8 yards: ${n1}`);
+  // Back the same way: no new ground.
+  WALK(vm, east.slice().reverse());
+  assert.equal(vm.num('NS.Route.TrailCount()'), n1, 'the same road');
+  // The Route tab says it in yards.
+  vm.run('NS.Panel.Show("route")');
+  const v = vm.json('SpellmindPanel.drawn'); const d = Array.isArray(v) ? v : Object.values(v || {});
+  assert.ok(d.some(x => /About 300 yards walked so far/.test(JSON.stringify(x))), 'in yards');
   vm.run('NS.Route.ForgetTrails()');
-  assert.equal(vm.num('NS.Route.TrailCount()'), 0);
+  assert.ok(vm.num('NS.Route.TrailCount()') <= 1, 'gone (but the square you stand in)');
 });
 
 test('the way along a trail: around a bend instead of straight over it; the arrow aims ahead along it, the yards along it', () => {
@@ -2353,4 +2356,77 @@ test('an objective Questie has no spot for, placed at the game marker: a circle 
   const g = vm.json('(function() for _, s in ipairs(NS.Route.Build().stops) do for _, g in ipairs(s.goals) do if g.kind == "do" and g.q == 700 then return { ax = g.ax, ay = g.ay, rx = g.rx, ry = g.ry } end end end end)()');
   assert.equal(g.ax, 20); assert.equal(g.ay, 20);
   assert.ok(g.rx > 0 && g.ry > 0, JSON.stringify(g));
+});
+
+const BEND = () => {
+  // From (40, 40) south to (40, 60), west to (20, 60), north to the rats (20, 21).
+  const pts = [];
+  for (let y = 40; y <= 60; y += 0.5) pts.push([0.40, y / 100]);
+  for (let x = 40; x >= 20; x -= 0.5) pts.push([x / 100, 0.60]);
+  for (let y = 60; y >= 21; y -= 0.5) pts.push([0.20, y / 100]);
+  return pts;
+};
+
+test('ground walked is kept through a /reload, packed small (the player, 2026-11-21)', () => {
+  const vm = session();
+  vm.slash('route');
+  WALK(vm, BEND());
+  const n = vm.num('NS.Route.TrailCount()');
+  const vm2 = reloadVM(vm, { before: ZONE }).login().advance(9);
+  const g = vm2.json('SpellmindDB.routeGround');
+  const chunks = Object.values(g.c || {})[0];
+  const list = Array.isArray(chunks) ? chunks : Object.values(chunks);
+  assert.equal(list.length, 1, 'one string');
+  assert.equal(list[0].length, n * 8, 'eight characters a square');
+  assert.equal(vm2.num('NS.Route.TrailCount()'), n);
+  vm2.run('STUB.player.x, STUB.player.y = 0.40, 0.40');
+  const c = vm2.json('NS.Route.Current()');
+  assert.notEqual(vm2.evaluate(`tostring(NS.Route.TrailBetween(NS.Route.PlayerWorld(), NS.Route.World(1432, ${c.x}, ${c.y})))`), 'nil', 'the way along it');
+});
+
+test('trails kept before 0.6.5 (points and lines) become ground walked, once (the player, 2026-11-21)', () => {
+  const vm = session();
+  vm.slash('route');
+  // The old shape: an L of points 10 yards apart, joined in turn.
+  const w = vm.json('NS.Route.World(1432, 40, 40)');
+  vm.run(`(function()
+    local X, Y, E = {}, {}, {}
+    for k = 0, 30 do X[#X + 1] = ${w.x} + k * 10; Y[#Y + 1] = ${w.y} end
+    for k = 1, 30 do X[#X + 1] = ${w.x} + 300; Y[#Y + 1] = ${w.y} + k * 10 end
+    for k = 1, #X - 1 do E[#E + 1] = k; E[#E + 1] = k + 1 end
+    SpellmindDB.routeTrails = { [${w.c}] = { x = X, y = Y, e = E } }
+  end)()`);
+  assert.ok(vm.num('NS.Route.TrailCount()') >= 60, 'counted before');
+  const way = vm.json(`NS.Route.TrailBetween({ c = ${w.c}, x = ${w.x}, y = ${w.y} }, { c = ${w.c}, x = ${w.x} + 300, y = ${w.y} + 300 })`);
+  const pts = Array.isArray(way) ? way : Object.values(way || {});
+  assert.ok(pts.length >= 2, 'along the old trail');
+  assert.ok(pts.some(p => Math.abs(p.x - (w.x + 300)) < 8 && Math.abs(p.y - w.y) < 8), 'by its corner: ' + JSON.stringify(pts));
+  assert.equal(vm.evaluate(`tostring(SpellmindDB.routeTrails[${w.c}])`), 'nil', 'the old shape gone');
+  // Kept as ground through a /reload.
+  const vm2 = reloadVM(vm, { before: ZONE }).login().advance(9);
+  assert.ok(vm2.num('NS.Route.TrailCount()') >= 60);
+});
+
+test('ground walked one way is a way back too (the player, 2026-11-21)', () => {
+  const vm = session();
+  vm.slash('route');
+  WALK(vm, BEND());
+  // From the rats back to where the walk began: along it, though it was walked the other way.
+  const a = vm.json('NS.Route.World(1432, 20, 21)'), b = vm.json('NS.Route.World(1432, 40, 40)');
+  const way = vm.json(`NS.Route.TrailBetween({ c = ${a.c}, x = ${a.x}, y = ${a.y} }, { c = ${b.c}, x = ${b.x}, y = ${b.y} })`);
+  const pts = Array.isArray(way) ? way : Object.values(way || {});
+  assert.ok(pts.length >= 3, 'round the bend: ' + pts.length);
+});
+
+test('a field walked over every which way is crossed straight, not along the lines walked (the player, 2026-11-21)', () => {
+  const vm = session();
+  vm.slash('route');
+  // Rows and columns 0.25% apart (7.5 yards across, 5 down) over 40-50% x 40-50%: a field filled in.
+  for (let y = 40; y <= 50; y += 0.25) { WALK(vm, [[0.40, y / 100], [0.50, y / 100]].flatMap(([x0, yy], k, arr) => k ? [] : Array.from({ length: 41 }, (_, s) => [(40 + s * 0.25) / 100, yy]))); vm.run('NS.R.routeTrailAt = nil'); }
+  for (let x = 40; x <= 50; x += 0.25) { WALK(vm, Array.from({ length: 41 }, (_, s) => [x / 100, (40 + s * 0.25) / 100])); vm.run('NS.R.routeTrailAt = nil'); }
+  // Corner to corner: one straight line (its ends), not a staircase.
+  const a = vm.json('NS.Route.World(1432, 40.5, 40.5)'), b = vm.json('NS.Route.World(1432, 49.5, 47)');
+  const way = vm.json(`NS.Route.TrailBetween({ c = ${a.c}, x = ${a.x}, y = ${a.y} }, { c = ${b.c}, x = ${b.x}, y = ${b.y} })`);
+  const pts = Array.isArray(way) ? way : Object.values(way || {});
+  assert.ok(pts.length >= 1 && pts.length <= 3, 'straight: ' + JSON.stringify(pts));
 });

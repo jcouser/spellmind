@@ -586,7 +586,9 @@ function Tabs.route()
 	local trailN = RT.TrailCount and RT.TrailCount() or 0
 	Switch("Re-plan when it saves a lot", "When you finish a step, the steps after your next one are re-planned if that saves 1,500 yards or more. Off: only when you click Rebuild.",
 		RT.AutoReplanOn(), RT.SetAutoReplan, true, not on)
-	Switch("Learn trails as I walk", "The roads you walk become the arrow's and the lines' way, on this PC only. " .. trailN .. " point" .. (trailN == 1 and "" or "s") .. " so far.",
+	local yards = trailN * ((ns.Ground and ns.Ground.CELL) or 8)
+	Switch("Learn trails as I walk", "The ground you walk becomes the arrow's and the lines' way, on this PC only. "
+		.. (trailN > 0 and ("About " .. ((tostring(math.floor(yards / 100 + 0.5) * 100):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))) .. " yards walked so far.") or "Nothing walked yet."),
 		not ns.db.routeTrailsOff, function(v) ns.db.routeTrailsOff = (not v) or nil end, true, not on)
 	if trailN > 0 then
 		out[#out + 1] = { kind = "item", indent = true, left = "Forget my trails", sub = "|cff888888Every trail on this PC, for every character.|r",

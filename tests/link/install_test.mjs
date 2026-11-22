@@ -97,3 +97,11 @@ test('on Linux, WoW: Forever is found inside a Wine or Proton prefix: Faugus, St
   assert.deepEqual(findFlavorDirs({ platform: 'linux', home }).sort(), [faugus, steam].sort());
   assert.deepEqual(findLinuxFlavorDirs(pathm.join(home, 'nobody')), [], 'no prefixes: nothing');
 });
+
+test('the Linux screen reader as a file python can run: beside app.asar, else copied into the app\'s folder (issue #1)', async () => {
+  const { x11Script, X11_SCRIPT } = await import('../../core/link/capture.mjs');
+  const fsm = await import('node:fs'); const osm = await import('node:os'); const pathm = await import('node:path');
+  // From source the script is where it is.
+  assert.equal(x11Script(fsm.mkdtempSync(pathm.join(osm.tmpdir(), 'sm-data-'))), X11_SCRIPT);
+  assert.ok(fsm.existsSync(X11_SCRIPT));
+});

@@ -17,7 +17,7 @@ import { createKeyStore } from '../ai/security/keystore.mjs';
 import { createEgress } from '../ai/security/egress.mjs';
 import { createSignIns } from '../ai/signin/index.mjs';
 import { createService } from '../link/service.mjs';
-import { createCaptureForPlatform } from '../link/capture.mjs';
+import { createCaptureForPlatform, x11Script } from '../link/capture.mjs';
 import { FOREVER_FLAVORS, NOT_GAME } from '../link/install.mjs';
 import { loadPack } from '../ai/pack.mjs';
 import { createTurn } from './turn.mjs';
@@ -141,6 +141,8 @@ export function startSpellmind({ dataDir: DATA, cfg = {}, over = {}, onEvent = (
   })();
   let lastErr = '';
   const capture = makeCapture({ flavorDirs: FOREVER_FLAVORS, notGame: NOT_GAME, log,
+    // Linux: the X11 helper where python3 can run it (core/link/capture.mjs x11Script). Unused on Windows.
+    ...(process.platform === 'linux' ? { script: x11Script(DATA) } : {}),
     onPayload: ({ text }) => svc.handlePayload(text),
     // The game: running, launched, absent or exited (the helper's words). Closed, its link is gone with it
     // (the audit: "Linked (3 h ago)" stayed green after WoW closed).

@@ -43,6 +43,26 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const BUNDLE_ID_FILE = path.join(HERE, '..', 'capture', 'mac', 'BUNDLE_ID');
 export const X11_SCRIPT = path.join(HERE, '..', 'capture_x11.py').replace(/([\\/])app\.asar([\\/])/, '$1app.asar.unpacked$2');
+const X11_PACKED = path.join(HERE, '..', 'capture_x11.py');
+/**
+ * The X11 helper as a file python3 can run (issue #1, 2026-11-21: the first AppImage had it inside app.asar,
+ * not beside it, and nothing outside Electron reads app.asar). Beside app.asar when the build put it there;
+ * else copied out of app.asar (Electron reads it) into the app's own folder, written again when it changed.
+ */
+export function x11Script(dataDir) {
+  if (fs.existsSync(X11_SCRIPT)) return X11_SCRIPT;
+  if (!dataDir) return X11_SCRIPT;
+  try {
+    const text = fs.readFileSync(X11_PACKED);
+    const dir = path.join(dataDir, 'bin');
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const out = path.join(dir, 'capture_x11.py');
+    let same = false;
+    try { same = fs.readFileSync(out).equals(text); } catch { /* not there yet */ }
+    if (!same) { fs.writeFileSync(out + '.tmp', text, { mode: 0o600 }); fs.renameSync(out + '.tmp', out); }
+    return out;
+  } catch { return X11_SCRIPT; }
+}
 // In the installed app the core is inside app.asar, which nothing can run from: the helper ships
 // unpacked beside it (app/desktop/electron-builder.yml asarUnpack), at the same path under app.asar.unpacked.
 export const WINDOWS_EXE = path.join(HERE, '..', 'capture', 'windows', 'build', 'spellmind-capture.exe').replace(/([\\/])app\.asar([\\/])/, '$1app.asar.unpacked$2');

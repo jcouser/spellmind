@@ -149,6 +149,11 @@ WL.NEWS = {
 			"/sm route why also says why the line goes the way it does.",
 			"Your trails from before are turned into the new kind once, by themselves.",
 		} },
+	{ version = "0.6.6",
+		changes = {
+			"Fixed: with a long leveling guide imported, your AI got none of your talents, and answers said the game data was stale.",
+			"The app shares the ground you walk right after you close WoW, not up to a day later.",
+		} },
 }
 
 -- What each news's "Try it now" does: the route on, and its tab.

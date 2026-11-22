@@ -105,6 +105,13 @@ export const NEWS = Object.freeze([
       "Your trails from before are turned into the new kind once, by themselves.",
     ]),
   }),
+  Object.freeze({
+    version: '0.6.6',
+    changes: Object.freeze([
+      "Fixed: with a long leveling guide imported, your AI got none of your talents, and answers said the game data was stale.",
+      "The app shares the ground you walk right after you close WoW, not up to a day later.",
+    ]),
+  }),
 ]);
 
 const parts = (v) => String(v ?? '').split('.').map((n) => parseInt(n, 10) || 0);

@@ -2,7 +2,7 @@
 ## Title: Spellmind
 ## Notes: Spellmind: AI Companion. Quest, dungeon, gear and spell help in game; ask your own AI with the free Spellmind app.
 ## Author: The Spellmind authors
-## Version: 0.6.5
+## Version: 0.6.6
 ## X-License: MIT
 ## X-Website: https://github.com/jcouser/spellmind
 ## X-Curse-Project-ID: 1804129

@@ -65,6 +65,8 @@ function RP.Refresh()
 	local pts = {}
 	if RT and RT.Shown() and RT.MinimapOn() then
 		local t = RT.ArrowTarget()
+		-- The way the line was made from (the driver makes it again when this changes).
+		RP.wayPath = R and R.routeTrailWay and R.routeTrailWay.path or nil
 		if t and t.world then
 			local _, i = RT.Current()
 			pts.cur = { world = t.world, text = t.text, sub = t.sub,
@@ -423,8 +425,23 @@ end
 local driver = CreateFrame("Frame")
 RP.driver = driver
 local acc, lastFacing = 0, nil
+-- The way along the trails changes as you walk (worked out again every few seconds, Route.lua RT.TrailTo), not
+-- only when the route does: once a second, the minimap's line is made again when it has (the player,
+-- 2026-11-22: the map followed the road, the minimap still went straight).
+RP.WAY_CHECK = 1
+local wayAcc = 0
 driver:SetScript("OnUpdate", function(_, elapsed)
 	if not RP.points.cur then return end
+	wayAcc = wayAcc + (tonumber(elapsed) or 0)
+	if wayAcc >= RP.WAY_CHECK then
+		wayAcc = 0
+		local w = ns.R and ns.R.routeTrailWay
+		local stale = not w or (GetTime() - (tonumber(w.at) or 0)) > ((ns.Route and ns.Route.WAY_KEEP) or 5)
+		if stale or (w and w.path) ~= RP.wayPath then
+			pcall(RP.Refresh)
+			RP.dirty = true
+		end
+	end
 	acc = acc + (tonumber(elapsed) or 0)
 	local f = Try(GetCVar, "rotateMinimap") == "1" and ns.Plain(Try(GetPlayerFacing)) or nil
 	if acc >= RP.TICK or f ~= lastFacing then

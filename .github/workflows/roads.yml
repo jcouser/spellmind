@@ -1,11 +1,11 @@
-# The roads players walk, merged once a week (server/roads/README.md): the uploads the Worker keeps, each
+# The roads players walk, merged once a day (server/roads/README.md): the uploads the Worker keeps, each
 # crossing kept once 2 installs walked it, put back to the Worker for the app (and the release build).
 # Uploads past 90 days are dropped. Needs the repository variable ROADS_URL and the secret ROADS_ADMIN_TOKEN.
 name: roads
 
 on:
   schedule:
-    - cron: '0 6 * * 1'
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 permissions:

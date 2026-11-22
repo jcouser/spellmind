@@ -160,3 +160,16 @@ test('just after WoW closes: uploaded sooner, but not twice in 30 minutes (the p
   assert.equal((await uploadGround({ flavorDir: more, dataDir: data, url: URL0, now: 1e12 + 40 * 60e3, fetchFn, every: AFTER_GAME_MS })).sent, 3);
   assert.equal(posts, 2);
 });
+
+test('"Check shared roads now": the roads fetched whatever the last check was (the player, 2026-11-22)', async () => {
+  const wow = flavor({});
+  const data = dataDir();
+  let calls = 0;
+  const fetchFn = async () => { calls++; return { status: 200, ok: true, headers: { get: () => '"r' + calls + '"' }, json: async () => ({ v: 1, date: '2026-11-2' + calls, players: calls, c: { 0: [road(32768, 32768, 3)] } }) }; };
+  await syncRoads({ flavorDir: wow, dataDir: data, url: URL0, now: 1e12, fetchFn });
+  await syncRoads({ flavorDir: wow, dataDir: data, url: URL0, now: 1e12 + 60e3, fetchFn });
+  assert.equal(calls, 1, 'a minute on: not again');
+  const r = await syncRoads({ flavorDir: wow, dataDir: data, url: URL0, now: 1e12 + 120e3, fetchFn, force: true });
+  assert.equal(calls, 2, 'Check now: fetched');
+  assert.equal(r.applied, true);
+});

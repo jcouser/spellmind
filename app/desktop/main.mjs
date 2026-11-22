@@ -118,16 +118,23 @@ function updateAddonIfOld(why) {
 // day (unless the game's "Share the ground I walk" is off), and the roads merged come back into the addon. Only
 // the roads' Worker can be reached this way (the same allowlisted fetch as the AI's). Off until ROADS_URL is set.
 const roadsFetch = ROADS_URL ? createEgress({ allowHosts: () => new Set([new URL(ROADS_URL).hostname]), loopbackOk: false }).fetch : null;
-// afterGame: WoW just closed and wrote the ground walked: uploaded now, unless one went in the last 30 minutes.
-async function roadsTick(afterGame = false) {
+// mode: 'timer' (every 3 hours), 'afterGame' (WoW just closed and wrote the ground walked: uploaded now, unless
+// one went in the last 30 minutes), or 'now' (the Status card's Check now: both at once, whatever the last was;
+// only what's new is ever sent).
+async function roadsTick(mode = 'timer') {
   const cfg = readConfig(DATA);
-  if (!roadsFetch || !cfg.wow) return;
-  try { await uploadGround({ flavorDir: cfg.wow, dataDir: DATA, version: app.getVersion(), fetchFn: roadsFetch, log: note, ...(afterGame ? { every: AFTER_GAME_MS } : {}) }); } catch (e) { note(`Roads: ${e.message}`); }
+  if (!roadsFetch || !cfg.wow) return { ok: false, error: 'no_folder', detail: 'Pick your WoW folder first.' };
+  const every = mode === 'now' ? 0 : mode === 'afterGame' ? AFTER_GAME_MS : undefined;
+  let sent = null, got = null, failed = null;
+  try { sent = await uploadGround({ flavorDir: cfg.wow, dataDir: DATA, version: app.getVersion(), fetchFn: roadsFetch, log: note, ...(every !== undefined ? { every } : {}) }); } catch (e) { failed = e.message; note(`Roads: ${e.message}`); }
   try {
-    const r = await syncRoads({ flavorDir: cfg.wow, dataDir: DATA, fetchFn: roadsFetch, log: note });
-    if (r.applied) note(`Roads of ${r.date} in the addon: they load at the next /reload.`);
-  } catch (e) { note(`Roads: ${e.message}`); }
+    got = await syncRoads({ flavorDir: cfg.wow, dataDir: DATA, fetchFn: roadsFetch, log: note, force: mode === 'now' });
+    if (got.applied) note(`Roads of ${got.date} in the addon: they load at the next /reload.`);
+  } catch (e) { failed = e.message; note(`Roads: ${e.message}`); }
   pushStatus();
+  if (failed) return { ok: false, error: 'roads', detail: `Shared roads couldn't be checked: ${failed}` };
+  const shared = sent && sent.sent ? `${sent.sent.toLocaleString()} new squares shared` : 'nothing new to share';
+  return { ok: true, note: `${shared}; ${got && got.applied ? 'newer paths loaded (they load in game at /reload)' : 'paths up to date'}.` };
 }
 // After an addon install put the app's own Roads.lua in place: the newer roads kept here, again.
 function roadsAgain() {
@@ -217,7 +224,7 @@ const sup = createSupervisor({
       if (k === 'wow' && m.ev.state === 'exited') {
         updateAddonIfOld('WoW closed');
         // The game wrote its saved data as it closed: the ground walked goes up now (a few seconds for the file).
-        setTimeout(() => roadsTick(true), 5000);
+        setTimeout(() => roadsTick('afterGame'), 5000);
       }
     }
     else if (m?.type === 'status') runStatus = m.status;
@@ -583,6 +590,7 @@ const CALLS = {
     return r;
   },
   restartLink: async () => { note('Restarting the link.'); await sup.restart(); return { ok: true }; },
+  checkRoads: async () => roadsTick('now'),
   // What's new, read: not shown again until the next version.
   seenNews: async () => { writeConfig(DATA, { ...readConfig(DATA), seenVersion: app.getVersion() }); pushStatus(); return { ok: true }; },
   openLogs: async () => { await shell.openPath(DATA); return { ok: true }; },

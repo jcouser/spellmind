@@ -23,7 +23,7 @@ What your character is and has, so the panel and your AI can give advice that fi
 | Web searches your AI chooses to make | Your AI's own search | When web search is on and your AI decides to look something up |
 | A request for the newest version (no data about you or the game) | GitHub, this repository's releases page | 30 s after the app starts, then every 6 hours, while "Check for new versions of Spellmind" is on (it is by default) |
 | The ground you walked: squares of the world (8 yards each), which way you crossed each and whether you swam it, under a random id the app made (see [Shared roads](#shared-roads)) | The Spellmind roads server, run by the Spellmind authors on Cloudflare | When you close WoW (at most every 30 minutes), and otherwise about once a day while the app runs, while "Share the ground I walk" (the Route tab) is on (it is by default). Only what's new; nothing when there's nothing new |
-| A request for the shared roads (no data about you or the game) | The same server | About once a day while the app runs |
+| A request for the shared roads (no data about you or the game) | The same server | Every 6 hours while the app runs, and when you click "Check shared roads now" |
 
 Your AI's own privacy policy covers what it does with your messages. If you sign in with a ChatGPT plan, OpenAI's terms for that plan apply.
 

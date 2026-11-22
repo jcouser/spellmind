@@ -21,7 +21,7 @@ export const UPLOAD_EVERY_MS = 20 * 3600e3; // about once a day
 // Just after WoW closes, when the game has written the ground walked (the player, 2026-11-21): sooner, but never
 // more often than this, so a few restarts in a row don't send a string of small uploads.
 export const AFTER_GAME_MS = 30 * 60e3;
-export const ROADS_EVERY_MS = 24 * 3600e3;
+export const ROADS_EVERY_MS = 6 * 3600e3; // the merge runs daily; an unchanged answer is a tiny 304
 export const MAX_SQUARES = 60000; // an upload's squares, at most (the Worker takes 512 KB)
 
 const stateFile = (dir) => path.join(dir, 'roads.json');
@@ -171,10 +171,11 @@ export function applyRoads({ flavorDir, dataDir }) {
   return { applied: true, date: roads.date };
 }
 
-export async function syncRoads({ flavorDir, dataDir, url = ROADS_URL, now = Date.now(), fetchFn = fetch, log = () => {} } = {}) {
+// force: "Check now" on the app's Status card (the player, 2026-11-22), whatever the last check was.
+export async function syncRoads({ flavorDir, dataDir, url = ROADS_URL, now = Date.now(), fetchFn = fetch, log = () => {}, force = false } = {}) {
   if (!url || !flavorDir) return { skipped: 'off' };
   const st = readState(dataDir);
-  if (st.lastRoads && now - st.lastRoads < ROADS_EVERY_MS) return applyRoads({ flavorDir, dataDir });
+  if (!force && st.lastRoads && now - st.lastRoads < ROADS_EVERY_MS) return applyRoads({ flavorDir, dataDir });
   const r = await fetchFn(url.replace(/\/$/, '') + '/v1/roads', { headers: st.roadsEtag ? { 'if-none-match': st.roadsEtag } : {} });
   const st2 = readState(dataDir);
   st2.lastRoads = now;

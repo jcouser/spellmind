@@ -147,8 +147,9 @@ function draw(s) {
   const rd = s.roads || {};
   const day = (t) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
   const got = rd.roads && rd.roads.squares > 0
-    ? `roads from ${rd.roads.players.toLocaleString()} player${rd.roads.players === 1 ? '' : 's'}, ${day(rd.roads.date + 'T12:00:00')}`
-    : 'no roads received yet';
+    ? `paths from ${rd.roads.players.toLocaleString()} player${rd.roads.players === 1 ? '' : 's'}, ${day(rd.roads.date + 'T12:00:00')}`
+    : 'no shared paths yet';
+  $('roadsRow').hidden = !rd.on;
   if (!rd.on) fact($('factRoads'), 'Not in this version', 'muted');
   else if (rd.off) fact($('factRoads'), `Off (the game's Route tab) · ${got}`, 'muted');
   else if (rd.shared > 0) fact($('factRoads'), `${rd.shared.toLocaleString()} squares shared, last ${day(rd.lastSent)} · ${got}`, 'good');
@@ -362,6 +363,8 @@ for (const el of document.querySelectorAll('[data-app]')) {
   el.addEventListener('change', (e) => act(null, () => sm.setApp({ [e.target.dataset.app]: e.target.checked })));
 }
 $('restartLink').addEventListener('click', () => act($('restartLink'), () => sm.restartLink(), 'Restarting the link.'));
+// Shared roads, now (the player, 2026-11-22): this PC's new ground up, and the newest paths down.
+$('checkRoads').addEventListener('click', () => act($('checkRoads'), () => sm.checkRoads(), (r) => r?.note || 'Shared roads checked.', { busyText: 'Checking…' }));
 $('openLogs').addEventListener('click', () => act(null, () => sm.openLogs()));
 $('updateBtn').addEventListener('click', () => {
   const phase = last?.update?.phase;

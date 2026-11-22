@@ -224,7 +224,7 @@ jobs:
             echo
             echo "- **The app (Windows 10 and 11):** \`Spellmind-Setup-$v.exe\`. It installs the addon too."
             echo "- **The addon only:** \`Spellmind-$v.zip\`, unzipped into \`World of Warcraft\\_forever_\\Interface\\AddOns\`."
-            echo "- **The app on Linux (preview):** \`Spellmind-$v.AppImage\`: make it executable and run it. It needs python3, and the game under X11 or XWayland (Proton's usual way)."
+            echo "- **The app on Linux (preview):** \`Spellmind-$v.AppImage\`: make it executable and run it. It needs python3, and the game under X11 or XWayland (Proton's usual way): [the steps](https://github.com/$GH_REPO/blob/main/docs/install.md#the-app-on-linux-preview)."
             echo
             echo "Check a download before running it ([how](https://github.com/$GH_REPO/blob/main/docs/install.md)). [Code signing policy](https://github.com/$GH_REPO#code-signing-policy)."
             echo

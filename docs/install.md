@@ -40,6 +40,27 @@ Spellmind is two parts: an addon in World of Warcraft: Forever, and a small app 
 - **Keeps your settings** in `%APPDATA%\Spellmind`, and its log in `%APPDATA%\Spellmind\logs` (7 days, no keys, no questions or answers).
 - **Keeps your sign-in or API keys** in Windows' Credential Manager, never in a file.
 
+## The app on Linux (preview)
+
+For WoW Forever running under Proton or Wine on a Linux desktop (first tried on Bazzite with KDE, the game started by Faugus Launcher with Proton-CachyOS; issue #1). It's a preview: tell us how it goes on [GitHub](https://github.com/jcouser/spellmind/issues).
+
+1. Download `Spellmind-<version>.AppImage` from the [releases page](https://github.com/jcouser/spellmind/releases/latest) and check it against `SHA256SUMS.txt` (`sha256sum Spellmind-*.AppImage`).
+2. Make it executable and run it: `chmod +x Spellmind-*.AppImage && ./Spellmind-*.AppImage`, or with your file manager (Properties, "Allow executing").
+3. It looks for WoW: Forever inside the prefixes Faugus, Steam, Lutris, Heroic and Bottles make. If it doesn't find yours, pick the `_forever_` folder inside your prefix's `drive_c`, for Faugus usually `~/Faugus/<name>/drive_c/Program Files (x86)/World of Warcraft/_forever_`.
+4. Set up your AI as on Windows. Keys and the ChatGPT sign-in go into your desktop's keyring (KWallet or GNOME Keyring).
+5. Start WoW. The app says "Connected to WoW" when it hears the addon.
+
+**What it needs:** `python3` (every gaming distro has it), and the game drawn through X11 or XWayland, which is how Proton runs games unless told otherwise.
+
+**If it can't see the game:**
+- "WoW is running with Wine's Wayland driver": the game is drawing straight to Wayland, where Spellmind can't read it yet. Turn that off in your launcher (`PROTON_ENABLE_WAYLAND=0`, or its Wayland option) and restart the game.
+- "Waiting for the WoW window": with WoW open, run `python3 ~/.config/spellmind/bin/capture_x11.py --list-windows` to see the windows Spellmind can see, and `--probe probe.png` to see what it reads (crop your character's name out before sharing it).
+- The AppImage doesn't start: on Ubuntu 24.04 and later, install `libfuse2t64`; if it then says the sandbox isn't configured, start it with `--no-sandbox`.
+
+**Closing the window** keeps Spellmind running in the background, talking to WoW. On GNOME there's no tray icon without an extension: start Spellmind again to open its window. Quit is in the tray menu.
+
+**Updates:** the AppImage updates itself, like the Windows app. Your settings are in `~/.config/spellmind`.
+
 ## Updating
 
 - **The app** checks this repository's releases and offers each new version in its window and its tray menu. It installs when you choose, never while WoW is running. You can also run a newer installer yourself; it closes the running app first.

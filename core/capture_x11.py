@@ -511,6 +511,35 @@ def proc_is_game(pid, expect, proc="/proc"):
     return bool(text.strip()) and expect.lower() in text.lower()
 
 
+def game_process_running(process_name="Wow", proc="/proc"):
+    """Is a process named <process_name>.exe running here (WoW under Wine or Proton)? Its command line is read,
+    nothing else. (A game in another PID namespace, as in Steam's container, may not be seen: then this says no.)"""
+    want = (process_name or "Wow").lower() + ".exe"
+    try:
+        pids = [p for p in os.listdir(proc) if p.isdigit()]
+    except OSError:
+        return False
+    for pid in pids:
+        try:
+            with open(os.path.join(proc, pid, "cmdline"), "rb") as fh:
+                text = fh.read(4096).replace(b"\0", b" ").decode("utf-8", "replace").lower()
+        except OSError:
+            continue
+        if want in text.replace("\\", "/").split("/")[-1] or ("/" + want) in text.replace("\\", "/") or text.startswith(want):
+            return True
+    return False
+
+
+def no_window_reason(process_name="Wow", proc="/proc", env=None):
+    """Why the game's window isn't found, for the player: (kind, text). The game running with no X11 window on a
+    Wayland desktop is Wine's Wayland driver (PROTON_ENABLE_WAYLAND=1), whose window X11 can't see."""
+    env = os.environ if env is None else env
+    if env.get("WAYLAND_DISPLAY") and game_process_running(process_name, proc):
+        return ("wayland_native", "World of Warcraft is running with Wine's Wayland driver, which Spellmind can't read yet: "
+                "turn it off in your launcher (PROTON_ENABLE_WAYLAND=0, or its Wayland option), then restart the game")
+    return ("window_not_found", "waiting for %s window (the game isn't running, or its window has another name)" % process_name)
+
+
 # ---------------------------------------------------------------------------
 # PNG in/out (tests and --probe)
 # ---------------------------------------------------------------------------
@@ -960,9 +989,10 @@ def run():
             if win is None:
                 for ev in game.missing(time.time()):
                     emit(ev)
-                # "waiting for ... window" is what the Linux docs tell players to look for.
-                error("window_not_found", "waiting for %s window (the game isn't running, or its window has another name)"
-                      % (args.window_name or args.process_name))
+                # "waiting for ... window" is what the Linux docs tell players to look for; a game running with no X11
+                # window (Wine's Wayland driver) says so instead.
+                kind, text = no_window_reason(args.window_name or args.process_name)
+                error(kind, text)
                 time.sleep(search.missed())
                 continue
             search.found()

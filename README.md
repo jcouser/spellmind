@@ -211,13 +211,15 @@ The app talks to the AI you pick. You pay that AI (or use a plan you already hav
 - **An API key** for Claude (Anthropic), ChatGPT (OpenAI), Grok (xAI) or Gemini (Google).
 - **Other:** any OpenAI-compatible service, such as OpenRouter or Groq, or a model on your own computer with Ollama or LM Studio.
 
-Keys and sign-ins stay in Windows' Credential Manager on your PC. The game never sees them.
+Keys and sign-ins stay in Windows' Credential Manager on your PC (on Linux, your desktop's keyring). The game never sees them.
 
 ## Install
 
 **The addon:** from [CurseForge](https://www.curseforge.com/wow/addons/spellmind-ai-companion) (WoW Forever), or the `Spellmind-<version>.zip` on the [releases page](https://github.com/jcouser/spellmind/releases/latest), unzipped into `World of Warcraft\_forever_\Interface\AddOns`. The zip carries the addon and its parts (`Spellmind_S001` to `Spellmind_S200`, which bring answers in); keep them all.
 
 **The app:** `Spellmind-Setup-<version>.exe` from the [releases page](https://github.com/jcouser/spellmind/releases/latest). It needs no admin rights, finds your WoW folder, installs the addon if it isn't there, and walks you through setting up your AI. [The install guide](docs/install.md) covers checking the download, the SmartScreen warning, updating and removing it.
+
+**The app on Linux (preview):** `Spellmind-<version>.AppImage` from the same page, for WoW Forever running under Proton or Wine (Faugus, Steam, Lutris, Heroic, Bottles). Make it executable and run it; it needs `python3`. [The install guide](docs/install.md#the-app-on-linux-preview) has the steps and what to do if it can't see the game.
 
 Spellmind works alongside Questie and Auctionator, and uses their data when they're installed, but needs neither. It's made for WoW Forever (1.60.1).
 

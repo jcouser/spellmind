@@ -844,6 +844,10 @@ export function createX11Capture({ script = X11_SCRIPT, python = 'python3', magi
   let stopping = false;
   const allowLaunch = launchLimiter();
   const lines = createLineHandler({ onPayload, onStatus, onGame, onError, log });
+  // python3 missing (issue #1 follow-up): said in words, not "spawn python3 ENOENT".
+  const noPython = (err) => err && err.code === 'ENOENT'
+    ? `${python} isn't installed: Spellmind reads the game with it on Linux. Install python3 from your system's software center or package manager, then restart Spellmind.`
+    : err.message;
 
   function scriptArgs() {
     return [script, '--magic', magic, '--interval-ms', String(intervalMs), '--process-name', processName,
@@ -864,7 +868,7 @@ export function createX11Capture({ script = X11_SCRIPT, python = 'python3', magi
     } catch (err) {
       log('capture-launch', { script: path.basename(script) });
       log('capture-error', { error: `capture_x11.py could not start (${python}): ${err.message}` });
-      onError({ kind: 'helper_failed', message: err.message });
+      onError({ kind: 'helper_failed', message: noPython(err) });
       if (!stopping) setTimeout(launchScript, relaunchMs).unref?.();
       return;
     }
@@ -874,7 +878,7 @@ export function createX11Capture({ script = X11_SCRIPT, python = 'python3', magi
     c.stderr?.on('data', (d) => log('capture-warn', { warn: String(d).trim().slice(0, 300) }));
     c.on('error', (err) => {
       log('capture-error', { error: `capture_x11.py could not start (${python}): ${err.message}` });
-      onError({ kind: 'helper_failed', message: err.message });
+      onError({ kind: 'helper_failed', message: noPython(err) });
     });
     whenDone(c, (code, signal) => {
       if (child === c) { child = null; heard = false; }

@@ -133,5 +133,32 @@ class Window(unittest.TestCase):
         self.assertTrue(cx.build_parser().parse_args(["--list-windows"]).list_windows)
 
 
+class NoWindow(unittest.TestCase):
+    """Why the game isn't found: Wine's Wayland driver (a game process, no X11 window) is said in words."""
+
+    def fake_proc(self, cmdlines):
+        import tempfile
+        d = tempfile.mkdtemp()
+        for i, cmd in enumerate(cmdlines, start=100):
+            os.makedirs(os.path.join(d, str(i)))
+            with open(os.path.join(d, str(i), "cmdline"), "wb") as fh:
+                fh.write(cmd.encode().replace(b" ", b"\0"))
+        return d
+
+    def test_wayland_driver(self):
+        proc = self.fake_proc(["/usr/bin/python3 foo.py", "Z:\\home\\me\\Faugus\\wow\\drive_c\\World of Warcraft\\_forever_\\Wow.exe -launcher"])
+        kind, text = cx.no_window_reason("Wow", proc, {"WAYLAND_DISPLAY": "wayland-0"})
+        self.assertEqual(kind, "wayland_native")
+        self.assertIn("PROTON_ENABLE_WAYLAND=0", text)
+
+    def test_not_running(self):
+        proc = self.fake_proc(["/usr/bin/firefox", "/usr/bin/wowup"])
+        self.assertEqual(cx.no_window_reason("Wow", proc, {"WAYLAND_DISPLAY": "wayland-0"})[0], "window_not_found")
+
+    def test_x11_session_is_just_waiting(self):
+        proc = self.fake_proc(["C:\\Games\\Wow.exe"])
+        self.assertEqual(cx.no_window_reason("Wow", proc, {})[0], "window_not_found")
+
+
 if __name__ == "__main__":
     unittest.main()

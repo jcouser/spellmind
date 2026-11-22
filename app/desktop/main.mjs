@@ -423,7 +423,18 @@ function openWindow() {
   // Nothing navigates away or opens a window of its own; links go to the browser through openLink.
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  win.on('close', (e) => { if (!quitting) { e.preventDefault(); win.hide(); } });
+  win.on('close', (e) => {
+    if (quitting) return;
+    e.preventDefault();
+    win.hide();
+    // Linux (issue #1 follow-up): GNOME shows no tray icon without an extension, so the app seems gone. The
+    // first time, a note says where it is; starting it again opens the window (second-instance).
+    if (process.platform === 'linux' && !readConfig(DATA).linuxCloseTold) {
+      writeConfig(DATA, { ...readConfig(DATA), linuxCloseTold: true });
+      told.delete('linux-close');
+      notify('linux-close', 'Spellmind is still running', 'It keeps talking to WoW in the background. Start Spellmind again (or click its tray icon) to open this window; Quit is in the tray menu.');
+    }
+  });
   // Minimized: into the tray, off the taskbar (a switch in the window).
   win.on('minimize', (e) => { if (appSettings().minimizeToTray) { e.preventDefault(); win.hide(); } });
   win.once('ready-to-show', () => {

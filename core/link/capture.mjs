@@ -817,7 +817,7 @@ export function createWindowsCapture({ exe = WINDOWS_EXE, magic = '534D', interv
 // ---------------------------------------------------------------- Linux (X11)
 
 export function createX11Capture({ script = X11_SCRIPT, python = 'python3', magic = '534D', pitchSearch = true, intervalMs = 250,
-  processName = 'WowB', windowName = '', keepComposited = false, launch = true, relaunchMs = 5000,
+  processName = 'Wow', windowName = '', keepComposited = false, launch = true, relaunchMs = 5000,
   onPayload = () => {}, onStatus = () => {}, onGame = () => {}, onError = () => {}, log = () => {}, spawnImpl = spawn } = {}) {
   let child = null;
   let heard = false;     // the running script has written a line (it started and found its display)

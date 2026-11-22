@@ -11,7 +11,7 @@ const { encodeWithLua, render } = require('../helpers/strip-render.cjs');
 try { execFileSync('python3', ['--version'], { stdio: 'ignore' }); }
 catch { console.log('SKIP Codec.lua round-trip: python3 is required.'); process.exit(0); }
 
-const CAPTURE_X11 = path.join(__dirname, '..', 'bridge', 'capture_x11.py');
+const CAPTURE_X11 = path.join(__dirname, '..', '..', 'core', 'capture_x11.py');
 // Spellmind has no Linux helper yet (core/capture/build.mjs): the round trip waits for it. The
 // Windows helper's own round trip is tests/link/capture_windows_helper_test.mjs. (Seen in CI, where
 // python3 is there and this file isn't.)

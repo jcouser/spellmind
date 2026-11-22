@@ -88,6 +88,8 @@ def build_parser():
     p.add_argument("--test-image", default="")
     p.add_argument("--probe", default="")
     p.add_argument("--list-windows", action="store_true", help="list the windows the helper sees, and exit")
+    p.add_argument("--capture-method", choices=("auto", "root", "window"), default="auto",
+                   help="how to read the game: from the root window (X11), from the game's window (XWayland), or auto")
     return p
 
 
@@ -668,6 +670,8 @@ def init_x11():
     X.XGetWindowAttributes.argtypes = [ctypes.c_void_p, Window, ctypes.POINTER(XWindowAttributes)]
     X.XTranslateCoordinates.argtypes = [ctypes.c_void_p, Window, Window, ctypes.c_int, ctypes.c_int,
                                         ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int), ctypes.POINTER(Window)]
+    X.XQueryTree.argtypes = [ctypes.c_void_p, Window, ctypes.POINTER(Window), ctypes.POINTER(Window),
+                             ctypes.POINTER(ctypes.POINTER(Window)), ctypes.POINTER(ctypes.c_uint)]
     X.XGetImage.restype = ctypes.POINTER(XImage)
     X.XGetImage.argtypes = [ctypes.c_void_p, Window, ctypes.c_int, ctypes.c_int, ctypes.c_uint, ctypes.c_uint,
                             ctypes.c_ulong, ctypes.c_int]
@@ -695,11 +699,31 @@ def client_list():
     n, rest, data = ctypes.c_ulong(), ctypes.c_ulong(), ctypes.c_void_p()
     if X.XGetWindowProperty(dpy, root, A_CLIENT_LIST, 0, 4096, 0, A_WINDOW, ctypes.byref(typ), ctypes.byref(fmt),
                             ctypes.byref(n), ctypes.byref(rest), ctypes.byref(data)) != 0 or not data:
-        return []
+        return tree_list()
     arr = ctypes.cast(data, ctypes.POINTER(Window))
     wins = [arr[i] for i in range(n.value)]
     X.XFree(data)
-    return wins
+    return wins or tree_list()
+
+
+def query_tree(w):
+    r, p, kids, n = Window(), Window(), ctypes.POINTER(Window)(), ctypes.c_uint()
+    if not X.XQueryTree(dpy, w, ctypes.byref(r), ctypes.byref(p), ctypes.byref(kids), ctypes.byref(n)):
+        return []
+    out = [kids[i] for i in range(n.value)]
+    if kids:
+        X.XFree(kids)
+    return out
+
+
+def tree_list():
+    """No _NET_CLIENT_LIST (a window manager that doesn't publish it, as Weston's): the root's children and
+    theirs (a reparenting manager's frames hold the game's window one level down)."""
+    out = []
+    for w in query_tree(root):
+        out.append(w)
+        out.extend(query_tree(w))
+    return out
 
 
 def window_pid(w):
@@ -806,11 +830,52 @@ def mask_shift(mask):
     return s, (mask >> s) if mask else 1
 
 
+# Spellmind (issue #1, 2026-11-22): on a Wayland desktop the game is an XWayland window, and XWayland's root
+# window holds no picture of the screen (Wayland composites it): reading the root fails there. The game
+# window's own contents can be read instead. Each way is tried, the one that last worked first.
+CAPTURE_METHODS = ("root", "window")
+capture_method = None  # the way that last gave a picture
+grab_tries = []  # this grab's tries: [{"method", "result"}] (--probe reports them)
+
+
 def grab(w):
-    """Capture the strip region of window w from the root window (what is on screen)."""
+    """Capture the strip region of window w: from the root window (what is on screen), or from the window."""
+    global capture_method
+    del grab_tries[:]
     a = attrs(w)
     if not a or a.map_state != IS_VIEWABLE:
         return None
+    want = getattr(args, "capture_method", "auto") or "auto"
+    order = [want] if want != "auto" else ([capture_method] if capture_method else []) + [m for m in CAPTURE_METHODS if m != capture_method]
+    last = None
+    for m in order:
+        g = grab_root(w, a) if m == "root" else grab_from(w, 0, 0, min(GRAB_W, a.width), min(GRAB_H, a.height))
+        if g and not isinstance(g, dict):
+            if is_blank(g):
+                grab_tries.append({"method": m, "result": "blank"})
+                last = last or g
+                continue
+            grab_tries.append({"method": m, "result": "ok"})
+            capture_method = m
+            return g
+        grab_tries.append({"method": m, "result": (g or {}).get("error", "failed") if isinstance(g, dict) else "failed"})
+        if isinstance(g, dict):
+            last = last if last and not isinstance(last, dict) else g
+    return last
+
+
+def is_blank(g):
+    """A picture all one color (what a root read under XWayland can give): no strip could be in it."""
+    px, width, height = g
+    first = px(0, 0)
+    for y in range(0, height, max(1, height // 12)):
+        for x in range(0, width, max(1, width // 24)):
+            if px(x, y) != first:
+                return False
+    return True
+
+
+def grab_root(w, a):
     rx, ry, child = ctypes.c_int(), ctypes.c_int(), Window()
     before = x_errors[0]
     X.XTranslateCoordinates(dpy, w, root, 0, 0, ctypes.byref(rx), ctypes.byref(ry), ctypes.byref(child))
@@ -822,7 +887,15 @@ def grab(w):
     gh = min(GRAB_H, a.height, ra.height - y0)
     if gw <= 0 or gh <= 0:
         return None
-    img = X.XGetImage(dpy, root, x0, y0, gw, gh, ALL_PLANES, ZPIXMAP)
+    return grab_from(root, x0, y0, gw, gh)
+
+
+def grab_from(drawable, x0, y0, gw, gh):
+    """XGetImage of a rectangle of a drawable: (px, width, height), an error dict, or None."""
+    if gw <= 0 or gh <= 0:
+        return None
+    before = x_errors[0]
+    img = X.XGetImage(dpy, drawable, x0, y0, gw, gh, ALL_PLANES, ZPIXMAP)
     X.XSync(dpy, 0)
     if not img or x_errors[0] != before:
         return None
@@ -859,11 +932,13 @@ def run():
             time.sleep(0.5)
         g = grab(w)
         if not g or isinstance(g, dict):
-            emit(g or {"error": "capture failed"})
+            out = dict(g or {"error": "capture failed"})
+            out["tries"] = list(grab_tries)
+            emit(out)
             sys.exit(1)
         px, width, height = g
         write_png(args.probe, px, width, height)
-        emit(dict({"info": "saved %dx%d to %s" % (width, height, args.probe)}, **probe_decode(px, width, height)))
+        emit(dict({"info": "saved %dx%d to %s" % (width, height, args.probe), "method": capture_method, "tries": list(grab_tries)}, **probe_decode(px, width, height)))
         return
 
     last_key = None

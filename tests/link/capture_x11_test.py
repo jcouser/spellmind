@@ -109,5 +109,29 @@ class Strip(unittest.TestCase):
         self.assertEqual(hint[3], 272)
 
 
+class Window(unittest.TestCase):
+    """Which window is the game's (issue #1: under Proton through Faugus, the class isn't wow.exe)."""
+
+    def test_wine_class(self):
+        self.assertTrue(cx.matches(["wow.exe", "wow.exe"], "World of Warcraft"))
+        self.assertTrue(cx.matches(["Wow.exe"], ""))
+
+    def test_proton_class_by_title(self):
+        self.assertTrue(cx.matches(["steam_app_default", "steam_app_default"], "World of Warcraft"))
+        self.assertTrue(cx.matches(["steam_app_0"], " World of Warcraft "))
+
+    def test_not_a_browser_tab_or_the_launcher(self):
+        self.assertFalse(cx.matches(["firefox", "Navigator"], "Quests - World of Warcraft - Wowhead"))
+        self.assertFalse(cx.matches(["battle.net.exe"], "Battle.net"))
+        self.assertFalse(cx.matches(["steam_app_default"], ""))
+
+    def test_by_name_when_told(self):
+        self.assertTrue(cx.matches(["x"], "My WoW Window", window_name="wow window"))
+        self.assertFalse(cx.matches(["wow.exe"], "Other", window_name="wow window"))
+
+    def test_list_windows_flag(self):
+        self.assertTrue(cx.build_parser().parse_args(["--list-windows"]).list_windows)
+
+
 if __name__ == "__main__":
     unittest.main()

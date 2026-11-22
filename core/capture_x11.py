@@ -19,6 +19,7 @@ Zero dependencies: python3 + ctypes against libX11.
   capture_x11.py --probe out.png          save what the capture sees once and exit (it also
                                           tries the other known magic, and says which decoded)
   capture_x11.py --window-name NAME       match a window by title instead of WM_CLASS
+  capture_x11.py --list-windows           list every window it sees (class, title, size) and which is the game's
   capture_x11.py --magic 534D             the strip's magic: 534D (Spellmind, the default), C72C (NeverQuestAlone)
                                           or C71A (upstream wow-ai's WoWAI addon)
   capture_x11.py --pitch-search           when the fixed --cell doesn't decode, measure the
@@ -86,6 +87,7 @@ def build_parser():
     p.add_argument("--max-pitch", type=float, default=6.0)
     p.add_argument("--test-image", default="")
     p.add_argument("--probe", default="")
+    p.add_argument("--list-windows", action="store_true", help="list the windows the helper sees, and exit")
     return p
 
 
@@ -723,24 +725,60 @@ def attrs(w):
     return a if ok and x_errors[0] == before else None
 
 
-def window_matches(w):
-    if args.window_name:
-        name = ctypes.c_void_p()
-        if X.XFetchName(dpy, w, ctypes.byref(name)) and name.value:
-            hit = args.window_name.lower() in ctypes.string_at(name.value).decode("utf-8", "replace").lower()
-            X.XFree(name.value)
-            return hit
-        return False
+# The game's window title. Spellmind (issue #1, 2026-11-22): under Proton (Faugus Launcher, umu) the window's
+# class is Proton's own (steam_app_...), not wow.exe as under plain Wine; its title is still the game's.
+# Matched whole, so a browser tab "... - World of Warcraft - Wowhead" never is.
+GAME_TITLE = "world of warcraft"
+
+
+def matches(classes, title, process_name="Wow", window_name=""):
+    """Is a window with these WM_CLASS names and this title the game's? (Pure, for tests.)"""
+    title = (title or "").strip().lower()
+    if window_name:
+        return window_name.lower() in title
+    want = (process_name or "Wow").lower() + ".exe"
+    if any((c or "").lower() == want for c in classes):
+        return True
+    return title == GAME_TITLE
+
+
+def window_title(w):
+    name = ctypes.c_void_p()
+    if X.XFetchName(dpy, w, ctypes.byref(name)) and name.value:
+        text = ctypes.string_at(name.value).decode("utf-8", "replace")
+        X.XFree(name.value)
+        return text
+    return ""
+
+
+def window_classes(w):
     hint = XClassHint()
     if not X.XGetClassHint(dpy, w, ctypes.byref(hint)):
-        return False
-    want = args.process_name.lower() + ".exe"
-    hit = False
+        return []
+    out = []
     for ptr in (hint.res_name, hint.res_class):
         if ptr:
-            hit = hit or ctypes.string_at(ptr).decode("utf-8", "replace").lower() == want
+            out.append(ctypes.string_at(ptr).decode("utf-8", "replace"))
             X.XFree(ptr)
-    return hit
+    return out
+
+
+def window_matches(w):
+    return matches(window_classes(w), window_title(w), args.process_name, args.window_name)
+
+
+def list_windows():
+    """--list-windows: every window the helper can see, one JSON line each, and whether it's taken as the game's
+    (to tell from a player's paste why the game isn't found: another class or title, or no X11 window at all,
+    as for a game on Wayland's own driver)."""
+    emit({"info": "list", "session": os.environ.get("XDG_SESSION_TYPE", ""), "display": os.environ.get("DISPLAY", ""),
+          "wayland": bool(os.environ.get("WAYLAND_DISPLAY"))})
+    for w in client_list():
+        a = attrs(w)
+        classes, title = window_classes(w), window_title(w)
+        emit({"window": hex(int(w)), "class": classes, "title": title[:80],
+              "size": [a.width, a.height] if a else None, "viewable": bool(a and a.map_state == IS_VIEWABLE),
+              "game": matches(classes, title, args.process_name, args.window_name)})
 
 
 def find_window():
@@ -900,6 +938,9 @@ def main(argv=None):
         return test_image_main()
     if not init_x11():
         return 3
+    if args.list_windows:
+        list_windows()
+        return 0
     try:
         run()
     except KeyboardInterrupt:

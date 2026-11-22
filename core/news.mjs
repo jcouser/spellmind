@@ -113,6 +113,14 @@ export const NEWS = Object.freeze([
       "Fixed: the minimap's line could stay straight while the world map's followed your road.",
     ]),
   }),
+  Object.freeze({
+    version: '0.6.7',
+    changes: Object.freeze([
+      "The Spellmind app for Linux (preview): an AppImage for WoW Forever under Proton or Wine. Thanks to the player who tested it on Bazzite.",
+      "The app looks for new shared paths every 6 hours, and \"Check shared roads now\" on its Status card shares your new ground and fetches the newest paths at once.",
+      "The app's Status card says how many players the shared paths came from.",
+    ]),
+  }),
 ]);
 
 const parts = (v) => String(v ?? '').split('.').map((n) => parseInt(n, 10) || 0);

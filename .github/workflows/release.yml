@@ -2,7 +2,7 @@
 #   1. the screen-reading helper, cross-compiled with the pinned Zig (twice, the same bytes);
 #   2. the tests, then the Windows installer (with the helper inside) and the addon zip;
 #   3. a DRAFT GitHub release with the installer, its update feed (latest.yml, the .blockmap), the
-#      addon zip and SHA256SUMS.txt. A person reads it and publishes it; the app's updater and the
+#      addon zip, the Linux AppImage and its feed (latest-linux.yml, built beside 2), and SHA256SUMS.txt. A person reads it and publishes it; the app's updater and the
 #      download links only see published releases.
 #
 # Code signing (docs/releasing.md): with the repository variables SIGNPATH_ORGANIZATION_ID and
@@ -155,8 +155,47 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # The Linux app (issue #1): an AppImage, its screen reader core/capture_x11.py. The same addon, with the
+  # same shared roads, as the Windows build's.
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: The tag is the version the app says
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          app=$(node -p "require('./app/desktop/package.json').version")
+          [ "$tag" = "$app" ] || { echo "::error::the tag and app/desktop/package.json must say the same version"; exit 1; }
+      - run: python3 tests/link/capture_x11_test.py
+      - name: The shared roads
+        if: vars.ROADS_URL != ''
+        continue-on-error: true
+        env:
+          ROADS_URL: ${{ vars.ROADS_URL }}
+        run: node tools/roads-merge.mjs --fetch --lua addon/Spellmind/Roads.lua
+      - name: The AppImage
+        working-directory: app/desktop
+        run: |
+          npm ci
+          npx electron-builder --linux AppImage --publish never
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-files
+          path: |
+            app/desktop/dist/Spellmind-*.AppImage
+            app/desktop/dist/latest-linux.yml
+          if-no-files-found: error
+          retention-days: 14
+
   release:
-    needs: build
+    needs: [build, linux]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -166,6 +205,14 @@ jobs:
         with:
           name: release-files
           path: files
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-files
+          path: files
+      - name: The AppImage in the checksums
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          (cd files && sha256sum "Spellmind-$v.AppImage" >> SHA256SUMS.txt)
       - name: A draft release, for a person to read and publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -177,6 +224,7 @@ jobs:
             echo
             echo "- **The app (Windows 10 and 11):** \`Spellmind-Setup-$v.exe\`. It installs the addon too."
             echo "- **The addon only:** \`Spellmind-$v.zip\`, unzipped into \`World of Warcraft\\_forever_\\Interface\\AddOns\`."
+            echo "- **The app on Linux (preview):** \`Spellmind-$v.AppImage\`: make it executable and run it. It needs python3, and the game under X11 or XWayland (Proton's usual way)."
             echo
             echo "Check a download before running it ([how](https://github.com/$GH_REPO/blob/main/docs/install.md)). [Code signing policy](https://github.com/$GH_REPO#code-signing-policy)."
             echo

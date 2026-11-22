@@ -17,7 +17,7 @@ import { createKeyStore } from '../ai/security/keystore.mjs';
 import { createEgress } from '../ai/security/egress.mjs';
 import { createSignIns } from '../ai/signin/index.mjs';
 import { createService } from '../link/service.mjs';
-import { createWindowsCapture } from '../link/capture.mjs';
+import { createCaptureForPlatform } from '../link/capture.mjs';
 import { FOREVER_FLAVORS, NOT_GAME } from '../link/install.mjs';
 import { loadPack } from '../ai/pack.mjs';
 import { createTurn } from './turn.mjs';
@@ -71,7 +71,7 @@ export function pickAI(cfg = {}, over = {}, manifests = loadManifests()) {
   return { m, model, effort, search };
 }
 
-export function startSpellmind({ dataDir: DATA, cfg = {}, over = {}, onEvent = () => {}, capture: makeCapture = createWindowsCapture } = {}) {
+export function startSpellmind({ dataDir: DATA, cfg = {}, over = {}, onEvent = () => {}, capture: makeCapture = createCaptureForPlatform } = {}) {
   const flavorDir = cfg.wow;
   if (!flavorDir) return { ok: false, error: 'not_installed', detail: 'Install the addon first: pick your WoW folder.' };
   const pick = pickAI(cfg, over);

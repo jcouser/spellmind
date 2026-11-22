@@ -13,7 +13,8 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder --win nsis --publish never && node scripts/hash.mjs"
+    "dist": "electron-builder --win nsis --publish never && node scripts/hash.mjs",
+    "dist:linux": "electron-builder --linux AppImage --publish never"
   },
   "devDependencies": {
     "electron": "44.9.3",

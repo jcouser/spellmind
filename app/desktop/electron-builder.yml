@@ -1,4 +1,4 @@
-# Spellmind's Windows installer (docs/milestone-3.md). Modeled on NeverQuestAlone's
+# Spellmind's Windows installer and Linux AppImage (docs/milestone-3.md; Linux for issue #1, 2026-11-21). Modeled on NeverQuestAlone's
 # app/desktop/electron-builder.yml (MIT; see NOTICE.md), much smaller: Windows only, unsigned.
 #
 # Inside app.asar the files keep the repo's layout, so main.mjs's '../../core/…' imports work the
@@ -36,6 +36,7 @@ electronFuses:
   enableEmbeddedAsarIntegrityValidation: true
 asarUnpack:
   - "**/spellmind-capture.exe"
+  - "**/capture_x11.py"
   - "**/*.node"
 
 # English only: Chromium's other locale packs stay out.
@@ -59,6 +60,7 @@ files:
       - "**/*.mjs"
       - "**/*.json"
       - capture/windows/build/spellmind-capture.exe
+      - capture_x11.py
       - "!capture/build.mjs"
   - from: ../../addon/Spellmind
     to: addon/Spellmind
@@ -103,3 +105,14 @@ nsis:
   include: installer.nsh
   # A per-user install never elevates: no elevate.exe (the security review).
   packElevateHelper: false
+
+# Linux (issue #1): an AppImage, one file the player marks executable and runs; electron-updater replaces it
+# in place when a new one is out. The screen reader is core/capture_x11.py (python3 and libX11, both on any
+# desktop Linux), unpacked beside app.asar.
+linux:
+  icon: assets/icon.png
+  category: Game
+  target:
+    - AppImage
+  artifactName: "${productName}-${version}.${ext}"
+  synopsis: Spellmind for WoW Forever

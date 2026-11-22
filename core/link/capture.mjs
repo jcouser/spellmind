@@ -42,7 +42,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const BUNDLE_ID_FILE = path.join(HERE, '..', 'capture', 'mac', 'BUNDLE_ID');
-export const X11_SCRIPT = path.join(HERE, '..', 'capture_x11.py');
+export const X11_SCRIPT = path.join(HERE, '..', 'capture_x11.py').replace(/([\\/])app\.asar([\\/])/, '$1app.asar.unpacked$2');
 // In the installed app the core is inside app.asar, which nothing can run from: the helper ships
 // unpacked beside it (app/desktop/electron-builder.yml asarUnpack), at the same path under app.asar.unpacked.
 export const WINDOWS_EXE = path.join(HERE, '..', 'capture', 'windows', 'build', 'spellmind-capture.exe').replace(/([\\/])app\.asar([\\/])/, '$1app.asar.unpacked$2');

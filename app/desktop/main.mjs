@@ -136,10 +136,12 @@ function roadsAgain() {
 }
 
 // ---------------------------------------------------------------------------
-// The app's own updates (updater.mjs): the installed app on Windows only; a run from source has none.
+// The app's own updates (updater.mjs): the installed app on Windows, and the AppImage on Linux (electron-updater
+// replaces the AppImage file it runs from, which it finds by $APPIMAGE); a run from source has none.
 let updates = null;
 async function startUpdates() {
-  if (!app.isPackaged || process.platform !== 'win32') return;
+  if (!app.isPackaged) return;
+  if (process.platform !== 'win32' && !(process.platform === 'linux' && process.env.APPIMAGE)) return;
   try {
     const mod = await import('electron-updater');
     const autoUpdater = mod.autoUpdater ?? mod.default?.autoUpdater;
@@ -262,9 +264,25 @@ async function useCfg(cfg, line) {
 const loginArgs = () => (app.isPackaged ? ['--hidden'] : [app.getAppPath(), '--hidden']);
 // Only the installed app writes it: a run from source would point Windows at Electron's exe and this
 // folder (the security review), and take the installed app's entry.
+// On Linux, Electron has no login item: the desktop's autostart folder gets a .desktop file instead (the
+// XDG autostart spec, as KDE and GNOME read it), naming the AppImage it runs from.
+const AUTOSTART = path.join(process.env.XDG_CONFIG_HOME || path.join(app.getPath('home'), '.config'), 'autostart', 'spellmind.desktop');
+const linuxLogin = process.platform === 'linux';
 const loginItem = {
-  get: () => !!app.getLoginItemSettings({ path: process.execPath, args: loginArgs() }).openAtLogin,
-  set: (on) => { if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: !!on, path: process.execPath, args: loginArgs() }); },
+  get: () => linuxLogin ? fs.existsSync(AUTOSTART)
+    : !!app.getLoginItemSettings({ path: process.execPath, args: loginArgs() }).openAtLogin,
+  set: (on) => {
+    if (!app.isPackaged) return;
+    if (!linuxLogin) { app.setLoginItemSettings({ openAtLogin: !!on, path: process.execPath, args: loginArgs() }); return; }
+    const exe = process.env.APPIMAGE || process.execPath;
+    try {
+      if (on) {
+        fs.mkdirSync(path.dirname(AUTOSTART), { recursive: true });
+        fs.writeFileSync(AUTOSTART, ['[Desktop Entry]', 'Type=Application', 'Name=Spellmind', 'Comment=Spellmind for WoW: Forever',
+          `Exec="${exe.replace(/"/g, '\\"')}" --hidden`, 'Terminal=false', 'X-GNOME-Autostart-enabled=true', ''].join('\n'));
+      } else fs.rmSync(AUTOSTART, { force: true });
+    } catch (e) { note(`Start at login couldn't be changed: ${e.message}`); }
+  },
 };
 
 // ---------------------------------------------------------------------------

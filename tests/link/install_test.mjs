@@ -83,3 +83,17 @@ test('addonState reads both TOCs\' versions and says when the game\'s is newer',
   assert.equal(s.version, '0.4.0');
   assert.equal(s.newerInstalled, true);
 });
+
+test('on Linux, WoW: Forever is found inside a Wine or Proton prefix: Faugus, Steam, Lutris (issue #1)', async () => {
+  const { findLinuxFlavorDirs, findFlavorDirs } = await import('../../core/link/install.mjs');
+  const fsm = await import('node:fs'); const osm = await import('node:os'); const pathm = await import('node:path');
+  const home = fsm.mkdtempSync(pathm.join(osm.tmpdir(), 'sm-home-'));
+  const make = (...parts) => { const d = pathm.join(home, ...parts); fsm.mkdirSync(pathm.join(d, 'Interface'), { recursive: true }); return d; };
+  const faugus = make('Faugus', 'wow-forever', 'drive_c', 'Program Files (x86)', 'World of Warcraft', '_forever_');
+  const steam = make('.local', 'share', 'Steam', 'steamapps', 'compatdata', '4122661234', 'pfx', 'drive_c', 'World of Warcraft', '_forever_');
+  make('Games', 'some-other-game', 'drive_c', 'Program Files', 'Other Game');
+  const found = findLinuxFlavorDirs(home);
+  assert.deepEqual(found.sort(), [faugus, steam].sort());
+  assert.deepEqual(findFlavorDirs({ platform: 'linux', home }).sort(), [faugus, steam].sort());
+  assert.deepEqual(findLinuxFlavorDirs(pathm.join(home, 'nobody')), [], 'no prefixes: nothing');
+});

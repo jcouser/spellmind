@@ -3,6 +3,7 @@
 // start). Parts adapted from NeverQuestAlone's bridge/byok/wow.mjs (MIT; see NOTICE.md): the flavor
 // folders, the process check and the addon copy.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -78,7 +79,8 @@ export function flavorIn(dir, flavors = FOREVER_FLAVORS) {
  * had to find the folder by hand). Battle.net's own record of WoW's folder first (the registry), then
  * "World of Warcraft" under Program Files and at each drive's root. → the flavor folders found.
  */
-export function findFlavorDirs({ platform = process.platform, env = process.env, run = spawnSync, drives = ['C', 'D', 'E', 'F', 'G'] } = {}) {
+export function findFlavorDirs({ platform = process.platform, env = process.env, run = spawnSync, drives = ['C', 'D', 'E', 'F', 'G'], home = os.homedir() } = {}) {
+  if (platform === 'linux') return findLinuxFlavorDirs(home);
   if (platform !== 'win32') return [];
   const roots = [];
   try {
@@ -98,6 +100,43 @@ export function findFlavorDirs({ platform = process.platform, env = process.env,
     for (const f of FOREVER_FLAVORS) {
       const dir = path.join(root, f);
       if (!found.some(x => x.toLowerCase() === dir.toLowerCase()) && looksLikeFlavor(dir)) found.push(dir);
+    }
+  }
+  return found;
+}
+
+/**
+ * On Linux, WoW: Forever runs under Wine or Proton, inside a prefix's drive_c (issue #1, 2026-11-21: Faugus
+ * Launcher on Bazzite). The prefixes the usual launchers make, each one's drive_c searched as Windows' drives are.
+ */
+export const LINUX_PREFIX_PARENTS = Object.freeze([
+  'Faugus', // Faugus Launcher: ~/Faugus/<game>
+  'Games', // Lutris: ~/Games/<game>
+  'Games/Heroic/Prefixes',
+  '.local/share/Steam/steamapps/compatdata', // Steam (a non-Steam game under Proton): compatdata/<id>/pfx
+  '.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/compatdata',
+  '.local/share/bottles/bottles',
+  '.var/app/com.usebottles.bottles/data/bottles/bottles',
+  '.local/share/lutris/prefixes',
+]);
+export function findLinuxFlavorDirs(home = os.homedir()) {
+  const prefixes = [path.join(home, '.wine')];
+  for (const parent of LINUX_PREFIX_PARENTS) {
+    let names = [];
+    try { names = fs.readdirSync(path.join(home, parent), { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name); } catch { continue; }
+    for (const n of names.slice(0, 200)) {
+      prefixes.push(path.join(home, parent, n));
+      prefixes.push(path.join(home, parent, n, 'pfx')); // Steam's compatdata/<id>/pfx
+    }
+  }
+  const found = [];
+  for (const prefix of prefixes) {
+    const c = path.join(prefix, 'drive_c');
+    for (const root of [path.join(c, 'Program Files (x86)', 'World of Warcraft'), path.join(c, 'Program Files', 'World of Warcraft'), path.join(c, 'World of Warcraft'), path.join(c, 'Games', 'World of Warcraft')]) {
+      for (const f of FOREVER_FLAVORS) {
+        const dir = path.join(root, f);
+        if (!found.includes(dir) && looksLikeFlavor(dir)) found.push(dir);
+      }
     }
   }
   return found;

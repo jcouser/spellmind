@@ -2475,3 +2475,17 @@ test('shared roads (Roads.lua) are a way too, with your own ground; the Route ta
   // Turned off: kept for the app to read.
   assert.equal(vm.evaluate('tostring(SpellmindDB.routeShareOff)'), 'nil', 'on unless turned off');
 });
+
+test('the minimap\'s line follows the trail once it\'s worked out, as the map\'s does (the player, 2026-11-22: the map followed the road, the minimap went straight)', () => {
+  const vm = session();
+  vm.run(MAP);
+  vm.slash('route');
+  vm.run('NS.Route.Draw(); NS.RoutePins.Refresh()');
+  const n = () => { const l = vm.json('NS.RoutePins.points.lines and NS.RoutePins.points.lines[1] and NS.RoutePins.points.lines[1].pts'); return (Array.isArray(l) ? l : Object.values(l || {})).length; };
+  assert.equal(n(), 1, 'no trail yet: straight to the step');
+  // Then the road is walked; the route itself doesn't change.
+  WALK(vm, BEND());
+  vm.run('STUB.player.x, STUB.player.y = 0.40, 0.40; NS.R.routeTrailAt = nil; NS.R.routeTrailWay = nil');
+  vm.run('local d = NS.RoutePins.driver; d:GetScript("OnUpdate")(d, 1.1)');
+  assert.ok(n() >= 3, 'the minimap\'s line along the trail now: ' + n());
+});

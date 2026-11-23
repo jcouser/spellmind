@@ -1953,12 +1953,18 @@ end
 function RT.GroupNames(gr, max)
 	max = max or 3
 	if #gr.goals < 2 then return nil end
-	local names = {}
-	for k, g in ipairs(gr.goals) do
-		if k > max then break end
-		names[#names + 1] = (g.kind == "pickup" and RT.LevelTag(g.level) or "") .. ns.Escape(g.title)
+	-- Each quest once (the player, 2026-11-22: one quest's four fragments, a goal each, read "Uncovering the Past,
+	-- Uncovering the Past, Uncovering the Past, +1 more"); one quest alone needs no names under its own line.
+	local names, seen, distinct = {}, {}, 0
+	for _, g in ipairs(gr.goals) do
+		if not seen[g.q] then
+			seen[g.q] = true
+			distinct = distinct + 1
+			if #names < max then names[#names + 1] = (g.kind == "pickup" and RT.LevelTag(g.level) or "") .. ns.Escape(g.title) end
+		end
 	end
-	local more = #gr.goals - #names
+	if distinct < 2 then return nil end
+	local more = distinct - #names
 	return table.concat(names, ", ") .. (more > 0 and (", +" .. more .. " more") or "")
 end
 

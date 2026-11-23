@@ -2489,3 +2489,12 @@ test('the minimap\'s line follows the trail once it\'s worked out, as the map\'s
   vm.run('local d = NS.RoutePins.driver; d:GetScript("OnUpdate")(d, 1.1)');
   assert.ok(n() >= 3, 'the minimap\'s line along the trail now: ' + n());
 });
+
+test('a stop with one quest\'s items: no names under its line; quests named once each (the player, 2026-11-22: "Uncovering the Past" four times)', () => {
+  const vm = session();
+  const g = (q, title, sub) => `{ kind = "do", q = ${q}, title = "${title}", sub = ${sub}, buy = "Fragment ${sub}" }`;
+  const one = vm.evaluate(`tostring(NS.Route.GroupNames({ kind = "do", goals = { ${g(1, 'Uncovering the Past', 1)}, ${g(1, 'Uncovering the Past', 2)}, ${g(1, 'Uncovering the Past', 3)}, ${g(1, 'Uncovering the Past', 4)} } }))`);
+  assert.equal(one, 'nil', 'one quest: its line says it');
+  const two = vm.evaluate(`NS.Route.GroupNames({ kind = "do", goals = { ${g(1, 'Uncovering the Past', 1)}, ${g(1, 'Uncovering the Past', 2)}, ${g(2, "Ormer's Revenge", 'nil')} } })`);
+  assert.equal(two, "Uncovering the Past, Ormer's Revenge");
+});

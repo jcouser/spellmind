@@ -32,7 +32,7 @@ Upload `Spellmind-<version>.zip` from the GitHub release, the same file, unchang
 
 ## Description
 
-As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19) and described in full after its release (2026-11-20); class quests for 0.6.0; shared roads and a step per item for 0.6.5 (2026-11-21). Paste it into the project's description by hand. Keep it to what the addon does; anything that needs the app says so. The images come from this repository (raw.githubusercontent.com); renaming or moving one in docs/images breaks it here.
+As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19) and described in full after its release (2026-11-20); class quests for 0.6.0; shared roads and a step per item for 0.6.5 (2026-11-21); the Linux app and "Check shared roads now" for 0.6.7 (2026-11-25). Paste it into the project's description by hand. Keep it to what the addon does; anything that needs the app says so. The images come from this repository (raw.githubusercontent.com); renaming or moving one in docs/images breaks it here.
 
 > **Spellmind** is a companion for **WoW Forever** that knows your character as you play: your quests, gear, bags, talents, spells and professions. It plans your quest route on the roads players really walk, tells you what to do next, and with the free Spellmind app, it becomes an **AI chatbot** you can ask anything about your character, right in the game.
 >
@@ -87,7 +87,7 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 >
 > ![The route window on a class questline, by boat to Teldrassil](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-class-window.png)
 >
-> ![The world map at Lakeshire: the line to the flight master follows the road you walked](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-trail.png)
+> ![The world map at Menethil Harbor: the line follows the road east as far as it helps, then cuts across to the step](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-road.png)
 >
 > ## The panel
 >
@@ -130,7 +130,7 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 >
 > ## Ask your AI (optional, with the free app)
 >
-> With the free **Spellmind app** for Windows, ask **your own AI** anything about your character in Spellmind's chat window:
+> With the free **Spellmind app** for Windows (or Linux, as a preview), ask **your own AI** anything about your character in Spellmind's chat window:
 >
 > - "Should I take [Dusty Mining Gloves] from this quest?" (shift-click items and quests into the box)
 > - "What should I do next here?" / "Review my route"
@@ -154,7 +154,7 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 >
 > Pick the model and thinking level; with web search on, your AI can check quest and NPC details online. Answers that name places, NPCs or routes get double-checked first (you can turn that off).
 >
-> **Shared roads:** the app sends the ground you walk (squares crossed, nothing else) and brings back the roads every player walks, so your route follows real paths in places you've never been. Its window shows how much you've shared and the roads you've received.
+> **Shared roads:** the app sends the ground you walk (squares crossed, nothing else) and brings back the paths every player walks, so your route follows real paths in places you've never been. Its window shows how much you've shared and how many players the paths came from; **Check shared roads now** fetches the newest.
 >
 > Type `/sm app` in game to see where to get the app. It installs and updates the addon too, and updates itself.
 >
@@ -188,7 +188,8 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 >
 > - **Keep all the "Spellmind Part" addons checked.** They're tiny, load only when an answer comes in, and carry the app's answers into the game.
 > - **Works alongside Questie and Auctionator** and uses their data when they're installed, but needs neither.
-> - Made for **WoW Forever** (1.60.1).
+> - Made for **WoW Forever** (1.60.1). The app runs on Windows 10 and 11, and on Linux as a preview (WoW under Proton or Wine).
+> - **The chat never answers?** The app has to be running, WoW restarted once after installing, and every "Spellmind Part" addon ticked. The FAQ (github.com/jcouser/spellmind/blob/main/docs/faq.md) has the rest.
 > - Spellmind is unofficial and not made or endorsed by Blizzard Entertainment.
 >
 > **Found a bug, or an answer that's wrong?** Tell us on GitHub (github.com/jcouser/spellmind/issues), and leave your character's name out of screenshots.

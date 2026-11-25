@@ -123,6 +123,7 @@ local QUALITY = { [0] = "|cff9d9d9d", [1] = "|cffffffff", [2] = "|cff1eff00", [3
 
 local function NewRow(f)
 	local r = CreateFrame("Frame", nil, f.content, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(r, "box") end
 	r:SetHeight(P.ROW_H)
 	r.icon = r:CreateTexture(nil, "ARTWORK")
 	r.icon:SetSize(20, 20)
@@ -269,6 +270,7 @@ local function Draw(f, specs, keepScroll)
 				local a = r.actions[k]
 				if not a then
 					a = CreateFrame("Button", nil, r, "BackdropTemplate")
+					if ns.Theme then ns.Theme.Adopt(a, "button") end
 					a:SetSize(58, 18)
 					if a.SetBackdrop then
 						a:SetBackdrop(BACKDROP)
@@ -719,6 +721,7 @@ function P.LFGMenu(id, anchor)
 	local m = f.lfgMenu
 	if not m then
 		m = CreateFrame("Frame", "SpellmindLFGMenu", f, "BackdropTemplate")
+		if ns.Theme then ns.Theme.Adopt(m, "box") end
 		m:SetFrameStrata("FULLSCREEN_DIALOG")
 		if m.SetBackdrop then
 			m:SetBackdrop(BACKDROP)
@@ -1540,6 +1543,7 @@ end
 
 local function TabButton(f, i, tab)
 	local b = CreateFrame("Button", nil, f, "BackdropTemplate")
+if ns.Theme then ns.Theme.Adopt(b, "box") end
 	b:SetSize(P.RAIL_W - 16, 28)
 	b:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -58 - (i - 1) * 31)
 	if b.SetBackdrop then b:SetBackdrop(BACKDROP) end
@@ -1557,6 +1561,7 @@ end
 
 local function AskButton(f)
 	local b = CreateFrame("Button", nil, f, "BackdropTemplate")
+if ns.Theme then ns.Theme.Adopt(b, "button") end
 	b:SetHeight(24)
 	if b.SetBackdrop then
 		b:SetBackdrop(BACKDROP)
@@ -1608,6 +1613,7 @@ function P.Build()
 	local ui = ns.db and type(ns.db.ui) == "table" and ns.db.ui or {}
 	if not saved.point and ui.point then saved.point, saved.relPoint, saved.x, saved.y = ui.point, ui.relPoint, ui.x, ui.y end
 	local f = CreateFrame("Frame", "SpellmindPanel", UIParent, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(f, "window") end
 	-- Resizable (the grip at the bottom right), its size kept for each mode: quest rows carry a lot.
 	f:SetSize(ModeSize(saved.compact))
 	f:SetResizable(true)

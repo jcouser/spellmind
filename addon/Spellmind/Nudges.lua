@@ -580,6 +580,7 @@ end
 
 local function Button(f, label, w)
 	local b = CreateFrame("Button", nil, f, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(b, "button") end
 	b:SetSize(w, 20)
 	if b.SetBackdrop then
 		b:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -598,6 +599,7 @@ end
 function N.Build()
 	if toast then return toast end
 	local f = CreateFrame("Frame", "SpellmindNudge", UIParent, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(f, "window") end
 	f:SetSize(290, N.TOAST_H)
 	local saved = Saved()
 	local map = rawget(_G, "Minimap")

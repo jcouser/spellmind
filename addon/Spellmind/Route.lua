@@ -2393,6 +2393,7 @@ end
 local function Build()
 	if RT.frame then return RT.frame end
 	local f = CreateFrame("Frame", "SpellmindRoute", UIParent, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(f, "window") end
 	f:SetSize(RT.W, RT.H)
 	-- Where the player left it (the player, 2026-11-19: back in the default spot after a /reload).
 	local pos = UI().pos
@@ -2448,6 +2449,7 @@ local function Build()
 	-- The current step, on a lighter band: its line (with progress), the names under a many-quest
 	-- line, and Go; then up to two more lines of the same stop.
 	f.band = CreateFrame("Frame", nil, f, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(f.band, "box") end
 	f.band:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -36)
 	f.band:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -36)
 	if f.band.SetBackdrop then

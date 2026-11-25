@@ -73,6 +73,16 @@ end
 -- The sections, as the tab draws them.
 function ST.List()
 	local out = {}
+	-- The look (Theme.lua): Spellmind's, or Classic WoW's frames and buttons, from the next /reload.
+	local look = { section = "Look", rows = { { id = "look", label = "Windows and buttons",
+		sub = "Classic WoW: Blizzard's own frames and buttons. Takes effect at the next /reload.",
+		choices = ns.Theme.LOOKS, names = ns.Theme.NAMES,
+		get = function() return ns.Theme.Look() end,
+		set = function(v)
+			ns.Theme.SetLook(v)
+			if ns.Chat and ns.Chat.System then ns.Chat.System("The " .. ns.Theme.NAMES[ns.Theme.Look()] .. " look comes in at your next /reload.") end
+		end } } }
+	out[#out + 1] = look
 	local marks = { section = "On the game's windows", rows = {} }
 	for _, r in ipairs(ST.MARKS) do
 		local key = r[1]

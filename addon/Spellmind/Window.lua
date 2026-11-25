@@ -44,6 +44,7 @@ W.MEDIA = "Interface\\AddOns\\Spellmind\\Media\\"
 
 -- The gold corner trim (Media\Corner, a top-left piece, flipped for the other three).
 function W.Corners(frame, size, inset)
+	if ns.Theme and ns.Theme.Classic() then return end -- the classic look: Blizzard's frame, no trim
 	-- inset 2: inside the frame, over its border (at -3 they sat outside the window, seen in game).
 	size, inset = size or 22, inset or 2
 	frame.corners = frame.corners or {}
@@ -133,6 +134,7 @@ end
 function W.Fill(frame, inset, r, g, b, a)
 	local t = frame.fill or frame:CreateTexture(nil, "BACKGROUND", nil, -8)
 	frame.fill = t
+	if ns.Theme and ns.Theme.Classic() then t:Hide(); return t end -- the classic look: the dialog's own background
 	t:SetColorTexture(r, g, b, a)
 	t:ClearAllPoints()
 	t:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
@@ -194,6 +196,7 @@ end
 
 local function SmallButton(parent, width)
 	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(b, "button") end
 	b:SetSize(width, 20)
 	if b.SetBackdrop then
 		b:SetBackdrop(BUBBLE_BACKDROP)
@@ -221,6 +224,7 @@ W.SmallButton = SmallButton
 -- The thinking menu: one row per level the app's model offers.
 local function BuildMenu(f, name)
 	local m = CreateFrame("Frame", name or "SpellmindEffortMenu", f, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(m, "box") end
 	m:SetFrameStrata("FULLSCREEN_DIALOG")
 	m:SetSize(230, 20)
 	if m.SetBackdrop then
@@ -283,6 +287,7 @@ end
 
 local function NewRow(f)
 	local row = CreateFrame("Frame", nil, f.content, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(row, "box") end
 	row.text = row:CreateFontString(nil, "OVERLAY")
 	row.text:SetFontObject(ChatFontNormal)
 	row.text:SetJustifyH("LEFT")
@@ -594,6 +599,7 @@ function W.Build()
 
 	-- The input and the send button.
 	f.input = CreateFrame("EditBox", nil, f, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(f.input, "box") end
 	f.input:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 2, 4)
 	f.input:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -36, 4)
 	f.input:SetHeight(26)

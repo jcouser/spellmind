@@ -126,6 +126,7 @@ end
 local function BuildCard()
 	if M.card then return M.card end
 	local f = CreateFrame("Frame", "SpellmindCard", UIParent, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(f, "window") end
 	f:SetSize(M.CARD_W, M.CARD_MIN_H)
 	f:SetFrameStrata("DIALOG")
 	f:SetClampedToScreen(true)
@@ -176,6 +177,7 @@ local function BuildCard()
 	f.bar = ns.Window.ScrollBar(f.scroll, 8)
 	-- Ask more, in the chat window's own button style (the game's red one clashed, seen in game).
 	f.more = CreateFrame("Button", nil, f, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(f.more, "button") end
 	f.more:SetSize(96, 22)
 	f.more:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 9)
 	if f.more.SetBackdrop then
@@ -294,6 +296,7 @@ function M.GetApp()
 	local f = M.appBox
 	if not f then
 		f = CreateFrame("Frame", "SpellmindGetApp", UIParent, "BackdropTemplate")
+		if ns.Theme then ns.Theme.Adopt(f, "window") end
 		f:SetSize(440, 196)
 		f:SetFrameStrata("FULLSCREEN_DIALOG")
 		f:SetClampedToScreen(true)
@@ -325,6 +328,7 @@ function M.GetApp()
 		f.body:SetText(M.GET_APP_TEXT)
 		-- The link, selected, to copy: typing can't change it (any edit puts it back).
 		f.input = CreateFrame("EditBox", nil, f, "BackdropTemplate")
+		if ns.Theme then ns.Theme.Adopt(f.input, "box") end
 		f.input:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 12, 36)
 		f.input:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 36)
 		f.input:SetHeight(24)

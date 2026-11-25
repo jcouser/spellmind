@@ -13,6 +13,7 @@
 Codec.lua
 Inbox.lua
 Core.lua
+Theme.lua
 Link.lua
 State.lua
 Probe.lua

@@ -212,6 +212,7 @@ local BACK = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile =
 -- it; pools for highlights, section labels and change lines.
 local function Window(name)
 	local f = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(f, "window") end
 	f:SetSize(WL.W, 420)
 	f:SetFrameStrata("DIALOG")
 	f:SetClampedToScreen(true)
@@ -363,6 +364,7 @@ local function Build()
 	-- The app: a box of its own, lighter, with the owl, its heading and line, what it adds two by two, then
 	-- the link to copy when it isn't there yet.
 	local box = CreateFrame("Frame", nil, f, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(box, "box") end
 	box:SetWidth(INNER)
 	if box.SetBackdrop then
 		box:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -404,6 +406,7 @@ local function Build()
 	f.appColW = colW
 	-- The project's link, selected to copy; typing can't change it (as in /sm app's box).
 	f.link = CreateFrame("EditBox", nil, box, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(f.link, "box") end
 	f.link:SetSize(INNER - 28, 24)
 	if f.link.SetBackdrop then
 		f.link:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",

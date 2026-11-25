@@ -34,6 +34,7 @@ U.Money = Money
 
 local function Button(parent, label, w)
 	local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(b, "button") end
 	b:SetSize(w, 20)
 	if b.SetBackdrop then
 		b:SetBackdrop(BACKDROP)
@@ -56,6 +57,7 @@ U.Button = Button
 function U.BuildPick()
 	if U.pick then return U.pick end
 	local f = CreateFrame("Frame", "SpellmindPick", UIParent, "BackdropTemplate")
+	if ns.Theme then ns.Theme.Adopt(f, "window") end
 	f:SetSize(300, 72)
 	f:SetFrameStrata("HIGH")
 	f:SetClampedToScreen(true)

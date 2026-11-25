@@ -251,6 +251,7 @@ function GD.AskLink(anchor)
 	local f = GD.box
 	if not f then
 		f = CreateFrame("Frame", "SpellmindGuideBox", UIParent, "BackdropTemplate")
+		if ns.Theme then ns.Theme.Adopt(f, "window") end
 		f:SetSize(420, 96)
 		f:SetFrameStrata("FULLSCREEN_DIALOG")
 		if f.SetBackdrop then
@@ -263,6 +264,7 @@ function GD.AskLink(anchor)
 		f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -10)
 		f.title:SetText("Your guide's link (paste it with Ctrl+V)")
 		f.input = CreateFrame("EditBox", nil, f, "BackdropTemplate")
+		if ns.Theme then ns.Theme.Adopt(f.input, "box") end
 		f.input:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -30)
 		f.input:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -30)
 		f.input:SetHeight(24)

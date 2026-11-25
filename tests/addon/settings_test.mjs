@@ -18,7 +18,7 @@ test('the tab: last in the rail; its sections, each switch with its On or Off bu
   assert.equal(vm.evaluate('SpellmindPanel.tabs[11].text:GetText()'), 'Settings');
   const d = list(vm, 'SpellmindPanel.drawn');
   assert.deepEqual(d.filter(x => x.kind === 'head').map(x => x.text),
-    ['The Spellmind app', 'On the game\'s windows', 'Nudges', 'Game data the AI gets', 'Chat and the minimap', 'Your guide']);
+    ['The Spellmind app', 'Look', 'On the game\'s windows', 'Nudges', 'Game data the AI gets', 'Chat and the minimap', 'Your guide']);
   // The app's section (the audit): running or not, the addon's version; nothing to switch there.
   const app = d.find(x => x.text === 'App');
   assert.ok(app && /running/.test(app.right));

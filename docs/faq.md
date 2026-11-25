@@ -25,10 +25,19 @@ New apps are flagged by SmartScreen until they're signed and have a download his
 Only with a newer version. If CurseForge's copy is newer than the app's, the app leaves it and tells you to update the app.
 
 **Does it work on a Mac, or on Linux?**
-Not yet: the app is Windows 10 and 11 only. The addon works anywhere, without the chat.
+On Linux, yes, as a preview since 0.6.7: an AppImage for WoW: Forever running under Proton or Wine (Faugus, Steam, Lutris, Heroic, Bottles). [The install guide](install.md#the-app-on-linux-preview) has the steps. Not on a Mac yet. The addon works anywhere, without the chat.
 
 **Does it work on Classic Era, Season of Discovery or retail?**
 It's made for WoW: Forever (interface 16001). Other versions aren't tested.
+
+**The app says "WoW is running: waiting for the addon", or the chat never answers.**
+The app can't hear the addon yet. In order:
+1. Restart WoW once after installing: the "Spellmind Part" addons only load when the game starts.
+2. In the AddOns list (character select, AddOns), tick Spellmind and every "Spellmind Part" addon.
+3. Keep the top-left corner of the game's screen clear: the addon signals the app there, and another addon's frame over it blocks that.
+4. Look at the app's window under Status: "Waiting for WoW" means it doesn't see the game at all; "waiting for the addon" means it sees the game but not the addon's signal; "Connected to WoW" means it all works.
+
+Still stuck? Open an issue on [GitHub](https://github.com/jcouser/spellmind/issues) with what the Status says, and the log (below) if you can.
 
 **The chat says "Start the Spellmind app to get answers."**
 The app isn't running, or WoW was started before the addon's parts were installed. Start the app (Start menu, or its icon by the clock); if it says the addon was just installed, restart WoW once. In game, `/sm app` shows where to get it.

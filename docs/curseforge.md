@@ -38,7 +38,7 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 >
 > **Everything in the panel, the tooltips and the nudges works on its own.** No app, no AI, no account. The AI chat is an optional extra.
 >
-> ![Spellmind's chat: a quest reward judged against your gloves, then what's left to do in Westfall](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/chat-gear-and-route.png)
+> ![Asking whether to keep questing, do a class quest or get ready for a dungeon: your AI weighs your route, your class quests and Gnomeregan's quests and upgrades](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/chat-plan-ahead.png)
 >
 > ## Your quest route
 >
@@ -63,7 +63,7 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 > - **The minimap:** the current step and the next one, with thin lines to them.
 > - **When you're there:** inside an objective's area, the arrow says so and the minimap shades it faintly.
 >
-> ![The route window in the Wetlands: the current step, the next ones numbered, where to go next and quests elsewhere](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-wetlands-tracker.png)
+> ![The route window in the Wetlands: the current step, the next ones numbered (a step for each of Carnage's items), where to go next and quests elsewhere](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/route-window.png)
 >
 > ### Where next, and the way there
 >
@@ -139,8 +139,6 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 >
 > Its answers use your real character: your gear, quest log, talents, gold and where you are. Buttons under an answer ask the obvious next question, and a **Pin** button sets the game's map pin when the answer sends you somewhere.
 >
-> ![Asking whether to keep questing, do a class quest or get ready for a dungeon: your AI weighs your route, your class quests and Gnomeregan's quests and upgrades](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/chat-plan-ahead.png)
->
 > ![Asking what in your bags is worth selling on the Auction House](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/chat-auction-house.png)
 >
 > **Break it down:** click Spellmind's mark on a quest, and your AI explains it in steps beside the window: where to go, what you'll need, and whether it's worth doing now.
@@ -158,7 +156,9 @@ As published (Markdown), 2026-11-14; the quest route added for 0.5.0 (2026-11-19
 >
 > Type `/sm app` in game to see where to get the app. It installs and updates the addon too, and updates itself.
 >
-> ![The Spellmind app: connected to WoW, with your AI, model and thinking level](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/desktop-app.png)
+> ![The welcome: what works right away, and what the free app adds](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/welcome.png)
+>
+> ![The Spellmind app: its status with the shared roads (squares shared, and paths from 23 players), your AI, model and thinking level](https://raw.githubusercontent.com/jcouser/spellmind/main/docs/images/desktop-app-roads.png)
 >
 > ## Advice only, and private
 >

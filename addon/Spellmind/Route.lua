@@ -4324,29 +4324,24 @@ function RT.LookAhead(me, path, target)
 	local pts = {}
 	for _, p in ipairs(path) do pts[#pts + 1] = p end
 	pts[#pts + 1] = target
-	-- From the nearest point of the way, onward: the way's own points, not the target (in Stormwind the
-	-- target was nearer in a straight line than the trail around the walls: the arrow aimed through them).
-	local from, fd = 1, nil
-	for k, p in ipairs(pts) do
-		if k < #pts or #pts == 1 then local d = Dist(me, p); if not fd or d < fd then from, fd = k, d end end
-	end
-	local ahead, along, sx, sy, n = 0, fd, 0, 0, 0
+	-- The way's points still ahead, as the map's line has them (RT.Ahead): from the nearest of its own points,
+	-- not the target (in Stormwind the target was nearer in a straight line than the trail around the walls:
+	-- the arrow aimed through them), and that one dropped once the player is past it toward the next (the
+	-- player, 2026-11-26: the yards went up walking toward the green arrow; they were counted back to the
+	-- point just walked past, then on).
+	pts = RT.Ahead(me, pts)
+	local along, sx, sy, n = 0, 0, 0, 0
 	local at = me
-	for k = from, #pts do
-		local p = pts[k]
-		local seg = Dist(at, p)
-		ahead = ahead + seg
-		if ahead >= RT.LOOK_NEAR and ahead <= RT.LOOK_FAR then sx, sy, n = sx + p.x, sy + p.y, n + 1 end
+	for _, p in ipairs(pts) do
+		along = along + Dist(at, p)
+		if along >= RT.LOOK_NEAR and along <= RT.LOOK_FAR then sx, sy, n = sx + p.x, sy + p.y, n + 1 end
 		at = p
 	end
-	along = 0
-	at = me
-	for k = from, #pts do along = along + Dist(at, pts[k]); at = pts[k] end
 	if n == 0 then
 		-- Nothing in the window: the first point past it, or the target.
 		local acc = 0
 		at = me
-		for k = from, #pts do acc = acc + Dist(at, pts[k]); at = pts[k]; if acc >= RT.LOOK_NEAR then return pts[k], along end end
+		for _, p in ipairs(pts) do acc = acc + Dist(at, p); at = p; if acc >= RT.LOOK_NEAR then return p, along end end
 		return target, along
 	end
 	return { c = me.c, x = sx / n, y = sy / n }, along

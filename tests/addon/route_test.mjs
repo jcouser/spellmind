@@ -2141,6 +2141,25 @@ test('a trail around a wall: the minimap and the arrow follow it, though the tar
   assert.ok(r.y > 50, 'aimed along the trail (west), not at the target: ' + JSON.stringify(r));
 });
 
+test('walking a trail, the arrow\'s yards only go down: a point walked past isn\'t counted back to (the player, 2026-11-26)', () => {
+  const vm = session();
+  vm.slash('route');
+  // A trail north with a bend: points 100 yards apart, then east to the target.
+  const yards = vm.json(`(function()
+    local path = { { c = 0, x = 0, y = 0 }, { c = 0, x = 100, y = 0 }, { c = 0, x = 200, y = 0 }, { c = 0, x = 300, y = -100 } }
+    local target = { c = 0, x = 300, y = -200 }
+    local out = {}
+    for s = 0, 290, 10 do
+      local me = s <= 200 and { c = 0, x = s, y = 0 } or { c = 0, x = s, y = -(s - 200) }
+      local _, along = NS.Route.LookAhead(me, path, target)
+      out[#out + 1] = along
+    end
+    return out
+  end)()`);
+  const ys = Array.isArray(yards) ? yards : Object.values(yards);
+  for (let i = 1; i < ys.length; i++) assert.ok(ys[i] < ys[i - 1] + 1e-6, 'went up at step ' + i + ': ' + ys.map(Math.round).join(' '));
+});
+
 test('in a class line\'s stop, the quests\' own order: turn in the one done before picking up the next (the player, 2026-11-20: at Doc Mixilpixil)', () => {
   const vm = newVM({ before: ZONE + CLASS }).login().advance(9);
   vm.slash('route');

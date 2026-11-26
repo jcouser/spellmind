@@ -75,3 +75,10 @@ test('Classic WoW: scrollbars, rules and the windows\' text accents in gold, not
   const plain = session();
   assert.equal(plain.evaluate('NS.Theme.Accent()'), '|cffb48cff', 'Spellmind\'s look: its purple');
 });
+
+test('Classic WoW: the windows over the rock background of Blizzard\'s Options window, the dialog border around it', () => {
+  const vm = session('SpellmindDB = { look = "classic" }');
+  vm.run('NS.Panel.Show("quests")');
+  assert.match(vm.evaluate('SpellmindPanel.classicFill:GetTexture()'), /UI-Background-Rock/);
+  assert.equal(vm.evaluate('tostring(SpellmindPanel.backdrop.bgFile)'), 'nil', 'no black dialog background over it');
+});

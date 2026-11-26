@@ -23,8 +23,11 @@ function T.Look() return (ns.db and ns.db.look == "classic") and "classic" or "s
 function T.Classic() return T.Look() == "classic" end
 function T.SetLook(v) if ns.db then ns.db.look = (v == "classic") and "classic" or nil end end
 
-T.DIALOG = { bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+-- The dialog's border alone: under it, the rock background Blizzard's Options window has (the player, 2026-11-25:
+-- "a similar background instead of black"), tiled; a dark fill where the client hasn't that texture.
+T.DIALOG = { edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
 	tile = true, tileSize = 32, edgeSize = 24, insets = { left = 6, right = 6, top = 6, bottom = 6 } }
+T.ROCK = "Interface\\FrameGeneral\\UI-Background-Rock"
 T.BUTTON = { up = "Interface\\Buttons\\UI-Panel-Button-Up", down = "Interface\\Buttons\\UI-Panel-Button-Down",
 	hi = "Interface\\Buttons\\UI-Panel-Button-Highlight", off = "Interface\\Buttons\\UI-Panel-Button-Disabled" }
 
@@ -67,7 +70,12 @@ function T.Adopt(f, role)
 		if setEdge then f.SetBackdropBorderColor = function(self) return setEdge(self, 1, 1, 1, 1) end end
 		if f.CreateTexture then
 			local fill = f:CreateTexture(nil, "BACKGROUND", nil, -8)
-			fill:SetColorTexture(0, 0, 0, 0.75)
+			if fill:SetTexture(T.ROCK, "REPEAT", "REPEAT") then
+				if fill.SetHorizTile then fill:SetHorizTile(true) end
+				if fill.SetVertTile then fill:SetVertTile(true) end
+			else
+				fill:SetColorTexture(0.06, 0.06, 0.07, 0.95)
+			end
 			fill:SetPoint("TOPLEFT", f, "TOPLEFT", 6, -6)
 			fill:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -6, 6)
 			f.classicFill = fill

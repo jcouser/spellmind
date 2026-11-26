@@ -82,3 +82,20 @@ test('Classic WoW: the windows over the rock background of Blizzard\'s Options w
   assert.match(vm.evaluate('SpellmindPanel.classicFill:GetTexture()'), /UI-Background-Rock/);
   assert.equal(vm.evaluate('tostring(SpellmindPanel.backdrop.bgFile)'), 'nil', 'no black dialog background over it');
 });
+
+test('Classic WoW: a red button in three pieces (caps that keep their shape); a dark row warm and part see-through over the rock (the player, 2026-11-25)', () => {
+  const vm = session('SpellmindDB = { look = "classic" }');
+  const got = vm.json(`(function()
+    local b = CreateFrame("Button", nil, UIParent, "BackdropTemplate")
+    b:SetSize(380, 24)
+    NS.Theme.Adopt(b, "button")
+    return { pieces = b.slices and #b.slices or 0, cap = b.slices and b.slices[1]:GetTexture(),
+      row = { NS.Theme.BoxBG(0.07, 0.05, 0.14, 0.9) }, none = { NS.Theme.BoxBG(0, 0, 0, 0) } }
+  end)()`);
+  assert.equal(got.pieces, 3);
+  assert.match(got.cap, /UI-Panel-Button-Up/);
+  const row = Array.isArray(got.row) ? got.row : Object.values(got.row);
+  assert.ok(row[0] > row[2] && row[3] <= 0.55, 'warm and part see-through: ' + row);
+  const none = Array.isArray(got.none) ? got.none : Object.values(got.none);
+  assert.equal(none[3], 0, 'no background stays none');
+});

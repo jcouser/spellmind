@@ -144,7 +144,7 @@ local function NewRow(f)
 	r.tag.text = r.tag:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	r.tag.text:SetPoint("CENTER", r.tag, "CENTER", 0, 0)
 	r.rule = r:CreateTexture(nil, "ARTWORK")
-	r.rule:SetColorTexture(0.62, 0.49, 1, 0.35)
+	r.rule:SetColorTexture((function(...) if ns.Theme then return ns.Theme.Color(...) end return ... end)(0.62, 0.49, 1, 0.35))
 	r.rule:SetHeight(1)
 	r.rule:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 0, 0)
 	r.rule:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", 0, 0)
@@ -400,7 +400,7 @@ function Tabs.quests()
 			if info.dist then where = (dir and (dir .. " · ") or "") .. info.dist .. " yd" end
 			-- The second line: ready, or what's left, with the quest's XP reward.
 			local xp = info.rewards and info.rewards.xp
-			local xpText = xp and ("|cffb48cff" .. ns.Quests.Num(xp) .. " XP|r") or nil
+			local xpText = xp and ((ns.Theme and ns.Theme.Accent() or "|cffb48cff") .. ns.Quests.Num(xp) .. " XP|r") or nil
 			local sub
 			if info.complete then sub = "|cff19ff19Ready to turn in|r" .. (xpText and ("  " .. xpText) or "")
 			else
@@ -483,7 +483,7 @@ function Tabs.quests()
 		else
 			sub = "Your next steps, an arrow and the map's areas, from your quest log" .. (ns.Dungeons.HasDB() and " and Questie." or ".")
 		end
-		out[#out + 1] = { kind = "item", left = "|cffb48cffQuest route|r", sub = "|cff888888" .. sub .. "|r",
+		out[#out + 1] = { kind = "item", left = (ns.Theme and ns.Theme.Accent() or "|cffb48cff") .. "Quest route|r", sub = "|cff888888" .. sub .. "|r",
 			actions = { { on and "Hide" or "Show", function() RT.SetOn(not on); P.Show("quests", true) end,
 				tip = on and "Turn the route off." or "Turn the route on: it stays on screen through /reload." },
 				{ "Open", function() P.Show("route") end, tip = "The Route tab: every step, where next, the switches." } } }
@@ -1178,7 +1178,7 @@ function Tabs.talents()
 		end
 		-- Points the guide takes later, taken already: where the "behind" ones went.
 		for _, e in ipairs(p and p.early or {}) do
-			out[#out + 1] = { kind = "item", indent = true, left = "|cff9d7dffTaken early:|r " .. ns.Escape(e.name) .. " " .. e.rank,
+			out[#out + 1] = { kind = "item", indent = true, left = (ns.Theme and ns.Theme.Accent() or "|cffb48cff") .. "Taken early:|r " .. ns.Escape(e.name) .. " " .. e.rank,
 				sub = "|cff888888Your guide takes it at level " .. (e.from == e.to and e.from or (e.from .. " to " .. e.to)) .. ".|r" }
 		end
 		for _, o in ipairs(p and p.off or {}) do
@@ -1677,12 +1677,12 @@ function P.Build()
 	end
 	f.compact:SetScript("OnClick", function() P.SetCompact(not Saved().compact) end)
 	f.rule = f:CreateTexture(nil, "ARTWORK")
-	f.rule:SetColorTexture(0.62, 0.49, 1, 0.35)
+	f.rule:SetColorTexture((function(...) if ns.Theme then return ns.Theme.Color(...) end return ... end)(0.62, 0.49, 1, 0.35))
 	f.rule:SetHeight(1)
 	f.rule:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -50)
 	f.rule:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -50)
 	f.rail = f:CreateTexture(nil, "ARTWORK")
-	f.rail:SetColorTexture(0.62, 0.49, 1, 0.35)
+	f.rail:SetColorTexture((function(...) if ns.Theme then return ns.Theme.Color(...) end return ... end)(0.62, 0.49, 1, 0.35))
 	f.rail:SetWidth(1)
 	f.rail:SetPoint("TOPLEFT", f, "TOPLEFT", P.RAIL_W, -50)
 	f.rail:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", P.RAIL_W, 8)

@@ -76,12 +76,12 @@ function W.ScrollBar(scroll, x)
 	bar:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", (x or 0) + 2, 0)
 	bar:SetFrameLevel((scroll:GetFrameLevel() or 1) + 5)
 	local track = bar:CreateTexture(nil, "BACKGROUND")
-	track:SetColorTexture(0.35, 0.28, 0.6, 0.18)
+	track:SetColorTexture((function(...) if ns.Theme then return ns.Theme.Color(...) end return ... end)(0.35, 0.28, 0.6, 0.18))
 	track:SetPoint("TOP", bar, "TOP", 0, 0)
 	track:SetPoint("BOTTOM", bar, "BOTTOM", 0, 0)
 	track:SetWidth(W.BAR_W)
 	local thumb = bar:CreateTexture(nil, "ARTWORK")
-	thumb:SetColorTexture(0.62, 0.49, 1, 0.55)
+	thumb:SetColorTexture((function(...) if ns.Theme then return ns.Theme.Color(...) end return ... end)(0.62, 0.49, 1, 0.55))
 	thumb:SetWidth(W.BAR_W)
 	bar.thumb, bar.track = thumb, track
 	local function Range() return tonumber((scroll:GetVerticalScrollRange())) or 0 end
@@ -108,7 +108,7 @@ function W.ScrollBar(scroll, x)
 	end)
 	bar:SetScript("OnMouseUp", function(self) self.drag = nil end)
 	bar:SetScript("OnEnter", function() thumb:SetColorTexture(0.85, 0.68, 0.25, 0.9) end)
-	bar:SetScript("OnLeave", function(self) if not self.drag then thumb:SetColorTexture(0.62, 0.49, 1, 0.55) end end)
+	bar:SetScript("OnLeave", function(self) if not self.drag then thumb:SetColorTexture((function(...) if ns.Theme then return ns.Theme.Color(...) end return ... end)(0.62, 0.49, 1, 0.55)) end end)
 	local wait = 0
 	bar:SetScript("OnUpdate", function(self, elapsed)
 		if self.drag then
@@ -734,7 +734,7 @@ function W.Refresh()
 		if type(ai.name) == "string" and ai.name ~= "" then bits[#bits + 1] = ns.Escape(ai.name) end
 		if type(ai.model) == "string" and ai.model ~= "" then bits[#bits + 1] = ns.Escape(ai.model) end
 	end
-	local about = R.ask and R.ask.label and ("  |cff9d7dffAbout: " .. R.ask.label .. "|r") or ""
+	local about = R.ask and R.ask.label and ("  " .. (ns.Theme and ns.Theme.Accent() or "|cffb48cff") .. "About: " .. R.ask.label .. "|r") or ""
 	f.status:SetText(table.concat(bits, " · ") .. about)
 	W.Placeholder()
 end

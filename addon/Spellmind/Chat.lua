@@ -282,7 +282,7 @@ end
 function C.System(text)
 	if not ns.db then return end
 	AddText(WHO, text)
-	AddMsg("sys", "|cff9d7dff" .. text .. "|r")
+	AddMsg("sys", (ns.Theme and ns.Theme.Accent() or "|cff9d7dff") .. text .. "|r")
 	ChatFrame("Spellmind: " .. text)
 end
 

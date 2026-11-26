@@ -1420,7 +1420,7 @@ function RT.StopXP(st)
 	for _, g in ipairs(st.goals or {}) do if g.kind == "turnin" and xp[g.q] then n = n + xp[g.q] end end
 	if n <= 0 then return nil end
 	local txt = tostring(math.floor(n)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
-	return "|cffb48cff" .. txt .. " XP|r"
+	return (ns.Theme and ns.Theme.Accent() or "|cffb48cff") .. txt .. " XP|r"
 end
 -- A stop whose every quest is worth skipping.
 function RT.StopLow(st, low)
@@ -2821,7 +2821,7 @@ function RT.Draw()
 		l:ClearAllPoints()
 		l:SetPoint("TOPLEFT", f.content, "TOPLEFT", 20 - 8, y - top)
 		-- Its number, as on the map (the player, 2026-11-19).
-		if s then l:SetText("|cffb48cff" .. (RT.StopIndex(s) or "?") .. ".|r " .. RT.StopText(s, true)) else l:SetText("") end
+		if s then l:SetText((ns.Theme and ns.Theme.Accent() or "|cffb48cff") .. (RT.StopIndex(s) or "?") .. ".|r " .. RT.StopText(s, true)) else l:SetText("") end
 		-- What else is done there: a grey line underneath, indented.
 		local also = s and RT.AlsoLine(s)
 		sub:SetText(also or "")
@@ -3142,7 +3142,7 @@ function RT.ArrowUpdate()
 		a.text:SetText(text or "")
 		a.sub:SetText(sub or "")
 	end
-	if RT.OnTaxi() then return Still("", "|cff9d7dffIn flight|r", "The route picks up where you land.") end
+	if RT.OnTaxi() then return Still("", (ns.Theme and ns.Theme.Accent() or "|cffb48cff") .. "In flight|r", "The route picks up where you land.") end
 	if not t then return Still("", "|cff19ff19Nothing left on the route here.|r") end
 	if t.hearth then return Still("", t.text, t.sub) end
 	local me = RT.PlayerWorld()

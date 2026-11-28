@@ -160,7 +160,7 @@ function ST.Label(r)
 	if r.choices then
 		local v = r.get()
 		local name = (r.names and r.names[v]) or tostring(v)
-		return v == "off" and ("|cff888888" .. name .. "|r") or ("|cff19ff19" .. name .. "|r")
+		return (ns.Theme and ns.Theme.OnText or function(on, w) return (on and "|cff19ff19" or "|cff888888") .. (w or (on and "On" or "Off")) .. "|r" end)(v ~= "off", name)
 	end
-	return r.get() and "|cff19ff19On|r" or "|cff888888Off|r"
+	return (ns.Theme and ns.Theme.OnText or function(on, w) return (on and "|cff19ff19" or "|cff888888") .. (w or (on and "On" or "Off")) .. "|r" end)(r.get() and true or false)
 end

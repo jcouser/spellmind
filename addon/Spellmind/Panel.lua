@@ -564,7 +564,7 @@ function Tabs.route()
 	local function Switch(label, sub, value, set, indent, dim)
 		out[#out + 1] = { kind = "item", indent = indent, left = dim and ("|cff888888" .. label .. "|r") or label,
 			sub = sub and ("|cff888888" .. sub .. "|r") or nil,
-			actions = { { value and "|cff19ff19On|r" or "|cff888888Off|r", function() set(not value); P.Show("route", true) end,
+			actions = { { (ns.Theme and ns.Theme.OnText or function(on, w) return (on and "|cff19ff19" or "|cff888888") .. (w or (on and "On" or "Off")) .. "|r" end)(value and true or false), function() set(not value); P.Show("route", true) end,
 				tip = "Click to turn it on or off." } } }
 	end
 	out[#out + 1] = { kind = "head", text = "Quest route" }

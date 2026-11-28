@@ -53,6 +53,13 @@ function T.Color(r, g, b, a)
 end
 -- The accent in text: Spellmind's purple, or Blizzard's gold.
 function T.Accent() return T.Classic() and "|cffffd100" or "|cffb48cff" end
+-- A switch's word (On, or a choice's name): green in Spellmind's look; on a red button in the classic look,
+-- Blizzard's gold, as the other buttons' words (the player, 2026-11-27: green On on red looked off). Off grey.
+function T.OnText(on, word)
+	word = word or (on and "On" or "Off")
+	if not on then return "|cff888888" .. word .. "|r" end
+	return (T.Classic() and "|cffffd100" or "|cff19ff19") .. word .. "|r"
+end
 
 local function Tex(b, set, get, path)
 	if type(b[set]) ~= "function" then return end

@@ -99,3 +99,12 @@ test('Classic WoW: a red button in three pieces (caps that keep their shape); a 
   const none = Array.isArray(got.none) ? got.none : Object.values(got.none);
   assert.equal(none[3], 0, 'no background stays none');
 });
+
+test('Classic WoW: a switch\'s On in Blizzard\'s gold on the red button, not green (the player, 2026-11-27); Off grey', () => {
+  const vm = session('SpellmindDB = { look = "classic" }');
+  assert.equal(vm.evaluate('NS.Settings.Label(NS.Settings.Row("look"))'), '|cffffd100Classic WoW|r');
+  assert.equal(vm.evaluate('NS.Theme.OnText(true)'), '|cffffd100On|r');
+  assert.equal(vm.evaluate('NS.Theme.OnText(false)'), '|cff888888Off|r');
+  const plain = session();
+  assert.equal(plain.evaluate('NS.Theme.OnText(true)'), '|cff19ff19On|r', 'Spellmind\'s look: green');
+});

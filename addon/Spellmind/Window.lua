@@ -723,7 +723,7 @@ function W.Refresh()
 	f.send.tip = waiting and "Stop this question (it isn't answered)" or "Send (Enter)"
 	local search = W.Search()
 	f.search:SetShown(search ~= nil)
-	f.search.text:SetText("Web search: " .. (search and "|cff19ff19On|r" or "|cff888888Off|r"))
+	f.search.text:SetText("Web search: " .. (ns.Theme and ns.Theme.OnText or function(on, w) return (on and "|cff19ff19" or "|cff888888") .. (w or (on and "On" or "Off")) .. "|r" end)(search and true or false))
 	f.search.tip = "Lets your AI look up facts on the web (trainers, quest turn-ins, drops). Off answers from its memory."
 	local bits = {}
 	local link = ns.Link.Status()

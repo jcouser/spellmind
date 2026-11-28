@@ -39,7 +39,7 @@ WL.BASICS = {
 -- The app, in a box of its own (the player, 2026-11-21: "really emphasize the desktop app and its value"):
 -- its heading, a line, then what it adds, two by two, and the link to copy (or that it's connected).
 WL.APP_TITLE = "Even better with the free app"
-WL.APP = "The free Spellmind app for Windows sits by the clock while you play, and keeps the addon up to date. No account, no subscription."
+WL.APP = "The free Spellmind app for Windows or Linux sits by the clock while you play, and keeps the addon up to date. No account, no subscription."
 WL.APP_FEATURES = {
 	{ icon = "Interface\\Icons\\Ability_Hunter_Pathfinding", title = "Roads every player walks", text = "Your route follows the paths players really take, kept up to date. It shares the ground you walk (squares only; the Route tab turns it off)." },
 	{ icon = "Interface\\AddOns\\Spellmind\\Media\\Portrait", title = "Ask your own AI", text = "Anything about your character: gear, quests, talents, gold, your route. A ChatGPT plan, or a key for Claude, ChatGPT, Grok or Gemini." },
@@ -160,6 +160,13 @@ WL.NEWS = {
 			"The Spellmind app for Linux (preview): an AppImage for WoW Forever under Proton or Wine. Thanks to the player who tested it on Bazzite.",
 			"The app looks for new shared paths every 6 hours, and \"Check shared roads now\" on its Status card shares your new ground and fetches the newest paths at once.",
 			"The app's Status card says how many players the shared paths came from.",
+		} },
+	{ version = "0.6.8",
+		changes = {
+			"A Classic WoW look: Blizzard's dialog frame over the Options window's rock, the standard red buttons and gold text. Settings, Look; it comes in at your next /reload. Thanks to the player on CurseForge who asked.",
+			"Fixed: walking along a trail, the arrow's yards could climb before they dropped.",
+			"Fixed: a quest handed in in another zone could be a step at this zone's map edge, the nearest point to it, as if it were a short walk.",
+			"Fixed: a step's line named the same quest once for each of its objectives.",
 		} },
 }
 

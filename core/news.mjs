@@ -121,6 +121,15 @@ export const NEWS = Object.freeze([
       "The app's Status card says how many players the shared paths came from.",
     ]),
   }),
+  Object.freeze({
+    version: '0.6.8',
+    changes: Object.freeze([
+      "A Classic WoW look: Blizzard's dialog frame over the Options window's rock, the standard red buttons and gold text. Settings, Look; it comes in at your next /reload. Thanks to the player on CurseForge who asked.",
+      "Fixed: walking along a trail, the arrow's yards could climb before they dropped.",
+      "Fixed: a quest handed in in another zone could be a step at this zone's map edge, the nearest point to it, as if it were a short walk.",
+      "Fixed: a step's line named the same quest once for each of its objectives.",
+    ]),
+  }),
 ]);
 
 const parts = (v) => String(v ?? '').split('.').map((n) => parseInt(n, 10) || 0);

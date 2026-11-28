@@ -784,6 +784,32 @@ local function ReadLog()
 	return out
 end
 
+-- The dungeon a quest is done in, by name, or nil (the player, 2026-11-28: the questing route's next
+-- stop was Horrors in the Highland, a quest for a run in Excavation Site: Wetlands): the game's tag
+-- (Dungeon, Raid), else Questie's zone for it being a dungeon the group finder lists.
+RT.RUN_TAGS = { [81] = true, [62] = true, [88] = true, [89] = true }
+function RT.DungeonOf(id)
+	local QL = C_QuestLog
+	local t = QL and Try(QL.GetQuestTagInfo, id)
+	local tagged = type(t) == "table" and (RT.RUN_TAGS[tonumber(t.tagID) or -1] or t.tagName == "Dungeon" or t.tagName == "Raid")
+	local Q = L()
+	local area = Q and tonumber((Try(Q.Quest.zoneOrSort, id)))
+	local M = rawget(_G, "C_Map")
+	local aname = area and area > 0 and M and type(M.GetAreaInfo) == "function" and Try(M.GetAreaInfo, area) or nil
+	aname = type(aname) == "string" and aname ~= "" and aname or nil
+	if tagged then
+		local header = ns.Quests and ns.Quests.Header and Try(ns.Quests.Header, id)
+		return aname or (type(header) == "string" and header ~= "" and header) or "a dungeon"
+	end
+	if aname and DG() then
+		local want = DG().Norm(aname)
+		for _, d in ipairs(DG().Listed() or {}) do
+			if DG().Norm(d.name) == want then return d.name end
+		end
+	end
+	return nil
+end
+
 -- The other quests in the log still short of an item (the player, 2026-11-20: buy two when two quests
 -- need one each): { { title, n } }, by title.
 function RT.OthersNeeding(item, q)
@@ -983,7 +1009,13 @@ function RT.Build()
 		local title = q.title or ("quest " .. id)
 		local qlevel = (Q and tonumber((Try(Q.Quest.questLevel, id)))) or q.level or level
 		-- Above the level: for later, unless it's done and only the turn-in is left (free XP at any level).
-		if qlevel > level + RT.Above(true) and not Complete(id) then
+		local run = not Complete(id) and RT.DungeonOf(id)
+		if run then
+			-- Done in a run, not out here: said under Elsewhere, its turn-in on the route once it's complete.
+			route.runs = route.runs or {}
+			if not route.runs[run] then route.runs[run] = {}; route.runOrder = route.runOrder or {}; table.insert(route.runOrder, run) end
+			table.insert(route.runs[run], { q = id, title = title })
+		elseif qlevel > level + RT.Above(true) and not Complete(id) then
 			route.later[#route.later + 1] = title
 		else
 			local complete = Complete(id)
@@ -1878,6 +1910,10 @@ function RT.LevelTag(level)
 end
 function RT.GoalText(g)
 	if g.kind == "enter" then return "Enter " .. ns.Escape(g.title) .. (g.to and (" |cff888888(" .. ns.Escape(g.to) .. ")|r") or "") end
+	if g.kind == "pickup" and g.startItem then
+		return "Loot " .. ns.Escape(g.startItem) .. (g.startFrom and (" from " .. ns.Escape(g.startFrom)) or "")
+			.. " to start " .. RT.LevelTag(g.level) .. ns.Escape(g.title)
+	end
 	if g.kind == "pickup" then return "Pick up " .. RT.LevelTag(g.level) .. ns.Escape(g.title) .. (g.later and " |cff888888(for later)|r" or "") end
 	if g.kind == "turnin" then return "Turn in " .. ns.Escape(g.title) .. (g.to and (" to " .. ns.Escape(g.to)) or "") end
 	local left = ns.Quests and ns.Quests.Left and ns.Quests.Left({ obj = ns.State and ns.State.Objectives and ns.State.Objectives(g.q) }) or nil
@@ -2367,7 +2403,7 @@ RT.W, RT.H = 330, 240
 RT.UPNEXT_LINES = 3 -- until the player sizes the window; then as many as fit
 RT.NEXT_MAX = 12
 RT.THEN_LINES = 2
-RT.AWAY_LINES = 5
+RT.AWAY_LINES = 12
 RT.WAY_LINES = 6
 RT.MIN_W, RT.MIN_H, RT.MAX_W, RT.MAX_H = 260, 150, 640, 720
 -- The window's size and fold, kept: SpellmindDB.routeUI = { w, h, compact }.
@@ -2608,6 +2644,32 @@ function RT.AwayLines(route)
 	end
 	if #zones > 3 then lines[#lines + 1] = "|cff888888and " .. (#zones - 3) .. " more zones|r" end
 	if #unplaced > 0 then lines[#lines + 1] = "|cff888888No known spot:|r " .. Names(unplaced, 2) end
+	-- Quests an item starts, the item dropped where the map can't show: "Lost Relic Carry starts from
+	-- Titan Relic (Relic Guardian drops it, in Excavation Site: Wetlands)".
+	for i, s in ipairs(route.starts or {}) do
+		if i > 2 then break end
+		lines[#lines + 1] = ns.Escape(s.title) .. " |cff888888starts from|r " .. ns.Escape(s.item)
+			.. ((s.from or s.where) and (" |cff888888(" .. (s.from and (ns.Escape(s.from) .. " drops it") or "dropped")
+				.. (s.where and (", in " .. ns.Escape(s.where)) or "") .. ")|r") or "")
+	end
+	-- The log's quests done in a run: "In a run of Excavation Site: Wetlands: Horrors in the Highland".
+	local runs = {}
+	for _, n in ipairs(route.runOrder or {}) do runs[#runs + 1] = n end
+	table.sort(runs)
+	for i, n in ipairs(runs) do
+		if i > 2 then break end
+		lines[#lines + 1] = "|cff888888In a run of " .. ns.Escape(n) .. ":|r " .. Names(route.runs[n], 2)
+	end
+	-- What waits on those: "After Lost Relic Carry: Prehistoric Prism".
+	local after, order = {}, {}
+	for _, b in ipairs(route.blocked or {}) do
+		if not after[b.afterTitle] then after[b.afterTitle] = {}; order[#order + 1] = b.afterTitle end
+		table.insert(after[b.afterTitle], { title = b.title })
+	end
+	for i, on in ipairs(order) do
+		if i > 2 then break end
+		lines[#lines + 1] = "|cff888888After " .. ns.Escape(on) .. ":|r " .. Names(after[on], 2)
+	end
 	if #(route.later or {}) > 0 then
 		local later = {}
 		for _, t in ipairs(route.later) do later[#later + 1] = { title = t } end
@@ -3585,9 +3647,23 @@ function RT.Part()
 	end
 	local later = {}
 	for _, t in ipairs(route.later or {}) do if #later < 6 then later[#later + 1] = ns.State.Text(t, 80) end end
+	-- Quests waiting on a step the route can't place, so the AI doesn't send the player to them.
+	local waiting = {}
+	for _, b in ipairs(route.blocked or {}) do
+		if #waiting < 6 then waiting[#waiting + 1] = ns.State.Text(b.title .. " (after " .. b.afterTitle .. ")", 120) end
+	end
+	for _, s in ipairs(route.starts or {}) do
+		if #waiting < 6 then waiting[#waiting + 1] = ns.State.Text(s.title .. " (starts from " .. s.item .. (s.from and (", dropped by " .. s.from) or "") .. (s.where and (" in " .. s.where) or "") .. ")", 160) end
+	end
+	local inRuns = {}
+	for _, n in ipairs(route.runOrder or {}) do
+		for _, g in ipairs(route.runs[n]) do
+			if #inRuns < 6 then inRuns[#inRuns + 1] = ns.State.Text(g.title .. " (in " .. n .. ")", 120) end
+		end
+	end
 	local going = RT.Traveling(route)
-	return O("zone", route.zone, "step", i, "of", total, "steps", #steps > 0 and steps or nil,
-		"later", #later > 0 and later or nil, "skipped", skipped > 0 and skipped or nil,
+	return O("zone", route.zone, "dungeonQuests", #inRuns > 0 and inRuns or nil, "step", i, "of", total, "steps", #steps > 0 and steps or nil,
+		"later", #later > 0 and later or nil, "waiting", #waiting > 0 and waiting or nil, "skipped", skipped > 0 and skipped or nil,
 		"headingTo", going and going.zone or nil, "classQuest", route.classLine)
 end
 
@@ -3698,6 +3774,46 @@ function RT.Entered(name)
 	return (R.routeEntered and R.routeEntered[DG().Norm(name)]) and true or false
 end
 
+-- The item a quest starts from, and what drops it: { item, itemID, from, npc, where (zone name),
+-- zone, x, y, rx, ry (the drop area, when its zone has a map) }, or nil (not started by an item).
+function RT.Starter(Q, id, here)
+	local by = Try(Q.Quest.startedBy, id)
+	local items = type(by) == "table" and type(by[3]) == "table" and by[3] or {}
+	local I, N, O = Q.Item, Q.Npc, Q.Object
+	local M = rawget(_G, "C_Map")
+	for _, itemID in ipairs(items) do
+		local name = I and Try(I.name, itemID)
+		if type(name) == "string" and name ~= "" then
+			local out = { item = name, itemID = itemID }
+			local function Try1(T, list)
+				for _, who in ipairs(type(list) == "table" and list or {}) do
+					local n = T and Try(T.name, who)
+					local zone = T and tonumber((Try(T.zoneID, who)))
+					if type(n) == "string" and n ~= "" then
+						if not out.from then out.from, out.npc = n, (T == N) and who or nil end
+						if zone and zone > 0 and not out.where then
+							out.where = M and type(M.GetAreaInfo) == "function" and Try(M.GetAreaInfo, zone) or nil
+						end
+						local pts = {}
+						if zone and ((here and zone == here.area) or DG().MapForArea(zone)) then AddSpawns(pts, Try(T.spawns, who), zone) end
+						local a = RT.Area(pts)
+						if a then
+							out.from, out.npc = n, (T == N) and who or nil
+							out.zone, out.x, out.y, out.rx, out.ry = zone, a.x, a.y, a.rx, a.ry
+							return true
+						end
+					end
+				end
+			end
+			if not Try1(N, I and type(I.npcDrops) == "function" and Try(I.npcDrops, itemID)) then
+				Try1(O, I and type(I.objectDrops) == "function" and Try(I.objectDrops, itemID))
+			end
+			return out
+		end
+	end
+	return nil
+end
+
 -- A quest's three places, wherever they are: its giver, its objectives' area, its finisher; each
 -- { x, y, map (nil when it's the player's), zoneName } or nil.
 local function SpotOn(area, x, y, here)
@@ -3713,6 +3829,16 @@ function RT.QuestPlaces(Q, id, here)
 	local out = {}
 	local _, _, g = DG().Giver(Q, id)
 	if g then out.giver = SpotOn(g.zone, g.x, g.y, here); if out.giver then out.giver.name, out.giver.npc = g.name, g.npc end end
+	-- Started by an item (the player, 2026-11-28: Lost Relic Carry, from a Titan Relic that a Relic
+	-- Guardian drops): where it drops, when that's somewhere the map knows; else who drops it, and where.
+	if not g then
+		out.starter = RT.Starter(Q, id, here)
+		local s = out.starter
+		if s and s.zone then
+			out.giver = SpotOn(s.zone, s.x, s.y, here)
+			if out.giver then out.giver.name, out.giver.npc = s.from, s.npc end
+		end
+	end
 	local area = tonumber((Try(Q.Quest.zoneOrSort, id)))
 	if not area or area <= 0 then area = RT.ObjectiveZone(Q, id) end
 	if area and area > 0 then
@@ -3804,9 +3930,17 @@ local function QuestPlacer(route, Q, here, log)
 		local p = RT.QuestPlaces(Q, id, here)
 		if not log[id] and not Done(id) then
 			local lv = tonumber((Try(Q.Quest.questLevel, id)))
-			if not P.Place("pickup", id, title, p.giver, p.giver and p.giver.name, { fromID = p.giver and p.giver.npc, level = lv }) then
-				route.elsewhere[""] = route.elsewhere[""] or {}
-				table.insert(route.elsewhere[""], { kind = "pickup", q = id, title = title })
+			local s = p.starter
+			local x = { fromID = p.giver and p.giver.npc, level = lv, startItem = s and s.item, startFrom = s and s.from }
+			if not P.Place("pickup", id, title, p.giver, p.giver and p.giver.name, x) then
+				-- Started by an item that drops where the map can't show (in a dungeon): said, with who drops it.
+				if s then
+					route.starts = route.starts or {}
+					table.insert(route.starts, { q = id, title = title, item = s.item, from = s.from, where = s.where })
+				else
+					route.elsewhere[""] = route.elsewhere[""] or {}
+					table.insert(route.elsewhere[""], { kind = "pickup", q = id, title = title })
+				end
 				return false
 			end
 		end
@@ -3922,6 +4056,16 @@ function RT.BuildPrep(name)
 	local raw, placed, Place, Quest = P.raw, P.placed, P.Place, P.Quest
 	local chains, extra = {}, {}
 	local dungeonIds = {}
+	-- A chain's step the route can't place holds up the steps after it (the player, 2026-11-28: Lost
+	-- Relic Carry starts from a Titan Relic dropped in the run, and the route said to pick up Prehistoric
+	-- Prism, its follow-up, as if it were open): those wait, said under Elsewhere with the step first.
+	local stuck, waiting = {}, {}
+	local function Wait(step, on)
+		if waiting[step] then return end
+		waiting[step] = true
+		route.blocked = route.blocked or {}
+		route.blocked[#route.blocked + 1] = { q = step, title = DG().Name(Q, step) or ("quest " .. step), after = on, afterTitle = DG().Name(Q, on) or ("quest " .. on) }
+	end
 	-- This dungeon's quests open now, and the questlines to the locked ones.
 	for _, q in ipairs(qs.pickup) do
 		if not q.at then
@@ -3932,17 +4076,24 @@ function RT.BuildPrep(name)
 					for _, c in ipairs(qs.chains) do for _, o in ipairs(c.opens) do if o.id == q.id then start = c.id end end end
 				end
 				local path = start and Path(start, q.id) or (q.first and { q.id }) or nil
+				local held
 				for k, step in ipairs(path or {}) do
-					if not placed["pickup:" .. step] and not placed["turnin:" .. step] then
+					if held then
+						Wait(step, held)
+					elseif stuck[step] then
+						held = step
+					elseif not placed["pickup:" .. step] and not placed["turnin:" .. step] then
 						local last = k == #path and not q.first
-						Quest(step, DG().Name(Q, step) or ("quest " .. step), last)
-						if last then dungeonIds[#dungeonIds + 1] = step end
+						if Quest(step, DG().Name(Q, step) or ("quest " .. step), last) then
+							if last then dungeonIds[#dungeonIds + 1] = step end
+						else
+							stuck[step], held = true, step
+						end
 					end
-					if k > 1 then chains[#chains + 1] = { path[k - 1], step } end
+					if k > 1 and not held then chains[#chains + 1] = { path[k - 1], step } end
 				end
-			else
-				Quest(q.id, q.name, true)
-				dungeonIds[#dungeonIds + 1] = q.id
+			elseif not stuck[q.id] and not waiting[q.id] then
+				if Quest(q.id, q.name, true) then dungeonIds[#dungeonIds + 1] = q.id else stuck[q.id] = true end
 			end
 		else
 			route.later[#route.later + 1] = q.name
@@ -4005,7 +4156,16 @@ function RT.BuildClass(id)
 				route.later[#route.later + 1] = (DG().Name(Q, step) or ("quest " .. step)) .. " (level " .. req .. ")"
 				break
 			end
-			P.Quest(step, DG().Name(Q, step) or ("quest " .. step), false)
+			-- A step the route can't place holds up the rest of the line, as in a dungeon's prep.
+			if not P.Quest(step, DG().Name(Q, step) or ("quest " .. step), false) then
+				local on = DG().Name(Q, step) or ("quest " .. step)
+				route.blocked = route.blocked or {}
+				for j = k + 1, #line.steps do
+					local nxt = line.steps[j]
+					if not Done(nxt) then route.blocked[#route.blocked + 1] = { q = nxt, title = DG().Name(Q, nxt) or ("quest " .. nxt), after = step, afterTitle = on } end
+				end
+				break
+			end
 			if prev then chains[#chains + 1] = { prev, step } end
 			prev = step
 		end

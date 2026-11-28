@@ -47,6 +47,24 @@ test('the route: the log\'s quests and the zone\'s pickup, close goals as one st
   assert.equal(vm.evaluate('NS.Route.Here().zone'), 'Loch Modan');
 });
 
+test('questing: a dungeon quest in the log isn\'t a stop out here; it\'s said under Elsewhere, and turned in once done (the player, 2026-11-28: Horrors in the Highland was the next stop)', () => {
+  const vm = newVM({ before: ZONE + `
+    STUB.qdb.quests[700].zone = 1581
+    -- As the game's log has it: a dungeon quest under the dungeon's header.
+    STUB.quests = { { title = "Loch Modan", isHeader = true }, STUB.quests[3], { title = "The Deadmines", isHeader = true }, STUB.quests[2] }
+    C_QuestLog.GetQuestTagInfo = function(id) if id == 700 then return { tagID = 81, tagName = "Dungeon" } end end` }).login().advance(9);
+  const ks = keys(vm).join(' ');
+  assert.ok(!ks.includes(':700'), `no step for it: ${ks}`);
+  assert.ok(ks.includes('turnin:701'), `the rest of the route stays: ${ks}`);
+  const away = vm.json('NS.Route.AwayLines(NS.R.route)').join('\n').replace(/\|c[0-9a-f]{8}|\|r/g, '');
+  assert.match(away, /In a run of The Deadmines: Kobold Candles/, away);
+  vm.slash('route');
+  assert.deepEqual(JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Route.Part())')).dungeonQuests, ['Kobold Candles (in The Deadmines)']);
+  // Done in the run: its turn-in is a stop again.
+  vm.run('STUB.objectives[700][1].numFulfilled = 8; STUB.quests[4].complete = true');
+  assert.ok(keys(vm).join(' ').includes('turnin:700'), keys(vm).join(' '));
+});
+
 test('the order: 2-opt keeps a rule even where breaking it would be shorter', () => {
   const vm = session();
   // Two stops on a line: the turn-in nearer than the objective. Shorter would be turn-in first; the rule says no.
@@ -1035,6 +1053,47 @@ test('dungeon prep (the player, 2026-11-19): its quests, the questline that open
   const door = vm.json(`(function() for _, s in ipairs(NS.R.route.stops) do if s.key == "enter:0" then return { map = s.map, x = s.x, y = s.y, text = NS.Route.StopText(s) } end end end)()`);
   assert.deepEqual([door.map, door.x, door.y], [1436, 42.6, 71.8]);
   assert.match(door.text, /In Westfall:.*Enter The Deadmines/);
+});
+
+// The Defias Brotherhood (1003) started by an item, Defias Orders (8800), that Mr. Smite (840) drops,
+// as Lost Relic Carry starts from a Titan Relic (the player, 2026-11-28).
+const ITEM_START = where => `
+  local Q, N = STUB.qdb.quests, STUB.qdb.npcs
+  Q[1003].npc = nil
+  N[840] = { name = "Mr. Smite", zone = ${where}, spawns = { [${where}] = { { 30, 70 }, { 31, 71 } } } }
+  local items = { [8800] = { name = "Defias Orders", drops = { 840 } } }
+  local startedBy = LibQuestieDB.Quest.startedBy
+  LibQuestieDB.Quest.startedBy = function(id) if id == 1003 then return { {}, {}, { 8800 } } end return startedBy(id) end
+  LibQuestieDB.Item = { name = function(id) return items[id] and items[id].name end, npcDrops = function(id) return items[id] and items[id].drops end }`;
+
+test('dungeon prep: a chain\'s step started by an item dropped in the dungeon holds up the steps after it (the player, 2026-11-28: Prehistoric Prism shown as a pick up before Lost Relic Carry)', () => {
+  const vm = newVM({ before: ZONE + PREP }).login().advance(9);
+  vm.run(ITEM_START(1581));
+  vm.run('NS.Route.SetMode("dungeon", "The Deadmines")');
+  const ks = keys(vm).join(' ');
+  assert.ok(ks.includes('pickup:1001'), `the open quest still: ${ks}`);
+  assert.ok(!ks.includes(':1003') && !ks.includes(':1002'), `nothing of the held-up chain: ${ks}`);
+  const away = vm.json('NS.Route.AwayLines(NS.R.route)').join('\n').replace(/\|c[0-9a-f]{8}|\|r/g, '');
+  assert.match(away, /The Defias Brotherhood starts from Defias Orders \(Mr\. Smite drops it, in The Deadmines\)/, away);
+  assert.match(away, /After The Defias Brotherhood: Collecting Memories \(Deadmines\)/, away);
+  assert.doesNotMatch(away, /No known spot/, 'said what starts it, not "no known spot"');
+  vm.slash('route');
+  const part = JSON.parse(vm.evaluate('NS.State.JSON.encode(NS.Advisor.Part())'));
+  assert.ok(part.route.waiting.some(w => /Collecting Memories \(Deadmines\) \(after The Defias Brotherhood\)/.test(w)), JSON.stringify(part.route));
+});
+
+test('dungeon prep: a chain\'s step started by an item dropped outside: looted where its dropper is, then the next step', () => {
+  const vm = newVM({ before: ZONE + PREP }).login().advance(9);
+  vm.run(ITEM_START(40));
+  vm.run('NS.Route.SetMode("dungeon", "The Deadmines")');
+  const ks = keys(vm);
+  const at = k => ks.findIndex(x => x.split(',').includes(k));
+  for (const k of ['pickup:1003', 'do:1003', 'turnin:1003', 'pickup:1002']) assert.ok(at(k) >= 0, `${k}: ${ks}`);
+  assert.ok(at('pickup:1003') <= at('do:1003') && at('turnin:1003') <= at('pickup:1002'), `in order: ${ks}`);
+  const stop = vm.json(`(function() for _, s in ipairs(NS.R.route.stops) do for _, g in ipairs(s.goals) do if g.kind == "pickup" and g.q == 1003 then return { map = s.map, x = s.x, y = s.y, text = NS.Route.GoalText(g) } end end end end)()`);
+  assert.equal(stop.map, 1436, 'in Westfall');
+  assert.ok(Math.abs(stop.x - 30.5) < 1 && Math.abs(stop.y - 70.5) < 1, JSON.stringify(stop));
+  assert.equal(stop.text.replace(/\|c[0-9a-f]{8}|\|r/g, ''), 'Loot Defias Orders from Mr. Smite to start [14] The Defias Brotherhood');
 });
 
 test('dungeon prep: inside, the way in is done and its spot learned; done quests are turned in after the run; back to questing', () => {

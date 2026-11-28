@@ -2369,6 +2369,23 @@ test('out in the open, a trail is taken only when it\'s about as direct as the s
   assert.notEqual(vm.evaluate(`tostring(${way})`), 'nil', 'the road');
 });
 
+test('a turn-in Questie puts in another zone isn\'t placed at the game\'s marker on this map (the player, 2026-11-27: Historian Karnik, in Ironforge, at the Wetlands map\'s edge)', () => {
+  const vm = session();
+  vm.run(`STUB.qdb.npcs[810] = { name = "Historian Karnik", zone = 1537, spawns = { [1537] = { { 70, 18 } } }, friendly = "A" }
+    STUB.qdb.quests[701].ender = 810
+    STUB.questsOnMap = { [1432] = { { questID = 701, x = 0.23, y = 0.9 } } }`);
+  const r = vm.json(`(function()
+    local route = NS.Route.Build()
+    local placed = false
+    for _, s in ipairs(route.stops) do for _, g in ipairs(s.goals) do if g.q == 701 and g.kind == "turnin" then placed = true end end end
+    local away = false
+    for zone, list in pairs(route.elsewhere or {}) do for _, g in ipairs(list) do if g.q == 701 then away = zone end end end
+    return { placed = placed, away = away }
+  end)()`);
+  assert.equal(r.placed, false, 'no step at the marker');
+  assert.equal(r.away, 'Ironforge', 'listed under Ironforge');
+});
+
 test('an objective Questie has no spot for, placed at the game marker: a circle around it, as the others have (the player, 2026-11-20: Trying Times)', () => {
   const vm = session();
   vm.run('STUB.qdb.npcs[800].spawns = {}; STUB.questsOnMap = { [1432] = { { questID = 700, x = 0.2, y = 0.2 } } }');

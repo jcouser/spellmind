@@ -1024,7 +1024,11 @@ function RT.Build()
 			if complete or doHere then
 				if fin and fin.spot then Place("turnin", id, title, fin.spot, fin.name)
 				elseif complete then
-					local spot = GameSpot(id)
+					-- The game's marker, unless Questie says who takes it back is in another zone (the player,
+					-- 2026-11-27: For Further Study, to Historian Karnik in Ironforge, had its marker on the Wetlands
+					-- map, at Ironforge's spot under the mountains at its edge: step 1, 953 yd over them).
+					local away = fin and fin.zone and tonumber(fin.zone) ~= tonumber(here.area)
+					local spot = not away and GameSpot(id) or nil
 					if spot then Place("turnin", id, title, spot, fin and fin.name)
 					elseif not Detour(id, title, fin) then Elsewhere(fin and AreaName(fin.zone), "turnin", id, title, fin and fin.name) end
 				elseif fin and not Detour(id, title, fin) then Elsewhere(AreaName(fin.zone), "turnin", id, title, fin.name) end
